@@ -66,6 +66,9 @@ type PlayerPals struct {
 	Party    []Pal  `json:"party"`
 	Palbox   []Pal  `json:"palbox"`
 	Base     []Pal  `json:"base"`
+	// Dimensional Pal Storage (Players/<uid>_dps.sav) plus this player's
+	// share of the guild-wide GlobalPalStorage.sav.
+	Storage []Pal `json:"storage"`
 
 	// From Players/<uid>.sav. LastOnline is unix seconds, 0 when the save
 	// didn't record one; LastX/LastY are world coordinates in the same

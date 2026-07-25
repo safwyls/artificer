@@ -126,6 +126,57 @@ def player(uid, nickname, level, instance_id):
     })
 
 
+def pal_param(char_id, level=1, nickname="", gender="EPalGenderType::Female",
+              hp=50, shot=50, defense=50, old_owner=None):
+    """A bare SaveParameter, for storage slots that carry it as plain
+    properties instead of behind the RawData decoder."""
+    param = {
+        "CharacterID": name(char_id),
+        "Level": byte(level),
+        "Gender": enum("EPalGenderType", gender),
+        "Talent_HP": i(hp),
+        "Talent_Shot": i(shot),
+        "Talent_Defense": i(defense),
+    }
+    if nickname:
+        param["NickName"] = s(nickname)
+    if old_owner:
+        param["OldOwnerPlayerUIds"] = guidarray("OldOwnerPlayerUIds", [old_owner])
+    return param
+
+
+def storage_slot(instance_id, param):
+    """One Dimensional/Global Pal Storage slot; an empty slot holds
+    CharacterID "None" and no instance."""
+    return {
+        "SaveParameter": sp("PalIndividualCharacterSaveParameter", param),
+        "InstanceId": sp("PalInstanceID", {"InstanceId": guid(instance_id)}),
+    }
+
+
+def storage_sav(slots):
+    """The root property tree shared by Players/<uid>_dps.sav and
+    GlobalPalStorage.sav: a bare SaveParameterArray of slots."""
+    return {
+        "header": {**HEADER, "save_game_class_name": "/Script/Pal.PalWorldDimensionalPalStorageSaveGame"},
+        "properties": {
+            "SaveParameterArray": {
+                "array_type": "StructProperty",
+                "id": None,
+                "value": {
+                    "prop_name": "SaveParameterArray",
+                    "prop_type": "StructProperty",
+                    "values": slots,
+                    "type_name": "PalDimensionalPalStorageSaveParameter",
+                    "id": ZERO,
+                },
+                "type": "ArrayProperty",
+            },
+        },
+        "trailer": "AAAAAA==",
+    }
+
+
 def pal(old_owner, instance_id, char_id, container, slot, level=1, nickname="",
         gender="EPalGenderType::Female", hp=50, shot=50, defense=50, passives=(), lucky=False):
     param = {
@@ -226,6 +277,22 @@ def main():
             },
             "trailer": "AAAAAA==",
         }, os.path.join(outdir, "Players", uid.replace("-", "").upper() + ".sav"))
+
+    # Kyoshi's Dimensional Pal Storage sidecar: two pals and an empty slot
+    # (CharacterID "None"), which must be skipped rather than parsed.
+    write_sav(storage_sav([
+        storage_slot("10000000-0000-0000-0000-000000000201",
+                     pal_param("Bastet", level=18, nickname="Vault Cat", hp=88)),
+        storage_slot(ZERO, {"CharacterID": name("None")}),
+        storage_slot("10000000-0000-0000-0000-000000000202",
+                     pal_param("JetDragon", level=50, gender="EPalGenderType::Male", shot=100)),
+    ]), os.path.join(outdir, "Players", KYOSHI.replace("-", "").upper() + "_dps.sav"))
+
+    # Guild-shared storage: one pal attributed to Ren by OldOwnerPlayerUIds.
+    write_sav(storage_sav([
+        storage_slot("20000000-0000-0000-0000-000000000201",
+                     pal_param("Umihebi", level=44, old_owner=REN)),
+    ]), os.path.join(outdir, "GlobalPalStorage.sav"))
 
 
 if __name__ == "__main__":

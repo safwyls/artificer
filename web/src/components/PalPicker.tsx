@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
+import type { Pal } from "../lib/api";
 import { palName } from "../lib/paldex";
 import { BREEDABLE } from "../lib/breeding";
 import { cn } from "../lib/utils";
@@ -29,6 +30,9 @@ export interface SavePal {
   trust: number;
   playerUid: string;
   playerName: string;
+  /** The save's full record and which box it sits in, for the detail dialog. */
+  pal: Pal;
+  where: string;
 }
 
 export interface PickedPal {

@@ -10,6 +10,7 @@ import { computeStats, talentRating, hasCombatStats, passiveStatEffect, friendsh
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
 import { TalentTriplet } from "../components/TalentTriplet";
+import { PalDetailDialog } from "../components/PalDetailDialog";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
 import { NumberField as NumberInput } from "../components/ui/number-field";
 import { Select } from "../components/ui/select";
@@ -39,33 +40,43 @@ export function ServerCalculators() {
     const out: SavePal[] = [];
     const seen = new Set<string>();
     for (const player of palsQuery.data.players) {
-      for (const pal of [...player.party, ...player.palbox, ...player.base]) {
-        if (seen.has(pal.instanceId)) continue;
-        seen.add(pal.instanceId);
-        // Soul upgrades come back keyed by the game's stat labels; pull the
-        // three combat ones. Rank is 1-based (1 = no condenser), so stars = rank-1.
-        const souls = pal.souls ?? {};
-        out.push({
-          key: pal.instanceId,
-          characterId: pal.characterId,
-          nickname: pal.nickname,
-          level: pal.level,
-          gender: pal.gender,
-          ivHp: pal.talentHp,
-          ivAttack: pal.talentShot,
-          ivDefense: pal.talentDefense,
-          condenser: Math.max(0, (pal.rank ?? 1) - 1),
-          souls: {
-            hp: souls["Max HP"] ?? 0,
-            attack: souls["Attack"] ?? 0,
-            defense: souls["Defense"] ?? 0,
-          },
-          passives: pal.passives ?? [],
-          isAlpha: pal.isBoss,
-          trust: friendshipRank(pal.friendship),
-          playerUid: player.uid,
-          playerName: player.nickname,
-        });
+      const buckets: [typeof player.party, string][] = [
+        [player.party, "Party"],
+        [player.palbox, "Palbox"],
+        [player.base, "At base"],
+        [player.storage ?? [], "Pal storage"],
+      ];
+      for (const [list, where] of buckets) {
+        for (const pal of list) {
+          if (seen.has(pal.instanceId)) continue;
+          seen.add(pal.instanceId);
+          // Soul upgrades come back keyed by the game's stat labels; pull the
+          // three combat ones. Rank is 1-based (1 = no condenser), so stars = rank-1.
+          const souls = pal.souls ?? {};
+          out.push({
+            key: pal.instanceId,
+            characterId: pal.characterId,
+            nickname: pal.nickname,
+            level: pal.level,
+            gender: pal.gender,
+            ivHp: pal.talentHp,
+            ivAttack: pal.talentShot,
+            ivDefense: pal.talentDefense,
+            condenser: Math.max(0, (pal.rank ?? 1) - 1),
+            souls: {
+              hp: souls["Max HP"] ?? 0,
+              attack: souls["Attack"] ?? 0,
+              defense: souls["Defense"] ?? 0,
+            },
+            passives: pal.passives ?? [],
+            isAlpha: pal.isBoss,
+            trust: friendshipRank(pal.friendship),
+            playerUid: player.uid,
+            playerName: player.nickname,
+            pal,
+            where,
+          });
+        }
       }
     }
     return out;
@@ -398,6 +409,8 @@ function PathFinder({ savePals, saveStatus }: { savePals?: SavePal[]; saveStatus
   const [scope, setScope] = useState("all");
   const [routeIdx, setRouteIdx] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // A suggested parent, opened in the same detail dialog the pal viewer uses.
+  const [detail, setDetail] = useState<SavePal | null>(null);
 
   const players = useMemo(() => {
     const byUid = new Map<string, { uid: string; name: string; count: number }>();
@@ -494,7 +507,19 @@ function PathFinder({ savePals, saveStatus }: { savePals?: SavePal[]; saveStatus
                         : "border-ink/15 bg-white text-ink/70 hover:border-brand-red/40",
                     )}
                   >
-                    <span>{opt.eggs === 0 ? "In the box" : `${opt.eggs} ${opt.eggs === 1 ? "egg" : "eggs"}`}</span>
+                    <span>
+                      {opt.eggs === 0
+                        ? "In the box"
+                        : `${opt.noReverserAlternative ? "No Reverser · " : ""}${opt.eggs} ${opt.eggs === 1 ? "egg" : "eggs"}`}
+                    </span>
+                    {opt.reversers > 0 && (
+                      <span
+                        title={`Needs ${opt.reversers} Pal Reverser${opt.reversers === 1 ? "" : "s"}`}
+                        className={active ? "text-paper/80" : "text-brand-amber"}
+                      >
+                        ⚥
+                      </span>
+                    )}
                     {active ? (
                       <span className="font-mono text-[11px] text-paper/80">{opt.ceiling.join("/")}</span>
                     ) : (
@@ -537,7 +562,7 @@ function PathFinder({ savePals, saveStatus }: { savePals?: SavePal[]; saveStatus
           <p className="font-display text-base font-bold">Already on the server</p>
           <p className="text-xs text-ink/40">No breeding needed — this is the best copy in the box.</p>
           <div className="mt-3 max-w-xs">
-            <ParentRow parent={{ kind: "owned", pal: route.ownedTarget }} />
+            <ParentRow parent={{ kind: "owned", pal: route.ownedTarget }} onOpen={setDetail} />
           </div>
         </section>
       ) : route ? (
@@ -551,13 +576,14 @@ function PathFinder({ savePals, saveStatus }: { savePals?: SavePal[]; saveStatus
                     <div className="w-0 flex-1 border-l-2 border-dashed border-ink/20" />
                   )}
                 </div>
-                <StepCard step={step} final={i === route.steps.length - 1} />
+                <StepCard step={step} final={i === route.steps.length - 1} onOpen={setDetail} />
               </div>
             ))}
           </div>
           <p className="mt-1 text-[11px] text-ink/35">
-            Ceilings assume best-case talent inheritance — each stat from the better parent. Pairs need a male
-            and a female, so check genders before committing; a hatched pal can be reused in later steps.
+            Ceilings assume best-case talent inheritance — each stat from the better parent. A hatched pal's
+            gender is random, so a pair with an egg parent may still need a re-hatch or a Pal Reverser; a
+            hatched pal can be reused in later steps.
           </p>
         </section>
       ) : null}
@@ -570,6 +596,11 @@ function PathFinder({ savePals, saveStatus }: { savePals?: SavePal[]; saveStatus
           setRouteIdx(0);
         }}
         title="Choose a target pal"
+      />
+      <PalDetailDialog
+        pal={detail?.pal ?? null}
+        location={detail ? `${detail.playerName} · ${detail.where}` : ""}
+        onClose={() => setDetail(null)}
       />
     </div>
   );
@@ -595,7 +626,23 @@ function EggMarker({ n }: { n: number }) {
   );
 }
 
-function StepCard({ step, final }: { step: BreedStep<SavePal>; final: boolean }) {
+function StepCard({
+  step,
+  final,
+  onOpen,
+}: {
+  step: BreedStep<SavePal>;
+  final: boolean;
+  onOpen: (pal: SavePal) => void;
+}) {
+  // Two owned parents of the same sex can't pair as-is: one needs its gender
+  // swapped with a Pal Reverser (or substituted for an opposite-sex copy).
+  // Egg parents hatch with a random gender, so only owned pairs are flagged.
+  const sameSex =
+    step.a.kind === "owned" &&
+    step.b.kind === "owned" &&
+    step.a.pal.gender !== "" &&
+    step.a.pal.gender === step.b.pal.gender;
   return (
     <div
       className={cn(
@@ -605,8 +652,14 @@ function StepCard({ step, final }: { step: BreedStep<SavePal>; final: boolean })
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
         <div className="min-w-0 space-y-1.5">
-          <ParentRow parent={step.a} />
-          <ParentRow parent={step.b} />
+          <ParentRow parent={step.a} onOpen={onOpen} />
+          <ParentRow parent={step.b} onOpen={onOpen} />
+          {sameSex && (
+            <p className="inline-flex items-center rounded-full bg-brand-amber/15 px-2 py-0.5 text-[11px] font-semibold text-brand-amber">
+              Both {step.a.kind === "owned" && step.a.pal.gender === "female" ? "♀" : "♂"} — swap one's gender
+              with a Pal Reverser
+            </p>
+          )}
         </div>
         {/* Rotated on mobile so the hatched child doesn't read as a third parent. */}
         <ArrowRight className="mx-auto h-4 w-4 rotate-90 text-ink/30 sm:mx-0 sm:rotate-0" />
@@ -632,11 +685,16 @@ function StepCard({ step, final }: { step: BreedStep<SavePal>; final: boolean })
   );
 }
 
-function ParentRow({ parent }: { parent: StepParent<SavePal> }) {
+function ParentRow({ parent, onOpen }: { parent: StepParent<SavePal>; onOpen?: (pal: SavePal) => void }) {
   if (parent.kind === "owned") {
     const p = parent.pal;
     return (
-      <div className="flex min-w-0 items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onOpen?.(p)}
+        title="View details"
+        className="-m-1 flex min-w-0 max-w-full items-center gap-2 rounded-lg p-1 text-left transition-colors hover:bg-ink/5"
+      >
         <PalPortrait characterId={p.characterId} size="sm" />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">
@@ -655,7 +713,7 @@ function ParentRow({ parent }: { parent: StepParent<SavePal> }) {
             {p.playerName}
           </p>
         </div>
-      </div>
+      </button>
     );
   }
   return (

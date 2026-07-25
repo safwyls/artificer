@@ -227,13 +227,14 @@ function PalGroup({ title, pals, onOpen }: { title: string; pals: Pal[]; onOpen:
   );
 }
 
-/** Filtered + sorted pals for a player, split back into their three boxes. */
+/** Filtered + sorted pals for a player, split back into their four boxes. */
 function partition(player: PlayerPals, c: Controls) {
   const each = (list: Pal[]) => sortPals(list.filter((p) => matchPal(p, c)), c);
   const party = each(player.party);
   const palbox = each(player.palbox);
   const base = each(player.base);
-  return { party, palbox, base, total: party.length + palbox.length + base.length };
+  const storage = each(player.storage ?? []);
+  return { party, palbox, base, storage, total: party.length + palbox.length + base.length + storage.length };
 }
 
 function PlayerSection({
@@ -254,8 +255,9 @@ function PlayerSection({
   onOpen: (pal: Pal, location: string) => void;
 }) {
   const color = playerColor(player.uid);
-  const { party, palbox, base, total } = parts;
-  const owned = player.party.length + player.palbox.length + player.base.length;
+  const { party, palbox, base, storage, total } = parts;
+  const owned =
+    player.party.length + player.palbox.length + player.base.length + (player.storage?.length ?? 0);
   const active = filtered;
 
   // A filter that excludes all of a player's pals hides the player entirely,
@@ -289,6 +291,7 @@ function PlayerSection({
           <PalGroup title="Party" pals={party} onOpen={(p) => onOpen(p, "Party")} />
           <PalGroup title="Palbox" pals={palbox} onOpen={(p) => onOpen(p, "Palbox")} />
           <PalGroup title="At base" pals={base} onOpen={(p) => onOpen(p, "At base")} />
+          <PalGroup title="Pal storage" pals={storage} onOpen={(p) => onOpen(p, "Pal storage")} />
           {total === 0 && <p className="text-sm text-muted-foreground">No pals owned yet.</p>}
         </div>
       )}
@@ -430,7 +433,8 @@ export function ServerPlayers() {
   const effMap = useMemo(() => {
     const m = new Map<string, ReturnType<typeof palEffectiveStats>>();
     for (const player of players)
-      for (const pal of [...player.party, ...player.palbox, ...player.base]) m.set(pal.instanceId, palEffectiveStats(pal));
+      for (const pal of [...player.party, ...player.palbox, ...player.base, ...(player.storage ?? [])])
+        m.set(pal.instanceId, palEffectiveStats(pal));
     return m;
   }, [players]);
   // Keyed by display name (so duplicate-named codes merge), counting how many
@@ -438,7 +442,7 @@ export function ServerPlayers() {
   const passiveCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const player of players)
-      for (const pal of [...player.party, ...player.palbox, ...player.base])
+      for (const pal of [...player.party, ...player.palbox, ...player.base, ...(player.storage ?? [])])
         for (const name of new Set(pal.passives.map(passiveName))) m.set(name, (m.get(name) ?? 0) + 1);
     return m;
   }, [players]);

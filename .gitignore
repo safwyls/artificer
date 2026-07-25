@@ -38,3 +38,5 @@ __pycache__/
 .vscode/
 .idea/
 *.swp
+internal/palsave/testdata/newlayout/Players/11111111111111111111111111111111_dps.sav
+internal/palsave/testdata/newlayout/GlobalPalStorage.sav

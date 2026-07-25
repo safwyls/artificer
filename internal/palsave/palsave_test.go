@@ -222,6 +222,10 @@ func TestRead(t *testing.T) {
 		// Level.sav inside it, a file must be read directly.
 		path       string
 		needsOodle bool
+		// The newlayout fixture also carries pal-storage files: a
+		// Players/<uid>_dps.sav for Kyoshi (two pals plus an empty slot)
+		// and a GlobalPalStorage.sav pal old-owned by Ren.
+		hasStorage bool
 	}{
 		{name: "PlZ/zlib via directory", path: "testdata"},
 		{name: "PlM/oodle via file", path: "testdata/Level_oodle.sav", needsOodle: true},
@@ -229,7 +233,7 @@ func TestRead(t *testing.T) {
 		// container ids in Players/<uid>.sav, so ownership resolves by
 		// container. Produced zero pals for every player before that was
 		// handled — hence a fixture rather than trusting the old one.
-		{name: "container-based ownership", path: "testdata/newlayout"},
+		{name: "container-based ownership", path: "testdata/newlayout", hasStorage: true},
 	}
 
 	for _, tc := range tests {
@@ -250,6 +254,18 @@ func TestRead(t *testing.T) {
 				t.Fatal(err)
 			}
 			assertFixture(t, result)
+
+			kyoshi, ren := result.Players[0], result.Players[1]
+			if tc.hasStorage {
+				if len(kyoshi.Storage) != 2 || kyoshi.Storage[0].CharacterID != "Bastet" || kyoshi.Storage[1].TalentShot != 100 {
+					t.Fatalf("kyoshi storage wrong: %+v", kyoshi.Storage)
+				}
+				if len(ren.Storage) != 1 || ren.Storage[0].CharacterID != "Umihebi" {
+					t.Fatalf("ren storage wrong: %+v", ren.Storage)
+				}
+			} else if len(kyoshi.Storage) != 0 || len(ren.Storage) != 0 {
+				t.Fatalf("unexpected storage pals: %+v %+v", kyoshi.Storage, ren.Storage)
+			}
 
 			// A second read of an unchanged file must come from cache —
 			// verified by pointer identity, since a re-parse would allocate.

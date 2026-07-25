@@ -214,6 +214,8 @@ export interface PlayerPals {
   party: Pal[];
   palbox: Pal[];
   base: Pal[];
+  /** Dimensional Pal Storage, plus this player's share of the global storage. */
+  storage: Pal[];
   /** Unix seconds; 0 when the save recorded none. */
   lastOnline: number;
   /** Where they logged off, in the same world space the map plots. */

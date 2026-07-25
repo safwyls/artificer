@@ -8,9 +8,11 @@ Prints JSON to stdout:
     "players": [
       {
         "uid": "...", "nickname": "...", "level": 12,
-        "party":  [<pal>...],   # pals in the player's party container
-        "palbox": [<pal>...],   # pals in the player's palbox container
-        "base":   [<pal>...]    # owned pals working at a base (neither container)
+        "party":   [<pal>...],  # pals in the player's party container
+        "palbox":  [<pal>...],  # pals in the player's palbox container
+        "base":    [<pal>...],  # owned pals working at a base (neither container)
+        "storage": [<pal>...]   # Dimensional Pal Storage (Players/<uid>_dps.sav)
+                                # plus the player's share of GlobalPalStorage.sav
       }
     ]
   }
@@ -433,7 +435,8 @@ def player_containers_from_dir(players_dir):
     if not os.path.isdir(players_dir):
         return index, meta
     for name in sorted(os.listdir(players_dir)):
-        if not name.lower().endswith(".sav"):
+        # _dps.sav sidecars are pal storage, handled separately in main().
+        if not name.lower().endswith(".sav") or name.lower().endswith("_dps.sav"):
             continue
         try:
             save_data = read_gvas(os.path.join(players_dir, name), {}).properties["SaveData"]["value"]
@@ -459,6 +462,32 @@ def player_containers_from_dir(players_dir):
             if cid:
                 index[cid] = (uid, bucket)
     return index, meta
+
+
+def dashed_guid(hex32):
+    """Players/ filenames carry the uid without dashes; records use dashed."""
+    h = hex32.lower()
+    if len(h) != 32 or any(c not in "0123456789abcdef" for c in h):
+        return None
+    return f"{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+
+
+def storage_slots(path):
+    """Yield (save_parameter, instance_id) for each occupied slot of a pal
+    storage file — a player's Dimensional Pal Storage sidecar
+    (Players/<uid>_dps.sav) or the world's GlobalPalStorage.sav. Both hold a
+    root SaveParameterArray whose slots carry the same SaveParameter shape as
+    Level.sav's character entries, just as plain properties rather than
+    behind the RawData decoder. Empty slots hold CharacterID "None"."""
+    arr = read_gvas(path, {}).properties.get("SaveParameterArray")
+    for slot in v(arr, "value", "values", default=None) or []:
+        param = v(slot, "SaveParameter")
+        if not isinstance(param, dict):
+            continue
+        if text(param, "CharacterID") in ("", "None"):
+            continue
+        iid = str(unwrap(v(slot, "InstanceId", "InstanceId", default="")) or "")
+        yield param, iid
 
 
 def main():
@@ -507,7 +536,7 @@ def main():
     def record_for(uid):
         return players.setdefault(
             uid,
-            {"uid": uid, "nickname": "", "level": 1, "party": [], "palbox": [], "base": []},
+            {"uid": uid, "nickname": "", "level": 1, "party": [], "palbox": [], "base": [], "storage": []},
         )
 
     for entry in char_map:
@@ -556,6 +585,39 @@ def main():
             if uid and uid != ZERO_GUID:
                 record_for(uid)["base"].append(pal)
                 break
+
+    # Pal storage buildings keep their pals outside Level.sav entirely.
+    # Per-player Dimensional Pal Storage sits beside the player's own sav:
+    players_dir = os.path.join(os.path.dirname(level_path), "Players")
+    if os.path.isdir(players_dir):
+        for fname in sorted(os.listdir(players_dir)):
+            if not fname.lower().endswith("_dps.sav"):
+                continue
+            uid = dashed_guid(fname[: -len("_dps.sav")])
+            if not uid:
+                continue
+            try:
+                for param, iid in storage_slots(os.path.join(players_dir, fname)):
+                    record_for(uid)["storage"].append(parse_pal(param, iid))
+            except Exception as exc:  # a broken sidecar shouldn't sink the rest
+                print(f"warning: skipping {fname}: {exc}", file=sys.stderr)
+
+    # The guild-shared variant is one world-level file; attribute each pal to
+    # its most recent owner, like base pals.
+    gps_path = os.path.join(os.path.dirname(level_path), "GlobalPalStorage.sav")
+    if os.path.isfile(gps_path):
+        try:
+            for param, iid in storage_slots(gps_path):
+                owner = str(unwrap(v(param, "OwnerPlayerUId", default="")) or "")
+                olds = [str(o) for o in (v(param, "OldOwnerPlayerUIds", "values", default=None) or [])]
+                if owner:
+                    olds.insert(0, owner)
+                for uid in olds:
+                    if uid and uid != ZERO_GUID:
+                        record_for(uid)["storage"].append(parse_pal(param, iid))
+                        break
+        except Exception as exc:
+            print(f"warning: skipping GlobalPalStorage.sav: {exc}", file=sys.stderr)
 
     for uid, rec in players.items():
         rec.update(player_meta.get(uid, {}))
