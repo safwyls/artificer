@@ -70,9 +70,9 @@ func TestReadClassifies(t *testing.T) {
 func TestWriteRoundTrip(t *testing.T) {
 	dir := writeFixture(t)
 	changes := map[string]string{
-		"ExpRate":                     "2.5",   // float reformatted to %.6f
-		"bEnablePlayerToPlayerDamage": "true",  // bool normalized
-		"DropItemMaxNum":              "5000",  // int
+		"ExpRate":                     "2.5",             // float reformatted to %.6f
+		"bEnablePlayerToPlayerDamage": "true",            // bool normalized
+		"DropItemMaxNum":              "5000",            // int
 		"ServerName":                  "New, Name \"X\"", // string re-quoted+escaped
 	}
 	if err := Write(dir, changes); err != nil {
@@ -87,12 +87,12 @@ func TestWriteRoundTrip(t *testing.T) {
 		t.Errorf("prefix/order not preserved:\n%s", out)
 	}
 	for want := range map[string]bool{
-		"ExpRate=2.500000":                     true,
-		"bEnablePlayerToPlayerDamage=True":     true,
-		"DropItemMaxNum=5000":                  true,
-		`ServerName="New, Name \"X\""`:         true,
-		"PalCaptureRate=1.000000":              true, // untouched
-		`AdminPassword="hunter2"`:              true, // untouched
+		"ExpRate=2.500000":                 true,
+		"bEnablePlayerToPlayerDamage=True": true,
+		"DropItemMaxNum=5000":              true,
+		`ServerName="New, Name \"X\""`:     true,
+		"PalCaptureRate=1.000000":          true, // untouched
+		`AdminPassword="hunter2"`:          true, // untouched
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected %q in output:\n%s", want, out)
@@ -116,10 +116,10 @@ func TestWriteRoundTrip(t *testing.T) {
 
 func TestWriteRejectsBadInput(t *testing.T) {
 	for name, changes := range map[string]map[string]string{
-		"unknown key":  {"NopeNotAKey": "1"},
-		"bad int":      {"DropItemMaxNum": "lots"},
-		"bad float":    {"ExpRate": "fast"},
-		"bad bool":     {"RESTAPIEnabled": "maybe"},
+		"unknown key": {"NopeNotAKey": "1"},
+		"bad int":     {"DropItemMaxNum": "lots"},
+		"bad float":   {"ExpRate": "fast"},
+		"bad bool":    {"RESTAPIEnabled": "maybe"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := writeFixture(t)
@@ -132,6 +132,29 @@ func TestWriteRejectsBadInput(t *testing.T) {
 				t.Error("file changed despite validation error")
 			}
 		})
+	}
+}
+
+// A hand-edited float like ExpRate=2 classifies as int; the editor must
+// still accept a float for it (re-widening to %.6f) rather than trapping
+// the key as an integer forever. Values that are ints stay int-formatted.
+func TestIntClassifiedKeyAcceptsFloat(t *testing.T) {
+	dir := t.TempDir()
+	handEdited := "[/Script/Pal.PalGameWorldSettings]\nOptionSettings=(ExpRate=2,DropItemMaxNum=3000)\n"
+	file := filepath.Join(dir, "PalWorldSettings.ini")
+	if err := os.WriteFile(file, []byte(handEdited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Write(dir, map[string]string{"ExpRate": "2.5", "DropItemMaxNum": "5000"}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	raw, _ := os.ReadFile(file)
+	if !strings.Contains(string(raw), "ExpRate=2.500000") {
+		t.Errorf("ExpRate not re-widened to a float: %s", raw)
+	}
+	if !strings.Contains(string(raw), "DropItemMaxNum=5000") {
+		t.Errorf("integer value should stay int-formatted: %s", raw)
 	}
 }
 

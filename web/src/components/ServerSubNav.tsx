@@ -20,7 +20,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 /** Desktop second column: the active server's identity + view navigation. */
 export function ServerSubNav({ server }: { server: Server }) {
-  const { can } = useAuth();
+  const { can, isAdmin } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -46,22 +46,25 @@ export function ServerSubNav({ server }: { server: Server }) {
       <div className="group border-b border-white/10 px-5 py-5">
         <div className="flex items-start justify-between gap-2">
           <p className="min-w-0 flex-1 truncate font-display text-lg font-bold leading-tight">{server.name}</p>
-          <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-            <button
-              className="rounded p-1 text-paper/50 hover:bg-white/10 hover:text-paper"
-              title="Edit server"
-              onClick={() => setEditOpen(true)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="rounded p-1 text-paper/50 hover:bg-white/10 hover:text-brand-red"
-              title="Remove server"
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </span>
+          {/* Server edit/delete are admin endpoints; don't offer them to others. */}
+          {isAdmin && (
+            <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+              <button
+                className="rounded p-1 text-paper/50 hover:bg-white/10 hover:text-paper"
+                title="Edit server"
+                onClick={() => setEditOpen(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                className="rounded p-1 text-paper/50 hover:bg-white/10 hover:text-brand-red"
+                title="Remove server"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          )}
         </div>
         <div className="mt-1.5 flex items-center gap-1.5">
           <span

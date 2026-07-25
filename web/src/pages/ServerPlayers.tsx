@@ -7,6 +7,7 @@ import { initials, playerColor } from "../lib/palette";
 import { elementColor, palEntry, palIconUrl, palName, passiveName, rarityTier } from "../lib/paldex";
 import { palEffectiveStats } from "../lib/stats";
 import { cn } from "../lib/utils";
+import { PassiveBadge } from "../components/PassiveBadge";
 import { ServerUnreachable } from "../components/ServerUnreachable";
 import { SaveReadProgress } from "../components/SaveReadProgress";
 import { SaveUpdatingBanner } from "../components/SaveUpdatingBanner";
@@ -196,13 +197,7 @@ function PalCard({ pal, onOpen }: { pal: Pal; onOpen: () => void }) {
         {pal.passives.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {pal.passives.map((p) => (
-              <span
-                key={p}
-                title={p}
-                className="rounded-full bg-ink/5 px-1.5 py-0.5 text-[10px] text-ink/60"
-              >
-                {passiveName(p)}
-              </span>
+              <PassiveBadge key={p} code={p} />
             ))}
           </div>
         )}

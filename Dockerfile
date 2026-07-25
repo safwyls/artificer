@@ -9,10 +9,14 @@ RUN npm run build
 # ---- backend build ----
 FROM golang:1.22-alpine AS backend
 WORKDIR /app
-COPY go.mod go.sum* ./
+# Download modules against the committed go.mod/go.sum before copying
+# sources, so source-only changes reuse the cached module layer and the
+# build can't drift from the committed dependency versions.
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
 COPY --from=frontend /app/web/dist ./web/dist
-RUN go mod tidy && CGO_ENABLED=0 go build -o /out/palcon ./cmd/palcon
+RUN CGO_ENABLED=0 go build -o /out/palcon ./cmd/palcon
 
 # ---- runtime ----
 FROM alpine:3.20

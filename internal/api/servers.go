@@ -138,7 +138,15 @@ func (s *Server) handleUpdateServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update server")
 		return
 	}
-	writeJSON(w, http.StatusOK, toDTO(srv))
+	// Blank passwords in the request mean "keep the stored one", so the
+	// DTO must come from the stored row or hasRconPassword/hasRestPassword
+	// would misreport as false after any edit that doesn't resend them.
+	stored, err := s.store.GetServer(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to reload server")
+		return
+	}
+	writeJSON(w, http.StatusOK, toDTO(stored))
 }
 
 func (s *Server) handleDeleteServer(w http.ResponseWriter, r *http.Request) {

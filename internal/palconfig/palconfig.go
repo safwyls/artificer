@@ -308,10 +308,17 @@ func format(typ, value string) (string, error) {
 		return "", fmt.Errorf("not a boolean: %q", value)
 	case "int":
 		v := strings.TrimSpace(value)
-		if _, err := strconv.ParseInt(v, 10, 64); err != nil {
-			return "", fmt.Errorf("not an integer: %q", value)
+		if _, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return v, nil
 		}
-		return v, nil
+		// The written form is the only schema we have, and a hand-edited
+		// float (ExpRate=2) classifies as int. Don't trap the key in that
+		// narrower type: a float-shaped edit re-widens it to %.6f, which
+		// is how the game itself writes every float.
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return strconv.FormatFloat(f, 'f', 6, 64), nil
+		}
+		return "", fmt.Errorf("not a number: %q", value)
 	case "float":
 		f, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
 		if err != nil {

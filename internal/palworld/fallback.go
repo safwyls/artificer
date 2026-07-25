@@ -1,68 +1,87 @@
 package palworld
 
-import "context"
+import (
+	"context"
+	"errors"
+	"fmt"
+)
 
-// fallbackClient tries the REST API first and falls back to RCON if the
-// REST call fails (e.g. the REST API is disabled on this server).
+// fallbackClient tries the REST API first and falls back to RCON only when
+// REST failed at the transport level (connection refused, timeout — e.g.
+// the REST API is disabled on this server). An HTTP-level reply means REST
+// is up and the error is real: a wrong REST password must surface as a
+// REST auth error, not be masked by an RCON retry.
 type fallbackClient struct {
 	primary  Client
 	fallback Client
 }
 
-func (f *fallbackClient) Info(ctx context.Context) (*ServerInfo, error) {
-	if info, err := f.primary.Info(ctx); err == nil {
-		return info, nil
+// shouldFallBack reports whether an error from the REST primary warrants
+// retrying over RCON.
+func shouldFallBack(err error) bool {
+	var statusErr *restStatusError
+	return !errors.As(err, &statusErr)
+}
+
+// call runs op against the REST primary, retrying over RCON when the
+// failure was transport-level. When both attempts fail, both causes are
+// reported — otherwise the RCON error hides why REST failed.
+func (f *fallbackClient) call(op func(Client) error) error {
+	err := op(f.primary)
+	if err == nil {
+		return nil
 	}
-	return f.fallback.Info(ctx)
+	if !shouldFallBack(err) {
+		return err
+	}
+	if ferr := op(f.fallback); ferr != nil {
+		return errors.Join(fmt.Errorf("rest: %w", err), fmt.Errorf("rcon fallback: %w", ferr))
+	}
+	return nil
+}
+
+func (f *fallbackClient) Info(ctx context.Context) (*ServerInfo, error) {
+	var info *ServerInfo
+	err := f.call(func(c Client) error {
+		var e error
+		info, e = c.Info(ctx)
+		return e
+	})
+	return info, err
 }
 
 func (f *fallbackClient) Players(ctx context.Context) ([]Player, error) {
-	if players, err := f.primary.Players(ctx); err == nil {
-		return players, nil
-	}
-	return f.fallback.Players(ctx)
+	var players []Player
+	err := f.call(func(c Client) error {
+		var e error
+		players, e = c.Players(ctx)
+		return e
+	})
+	return players, err
 }
 
 func (f *fallbackClient) Broadcast(ctx context.Context, message string) error {
-	if err := f.primary.Broadcast(ctx, message); err == nil {
-		return nil
-	}
-	return f.fallback.Broadcast(ctx, message)
+	return f.call(func(c Client) error { return c.Broadcast(ctx, message) })
 }
 
 func (f *fallbackClient) Kick(ctx context.Context, playerUID, message string) error {
-	if err := f.primary.Kick(ctx, playerUID, message); err == nil {
-		return nil
-	}
-	return f.fallback.Kick(ctx, playerUID, message)
+	return f.call(func(c Client) error { return c.Kick(ctx, playerUID, message) })
 }
 
 func (f *fallbackClient) Ban(ctx context.Context, playerUID, message string) error {
-	if err := f.primary.Ban(ctx, playerUID, message); err == nil {
-		return nil
-	}
-	return f.fallback.Ban(ctx, playerUID, message)
+	return f.call(func(c Client) error { return c.Ban(ctx, playerUID, message) })
 }
 
 func (f *fallbackClient) Unban(ctx context.Context, playerUID string) error {
-	if err := f.primary.Unban(ctx, playerUID); err == nil {
-		return nil
-	}
-	return f.fallback.Unban(ctx, playerUID)
+	return f.call(func(c Client) error { return c.Unban(ctx, playerUID) })
 }
 
 func (f *fallbackClient) Save(ctx context.Context) error {
-	if err := f.primary.Save(ctx); err == nil {
-		return nil
-	}
-	return f.fallback.Save(ctx)
+	return f.call(func(c Client) error { return c.Save(ctx) })
 }
 
 func (f *fallbackClient) Shutdown(ctx context.Context, waitSeconds int, message string) error {
-	if err := f.primary.Shutdown(ctx, waitSeconds, message); err == nil {
-		return nil
-	}
-	return f.fallback.Shutdown(ctx, waitSeconds, message)
+	return f.call(func(c Client) error { return c.Shutdown(ctx, waitSeconds, message) })
 }
 
 // Settings and Metrics have no RCON equivalent, so there's nothing to fall

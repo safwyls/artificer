@@ -2,9 +2,11 @@ package palsave
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func havePython(t *testing.T, module string) bool {
@@ -39,6 +41,58 @@ func assertFixture(t *testing.T, result *Result) {
 	ren := result.Players[1]
 	if ren.Nickname != "Ren" || len(ren.Party) != 1 || len(ren.Palbox) != 1 || len(ren.Base) != 0 {
 		t.Fatalf("unexpected ren: %+v", ren)
+	}
+}
+
+// A cached result for one save must return immediately even while another
+// save's parse holds the parse lock — with several servers configured, the
+// pals/map pages of server A shouldn't stall on server B's slow parse.
+func TestCachedReadNotBlockedByOtherParse(t *testing.T) {
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 not available")
+	}
+	dir := t.TempDir()
+	stub := filepath.Join(dir, "stub.py")
+	script := "import json, time\ntime.sleep(1)\nprint(json.dumps({\"players\": [], \"guilds\": []}))\n"
+	if err := os.WriteFile(stub, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reader := &Reader{scriptPath: stub, cache: make(map[string]cacheEntry)}
+
+	makeSave := func(name string) string {
+		p := filepath.Join(dir, name)
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(p, "Level.sav"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	saveA, saveB := makeSave("a"), makeSave("b")
+
+	// Prime the cache for A (pays one stub parse).
+	if _, err := reader.Read(context.Background(), saveA); err != nil {
+		t.Fatal(err)
+	}
+
+	// B's parse runs in the background, holding the parse lock ~1s.
+	done := make(chan error, 1)
+	go func() {
+		_, err := reader.Read(context.Background(), saveB)
+		done <- err
+	}()
+	time.Sleep(100 * time.Millisecond) // let B reach the extractor
+
+	begin := time.Now()
+	if _, err := reader.Read(context.Background(), saveA); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(begin); d > 500*time.Millisecond {
+		t.Errorf("cached read for A blocked %v behind B's parse", d)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 

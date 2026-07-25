@@ -118,8 +118,13 @@ type cacheEntry struct {
 type Reader struct {
 	scriptPath string
 
-	mu    sync.Mutex
-	cache map[string]cacheEntry
+	// cacheMu guards only the map, so a cached read for one save never
+	// waits behind another save's parse. parseMu serializes extractions:
+	// each one holds the whole decompressed world in Python, so running
+	// them concurrently risks memory spikes.
+	cacheMu sync.Mutex
+	cache   map[string]cacheEntry
+	parseMu sync.Mutex
 }
 
 // NewReader materializes the embedded extractor script into dir (the app's
@@ -179,14 +184,19 @@ func (r *Reader) Read(ctx context.Context, savePath string) (*Result, error) {
 		return nil, fmt.Errorf("Level.sav not accessible: %w", err)
 	}
 
-	// One extraction at a time overall: parses are memory-hungry (the whole
-	// decompressed world is held in Python), so serializing them protects
-	// the container from concurrent-request memory spikes.
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	if entry, ok := r.cachedResult(sav, info.ModTime()); ok {
+		return entry, nil
+	}
 
-	if entry, ok := r.cache[sav]; ok && entry.modTime.Equal(info.ModTime()) {
-		return entry.result, nil
+	// One extraction at a time overall (see parseMu). Taking the parse
+	// lock can mean waiting behind another save's parse, so re-check the
+	// cache after acquiring it: a queued request for the same save should
+	// reuse the winner's result instead of parsing again.
+	r.parseMu.Lock()
+	defer r.parseMu.Unlock()
+
+	if entry, ok := r.cachedResult(sav, info.ModTime()); ok {
+		return entry, nil
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -205,6 +215,19 @@ func (r *Reader) Read(ctx context.Context, savePath string) (*Result, error) {
 		return nil, fmt.Errorf("parsing extractor output: %w", err)
 	}
 
+	r.cacheMu.Lock()
 	r.cache[sav] = cacheEntry{modTime: info.ModTime(), result: result}
+	r.cacheMu.Unlock()
 	return result, nil
+}
+
+// cachedResult returns the cached parse for sav if it matches modTime.
+func (r *Reader) cachedResult(sav string, modTime time.Time) (*Result, bool) {
+	r.cacheMu.Lock()
+	defer r.cacheMu.Unlock()
+	entry, ok := r.cache[sav]
+	if !ok || !entry.modTime.Equal(modTime) {
+		return nil, false
+	}
+	return entry.result, true
 }

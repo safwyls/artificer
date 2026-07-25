@@ -3,7 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useIsFetching, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { api, type Player } from "../lib/api";
+import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
 import { PlayerList } from "../components/PlayerList";
 import { ServerMetrics } from "../components/ServerMetrics";
@@ -11,7 +12,12 @@ import { ServerPower } from "../components/ServerPower";
 import { ServerPerformance } from "../components/ServerPerformance";
 import { ServerSettings } from "../components/ServerSettings";
 import { ServerUnreachable } from "../components/ServerUnreachable";
-import { BroadcastDialog, ShutdownDialog } from "../components/ServerActionDialogs";
+import {
+  BroadcastDialog,
+  ModerationDialog,
+  ShutdownDialog,
+  type ModerationTarget,
+} from "../components/ServerActionDialogs";
 import { Input } from "../components/ui/input";
 
 export function ServerDashboard() {
@@ -19,9 +25,11 @@ export function ServerDashboard() {
   const id = Number(serverID);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { can } = useAuth();
 
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
+  const [moderation, setModeration] = useState<ModerationTarget | null>(null);
   const [quickMsg, setQuickMsg] = useState("");
 
   const serverQuery = useQuery({ queryKey: ["server", id], queryFn: () => api.getServer(id) });
@@ -64,22 +72,6 @@ export function ServerDashboard() {
     },
     onError: () => toast.error("Failed to send broadcast"),
   });
-  const kick = useMutation({
-    mutationFn: (p: Player) => api.kick(id, p.playerId, "Kicked by admin"),
-    onSuccess: (_, p) => {
-      toast.success(`Kicked ${p.name}`);
-      invalidatePlayers();
-    },
-    onError: (_, p) => toast.error(`Failed to kick ${p.name}`),
-  });
-  const ban = useMutation({
-    mutationFn: (p: Player) => api.ban(id, p.playerId, "Banned by admin"),
-    onSuccess: (_, p) => {
-      toast.success(`Banned ${p.name}`);
-      invalidatePlayers();
-    },
-    onError: (_, p) => toast.error(`Failed to ban ${p.name}`),
-  });
 
   if (serverQuery.isLoading) return <p className="p-6 text-muted-foreground">Loading...</p>;
   if (serverQuery.isError || !serverQuery.data) return <p className="p-6 text-destructive">Server not found.</p>;
@@ -109,27 +101,33 @@ export function ServerDashboard() {
           >
             <RefreshCw className={cn("h-4 w-4", fetching > 0 && "animate-spin")} />
           </button>
-          <button
-            className={`${headerButton} border border-ink/15 bg-white text-ink hover:bg-ink/5 disabled:opacity-40`}
-            onClick={() => save.mutate()}
-            disabled={save.isPending || infoQuery.isError}
-          >
-            {save.isPending ? "Saving..." : "Save world"}
-          </button>
-          <button
-            className={`${headerButton} bg-brand-red text-paper hover:brightness-110 disabled:opacity-40`}
-            onClick={() => setBroadcastOpen(true)}
-            disabled={infoQuery.isError}
-          >
-            Broadcast
-          </button>
-          <button
-            className={`${headerButton} bg-ink text-paper hover:bg-ink-light disabled:opacity-40`}
-            onClick={() => setShutdownOpen(true)}
-            disabled={infoQuery.isError}
-          >
-            Shut down
-          </button>
+          {can("save") && (
+            <button
+              className={`${headerButton} border border-ink/15 bg-white text-ink hover:bg-ink/5 disabled:opacity-40`}
+              onClick={() => save.mutate()}
+              disabled={save.isPending || infoQuery.isError}
+            >
+              {save.isPending ? "Saving..." : "Save world"}
+            </button>
+          )}
+          {can("broadcast") && (
+            <button
+              className={`${headerButton} bg-brand-red text-paper hover:brightness-110 disabled:opacity-40`}
+              onClick={() => setBroadcastOpen(true)}
+              disabled={infoQuery.isError}
+            >
+              Broadcast
+            </button>
+          )}
+          {can("shutdown") && (
+            <button
+              className={`${headerButton} bg-ink text-paper hover:bg-ink-light disabled:opacity-40`}
+              onClick={() => setShutdownOpen(true)}
+              disabled={infoQuery.isError}
+            >
+              Shut down
+            </button>
+          )}
         </div>
       </header>
 
@@ -170,9 +168,10 @@ export function ServerDashboard() {
               {playersQuery.data && (
                 <PlayerList
                   players={playersQuery.data}
+                  canModerate={can("moderate")}
                   onViewMap={(p) => navigate(`/servers/${id}/map?focus=${encodeURIComponent(p.playerId)}`)}
-                  onKick={(p) => kick.mutate(p)}
-                  onBan={(p) => ban.mutate(p)}
+                  onKick={(p) => setModeration({ action: "kick", player: p })}
+                  onBan={(p) => setModeration({ action: "ban", player: p })}
                 />
               )}
             </section>
@@ -181,26 +180,28 @@ export function ServerDashboard() {
               <h2 className="font-display text-base font-bold">Server settings</h2>
               <ServerSettings serverId={id} />
 
-              <div className="border-t border-ink/10 pt-3">
-                <label className="text-xs font-semibold uppercase tracking-wide text-ink/40">Broadcast message</label>
-                <div className="mt-2 flex gap-2">
-                  <Input
-                    placeholder="Server restarting in 10 minutes…"
-                    value={quickMsg}
-                    onChange={(e) => setQuickMsg(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && quickMsg) quickBroadcast.mutate(quickMsg);
-                    }}
-                  />
-                  <button
-                    className="rounded-lg bg-brand-red px-4 font-display text-sm font-bold text-paper transition hover:brightness-110 disabled:opacity-50"
-                    disabled={!quickMsg || quickBroadcast.isPending}
-                    onClick={() => quickBroadcast.mutate(quickMsg)}
-                  >
-                    Send
-                  </button>
+              {can("broadcast") && (
+                <div className="border-t border-ink/10 pt-3">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-ink/40">Broadcast message</label>
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      placeholder="Server restarting in 10 minutes…"
+                      value={quickMsg}
+                      onChange={(e) => setQuickMsg(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && quickMsg) quickBroadcast.mutate(quickMsg);
+                      }}
+                    />
+                    <button
+                      className="rounded-lg bg-brand-red px-4 font-display text-sm font-bold text-paper transition hover:brightness-110 disabled:opacity-50"
+                      disabled={!quickMsg || quickBroadcast.isPending}
+                      onClick={() => quickBroadcast.mutate(quickMsg)}
+                    >
+                      Send
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </section>
           </div>
         </div>
@@ -208,6 +209,7 @@ export function ServerDashboard() {
 
       <BroadcastDialog serverId={id} open={broadcastOpen} onOpenChange={setBroadcastOpen} />
       <ShutdownDialog serverId={id} open={shutdownOpen} onOpenChange={setShutdownOpen} />
+      <ModerationDialog serverId={id} target={moderation} onClose={() => setModeration(null)} onDone={invalidatePlayers} />
     </div>
   );
 }

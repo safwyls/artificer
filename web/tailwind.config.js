@@ -62,6 +62,20 @@ export default {
         },
         paper: "#F5EDE1",
         legendary: "#8B3A9E",
+        // Passive-skill tier colors, pixel-sampled from the game's own tier
+        // icons (via game8's passive table): slate is the dark ground the
+        // game draws passive rows on; ice/gold/red are the tier 1 / 2–3 /
+        // negative chevrons; aqua-on-indigo is the Rainbow tier and
+        // aqua-on-violet the World Tree tier.
+        tier: {
+          slate: "#1B2725",
+          ice: "#E9F8FA",
+          gold: "#FFE083",
+          red: "#FF4649",
+          aqua: "#7AFFF2",
+          indigo: "#334383",
+          violet: "#52359D",
+        },
       },
       fontFamily: {
         display: ["Baloo 2", "sans-serif"],

@@ -24,7 +24,25 @@ func (c *RESTClient) client() *http.Client {
 	if c.httpClient != nil {
 		return c.httpClient
 	}
-	return &http.Client{Timeout: 10 * time.Second}
+	// Kept short: with the RCON fallback behind it, an unreachable server
+	// pays this timeout plus the RCON dial before the UI hears anything.
+	return &http.Client{Timeout: 5 * time.Second}
+}
+
+// restStatusError is an HTTP-level reply from the REST API: the server was
+// reachable and answered, so the cause (wrong password, bad request) must
+// be reported as-is — retrying over RCON would only mask it.
+type restStatusError struct {
+	path   string
+	status int
+	body   string
+}
+
+func (e *restStatusError) Error() string {
+	if e.status == http.StatusUnauthorized {
+		return fmt.Sprintf("rest api %s: authentication failed (401) — check the REST password", e.path)
+	}
+	return fmt.Sprintf("rest api %s returned %d: %s", e.path, e.status, e.body)
 }
 
 func (c *RESTClient) do(ctx context.Context, method, path string, body any, out any) error {
@@ -57,7 +75,7 @@ func (c *RESTClient) do(ctx context.Context, method, path string, body any, out 
 	}
 
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("rest api %s returned %d: %s", path, resp.StatusCode, string(respBody))
+		return &restStatusError{path: path, status: resp.StatusCode, body: string(respBody)}
 	}
 
 	if out != nil && len(respBody) > 0 {

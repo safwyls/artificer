@@ -141,15 +141,18 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Validate everything before the first write so a rejected request
+	// leaves the user untouched.
+	if req.Password != "" && len(req.Password) < minPasswordLength {
+		writeError(w, http.StatusBadRequest, "password must be at least 8 characters")
+		return
+	}
+
 	if err := s.store.UpdateUser(r.Context(), id, role, req.Permissions, req.Disabled); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update user")
 		return
 	}
 	if req.Password != "" {
-		if len(req.Password) < minPasswordLength {
-			writeError(w, http.StatusBadRequest, "password must be at least 8 characters")
-			return
-		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to hash password")
