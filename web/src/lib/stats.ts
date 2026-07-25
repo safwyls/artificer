@@ -82,6 +82,20 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 const ivMult = (iv: number) => 1 + 0.3 * (clamp(iv, 0, 100) / 100);
 const soulMult = (soul: number) => 1 + 0.03 * clamp(soul, 0, 20);
 
+// Bond point → rank thresholds (0–10), vendored from PalworldSaveTools. Souls
+// store their own rank; friendship is stored as accumulated points, so this
+// maps them to the rank the game shows as "Trust".
+const FRIENDSHIP_THRESHOLDS = [0, 6000, 13000, 21000, 30000, 40000, 55000, 80000, 110000, 150000, 200000];
+export function friendshipRank(points: number): number {
+  let rank = 0;
+  for (let i = 0; i < FRIENDSHIP_THRESHOLDS.length; i++) if (points >= FRIENDSHIP_THRESHOLDS[i]) rank = i;
+  return rank;
+}
+// Empirical scale on the per-pal friendship rate: the vendored rates slightly
+// overshoot the in-game bond bonus; 0.85 lands within ~1% across calibration.
+const TRUST_SCALE = 0.85;
+const trustMult = (rate: number, rank: number) => 1 + (rate / 100) * clamp(rank, 0, 10) * TRUST_SCALE;
+
 /** Summed passive percentages per stat: [atk%, def%, hp%]. Same-stat passives
  * add rather than compound. */
 function passiveSums(passives: string[] | undefined): [number, number, number] {
@@ -111,23 +125,23 @@ export function computeStats(input: StatInput): StatResult | null {
 
   const hp = Math.floor(
     (500 + 5 * L + baseHp * 0.5 * L * ivMult(input.ivHp)) *
-      cond * soulMult(input.soulHp ?? 0) * (1 + (fHp / 100) * trust) * (1 + sHp / 100),
+      cond * soulMult(input.soulHp ?? 0) * trustMult(fHp, trust) * (1 + sHp / 100),
   );
   const attack = Math.floor(
     (100 + base.attack * 0.075 * L * ivMult(input.ivAttack)) *
-      cond * soulMult(input.soulAttack ?? 0) * (1 + (fAtk / 100) * trust) * (1 + sAtk / 100),
+      cond * soulMult(input.soulAttack ?? 0) * trustMult(fAtk, trust) * (1 + sAtk / 100),
   );
   const defense = Math.floor(
     (50 + base.defense * 0.075 * L * ivMult(input.ivDefense)) *
-      cond * soulMult(input.soulDefense ?? 0) * (1 + (fDef / 100) * trust) * (1 + sDef / 100),
+      cond * soulMult(input.soulDefense ?? 0) * trustMult(fDef, trust) * (1 + sDef / 100),
   );
   return { hp, attack, defense };
 }
 
 /** Effective stats for a pal read from a save, wiring its level, talents,
- * condenser rank, souls, passives and alpha flag into computeStats. Trust is
- * left out: the save stores raw friendship points, not the 0–5 bond level the
- * formula wants. Null when the species has no combat data. */
+ * condenser rank, souls, passives, alpha flag and bond into computeStats. The
+ * save stores friendship as accumulated points, so they're mapped to the trust
+ * rank first. Null when the species has no combat data. */
 export function palEffectiveStats(pal: Pal): StatResult | null {
   const souls = pal.souls ?? {};
   return computeStats({
@@ -140,6 +154,7 @@ export function palEffectiveStats(pal: Pal): StatResult | null {
     soulHp: souls["Max HP"] ?? 0,
     soulAttack: souls["Attack"] ?? 0,
     soulDefense: souls["Defense"] ?? 0,
+    trust: friendshipRank(pal.friendship),
     passives: pal.passives,
     isAlpha: pal.isBoss,
   });
