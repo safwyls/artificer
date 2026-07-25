@@ -80,6 +80,12 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.Get("/container", s.handleContainerStatus)
 				r.With(s.requirePermission(store.PermPower)).Post("/container/{action}", s.handleContainerAction)
 				r.Get("/settings", s.handleServerSettings)
+
+				// PalWorldSettings.ini editor. Gated even for reading: the
+				// file holds the admin/join passwords in the clear.
+				r.With(s.requirePermission(store.PermSettings)).Get("/config", s.handleGetConfig)
+				r.With(s.requirePermission(store.PermSettings)).Put("/config", s.handleUpdateConfig)
+
 				r.Get("/metrics", s.handleServerMetrics)
 				r.Get("/metrics/history", s.handleServerMetricsHistory)
 				r.Get("/pals", s.handleServerPals)

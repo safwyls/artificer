@@ -22,11 +22,15 @@ const (
 	// PermPower so someone can be trusted to restart the container without
 	// also being able to boot everyone mid-session.
 	PermShutdown = "shutdown"
+	// PermSettings reads and edits PalWorldSettings.ini. Gated because the
+	// file holds the admin/join passwords in the clear and a bad edit can
+	// stop the server booting.
+	PermSettings = "settings"
 )
 
 // AllPermissions is the set an admin implicitly holds, and the menu the
 // user-management UI offers.
-var AllPermissions = []string{PermPower, PermBroadcast, PermSave, PermModerate, PermShutdown}
+var AllPermissions = []string{PermPower, PermBroadcast, PermSave, PermModerate, PermShutdown, PermSettings}
 
 const RoleAdmin = "admin"
 

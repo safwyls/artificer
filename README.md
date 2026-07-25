@@ -12,6 +12,10 @@ TrueNAS Scale.
   fallback, credentials encrypted at rest.
 - **Dashboard** — live metrics, players online, broadcast, save world, timed
   shutdown, and a read-only view of the server's `PalWorldSettings.ini`.
+- **Settings editor** — edit `PalWorldSettings.ini` from a tiered form (common
+  gameplay settings up front, every key searchable below), written back
+  atomically over a read-write config mount that's kept separate from the
+  read-only save mount so save data can never be touched.
 - **Performance charts** — server FPS, frame time and player count sampled
   every 30s and kept for 7 days.
 - **Live map** — players plotted on the real world map with pan/zoom and

@@ -28,7 +28,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export const PERMISSIONS = ["power", "broadcast", "save", "moderate", "shutdown"] as const;
+export const PERMISSIONS = ["power", "broadcast", "save", "moderate", "shutdown", "settings"] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
 /** Human labels for the permission checkboxes, and what each actually allows. */
@@ -38,6 +38,7 @@ export const PERMISSION_LABELS: Record<Permission, { label: string; help: string
   save: { label: "Save world", help: "Trigger a world save" },
   moderate: { label: "Moderate", help: "Kick, ban and unban players" },
   shutdown: { label: "In-game shutdown", help: "Shut the server down with a countdown" },
+  settings: { label: "Edit settings", help: "Read and edit PalWorldSettings.ini" },
 };
 
 export interface Me {
@@ -82,6 +83,7 @@ export interface Server {
   useRest: boolean;
   enabled: boolean;
   savePath: string;
+  configPath: string;
   containerName: string;
 }
 
@@ -95,6 +97,7 @@ export interface ServerWriteInput {
   useRest: boolean;
   enabled: boolean;
   savePath: string;
+  configPath: string;
   containerName: string;
 }
 
@@ -125,6 +128,22 @@ export interface Metrics {
 }
 
 export type Settings = Record<string, unknown>;
+
+/** One editable PalWorldSettings.ini option. `type` decides which control the
+ * editor renders; `value` is the decoded display value (strings unquoted). */
+export interface ConfigSetting {
+  key: string;
+  value: string;
+  type: "bool" | "int" | "float" | "string" | "enum";
+}
+
+export interface ConfigResult {
+  settings: ConfigSetting[];
+  /** Resolved path of the PalWorldSettings.ini that was read. */
+  path: string;
+  /** False when the config file is on a read-only mount — edits will fail. */
+  writable: boolean;
+}
 
 /** One collected sample. Nulls are real gaps — the server was unreachable
  * or reported nothing — and must break the line rather than plot as zero. */
@@ -253,6 +272,12 @@ export const api = {
 
   // REST-only — throws a 400 ApiError for servers configured RCON-only.
   serverSettings: (id: number) => request<Settings>(`/servers/${id}/settings`),
+
+  // PalWorldSettings.ini editor (needs the "settings" permission). Throws a
+  // 400 ApiError when the server has no config path configured.
+  serverConfig: (id: number) => request<ConfigResult>(`/servers/${id}/config`),
+  updateServerConfig: (id: number, changes: Record<string, string>) =>
+    request<ConfigResult>(`/servers/${id}/config`, { method: "PUT", body: JSON.stringify({ changes }) }),
   serverMetrics: (id: number) => request<Metrics>(`/servers/${id}/metrics`),
   serverMetricsHistory: (id: number, minutes: number) =>
     request<MetricsHistory>(`/servers/${id}/metrics/history?minutes=${minutes}`),
