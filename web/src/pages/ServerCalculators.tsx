@@ -9,7 +9,7 @@ import { computeStats, talentRating, hasCombatStats, passiveStatEffect } from ".
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
-import { Input } from "../components/ui/input";
+import { NumberField as NumberInput } from "../components/ui/number-field";
 
 type Mode = "breeding" | "stats";
 /** Which slot a pending pick lands in; the whole page shares one picker. */
@@ -627,17 +627,7 @@ function NumberField({
   return (
     <div className="space-y-1">
       <label className="text-xs font-medium text-ink/50">{label}</label>
-      <Input
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => {
-          const n = Number(e.target.value);
-          onChange(Number.isNaN(n) ? min : Math.min(max, Math.max(min, n)));
-        }}
-        className="text-right"
-      />
+      <NumberInput value={value} onChange={onChange} min={min} max={max} className="text-right" />
     </div>
   );
 }

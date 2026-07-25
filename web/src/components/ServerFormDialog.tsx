@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { api, type Server, type ServerWriteInput } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { NumberField } from "./ui/number-field";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
@@ -93,11 +94,10 @@ export function ServerFormDialog({
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Field label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <Field label="Host" value={form.host} onChange={(v) => setForm({ ...form, host: v })} />
-            <Field
-              label="REST port"
-              value={String(form.restPort)}
-              onChange={(v) => setForm({ ...form, restPort: Number(v) })}
-            />
+            <div className="space-y-1.5">
+              <Label>REST port</Label>
+              <NumberField value={form.restPort} onChange={(v) => setForm({ ...form, restPort: v })} min={0} />
+            </div>
             <Field
               label="REST password"
               value={form.restPassword ?? ""}
@@ -105,11 +105,10 @@ export function ServerFormDialog({
               type="password"
               placeholder={mode === "edit" && server?.hasRestPassword ? "unchanged" : undefined}
             />
-            <Field
-              label="RCON port"
-              value={String(form.rconPort)}
-              onChange={(v) => setForm({ ...form, rconPort: Number(v) })}
-            />
+            <div className="space-y-1.5">
+              <Label>RCON port</Label>
+              <NumberField value={form.rconPort} onChange={(v) => setForm({ ...form, rconPort: v })} min={0} />
+            </div>
             <Field
               label="RCON password"
               value={form.rconPassword ?? ""}

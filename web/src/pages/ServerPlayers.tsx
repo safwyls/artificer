@@ -14,6 +14,7 @@ import { PalDetailDialog } from "../components/PalDetailDialog";
 import { SavePathSetup } from "../components/SavePathSetup";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
+import { Select } from "../components/ui/select";
 
 // ---------------------------------------------------------------------------
 // Metrics: the numeric dimensions you can sort and filter by. IVs are the raw
@@ -411,9 +412,6 @@ function agoLabel(iso: string): string {
 const REFRESH_OPTIONS = [1, 2, 5, 10];
 const DEFAULT_REFRESH_MINUTES = 5;
 
-const selectClass =
-  "rounded-lg border border-ink/15 bg-white px-2 py-1.5 text-sm text-ink focus:border-brand-red/50 focus:outline-none";
-
 export function ServerPlayers() {
   const { serverID } = useParams();
   const id = Number(serverID);
@@ -533,7 +531,7 @@ export function ServerPlayers() {
 
               <label className="flex items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-ink/40">Sort</span>
-                <select value={sortKey} onChange={(e) => onSortKeyChange(e.target.value as SortKey)} className={selectClass}>
+                <Select value={sortKey} onChange={(e) => onSortKeyChange(e.target.value as SortKey)}>
                   <option value="name">Name</option>
                   <option value="level">Level</option>
                   <optgroup label="Talent (IV)">
@@ -547,7 +545,7 @@ export function ServerPlayers() {
                     <option value="eff-atk">Effective Attack</option>
                     <option value="eff-def">Effective Defense</option>
                   </optgroup>
-                </select>
+                </Select>
                 <button
                   onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
                   title={sortDir === "asc" ? "Ascending" : "Descending"}
@@ -561,17 +559,17 @@ export function ServerPlayers() {
               <div className="ml-auto flex items-center gap-2">
                 <label className="flex items-center gap-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-ink/40">Refresh</span>
-                  <select
+                  <Select
                     value={refreshMinutes}
                     onChange={(e) => setRefreshMinutes(Number(e.target.value))}
-                    className={cn(selectClass, "font-mono text-xs")}
+                    className="font-mono text-xs"
                   >
                     {REFRESH_OPTIONS.map((m) => (
                       <option key={m} value={m}>
                         {m} min
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 {/* Refetches rather than forcing a re-parse: the server reuses
                     its cached read while Level.sav is unchanged. */}
@@ -592,13 +590,13 @@ export function ServerPlayers() {
 
               <label className="flex items-center gap-1.5">
                 <span className="text-xs font-semibold uppercase tracking-wide text-ink/40">Min</span>
-                <select value={minMetric} onChange={(e) => setMinMetric(e.target.value as Metric)} className={selectClass}>
+                <Select value={minMetric} onChange={(e) => setMinMetric(e.target.value as Metric)}>
                   {METRICS.map((m) => (
                     <option key={m} value={m}>
                       {METRIC_LABELS[m]}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <Input
                   type="number"
                   min={0}
