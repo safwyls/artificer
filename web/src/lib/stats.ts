@@ -1,5 +1,6 @@
 import palCombat from "../data/palCombat.json";
 import palPassives from "../data/palPassives.json";
+import type { Pal } from "./api";
 import { palKey, palEntry } from "./paldex";
 
 /**
@@ -121,6 +122,27 @@ export function computeStats(input: StatInput): StatResult | null {
       cond * soulMult(input.soulDefense ?? 0) * (1 + (fDef / 100) * trust) * (1 + sDef / 100),
   );
   return { hp, attack, defense };
+}
+
+/** Effective stats for a pal read from a save, wiring its level, talents,
+ * condenser rank, souls, passives and alpha flag into computeStats. Trust is
+ * left out: the save stores raw friendship points, not the 0–5 bond level the
+ * formula wants. Null when the species has no combat data. */
+export function palEffectiveStats(pal: Pal): StatResult | null {
+  const souls = pal.souls ?? {};
+  return computeStats({
+    characterId: pal.characterId,
+    level: pal.level,
+    ivHp: pal.talentHp,
+    ivAttack: pal.talentShot,
+    ivDefense: pal.talentDefense,
+    condenser: Math.max(0, pal.rank - 1),
+    soulHp: souls["Max HP"] ?? 0,
+    soulAttack: souls["Attack"] ?? 0,
+    soulDefense: souls["Defense"] ?? 0,
+    passives: pal.passives,
+    isAlpha: pal.isBoss,
+  });
 }
 
 export interface TalentRating {

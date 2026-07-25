@@ -11,25 +11,28 @@ import {
   skillDescription,
   skillName,
 } from "../lib/paldex";
+import { palEffectiveStats } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 
-/** IVs run 0-100; the bar makes "is this one worth keeping" readable at a
- * glance in a way three bare numbers don't. */
-function TalentBar({ label, value }: { label: string; value: number }) {
-  const pct = Math.min(100, Math.max(0, value));
-  const tone = pct >= 70 ? "#4A9D7C" : pct >= 40 ? "#F2A93B" : "#9C9186";
+/** IV colour cue: green is worth keeping, amber is middling, grey is poor. */
+const ivTone = (v: number) => (v >= 70 ? "#4A9D7C" : v >= 40 ? "#F2A93B" : "#9C9186");
+
+/** A stat with a value and a bar, scaled to a per-stat ceiling so a strong
+ * pal fills it and a weak one doesn't. */
+function StatBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const pct = Math.min(100, (value / max) * 100);
   return (
     <div>
       <div className="flex items-baseline justify-between">
         <span className="text-xs text-ink/50">{label}</span>
-        <span className="font-mono text-xs font-bold" style={{ color: tone }}>
-          {value}
+        <span className="font-mono text-xs font-bold" style={{ color }}>
+          {value.toLocaleString()}
         </span>
       </div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink/10">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: tone }} />
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
       </div>
     </div>
   );
@@ -60,12 +63,18 @@ export function PalDetailDialog({
   const base = palBaseStats(pal.characterId);
   const tier = rarityTier(entry?.rarity ?? 0);
   const souls = Object.entries(pal.souls ?? {});
+  const eff = palEffectiveStats(pal);
+  const ivs = [
+    ["HP", pal.talentHp],
+    ["ATK", pal.talentShot],
+    ["DEF", pal.talentDefense],
+  ] as const;
 
   return (
     <Dialog open={pal !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
+          <DialogTitle className="flex items-center gap-3 pr-8">
             <span
               className={cn(
                 "flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border",
@@ -85,7 +94,7 @@ export function PalDetailDialog({
                 }}
               />
             </span>
-            <span className="min-w-0">
+            <span className="min-w-0 flex-1">
               <span className="block truncate">
                 {pal.nickname || species}
                 {pal.gender && (
@@ -102,6 +111,20 @@ export function PalDetailDialog({
                 {pal.nickname ? `${species} · ` : ""}Lv.{pal.level} · {location}
                 {pal.slotIndex >= 0 && ` slot ${pal.slotIndex + 1}`}
               </span>
+            </span>
+            {/* Raw talents, stacked like the game's Potential box. */}
+            <span
+              className="shrink-0 space-y-0.5 rounded-lg border border-ink/10 bg-ink/[0.03] px-2.5 py-1.5 font-normal"
+              title="Talents (IVs): HP / Attack / Defense"
+            >
+              {ivs.map(([label, val]) => (
+                <span key={label} className="flex items-center justify-between gap-3 leading-tight">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-ink/40">{label}</span>
+                  <span className="font-mono text-sm font-bold" style={{ color: ivTone(val) }}>
+                    {val}
+                  </span>
+                </span>
+              ))}
             </span>
           </DialogTitle>
         </DialogHeader>
@@ -141,17 +164,21 @@ export function PalDetailDialog({
             </p>
           )}
 
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">Talents (IVs)</p>
-            <div className="grid grid-cols-3 gap-3">
-              <TalentBar label="HP" value={pal.talentHp} />
-              <TalentBar label="Attack" value={pal.talentShot} />
-              <TalentBar label="Defense" value={pal.talentDefense} />
+          {eff && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">Effective stats</p>
+              <div className="grid grid-cols-3 gap-3">
+                <StatBar label="HP" value={eff.hp} max={15000} color="#5B9E6F" />
+                <StatBar label="Attack" value={eff.attack} max={1500} color="#E0502F" />
+                <StatBar label="Defense" value={eff.defense} max={1500} color="#5B8DEF" />
+              </div>
+              <p className="mt-2 text-[10px] text-ink/35">
+                Estimated in-game stats at this level; trust isn't included.
+              </p>
             </div>
-          </div>
+          )}
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Stat label="HP" value={pal.hp ? String(pal.hp) : "—"} />
+          <div className="grid grid-cols-3 gap-2">
             <Stat
               label="Stomach"
               value={base?.stomach ? `${Math.round(pal.stomach)}/${base.stomach}` : String(Math.round(pal.stomach))}
