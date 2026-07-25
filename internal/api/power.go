@@ -9,25 +9,14 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/safwyls/palcon/internal/dockerctl"
-	"github.com/safwyls/palcon/internal/store"
 )
 
 // containerForRequest resolves the server and its configured container,
 // reporting the two "not set up" cases distinctly so the UI can explain
 // which half is missing.
 func (s *Server) containerForRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
-	id, err := serverIDFromRequest(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid server id")
-		return "", false
-	}
-	srv, err := s.store.GetServer(r.Context(), id)
-	if err == store.ErrNotFound {
-		writeError(w, http.StatusNotFound, "server not found")
-		return "", false
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load server")
+	srv, ok := s.loadServer(w, r)
+	if !ok {
 		return "", false
 	}
 	if s.docker == nil {
@@ -60,12 +49,12 @@ func (s *Server) containerForRequest(w http.ResponseWriter, r *http.Request) (st
 // Every step is best-effort: a server that's already unresponsive can't
 // save or shut itself down, and neither must block stopping the container,
 // which is often exactly why someone reached for the button.
-func (s *Server) prepareForStop(r *http.Request, container, actor string) {
+func (s *Server) prepareForStop(ctx context.Context, r *http.Request, container, actor string) {
 	client, _, err := s.clientForServerID(r)
 	if err != nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 
 	if err := client.Save(ctx); err != nil {
@@ -115,16 +104,22 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 		actor = user.Username
 	}
 
+	// Detached from the request: closing the tab right after clicking Stop
+	// must not cancel the save → in-game shutdown → docker stop sequence
+	// midway, leaving the world unsaved or the container half-stopped.
+	// Each step still bounds itself with its own timeout.
+	ctx := context.WithoutCancel(r.Context())
+
 	var err error
 	switch action {
 	case "start":
-		err = s.docker.Start(r.Context(), name)
+		err = s.docker.Start(ctx, name)
 	case "stop":
-		s.prepareForStop(r, name, actor)
-		err = s.docker.Stop(r.Context(), name)
+		s.prepareForStop(ctx, r, name, actor)
+		err = s.docker.Stop(ctx, name)
 	case "restart":
-		s.prepareForStop(r, name, actor)
-		err = s.docker.Restart(r.Context(), name)
+		s.prepareForStop(ctx, r, name, actor)
+		err = s.docker.Restart(ctx, name)
 	default:
 		writeError(w, http.StatusBadRequest, "unknown action")
 		return

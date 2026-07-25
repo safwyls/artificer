@@ -19,6 +19,13 @@ CREATE TABLE servers (
     created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- NOTE (2026-07): the four tables below (scheduled_tasks, player_sessions,
+-- notification_rules, event_log) are RESERVED for the phase 2-4 roadmap and
+-- not yet touched by any code — don't go hunting for their callers.
+-- server_metrics is the exception: 0003 rebuilt it and the collector fills
+-- it. If the roadmap features are ever dropped for good, add a migration
+-- removing these instead of editing this file.
+
 -- Phase 2: scheduled tasks (cron-based restarts, broadcasts, backups).
 CREATE TABLE scheduled_tasks (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

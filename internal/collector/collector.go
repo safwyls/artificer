@@ -6,6 +6,7 @@ package collector
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/safwyls/palcon/internal/palworld"
@@ -31,6 +32,8 @@ type Collector struct {
 
 	// unreachable tracks which servers are currently failing, so a server
 	// that goes down logs once instead of every Interval forever.
+	// Guarded by mu: samples run concurrently.
+	mu          sync.Mutex
 	unreachable map[int64]bool
 }
 
@@ -66,12 +69,22 @@ func (c *Collector) sampleAll(ctx context.Context) {
 		c.logger.Error("metrics collector: listing servers", "error", err)
 		return
 	}
+	// Concurrent, so a sweep costs the slowest server's probe (≤10s), not
+	// the sum — several unreachable servers otherwise overrun the tick and
+	// degrade sampling cadence for everyone. Server counts here are single
+	// digits; no need to bound the fan-out.
+	var wg sync.WaitGroup
 	for _, srv := range servers {
 		if !srv.Enabled {
 			continue
 		}
-		c.sample(ctx, srv)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.sample(ctx, srv)
+		}()
 	}
+	wg.Wait()
 }
 
 func (c *Collector) sample(ctx context.Context, srv *store.Server) {
@@ -98,15 +111,21 @@ func (c *Collector) sample(ctx context.Context, srv *store.Server) {
 
 	m, err := ext.Metrics(ctx)
 	if err != nil {
-		if !c.unreachable[srv.ID] {
-			c.unreachable[srv.ID] = true
+		c.mu.Lock()
+		firstFailure := !c.unreachable[srv.ID]
+		c.unreachable[srv.ID] = true
+		c.mu.Unlock()
+		if firstFailure {
 			c.logger.Info("metrics collector: server unreachable, pausing samples",
 				"server", srv.ID, "name", srv.Name, "error", err)
 		}
 		return
 	}
-	if c.unreachable[srv.ID] {
-		delete(c.unreachable, srv.ID)
+	c.mu.Lock()
+	wasUnreachable := c.unreachable[srv.ID]
+	delete(c.unreachable, srv.ID)
+	c.mu.Unlock()
+	if wasUnreachable {
 		c.logger.Info("metrics collector: server reachable again", "server", srv.ID, "name", srv.Name)
 	}
 

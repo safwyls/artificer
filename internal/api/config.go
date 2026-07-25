@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/safwyls/palcon/internal/palconfig"
-	"github.com/safwyls/palcon/internal/store"
 )
 
 // handleGetConfig returns the parsed PalWorldSettings.ini for the settings
@@ -79,24 +78,4 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
-}
-
-// loadServer resolves the {serverID} route param, writing the appropriate
-// error response and returning ok=false on any failure.
-func (s *Server) loadServer(w http.ResponseWriter, r *http.Request) (*store.Server, bool) {
-	id, err := serverIDFromRequest(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid server id")
-		return nil, false
-	}
-	srv, err := s.store.GetServer(r.Context(), id)
-	if err == store.ErrNotFound {
-		writeError(w, http.StatusNotFound, "server not found")
-		return nil, false
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load server")
-		return nil, false
-	}
-	return srv, true
 }

@@ -33,6 +33,10 @@ type Config struct {
 	// stop game server containers. Empty disables power control entirely —
 	// Palcon should never require access to a docker socket to run.
 	DockerHost string
+
+	// CookieSecure marks the session cookie Secure for deployments behind
+	// TLS. Off by default so plain-HTTP LAN setups keep working.
+	CookieSecure bool
 }
 
 func (c *Config) DBPath() string {
@@ -51,9 +55,16 @@ func Load() (*Config, error) {
 		DockerHost:    os.Getenv("DOCKER_HOST"),
 	}
 
+	cfg.CookieSecure = os.Getenv("COOKIE_SECURE") == "true" || os.Getenv("COOKIE_SECURE") == "1"
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET is required")
+	}
+	// A short secret makes session forgery brute-forceable; .env.example
+	// already tells people to generate 32+ chars, so enforce it.
+	if len(jwtSecret) < 32 {
+		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters, got %d (generate one with `openssl rand -hex 32`)", len(jwtSecret))
 	}
 	cfg.JWTSecret = []byte(jwtSecret)
 

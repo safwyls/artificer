@@ -106,6 +106,9 @@ type Result struct {
 	SaveModTime time.Time `json:"saveModTime"`
 }
 
+// maxCacheEntries bounds the parse cache (one entry per save path).
+const maxCacheEntries = 8
+
 type cacheEntry struct {
 	modTime time.Time
 	result  *Result
@@ -216,6 +219,20 @@ func (r *Reader) Read(ctx context.Context, savePath string) (*Result, error) {
 	}
 
 	r.cacheMu.Lock()
+	// Each entry holds a whole parsed world (tens of MB); without a cap, a
+	// deleted server or changed save path would strand its entry forever.
+	// Evicting the stalest parse keeps every active server's entry warm at
+	// any plausible server count.
+	if _, exists := r.cache[sav]; !exists && len(r.cache) >= maxCacheEntries {
+		var oldestKey string
+		var oldestAt time.Time
+		for k, e := range r.cache {
+			if oldestKey == "" || e.result.ParsedAt.Before(oldestAt) {
+				oldestKey, oldestAt = k, e.result.ParsedAt
+			}
+		}
+		delete(r.cache, oldestKey)
+	}
 	r.cache[sav] = cacheEntry{modTime: info.ModTime(), result: result}
 	r.cacheMu.Unlock()
 	return result, nil

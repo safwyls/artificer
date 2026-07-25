@@ -21,6 +21,9 @@ type Server struct {
 	jwtSecret []byte
 	logger    *slog.Logger
 	palReader *palsave.Reader
+	// CookieSecure marks session cookies Secure (set from COOKIE_SECURE
+	// for deployments behind TLS; default off for plain-HTTP LAN use).
+	CookieSecure bool
 	// docker is nil when no DOCKER_HOST is set; power control is then
 	// simply unavailable rather than broken.
 	docker       *dockerctl.Client
@@ -42,6 +45,9 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 	r.Use(middleware.Recoverer)
 
 	r.Route("/api", func(r chi.Router) {
+		// No endpoint takes a body anywhere near this size; cap it so
+		// json.Decode can't be fed an arbitrarily large request.
+		r.Use(maxBodyBytes(1 << 20))
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "not found")
 		})
@@ -98,6 +104,17 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 	r.NotFound(spaHandler(staticFS))
 
 	return r
+}
+
+// maxBodyBytes caps request body reads; exceeding it makes json.Decode
+// fail, which handlers already report as a 400.
+func maxBodyBytes(limit int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
