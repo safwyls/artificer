@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Check, ChevronDown, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
 import { api, ApiError, type Pal, type PlayerPals } from "../lib/api";
 import { initials, playerColor } from "../lib/palette";
+import { agoLabel } from "../lib/time";
 import { elementColor, palEntry, palIconUrl, palName, passiveName, rarityTier } from "../lib/paldex";
 import { palEffectiveStats } from "../lib/stats";
 import { cn } from "../lib/utils";
@@ -233,21 +234,25 @@ function partition(player: PlayerPals, c: Controls) {
 
 function PlayerSection({
   player,
-  controls,
+  parts,
+  filtered,
   open,
   onToggle,
   onOpen,
 }: {
   player: PlayerPals;
-  controls: Controls;
+  /** This player's filtered/sorted boxes, computed once by the page. */
+  parts: ReturnType<typeof partition>;
+  /** Whether any filter is active (changes the count label + hides empties). */
+  filtered: boolean;
   open: boolean;
   onToggle: () => void;
   onOpen: (pal: Pal, location: string) => void;
 }) {
   const color = playerColor(player.uid);
-  const { party, palbox, base, total } = useMemo(() => partition(player, controls), [player, controls]);
+  const { party, palbox, base, total } = parts;
   const owned = player.party.length + player.palbox.length + player.base.length;
-  const active = controlsActive(controls);
+  const active = filtered;
 
   // A filter that excludes all of a player's pals hides the player entirely,
   // rather than leaving an empty section to scroll past.
@@ -378,13 +383,6 @@ function PassiveFilter({
   );
 }
 
-function agoLabel(iso: string): string {
-  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
-}
-
 // Re-reading is only worth doing about as often as the data can change, and
 // party/palbox contents move on human timescales. The game also rewrites
 // Level.sav on every autosave (default: every 30s), so a short interval
@@ -441,11 +439,24 @@ export function ServerPlayers() {
     return m;
   }, [players]);
 
-  const controls: Controls = { query, passives, minMetric, minValue, sortKey, sortDir, effMap };
+  // Stable across unrelated re-renders, so the partition memo below only
+  // recomputes when a filter/sort input or the roster actually changes.
+  const controls: Controls = useMemo(
+    () => ({ query, passives, minMetric, minValue, sortKey, sortDir, effMap }),
+    [query, passives, minMetric, minValue, sortKey, sortDir, effMap],
+  );
   const active = controlsActive(controls);
 
+  // Every player's filtered/sorted boxes in one pass — the sections render
+  // from this instead of re-partitioning per player per render.
+  const partitions = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof partition>>();
+    for (const p of players) m.set(p.uid, partition(p, controls));
+    return m;
+  }, [players, controls]);
+
   // Players with at least one matching pal (all of them when no filter is on).
-  const visible = players.filter((p) => !active || partition(p, controls).total > 0);
+  const visible = players.filter((p) => !active || (partitions.get(p.uid)?.total ?? 0) > 0);
 
   if (serverQuery.isLoading) return <p className="p-6 text-muted-foreground">Loading...</p>;
   if (serverQuery.isError || !serverQuery.data) return <p className="p-6 text-destructive">Server not found.</p>;
@@ -620,7 +631,8 @@ export function ServerPlayers() {
               <PlayerSection
                 key={player.uid}
                 player={player}
-                controls={controls}
+                parts={partitions.get(player.uid)!}
+                filtered={active}
                 open={!collapsed.has(player.uid)}
                 onToggle={() =>
                   setCollapsed((prev) => {

@@ -486,10 +486,12 @@ function StatCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; saveSt
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">
             Upgrades <span className="font-normal normal-case text-ink/30">· optional</span>
           </p>
+          {/* Souls cap at rank 20 (+3% each) since Large Pal Souls; trust
+              rank still caps at 10. Keep in sync with stats.ts clamps. */}
           <div className="grid grid-cols-3 gap-3">
-            <NumberField label="Soul HP" min={0} max={10} value={form.soulHp} onChange={(v) => set("soulHp", v)} />
-            <NumberField label="Soul Atk" min={0} max={10} value={form.soulAttack} onChange={(v) => set("soulAttack", v)} />
-            <NumberField label="Soul Def" min={0} max={10} value={form.soulDefense} onChange={(v) => set("soulDefense", v)} />
+            <NumberField label="Soul HP" min={0} max={20} value={form.soulHp} onChange={(v) => set("soulHp", v)} />
+            <NumberField label="Soul Atk" min={0} max={20} value={form.soulAttack} onChange={(v) => set("soulAttack", v)} />
+            <NumberField label="Soul Def" min={0} max={20} value={form.soulDefense} onChange={(v) => set("soulDefense", v)} />
           </div>
           <div className="mt-3 grid grid-cols-3 items-end gap-3">
             <NumberField label="Condenser ★" min={0} max={4} value={form.condenser} onChange={(v) => set("condenser", v)} />

@@ -3,21 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Home, Users } from "lucide-react";
 import { api, ApiError, type Guild, type PlayerPals } from "../lib/api";
 import { initials, playerColor } from "../lib/palette";
+import { lastSeenLabel } from "../lib/time";
 import { mapOf, MAP_AREAS } from "../lib/map";
 import { ServerUnreachable } from "../components/ServerUnreachable";
 import { SaveReadProgress } from "../components/SaveReadProgress";
 import { SaveUpdatingBanner } from "../components/SaveUpdatingBanner";
 import { SavePathSetup } from "../components/SavePathSetup";
-
-/** Reads as "3d ago"; blank when the save recorded no timestamp. */
-export function lastSeenLabel(unixSeconds: number): string {
-  if (!unixSeconds) return "";
-  const s = Math.max(0, Math.round(Date.now() / 1000 - unixSeconds));
-  if (s < 90) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-}
 
 function GuildCard({ guild, players, serverId }: { guild: Guild; players: PlayerPals[]; serverId: number }) {
   const navigate = useNavigate();

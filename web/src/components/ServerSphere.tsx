@@ -25,6 +25,10 @@ export function ServerSphere({
     queryFn: () => api.serverInfo(server.id),
     retry: false,
     staleTime: 15_000,
+    // Re-probe so the dot recovers when a server comes back — without
+    // this, an offline mark stuck until something else invalidated
+    // server-info (window refocus or a power action).
+    refetchInterval: 30_000,
   });
 
   const dotColor = infoQuery.isSuccess ? "bg-pal-green" : infoQuery.isError ? "bg-ink-soft" : "bg-white/20";

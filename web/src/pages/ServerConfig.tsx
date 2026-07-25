@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Eye, EyeOff, Lock, Search } from "lucide-react";
@@ -97,7 +97,34 @@ export function ServerConfig() {
   );
 
   const [draft, setDraft] = useState<Record<string, string>>({});
-  useEffect(() => setDraft(baseline), [baseline]);
+  const [diskChanged, setDiskChanged] = useState(false);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const prevBaselineRef = useRef<Record<string, string> | null>(null);
+
+  // When the file genuinely changes on disk (server rewrote it, someone
+  // else saved) while edits are pending, carry the edits onto the new
+  // baseline and say so — silently wiping them loses the admin's work.
+  // With no pending edits (first load, discard, post-save refetch) the
+  // draft just tracks the baseline as before.
+  useEffect(() => {
+    const prev = prevBaselineRef.current;
+    prevBaselineRef.current = baseline;
+    const d = draftRef.current;
+    const hadEdits = prev !== null && Object.keys(prev).some((k) => d[k] !== undefined && d[k] !== prev[k]);
+    if (!hadEdits) {
+      setDraft(baseline);
+      return;
+    }
+    const merged = { ...baseline };
+    for (const k of Object.keys(prev)) {
+      if (d[k] !== undefined && d[k] !== prev[k] && k in merged) merged[k] = d[k];
+    }
+    setDraft(merged);
+    // A save's own refetch absorbs the edits (merged == baseline); only
+    // warn when unsaved edits actually sit on top of changed data.
+    if (Object.keys(merged).some((k) => merged[k] !== baseline[k])) setDiskChanged(true);
+  }, [baseline]);
 
   const dirtyKeys = Object.keys(baseline).filter((k) => draft[k] !== baseline[k]);
   const setField = (key: string, value: string) => setDraft((d) => ({ ...d, [key]: value }));
@@ -172,6 +199,20 @@ export function ServerConfig() {
                 This config file is mounted read-only. Remount it read-write to save changes.
               </div>
             )}
+            {diskChanged && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-brand-amber/40 bg-brand-amber/10 px-3 py-2 text-sm text-ink/70">
+                <span>
+                  The settings file changed on disk while you were editing. Your unsaved edits are kept on top of the
+                  new values — review them before saving.
+                </span>
+                <button
+                  onClick={() => setDiskChanged(false)}
+                  className="shrink-0 text-xs font-semibold text-ink/50 hover:text-ink hover:underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
             <p className="font-mono text-[11px] text-ink/30">{configQuery.data.path}</p>
 
             <CommonSettings
@@ -193,7 +234,10 @@ export function ServerConfig() {
             </span>
             <div className="flex gap-2">
               <button
-                onClick={() => setDraft(baseline)}
+                onClick={() => {
+                  setDraft(baseline);
+                  setDiskChanged(false);
+                }}
                 disabled={save.isPending}
                 className="rounded-lg border border-ink/15 bg-white px-4 py-2 font-display text-sm font-bold text-ink transition hover:bg-ink/5 disabled:opacity-50"
               >
