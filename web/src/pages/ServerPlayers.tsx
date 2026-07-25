@@ -112,7 +112,9 @@ function PalCard({ pal, onOpen }: { pal: Pal; onOpen: () => void }) {
   return (
     <button
       onClick={onOpen}
-      className="flex w-full gap-3 rounded-xl border border-ink/10 bg-white/70 p-3 text-left transition-colors hover:border-ink/25 hover:bg-white"
+      // content-visibility lets the browser skip laying out and painting cards
+      // that are scrolled off-screen — the roster can run to hundreds of pals.
+      className="flex w-full gap-3 rounded-xl border border-ink/10 bg-white/70 p-3 text-left transition-colors [contain-intrinsic-size:auto_112px] [content-visibility:auto] hover:border-ink/25 hover:bg-white"
     >
       <div
         className={cn(
@@ -129,6 +131,7 @@ function PalCard({ pal, onOpen }: { pal: Pal; onOpen: () => void }) {
           alt=""
           className="h-10 w-10 object-contain"
           loading="lazy"
+          decoding="async"
           // A pal added by a game update has no vendored icon; the frame
           // alone reads fine, so drop the broken image rather than show it.
           onError={(e) => {
