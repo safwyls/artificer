@@ -211,18 +211,46 @@ function PalCard({ pal, onOpen }: { pal: Pal; onOpen: () => void }) {
   );
 }
 
-function PalGroup({ title, pals, onOpen }: { title: string; pals: Pal[]; onOpen: (pal: Pal) => void }) {
+function PalGroup({
+  title,
+  pals,
+  onOpen,
+  forceOpen,
+}: {
+  title: string;
+  pals: Pal[];
+  onOpen: (pal: Pal) => void;
+  /** While a filter is active every match must be visible, so collapsing is
+   * suspended rather than hiding results behind a closed group. */
+  forceOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(true);
   if (pals.length === 0) return null;
+  const expanded = forceOpen || open;
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">
-        {title} <span className="font-mono text-ink/30">({pals.length})</span>
-      </p>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {pals.map((pal) => (
-          <PalCard key={pal.instanceId} pal={pal} onOpen={() => onOpen(pal)} />
-        ))}
-      </div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={expanded}
+        className={cn(
+          "mb-2 flex w-full items-center gap-1 text-left",
+          forceOpen && "pointer-events-none",
+        )}
+      >
+        <ChevronDown
+          className={cn("h-3.5 w-3.5 text-ink/40 transition-transform", !expanded && "-rotate-90")}
+        />
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink/40">
+          {title} <span className="font-mono text-ink/30">({pals.length})</span>
+        </p>
+      </button>
+      {expanded && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {pals.map((pal) => (
+            <PalCard key={pal.instanceId} pal={pal} onOpen={() => onOpen(pal)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -288,10 +316,15 @@ function PlayerSection({
 
       {open && (
         <div className="space-y-5 border-t border-ink/10 p-5">
-          <PalGroup title="Party" pals={party} onOpen={(p) => onOpen(p, "Party")} />
-          <PalGroup title="Palbox" pals={palbox} onOpen={(p) => onOpen(p, "Palbox")} />
-          <PalGroup title="At base" pals={base} onOpen={(p) => onOpen(p, "At base")} />
-          <PalGroup title="Pal storage" pals={storage} onOpen={(p) => onOpen(p, "Pal storage")} />
+          <PalGroup title="Party" pals={party} forceOpen={filtered} onOpen={(p) => onOpen(p, "Party")} />
+          <PalGroup title="Palbox" pals={palbox} forceOpen={filtered} onOpen={(p) => onOpen(p, "Palbox")} />
+          <PalGroup title="At base" pals={base} forceOpen={filtered} onOpen={(p) => onOpen(p, "At base")} />
+          <PalGroup
+            title="Pal storage"
+            pals={storage}
+            forceOpen={filtered}
+            onOpen={(p) => onOpen(p, "Pal storage")}
+          />
           {total === 0 && <p className="text-sm text-muted-foreground">No pals owned yet.</p>}
         </div>
       )}
