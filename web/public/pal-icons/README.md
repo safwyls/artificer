@@ -52,14 +52,30 @@ The Calculators tab is backed by two more files derived from
 | File | Derived from | Contents |
 | --- | --- | --- |
 | `web/src/data/breeding.json` | `resources/game_data/breedingdata.json` | Every parent-pair → child outcome, as a dense upper-triangular table, plus the set of hand-authored "special" combos |
-| `web/src/data/palCombat.json` | `resources/game_data/characters.json` | Base `[hp, attack, defense]` per species, for the stat estimator |
+| `web/src/data/palCombat.json` | `resources/game_data/characters.json` | `[hp, shotAttack, defense, then the three per-level friendship/trust rates]` per species |
+| `web/src/data/palPassives.json` | `resources/game_data/skills.json` | Passive code → `[attack%, defense%, hp%]`, only the effects the game applies `ToSelf` |
 
 The breeding table is inverted from the upstream `child_to_parents_*` maps and
 validated to match its `parent_to_children_formula` exactly, so the outcomes
-are the game's, not a reimplemented formula. `web/src/lib/breeding.ts` reads it;
-`web/src/lib/stats.ts` applies the community stat formula (base + per-level
-scaling, talents up to +30%, souls +3% each, condenser +5% per star), which
-the UI labels "estimated".
+are the game's, not a reimplemented formula.
+
+`web/src/lib/stats.ts` was **calibrated against in-game numbers** (see the
+commit that added it). Findings baked into the data:
+- Attack uses **shot attack** — the game's displayed Attack ignores melee.
+- Passives affecting the same stat stack **additively** (Legend +20% and Burly
+  Body +20% give +40% defense), and only `ToSelf` `ShotAttack`/`Defense`/`MaxHP`
+  effects count; `ElementBoost` and `ToTrainer` passives don't move the shown
+  numbers, so they're excluded from `palPassives.json`.
+- An Alpha (captured field boss, the save's `isBoss`) gets an **HP-only** bonus
+  of `+rarity%` — a level-70 alpha Jetragon (rarity 20) shows +20% HP over its
+  listed base, which is why the numbers looked off before this was modelled.
+- Talents +30% max, condenser +5%/star, souls +3%/rank, trust via the vendored
+  friendship rate (the one approximate term — the exact curve isn't published).
+- palCombat keys are aliased to the palDex ids so a pal picked from the save
+  resolves whether its id carries a `Predator_`-style prefix or not.
+
+Verified exact on a spread of real pals across levels 1–70; the only estimate
+left is the trust/bond bonus, which the UI calls out.
 
 ## Naming
 

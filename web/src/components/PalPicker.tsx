@@ -17,7 +17,12 @@ export interface SavePal {
   ivHp: number;
   ivAttack: number;
   ivDefense: number;
-  souls?: { hp: number; attack: number; defense: number };
+  /** Condenser stars, 0–4. */
+  condenser: number;
+  souls: { hp: number; attack: number; defense: number };
+  passives: string[];
+  /** Captured field boss — carries an HP bonus. */
+  isAlpha: boolean;
   playerName: string;
 }
 
