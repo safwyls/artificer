@@ -45,6 +45,14 @@ jobs:
           go build ./...
           go vet ./...
 
+      # palsave's extractor tests need palworld-save-tools; without it they
+      # self-skip, so install it to exercise the full suite.
+      - name: Install save-tools for palsave tests
+        run: pip install palworld-save-tools==0.24.0 pyooz==0.0.8
+
+      - name: Go tests
+        run: go test ./...
+
   docker:
     needs: verify
     runs-on: ubuntu-latest

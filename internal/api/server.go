@@ -23,11 +23,12 @@ type Server struct {
 	palReader *palsave.Reader
 	// docker is nil when no DOCKER_HOST is set; power control is then
 	// simply unavailable rather than broken.
-	docker *dockerctl.Client
+	docker       *dockerctl.Client
+	loginLimiter *loginLimiter
 }
 
 func New(st *store.Store, jwtSecret []byte, logger *slog.Logger, palReader *palsave.Reader, docker *dockerctl.Client) *Server {
-	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, palReader: palReader, docker: docker}
+	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, palReader: palReader, docker: docker, loginLimiter: newLoginLimiter()}
 }
 
 // Routes builds the full HTTP handler: JSON API under /api, and the built

@@ -31,7 +31,9 @@ func (c *RCONClient) dialTimeout() time.Duration {
 	if c.timeout > 0 {
 		return c.timeout
 	}
-	return 10 * time.Second
+	// Kept short for the same reason as the REST timeout: a dead host
+	// pays REST + RCON back-to-back before the UI hears anything.
+	return 5 * time.Second
 }
 
 // exec opens a fresh connection, authenticates, runs a single command, and

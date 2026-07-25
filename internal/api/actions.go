@@ -2,16 +2,19 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/safwyls/palcon/internal/palworld"
 	"github.com/safwyls/palcon/internal/store"
 )
 
+var errBadServerID = errors.New("invalid server id")
+
 func (s *Server) clientForServerID(r *http.Request) (palworld.Client, *store.Server, error) {
 	id, err := serverIDFromRequest(r)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errBadServerID
 	}
 	srv, err := s.store.GetServer(r.Context(), id)
 	if err != nil {
@@ -28,14 +31,24 @@ func (s *Server) clientForServerID(r *http.Request) (palworld.Client, *store.Ser
 	return client, srv, nil
 }
 
+// writeServerLoadError maps a clientForServerID failure onto the right
+// status: bad path segment → 400, missing row → 404, and anything else is
+// a real store/DB failure → 500 (not a client error).
+func writeServerLoadError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, errBadServerID):
+		writeError(w, http.StatusBadRequest, "invalid server id")
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, "server not found")
+	default:
+		writeError(w, http.StatusInternalServerError, "failed to load server")
+	}
+}
+
 func (s *Server) withClient(w http.ResponseWriter, r *http.Request, fn func(palworld.Client) error) {
 	client, _, err := s.clientForServerID(r)
-	if err == store.ErrNotFound {
-		writeError(w, http.StatusNotFound, "server not found")
-		return
-	}
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid server id")
+		writeServerLoadError(w, err)
 		return
 	}
 	if err := fn(client); err != nil {
@@ -48,7 +61,7 @@ func (s *Server) withClient(w http.ResponseWriter, r *http.Request, fn func(palw
 func (s *Server) handleServerInfo(w http.ResponseWriter, r *http.Request) {
 	client, _, err := s.clientForServerID(r)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "server not found")
+		writeServerLoadError(w, err)
 		return
 	}
 	info, err := client.Info(r.Context())
@@ -62,7 +75,7 @@ func (s *Server) handleServerInfo(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleServerPlayers(w http.ResponseWriter, r *http.Request) {
 	client, _, err := s.clientForServerID(r)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "server not found")
+		writeServerLoadError(w, err)
 		return
 	}
 	players, err := client.Players(r.Context())
@@ -150,7 +163,7 @@ func (s *Server) handleServerShutdown(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleServerSettings(w http.ResponseWriter, r *http.Request) {
 	client, _, err := s.clientForServerID(r)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "server not found")
+		writeServerLoadError(w, err)
 		return
 	}
 	ext, ok := client.(palworld.ExtendedClient)
@@ -169,7 +182,7 @@ func (s *Server) handleServerSettings(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleServerMetrics(w http.ResponseWriter, r *http.Request) {
 	client, _, err := s.clientForServerID(r)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "server not found")
+		writeServerLoadError(w, err)
 		return
 	}
 	ext, ok := client.(palworld.ExtendedClient)

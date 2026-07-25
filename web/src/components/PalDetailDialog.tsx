@@ -13,6 +13,7 @@ import {
 } from "../lib/paldex";
 import { palEffectiveStats } from "../lib/stats";
 import { cn } from "../lib/utils";
+import { PassiveTierTile } from "./PassiveBadge";
 import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 
@@ -174,7 +175,8 @@ export function PalDetailDialog({
                 <StatBar label="Defense" value={eff.defense} max={1500} color="#5B8DEF" />
               </div>
               <p className="mt-2 text-[10px] text-ink/35">
-                Estimated in-game stats at this level; trust isn't included.
+                Estimated in-game stats at this level. Trust is the one estimate, so a high-bond pal may read a touch
+                low.
               </p>
             </div>
           )}
@@ -208,7 +210,10 @@ export function PalDetailDialog({
               <div className="space-y-1.5">
                 {pal.passives.map((p) => (
                   <div key={p} className="rounded-lg border border-ink/10 bg-white/60 px-3 py-2">
-                    <p className="text-sm font-semibold text-ink">{passiveName(p)}</p>
+                    <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                      <PassiveTierTile code={p} />
+                      {passiveName(p)}
+                    </p>
                     {passiveDescription(p) && <p className="mt-0.5 text-xs text-ink/55">{passiveDescription(p)}</p>}
                   </div>
                 ))}

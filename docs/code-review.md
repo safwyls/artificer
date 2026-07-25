@@ -1,5 +1,9 @@
 # Code review: palcon v0.1 scaffold
 
+> **Superseded** by [code-review-2026-07.md](code-review-2026-07.md) (full-repo
+> review, July 2026). This doc predates most of the current codebase — several
+> files it references no longer exist. Kept for history.
+
 A self-review of the initial scaffold, meant to be walked through file-by-file. Organized bottom-up (same order the code was written): config → db → palworld → store → api → web → deploy. Each item is tagged:
 
 - 🐛 **Bug** — confirmed wrong behavior

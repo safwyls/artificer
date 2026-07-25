@@ -33,6 +33,14 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// The user-management API is admin-only; landing a non-admin here just
+// renders "Failed to load users", so bounce them home instead.
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useAuth();
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 export function App() {
   return (
     <TooltipProvider delayDuration={200}>
@@ -47,7 +55,14 @@ export function App() {
           }
         >
           <Route path="/" element={<EmptyState />} />
-          <Route path="/users" element={<Users />} />
+          <Route
+            path="/users"
+            element={
+              <RequireAdmin>
+                <Users />
+              </RequireAdmin>
+            }
+          />
           <Route path="/servers/:serverID" element={<ServerDashboard />} />
           <Route path="/servers/:serverID/map" element={<ServerMap />} />
           <Route path="/servers/:serverID/settings" element={<ServerConfig />} />

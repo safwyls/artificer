@@ -21,7 +21,7 @@ const segmentClass = ({ isActive }: { isActive: boolean }) =>
 /** Mobile top bar: active server identity, Dashboard/Live map segmented control,
  * and an overflow menu carrying the actions that have no other mobile home. */
 export function MobileTopBar({ server }: { server: Server | null }) {
-  const { username, logout, can } = useAuth();
+  const { username, logout, can, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -111,42 +111,50 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                     >
                       <RefreshCw className="h-4 w-4 text-ink/50" /> Refresh
                     </button>
-                    <button
-                      className={menuItem}
-                      onClick={() => {
-                        setMenuOpen(false);
-                        save.mutate();
-                      }}
-                    >
-                      <Save className="h-4 w-4 text-ink/50" /> Save world
-                    </button>
-                    <button
-                      className={menuItem}
-                      onClick={() => {
-                        setMenuOpen(false);
-                        setShutdownOpen(true);
-                      }}
-                    >
-                      <Power className="h-4 w-4 text-brand-red" /> Shut down…
-                    </button>
-                    <button
-                      className={menuItem}
-                      onClick={() => {
-                        setMenuOpen(false);
-                        setEditOpen(true);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4 text-ink/50" /> Edit server…
-                    </button>
-                    <button
-                      className={menuItem}
-                      onClick={() => {
-                        setMenuOpen(false);
-                        setDeleteOpen(true);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-ink/50" /> Remove server…
-                    </button>
+                    {can("save") && (
+                      <button
+                        className={menuItem}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          save.mutate();
+                        }}
+                      >
+                        <Save className="h-4 w-4 text-ink/50" /> Save world
+                      </button>
+                    )}
+                    {can("shutdown") && (
+                      <button
+                        className={menuItem}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setShutdownOpen(true);
+                        }}
+                      >
+                        <Power className="h-4 w-4 text-brand-red" /> Shut down…
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <>
+                        <button
+                          className={menuItem}
+                          onClick={() => {
+                            setMenuOpen(false);
+                            setEditOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4 text-ink/50" /> Edit server…
+                        </button>
+                        <button
+                          className={menuItem}
+                          onClick={() => {
+                            setMenuOpen(false);
+                            setDeleteOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-ink/50" /> Remove server…
+                        </button>
+                      </>
+                    )}
                     <div className="border-t border-ink/10" />
                   </>
                 )}
@@ -201,8 +209,10 @@ export function MobileTopBar({ server }: { server: Server | null }) {
   );
 }
 
-/** Mobile bottom bar: Pal Sphere per server + add button. */
+/** Mobile bottom bar: Pal Sphere per server + add button (admin only —
+ * creating servers is an admin endpoint). */
 export function MobileBottomRail({ servers, activeServerId }: { servers: Server[]; activeServerId: number | null }) {
+  const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [addOpen, setAddOpen] = useState(false);
@@ -222,13 +232,17 @@ export function MobileBottomRail({ servers, activeServerId }: { servers: Server[
           onClick={() => goToServer(server.id)}
         />
       ))}
-      <button
-        onClick={() => setAddOpen(true)}
-        className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-white/20 text-paper/40"
-      >
-        <Plus className="h-4 w-4" />
-      </button>
-      <ServerFormDialog open={addOpen} onOpenChange={setAddOpen} mode="create" />
+      {isAdmin && (
+        <>
+          <button
+            onClick={() => setAddOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-white/20 text-paper/40"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <ServerFormDialog open={addOpen} onOpenChange={setAddOpen} mode="create" />
+        </>
+      )}
     </div>
   );
 }

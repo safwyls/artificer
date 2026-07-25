@@ -1,0 +1,25 @@
+# Keep the build context small: only what the Dockerfile stages actually
+# COPY. Big offenders are localsaves/ (real world saves), data/ (runtime
+# state), and web/node_modules (the frontend stage runs its own install).
+.git
+.github
+.claude
+.vscode
+.idea
+data
+localsaves
+mocks
+docs
+web/node_modules
+web/dist
+bin
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.env
+__pycache__
+*.pyc
+Dockerfile
+docker-compose.yml
+.dockerignore

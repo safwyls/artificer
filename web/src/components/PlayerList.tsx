@@ -9,11 +9,15 @@ import { playerColor, initials, pingColorClass } from "../lib/palette";
  */
 export function PlayerList({
   players,
+  canModerate,
   onViewMap,
   onKick,
   onBan,
 }: {
   players: Player[];
+  /** Kick/Ban need the "moderate" grant; without it the server would just
+   * reject the click, so don't render the buttons at all. */
+  canModerate: boolean;
   onViewMap: (player: Player) => void;
   onKick: (player: Player) => void;
   onBan: (player: Player) => void;
@@ -57,18 +61,22 @@ export function PlayerList({
                   <button className="text-xs font-semibold text-pal-blue hover:underline" onClick={() => onViewMap(p)}>
                     View on map
                   </button>
-                  <button
-                    className="ml-3 text-xs font-semibold text-ink/50 hover:text-ink hover:underline"
-                    onClick={() => onKick(p)}
-                  >
-                    Kick
-                  </button>
-                  <button
-                    className="ml-3 text-xs font-semibold text-destructive/70 hover:text-destructive hover:underline"
-                    onClick={() => onBan(p)}
-                  >
-                    Ban
-                  </button>
+                  {canModerate && (
+                    <>
+                      <button
+                        className="ml-3 text-xs font-semibold text-ink/50 hover:text-ink hover:underline"
+                        onClick={() => onKick(p)}
+                      >
+                        Kick
+                      </button>
+                      <button
+                        className="ml-3 text-xs font-semibold text-destructive/70 hover:text-destructive hover:underline"
+                        onClick={() => onBan(p)}
+                      >
+                        Ban
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             );

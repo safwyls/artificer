@@ -4,6 +4,16 @@ export class ApiError extends Error {
   }
 }
 
+/** Registered by the auth provider. A 401 from any endpoint means the
+ * session expired (or was revoked) mid-use; clearing auth state here lets
+ * RequireAuth bounce to /login once instead of every query surfacing its
+ * own scattered error. */
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
@@ -22,6 +32,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = isJSON ? await res.json() : undefined;
 
   if (!res.ok) {
+    // /login's own 401 is just a wrong password, not an expired session.
+    if (res.status === 401 && path !== "/login") {
+      onUnauthorized?.();
+    }
     const message = body && typeof body === "object" && "error" in body ? String(body.error) : res.statusText;
     throw new ApiError(res.status, message);
   }

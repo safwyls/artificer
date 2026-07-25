@@ -34,17 +34,20 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
         />
       ))}
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={() => setAddOpen(true)}
-            className="mt-1 flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/20 text-paper/40 transition hover:border-white/40 hover:text-paper/70"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right">Add server</TooltipContent>
-      </Tooltip>
+      {/* Creating servers is an admin endpoint; don't offer it to others. */}
+      {isAdmin && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setAddOpen(true)}
+              className="mt-1 flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/20 text-paper/40 transition hover:border-white/40 hover:text-paper/70"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Add server</TooltipContent>
+        </Tooltip>
+      )}
 
       <div className="flex-1" />
 

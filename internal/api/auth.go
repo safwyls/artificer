@@ -39,9 +39,10 @@ func (s *Server) signSession(user *store.User) (string, error) {
 
 func (s *Server) parseSession(tokenStr string) (*sessionClaims, error) {
 	claims := &sessionClaims{}
+	// Pin the algorithm we sign with; never let the token pick its own.
 	_, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
 		return s.jwtSecret, nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +59,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ipKey := "ip:" + clientIP(r.RemoteAddr)
+	userKey := "user:" + req.Username
+	if !s.loginLimiter.allow(ipKey) || !s.loginLimiter.allow(userKey) {
+		writeError(w, http.StatusTooManyRequests, "too many login attempts — try again in a minute")
+		return
+	}
+
 	user, err := s.store.GetUserByUsername(r.Context(), req.Username)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid username or password")
@@ -71,6 +79,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "account disabled")
 		return
 	}
+	s.loginLimiter.reset(ipKey)
+	s.loginLimiter.reset(userKey)
 
 	token, err := s.signSession(user)
 	if err != nil {

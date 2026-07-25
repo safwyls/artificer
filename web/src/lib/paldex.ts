@@ -1,6 +1,7 @@
 import palDex from "../data/palDex.json";
 import palStats from "../data/palStats.json";
 import passiveSkills from "../data/passiveSkills.json";
+import passiveTiers from "../data/passiveTiers.json";
 import activeSkills from "../data/activeSkills.json";
 
 /**
@@ -31,6 +32,7 @@ interface NamedEntry {
 
 const dex = palDex as Record<string, PalEntry>;
 const passives = passiveSkills as Record<string, NamedEntry>;
+const tiers = passiveTiers as Record<string, number>;
 const actives = activeSkills as Record<string, NamedEntry>;
 const stats = palStats as Record<string, { hp: number; stomach: number }>;
 
@@ -69,6 +71,15 @@ function humanizeCode(code: string): string {
 export function passiveName(code: string): string {
   const n = passives[code]?.n;
   return n && n !== code ? n : humanizeCode(code);
+}
+
+/** A passive's tier as the game ranks it: 1–3 (up arrows), −1…−3 (down
+ * arrows), 4 for the Rainbow tier (Legend, Lucky, …), 5 for World Tree
+ * passives. 0 for codes the tier catalog doesn't cover — gear, gym-boss and
+ * test passives a player's own pals don't normally carry. Scraped from
+ * game8.co/games/Palworld/archives/439667 (post-Feybreak tier table). */
+export function passiveTier(code: string): number {
+  return tiers[code] ?? 0;
 }
 
 /** Description, or "" when the catalog just repeats the name (many do). */

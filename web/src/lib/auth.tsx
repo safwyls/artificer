@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, ApiError, type Me, type Permission } from "./api";
+import { api, ApiError, setUnauthorizedHandler, type Me, type Permission } from "./api";
 
 interface AuthState {
   username: string | null;
@@ -28,6 +28,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .finally(() => setLoading(false));
+  }, []);
+
+  // Any 401 mid-session (expired/revoked cookie) clears auth state, which
+  // sends RequireAuth back to /login instead of leaving every page to fail
+  // with its own error.
+  useEffect(() => {
+    setUnauthorizedHandler(() => setMe(null));
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const login = async (u: string, p: string) => {
