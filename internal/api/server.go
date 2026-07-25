@@ -43,6 +43,9 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	// The pals payload is the largest thing served (tens of MB of JSON on a
+	// big world) and compresses ~10x; this also covers the JS bundles.
+	r.Use(middleware.Compress(5))
 
 	r.Route("/api", func(r chi.Router) {
 		// No endpoint takes a body anywhere near this size; cap it so

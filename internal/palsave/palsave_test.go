@@ -96,6 +96,119 @@ func TestCachedReadNotBlockedByOtherParse(t *testing.T) {
 	}
 }
 
+// A stale entry must be served immediately — not block behind the re-parse —
+// and the re-parse must land in the cache shortly after.
+func TestReadServeStale(t *testing.T) {
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 not available")
+	}
+	dir := t.TempDir()
+	stub := filepath.Join(dir, "stub.py")
+	script := "import json, time\ntime.sleep(1)\nprint(json.dumps({\"players\": [], \"guilds\": []}))\n"
+	if err := os.WriteFile(stub, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reader := &Reader{scriptPath: stub, cache: make(map[string]cacheEntry)}
+
+	save := filepath.Join(dir, "world")
+	if err := os.MkdirAll(save, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sav := filepath.Join(save, "Level.sav")
+	if err := os.WriteFile(sav, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// First load has nothing to serve, so it blocks on the parse.
+	first, err := reader.ReadServeStale(context.Background(), save)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The save moves on; the stale parse must come back without waiting the
+	// stub's full second.
+	if err := os.Chtimes(sav, time.Now(), time.Now().Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	begin := time.Now()
+	stale, err := reader.ReadServeStale(context.Background(), save)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stale != first {
+		t.Fatal("expected the stale cached result while refresh runs")
+	}
+	if d := time.Since(begin); d > 500*time.Millisecond {
+		t.Errorf("stale serve blocked %v behind the refresh", d)
+	}
+
+	// The background refresh replaces the entry.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		fresh, err := reader.ReadServeStale(context.Background(), save)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fresh != first {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("background refresh never landed")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// Refresh parses only when there is real work: a changed, settled save.
+func TestRefresh(t *testing.T) {
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 not available")
+	}
+	dir := t.TempDir()
+	stub := filepath.Join(dir, "stub.py")
+	script := "import json\nprint(json.dumps({\"players\": [], \"guilds\": []}))\n"
+	if err := os.WriteFile(stub, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reader := &Reader{scriptPath: stub, cache: make(map[string]cacheEntry)}
+
+	save := filepath.Join(dir, "world")
+	if err := os.MkdirAll(save, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sav := filepath.Join(save, "Level.sav")
+	if err := os.WriteFile(sav, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	settle := func(age time.Duration) {
+		if err := os.Chtimes(sav, time.Now(), time.Now().Add(-age)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	settle(time.Minute)
+	if parsed, err := reader.Refresh(context.Background(), save); err != nil || !parsed {
+		t.Fatalf("cold refresh: parsed=%v err=%v, want a parse", parsed, err)
+	}
+	if parsed, err := reader.Refresh(context.Background(), save); err != nil || parsed {
+		t.Fatalf("fresh refresh: parsed=%v err=%v, want a no-op", parsed, err)
+	}
+
+	// Just-written saves are left alone until they settle.
+	if err := os.Chtimes(sav, time.Now(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if parsed, err := reader.Refresh(context.Background(), save); err != nil || parsed {
+		t.Fatalf("unsettled refresh: parsed=%v err=%v, want a no-op", parsed, err)
+	}
+
+	// Once settled, the change is picked up.
+	settle(10 * time.Second)
+	if parsed, err := reader.Refresh(context.Background(), save); err != nil || !parsed {
+		t.Fatalf("settled refresh: parsed=%v err=%v, want a parse", parsed, err)
+	}
+}
+
 // The fixtures are synthetic — see testdata/README.md — so they exercise the
 // real decompress/GVAS-parse/extract path with no copyrighted game data.
 func TestRead(t *testing.T) {

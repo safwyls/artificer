@@ -17,7 +17,10 @@ func (s *Server) readSaveForRequest(w http.ResponseWriter, r *http.Request) (*pa
 	if !ok {
 		return nil, false
 	}
-	result, err := s.palReader.Read(r.Context(), srv.SavePath)
+	// Serve-stale: a save that changed since the last parse returns the old
+	// parse immediately (with its SaveModTime telling on itself) while a
+	// re-parse runs in the background; only a never-parsed save blocks.
+	result, err := s.palReader.ReadServeStale(r.Context(), srv.SavePath)
 	if errors.Is(err, palsave.ErrNotConfigured) {
 		writeError(w, http.StatusBadRequest, "no save path configured")
 		return nil, false

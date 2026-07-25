@@ -75,6 +75,10 @@ func run(logger *slog.Logger) error {
 	// history to draw, rather than only what's happened since page load.
 	go collector.New(st, logger).Run(ctx)
 
+	// Keeps the save-parse cache warm across autosaves (and restarts), so
+	// the pals pages open onto a cache hit instead of a multi-second parse.
+	go collector.NewSaveRefresher(st, palReader, logger).Run(ctx)
+
 	// Optional: without DOCKER_HOST, power control is simply absent.
 	var docker *dockerctl.Client
 	if cfg.DockerHost != "" {

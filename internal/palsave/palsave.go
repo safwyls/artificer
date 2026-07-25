@@ -121,13 +121,16 @@ type cacheEntry struct {
 type Reader struct {
 	scriptPath string
 
-	// cacheMu guards only the map, so a cached read for one save never
+	// cacheMu guards the maps, so a cached read for one save never
 	// waits behind another save's parse. parseMu serializes extractions:
 	// each one holds the whole decompressed world in Python, so running
 	// them concurrently risks memory spikes.
 	cacheMu sync.Mutex
 	cache   map[string]cacheEntry
-	parseMu sync.Mutex
+	// refreshing tracks paths with a background re-parse in flight, so
+	// stale serves don't stack up duplicate refresh goroutines.
+	refreshing map[string]bool
+	parseMu    sync.Mutex
 }
 
 // NewReader materializes the embedded extractor script into dir (the app's
@@ -140,7 +143,7 @@ func NewReader(dir string) (*Reader, error) {
 	if err := os.WriteFile(filepath.Join(dir, "guilds.py"), guildsModule, 0o644); err != nil {
 		return nil, fmt.Errorf("writing guild decoder: %w", err)
 	}
-	return &Reader{scriptPath: scriptPath, cache: make(map[string]cacheEntry)}, nil
+	return &Reader{scriptPath: scriptPath, cache: make(map[string]cacheEntry), refreshing: make(map[string]bool)}, nil
 }
 
 // tailLines trims a captured stderr to its last max bytes, on a line
@@ -247,4 +250,101 @@ func (r *Reader) cachedResult(sav string, modTime time.Time) (*Result, bool) {
 		return nil, false
 	}
 	return entry.result, true
+}
+
+// staleResult returns whatever parse is cached for sav, regardless of how the
+// file has moved on since.
+func (r *Reader) staleResult(sav string) (*Result, bool) {
+	r.cacheMu.Lock()
+	defer r.cacheMu.Unlock()
+	entry, ok := r.cache[sav]
+	if !ok {
+		return nil, false
+	}
+	return entry.result, true
+}
+
+// ReadServeStale returns the freshest parse available without making the
+// caller wait for one: an up-to-date entry is returned as-is, a stale entry
+// (the save changed since it was parsed) is returned immediately while a
+// re-parse runs in the background, and only a save with no cached parse at
+// all blocks on the extractor. Result.SaveModTime tells the caller what
+// vintage it got; a background refresh failure just leaves that standing.
+func (r *Reader) ReadServeStale(ctx context.Context, savePath string) (*Result, error) {
+	if savePath == "" {
+		return nil, ErrNotConfigured
+	}
+	sav, err := savFile(savePath)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(sav)
+	if err != nil {
+		return nil, fmt.Errorf("Level.sav not accessible: %w", err)
+	}
+	if entry, ok := r.cachedResult(sav, info.ModTime()); ok {
+		return entry, nil
+	}
+	if stale, ok := r.staleResult(sav); ok {
+		r.refreshAsync(savePath, sav)
+		return stale, nil
+	}
+	return r.Read(ctx, savePath)
+}
+
+// refreshAsync re-parses savePath in the background, at most once in flight
+// per save file.
+func (r *Reader) refreshAsync(savePath, sav string) {
+	r.cacheMu.Lock()
+	if r.refreshing == nil {
+		r.refreshing = make(map[string]bool)
+	}
+	if r.refreshing[sav] {
+		r.cacheMu.Unlock()
+		return
+	}
+	r.refreshing[sav] = true
+	r.cacheMu.Unlock()
+
+	go func() {
+		// Read applies its own timeout; the requesting context would cancel
+		// the refresh as soon as the stale response was written.
+		_, _ = r.Read(context.Background(), savePath)
+		r.cacheMu.Lock()
+		delete(r.refreshing, sav)
+		r.cacheMu.Unlock()
+	}()
+}
+
+// writeSettle is how old a Level.sav mtime must be before Refresh will read
+// it — the game writes the file in place, and parsing a half-written save
+// fails (or worse, half-succeeds).
+const writeSettle = 3 * time.Second
+
+// Refresh re-parses savePath if the save has changed, so the cache is warm
+// before anyone asks. Freshly written files are left to settle; a fresh cache
+// entry makes it a no-op. The bool reports whether a parse was actually
+// attempted, so a caller can rate-limit real work without penalizing cheap
+// no-op checks. Meant for a background loop — callers serving humans want
+// Read or ReadServeStale.
+func (r *Reader) Refresh(ctx context.Context, savePath string) (bool, error) {
+	if savePath == "" {
+		return false, ErrNotConfigured
+	}
+	sav, err := savFile(savePath)
+	if err != nil {
+		return false, err
+	}
+	info, err := os.Stat(sav)
+	if err != nil {
+		return false, fmt.Errorf("Level.sav not accessible: %w", err)
+	}
+	if _, ok := r.cachedResult(sav, info.ModTime()); ok {
+		return false, nil
+	}
+	if time.Since(info.ModTime()) < writeSettle {
+		return false, nil
+	}
+	_, err = r.Read(ctx, savePath)
+	return true, err
 }
