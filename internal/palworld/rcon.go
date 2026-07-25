@@ -48,10 +48,12 @@ func (c *RCONClient) exec(ctx context.Context, command string) (string, error) {
 	}
 	defer conn.Close()
 
-	if deadline, ok := ctx.Deadline(); ok {
-		conn.SetDeadline(deadline)
-	} else {
-		conn.SetDeadline(time.Now().Add(c.dialTimeout()))
+	deadline := time.Now().Add(c.dialTimeout())
+	if d, ok := ctx.Deadline(); ok {
+		deadline = d
+	}
+	if err := conn.SetDeadline(deadline); err != nil {
+		return "", fmt.Errorf("rcon set deadline: %w", err)
 	}
 
 	if err := writePacket(conn, 1, rconTypeAuth, c.password); err != nil {

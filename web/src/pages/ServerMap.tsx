@@ -8,7 +8,7 @@ import { playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { PlayerMap, mapMarkerId, type MapMarker } from "../components/PlayerMap";
 import { MapAreaToggle } from "../components/MapAreaToggle";
-import { lastSeenLabel } from "./ServerGuilds";
+import { lastSeenLabel } from "../lib/time";
 
 /** Ticks once a second so the "updated Xs ago" chip stays honest. */
 function UpdatedAgo({ timestamp }: { timestamp: number }) {

@@ -63,6 +63,28 @@ func serverIDFromRequest(r *http.Request) (int64, error) {
 	return strconv.ParseInt(chi.URLParam(r, "serverID"), 10, 64)
 }
 
+// loadServer resolves the {serverID} route param to its stored row, writing
+// the appropriate error response and returning ok=false on any failure. The
+// single error-mapping point for handlers that need the row itself; the
+// action handlers' equivalent is clientForServerID + writeServerLoadError.
+func (s *Server) loadServer(w http.ResponseWriter, r *http.Request) (*store.Server, bool) {
+	id, err := serverIDFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid server id")
+		return nil, false
+	}
+	srv, err := s.store.GetServer(r.Context(), id)
+	if err == store.ErrNotFound {
+		writeError(w, http.StatusNotFound, "server not found")
+		return nil, false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load server")
+		return nil, false
+	}
+	return srv, true
+}
+
 func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
 	servers, err := s.store.ListServers(r.Context())
 	if err != nil {
@@ -77,18 +99,8 @@ func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetServer(w http.ResponseWriter, r *http.Request) {
-	id, err := serverIDFromRequest(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid server id")
-		return
-	}
-	srv, err := s.store.GetServer(r.Context(), id)
-	if err == store.ErrNotFound {
-		writeError(w, http.StatusNotFound, "server not found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load server")
+	srv, ok := s.loadServer(w, r)
+	if !ok {
 		return
 	}
 	writeJSON(w, http.StatusOK, toDTO(srv))

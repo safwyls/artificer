@@ -40,16 +40,32 @@ intentional and correct. Don't "fix" that asymmetry.
 
 ## Status (2026-07-24, same day)
 
-Implemented on `effective-stats-souls-trust` in the first fix pass, in
-severity order:
+Implemented on `effective-stats-souls-trust`, in severity order:
 
 - **All P1s** — T1, T2, T20 (new `internal/api` httptest suite), T23, T31
   (plus a `.dockerignore`).
-- **P2s** — T3, T4 (with a shared `writeServerLoadError` helper), T5, T8,
-  T9, T12, T13, T24, T25, T26. T13's shorter probe timeouts also cover most
-  of T28's cost.
+- **All P2s except T22** — T3, T4 (with a shared `writeServerLoadError`
+  helper), T5, T8, T9, T12, T13, T14 (the deadline check; multi-packet
+  reads stay "verify live first"), T21 (store / RCON-framing / dockerctl
+  suites), T24, T25, T26, T32 (Go 1.26 across go.mod/Dockerfile/CI).
+- **All P3s** — T6 (shared `lib/time.ts`), T7 (soul cap 20 in the form),
+  T10 (`COOKIE_SECURE` + 1 MB body cap), T11 (documented in auth.go: keep
+  the distinct 403), T15, T16, T17 (8-entry cache cap), T18, T19 (comment
+  in 0001), T27, T28, T29 (merge + banner instead of silent reset), T30
+  ([vendored-game-data.md](vendored-game-data.md)), T33 (Go deps to
+  current; npm in-range only — see below), T34, T35/T36.
 
-Still open: T6, T7, T10, T11, T14–T19, T21, T22, T27–T30, T32–T36.
+Deliberately still open:
+
+- **T22 — live-server validation.** Needs a real Palworld dedicated
+  server; the RCON/REST layer remains "written from docs" until then.
+  Includes T14's multi-packet question.
+- **npm majors** (T33 remainder): React 19, Vite 8, Tailwind 4,
+  react-router 7, TS 6+. `npm audit` reports 4 advisories (1 high) fixed
+  only in react-router 7 — the high one is SSR-hydration-only and doesn't
+  apply to this client-rendered SPA, and the open-redirect needs
+  user-controlled link paths, which we don't build. Low practical risk;
+  schedule the router-7 migration as its own PR.
 
 ---
 

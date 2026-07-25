@@ -86,6 +86,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	apiServer := api.New(st, cfg.JWTSecret, logger, palReader, docker)
+	apiServer.CookieSecure = cfg.CookieSecure
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           apiServer.Routes(distFS),

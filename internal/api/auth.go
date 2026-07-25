@@ -75,6 +75,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid username or password")
 		return
 	}
+	// Deliberate: the distinct 403 (and the bcrypt-only-when-user-exists
+	// timing) confirms the username exists. On a LAN admin tool that's an
+	// acceptable trade — telling a locked-out player their account is
+	// disabled rather than "wrong password" saves an admin round-trip.
+	// Revisit if an instance is ever internet-facing.
 	if user.Disabled {
 		writeError(w, http.StatusForbidden, "account disabled")
 		return
@@ -92,6 +97,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   s.CookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(sessionDuration),
 	})
@@ -104,6 +110,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   s.CookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Unix(0, 0),
 	})
