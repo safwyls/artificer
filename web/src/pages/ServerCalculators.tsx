@@ -5,13 +5,15 @@ import { ArrowRight, Sparkles, X } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { palEntry, palName, passiveName, elementColor } from "../lib/paldex";
 import { breedChild, parentPairsFor, isBreedable } from "../lib/breeding";
+import { planRoutes, type BreedStep, type StepParent } from "../lib/breeding-path";
 import { computeStats, talentRating, hasCombatStats, passiveStatEffect, friendshipRank } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
 import { NumberField as NumberInput } from "../components/ui/number-field";
+import { Select } from "../components/ui/select";
 
-type Mode = "breeding" | "stats";
+type Mode = "breeding" | "path" | "stats";
 /** Which slot a pending pick lands in; the whole page shares one picker. */
 type PickTarget = "a" | "b" | "stats" | "reverse" | null;
 
@@ -47,6 +49,7 @@ export function ServerCalculators() {
           characterId: pal.characterId,
           nickname: pal.nickname,
           level: pal.level,
+          gender: pal.gender,
           ivHp: pal.talentHp,
           ivAttack: pal.talentShot,
           ivDefense: pal.talentDefense,
@@ -59,6 +62,7 @@ export function ServerCalculators() {
           passives: pal.passives ?? [],
           isAlpha: pal.isBoss,
           trust: friendshipRank(pal.friendship),
+          playerUid: player.uid,
           playerName: player.nickname,
         });
       }
@@ -92,11 +96,14 @@ export function ServerCalculators() {
       <header className="sticky top-0 z-10 hidden items-center justify-between border-b border-ink/10 bg-paper px-8 py-6 lg:flex">
         <div>
           <h1 className="font-display text-2xl font-extrabold">Calculators</h1>
-          <p className="mt-0.5 text-sm text-ink/50">{serverQuery.data.name} · breeding & pal stats</p>
+          <p className="mt-0.5 text-sm text-ink/50">{serverQuery.data.name} · breeding, paths & pal stats</p>
         </div>
         <div className="flex gap-1 rounded-xl bg-ink/5 p-1">
           <button className={segClass(mode === "breeding")} onClick={() => setMode("breeding")}>
             Breeding
+          </button>
+          <button className={segClass(mode === "path")} onClick={() => setMode("path")}>
+            Path
           </button>
           <button className={segClass(mode === "stats")} onClick={() => setMode("stats")}>
             Stats
@@ -110,6 +117,9 @@ export function ServerCalculators() {
           <button className={cn(segClass(mode === "breeding"), "flex-1")} onClick={() => setMode("breeding")}>
             Breeding
           </button>
+          <button className={cn(segClass(mode === "path"), "flex-1")} onClick={() => setMode("path")}>
+            Path
+          </button>
           <button className={cn(segClass(mode === "stats"), "flex-1")} onClick={() => setMode("stats")}>
             Stats
           </button>
@@ -117,6 +127,8 @@ export function ServerCalculators() {
 
         {mode === "breeding" ? (
           <BreedingCalculator savePals={savePals} saveStatus={saveStatus} />
+        ) : mode === "path" ? (
+          <PathFinder savePals={savePals} saveStatus={saveStatus} />
         ) : (
           <StatCalculator savePals={savePals} saveStatus={saveStatus} />
         )}
@@ -194,6 +206,15 @@ function BreedingCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; sa
             <PalPortrait characterId={child.childId} size="lg" />
             <p className="mt-2 font-display text-xl font-extrabold">{palName(child.childId)}</p>
             <ElementChips characterId={child.childId} />
+            {child.altChildId && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2">
+                <PalPortrait characterId={child.altChildId} size="sm" />
+                <p className="text-xs text-ink/60">
+                  or <span className="font-semibold text-foreground">{palName(child.altChildId)}</span> — which
+                  hatches depends on the parents' genders.
+                </p>
+              </div>
+            )}
             {bothFromSave && <TalentTargets a={a!.save!} b={b!.save!} />}
           </div>
         ) : (
@@ -339,10 +360,11 @@ function TalentTargets({ a, b }: { a: SavePal; b: SavePal }) {
   );
 }
 
-/** The signature: a Palworld egg sitting between the two parents. */
-function Egg() {
+/** The signature: a Palworld egg sitting between the two parents, reused at
+ * small size as the path finder's step markers. */
+function Egg({ className = "h-14 w-10" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 40 52" className="h-14 w-10" aria-hidden="true">
+    <svg viewBox="0 0 40 52" className={className} aria-hidden="true">
       <defs>
         <linearGradient id="eggshell" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#FBF7EE" />
@@ -360,6 +382,276 @@ function Egg() {
       <ellipse cx="25" cy="34" rx="4" ry="5" fill="#D98C3F" opacity="0.3" />
       <ellipse cx="17" cy="40" rx="2.5" ry="3" fill="#D98C3F" opacity="0.35" />
     </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Breeding path
+// ---------------------------------------------------------------------------
+
+function PathFinder({ savePals, saveStatus }: { savePals?: SavePal[]; saveStatus?: string }) {
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [scope, setScope] = useState("all");
+  const [routeIdx, setRouteIdx] = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const players = useMemo(() => {
+    const byUid = new Map<string, { uid: string; name: string; count: number }>();
+    for (const p of savePals ?? []) {
+      const cur = byUid.get(p.playerUid);
+      if (cur) cur.count++;
+      else byUid.set(p.playerUid, { uid: p.playerUid, name: p.playerName, count: 1 });
+    }
+    return [...byUid.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [savePals]);
+
+  const pool = useMemo(
+    () => (scope === "all" ? savePals : savePals?.filter((p) => p.playerUid === scope)),
+    [savePals, scope],
+  );
+
+  const plan = useMemo(
+    () => (targetId && pool && pool.length > 0 ? planRoutes(pool, targetId) : null),
+    [pool, targetId],
+  );
+  const options = plan?.status === "ok" ? plan.options : [];
+  const route = options.length > 0 ? options[Math.min(routeIdx, options.length - 1)] : undefined;
+  const poolName = scope === "all" ? "the server" : (players.find((p) => p.uid === scope)?.name ?? "this player");
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-ink/10 bg-white/70 p-5 lg:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="font-display text-base font-bold">Breeding path</h2>
+            <p className="text-xs text-ink/40">The shortest route from the pals on this server to the one you want.</p>
+          </div>
+          {players.length > 1 && (
+            <label className="flex items-center gap-2 text-xs font-semibold text-ink/50">
+              Breed from
+              <Select
+                value={scope}
+                onChange={(e) => {
+                  setScope(e.target.value);
+                  setRouteIdx(0);
+                }}
+              >
+                <option value="all">Everyone · {savePals?.length ?? 0}</option>
+                {players.map((p) => (
+                  <option key={p.uid} value={p.uid}>
+                    {p.name} · {p.count}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          )}
+        </div>
+
+        <div className="mt-4">
+          {targetId ? (
+            <div className="flex items-center gap-3">
+              <PalPortrait characterId={targetId} size="md" />
+              <div>
+                <p className="font-display text-lg font-bold leading-tight">{palName(targetId)}</p>
+                <button
+                  onClick={() => setPickerOpen(true)}
+                  className="text-sm font-semibold text-brand-red hover:underline"
+                >
+                  Change target
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="flex items-center gap-3 rounded-2xl border-2 border-dashed border-ink/15 px-4 py-3 text-ink/40 transition-colors hover:border-brand-red/40 hover:text-brand-red"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-current text-lg">
+                +
+              </span>
+              <span className="text-sm font-semibold">Pick a target pal</span>
+            </button>
+          )}
+        </div>
+
+        {options.length > 0 && (
+          <div className="mt-4">
+            <div className="flex flex-wrap gap-2">
+              {options.map((opt, i) => {
+                const active = opt === route;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setRouteIdx(i)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm font-semibold transition-colors",
+                      active
+                        ? "border-brand-red bg-brand-red text-paper"
+                        : "border-ink/15 bg-white text-ink/70 hover:border-brand-red/40",
+                    )}
+                  >
+                    <span>{opt.eggs === 0 ? "In the box" : `${opt.eggs} ${opt.eggs === 1 ? "egg" : "eggs"}`}</span>
+                    <span className={cn("font-mono text-[11px]", active ? "text-paper/80" : "text-ink/40")}>
+                      {opt.ceiling.join("/")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {options.length > 1 && (
+              <p className="mt-1.5 text-[11px] text-ink/35">
+                Longer routes are only offered when they raise the talent ceiling (HP/Attack/Defense).
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      {!savePals || savePals.length === 0 ? (
+        <PathNote>{saveStatus ?? "No pals in the save yet."}</PathNote>
+      ) : !targetId ? (
+        <PathNote>Pick a target to plan a route from {poolName === "the server" ? "the server's" : `${poolName}'s`} pals.</PathNote>
+      ) : plan?.status === "notBreedable" ? (
+        <PathNote>{palName(targetId)} can't be bred — catch one in the wild instead.</PathNote>
+      ) : plan?.status === "unreachable" ? (
+        <PathNote>
+          Nothing in {poolName === "the server" ? "the server's" : `${poolName}'s`} pals breeds into{" "}
+          {palName(targetId)}.{" "}
+          {scope !== "all" && players.length > 1
+            ? "Try breeding from everyone's pals instead."
+            : "Catch one — or a species closer to it — in the wild first."}
+        </PathNote>
+      ) : route?.ownedTarget ? (
+        <section className="rounded-2xl border border-ink/10 bg-white/70 p-5">
+          <p className="font-display text-base font-bold">Already on the server</p>
+          <p className="text-xs text-ink/40">No breeding needed — this is the best copy in the box.</p>
+          <div className="mt-3 max-w-xs">
+            <ParentRow parent={{ kind: "owned", pal: route.ownedTarget }} />
+          </div>
+        </section>
+      ) : route ? (
+        <section>
+          <div>
+            {route.steps.map((step, i) => (
+              <div key={step.n} className="flex gap-3">
+                <div className="flex w-9 shrink-0 flex-col items-center">
+                  <EggMarker n={step.n} />
+                  {i < route.steps.length - 1 && (
+                    <div className="w-0 flex-1 border-l-2 border-dashed border-ink/20" />
+                  )}
+                </div>
+                <StepCard step={step} final={i === route.steps.length - 1} />
+              </div>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-ink/35">
+            Ceilings assume best-case talent inheritance — each stat from the better parent. Pairs need a male
+            and a female, so check genders before committing; a hatched pal can be reused in later steps.
+          </p>
+        </section>
+      ) : null}
+
+      <PalPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onPick={(pick) => {
+          setTargetId(pick.characterId);
+          setRouteIdx(0);
+        }}
+        title="Choose a target pal"
+      />
+    </div>
+  );
+}
+
+function PathNote({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-ink/10 bg-white/70 p-5 text-sm text-muted-foreground">
+      {children}
+    </section>
+  );
+}
+
+/** Step marker on the hatch line: the page's egg with the breed number inside. */
+function EggMarker({ n }: { n: number }) {
+  return (
+    <div className="relative h-10 w-8 shrink-0" aria-label={`Egg ${n}`}>
+      <Egg className="h-10 w-8" />
+      <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 pt-1.5 text-center font-display text-sm font-extrabold text-ink/70">
+        {n}
+      </span>
+    </div>
+  );
+}
+
+function StepCard({ step, final }: { step: BreedStep<SavePal>; final: boolean }) {
+  return (
+    <div
+      className={cn(
+        "mb-3 min-w-0 flex-1 rounded-2xl border bg-white/70 p-3 sm:p-4",
+        final ? "border-brand-amber/60" : "border-ink/10",
+      )}
+    >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+        <div className="min-w-0 space-y-1.5">
+          <ParentRow parent={step.a} />
+          <ParentRow parent={step.b} />
+        </div>
+        {/* Rotated on mobile so the hatched child doesn't read as a third parent. */}
+        <ArrowRight className="mx-auto h-4 w-4 rotate-90 text-ink/30 sm:mx-0 sm:rotate-0" />
+        <div className="flex min-w-0 items-center gap-3">
+          <PalPortrait characterId={step.childId} size="md" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="truncate font-display text-base font-bold">{palName(step.childId)}</p>
+              {step.special && <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand-amber" />}
+            </div>
+            <p className="font-mono text-[11px] text-ink/40">best {step.ceiling.join("/")}</p>
+            {final && (
+              <span className="mt-1 inline-flex rounded-full bg-brand-amber/15 px-2 py-0.5 text-[11px] font-semibold text-brand-amber">
+                Target
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ParentRow({ parent }: { parent: StepParent<SavePal> }) {
+  if (parent.kind === "owned") {
+    const p = parent.pal;
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        <PalPortrait characterId={p.characterId} size="sm" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">
+            {p.nickname || palName(p.characterId)}
+            {p.gender && (
+              <span
+                className={cn("ml-1", p.gender === "female" ? "text-brand-red" : "text-pal-blue")}
+                aria-label={p.gender === "female" ? "Female" : "Male"}
+              >
+                {p.gender === "female" ? "♀" : "♂"}
+              </span>
+            )}
+          </p>
+          <p className="truncate font-mono text-[11px] text-ink/40">
+            Lv.{p.level} · {p.ivHp}/{p.ivAttack}/{p.ivDefense} · {p.playerName}
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <PalPortrait characterId={parent.speciesId} size="sm" />
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-foreground">{palName(parent.speciesId)}</p>
+        <p className="font-mono text-[11px] text-ink/40">from egg {parent.n}</p>
+      </div>
+    </div>
   );
 }
 

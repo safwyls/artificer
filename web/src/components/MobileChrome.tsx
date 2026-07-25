@@ -12,9 +12,11 @@ import { ServerFormDialog } from "./ServerFormDialog";
 import { DeleteServerDialog } from "./DeleteServerDialog";
 import { ShutdownDialog } from "./ServerActionDialogs";
 
+// basis-[30%] wraps the pills into rows of at most three that stretch to fill
+// the bar, so every page fits on screen with no sideways scrolling.
 const segmentClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-sm font-semibold transition",
+    "flex-1 basis-[30%] whitespace-nowrap rounded-lg px-2 py-1.5 text-center text-sm font-semibold transition",
     isActive ? "bg-brand-red text-paper" : "text-paper/60",
   );
 
@@ -174,7 +176,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
       </div>
 
       {server && (
-        <div className="mt-3 flex gap-0.5 overflow-x-auto rounded-xl bg-white/10 p-1">
+        <div className="mt-3 flex flex-wrap gap-0.5 rounded-xl bg-white/10 p-1">
           <NavLink to={`/servers/${server.id}`} end className={segmentClass}>
             Dashboard
           </NavLink>

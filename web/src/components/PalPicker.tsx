@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { palName } from "../lib/paldex";
 import { BREEDABLE } from "../lib/breeding";
 import { cn } from "../lib/utils";
@@ -14,6 +14,7 @@ export interface SavePal {
   characterId: string;
   nickname: string;
   level: number;
+  gender: "male" | "female" | "";
   ivHp: number;
   ivAttack: number;
   ivDefense: number;
@@ -25,6 +26,7 @@ export interface SavePal {
   isAlpha: boolean;
   /** Bond/trust rank 0–10, mapped from the save's friendship points. */
   trust: number;
+  playerUid: string;
   playerName: string;
 }
 
@@ -55,19 +57,45 @@ export function PalPicker({
 }) {
   const [mode, setMode] = useState<Mode>("all");
   const [query, setQuery] = useState("");
+  // Player groups the user has opened; searching overrides this and shows all.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const q = query.trim().toLowerCase();
 
   const species = useMemo(
     () => (q ? BREEDABLE.filter((p) => p.name.toLowerCase().includes(q)) : BREEDABLE),
     [q],
   );
-  const saved = useMemo(() => {
-    if (!savePals) return [];
-    if (!q) return savePals;
-    return savePals.filter(
-      (p) => p.nickname.toLowerCase().includes(q) || palName(p.characterId).toLowerCase().includes(q),
-    );
-  }, [savePals, q]);
+  // The save tab groups by owner so a player can jump straight to their own
+  // box; groups collapse when the server has more than one player.
+  const groups = useMemo(() => {
+    const byUid = new Map<string, { key: string; name: string; pals: SavePal[] }>();
+    for (const p of savePals ?? []) {
+      const key = p.playerUid || p.playerName;
+      let g = byUid.get(key);
+      if (!g) byUid.set(key, (g = { key, name: p.playerName || "Unknown player", pals: [] }));
+      g.pals.push(p);
+    }
+    return [...byUid.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [savePals]);
+  const shownGroups = useMemo(() => {
+    if (!q) return groups;
+    return groups
+      .map((g) => ({
+        ...g,
+        pals: g.pals.filter(
+          (p) => p.nickname.toLowerCase().includes(q) || palName(p.characterId).toLowerCase().includes(q),
+        ),
+      }))
+      .filter((g) => g.pals.length > 0);
+  }, [groups, q]);
+  const groupOpen = (key: string) => q !== "" || groups.length === 1 || expanded.has(key);
+  const toggleGroup = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const pick = (pick: PickedPal) => {
     onPick(pick);
@@ -127,29 +155,54 @@ export function PalPicker({
           )}
 
           {mode === "save" &&
-            saved.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => pick({ characterId: p.characterId, save: p })}
-                className="flex w-full items-center gap-3 rounded-xl border border-transparent p-1.5 text-left hover:border-ink/10 hover:bg-white"
-              >
-                <PalPortrait characterId={p.characterId} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {p.nickname || palName(p.characterId)}
-                  </p>
-                  <p className="truncate font-mono text-[11px] text-ink/40">
-                    Lv.{p.level} · {palName(p.characterId)} · {p.playerName}
-                  </p>
-                </div>
-                <span className="shrink-0 font-mono text-[11px] text-ink/40">
-                  {p.ivHp}/{p.ivAttack}/{p.ivDefense}
-                </span>
-              </button>
+            shownGroups.map((g) => (
+              <div key={g.key}>
+                <button
+                  onClick={() => toggleGroup(g.key)}
+                  className="sticky top-0 z-10 flex w-full items-center gap-2 border-b border-ink/10 bg-card py-2 pl-1 pr-2 text-left"
+                >
+                  <ChevronDown
+                    className={cn("h-4 w-4 text-ink/40 transition-transform", !groupOpen(g.key) && "-rotate-90")}
+                  />
+                  <span className="font-display text-sm font-bold">{g.name}</span>
+                  <span className="ml-auto rounded-full bg-ink/5 px-2 py-0.5 font-mono text-[11px] text-ink/50">
+                    {g.pals.length}
+                  </span>
+                </button>
+                {groupOpen(g.key) &&
+                  g.pals.map((p) => (
+                    <button
+                      key={p.key}
+                      onClick={() => pick({ characterId: p.characterId, save: p })}
+                      className="flex w-full items-center gap-3 rounded-xl border border-transparent p-1.5 text-left hover:border-ink/10 hover:bg-white"
+                    >
+                      <PalPortrait characterId={p.characterId} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {p.nickname || palName(p.characterId)}
+                          {p.gender && (
+                            <span
+                              className={cn("ml-1", p.gender === "female" ? "text-brand-red" : "text-pal-blue")}
+                              aria-label={p.gender === "female" ? "Female" : "Male"}
+                            >
+                              {p.gender === "female" ? "♀" : "♂"}
+                            </span>
+                          )}
+                        </p>
+                        <p className="truncate font-mono text-[11px] text-ink/40">
+                          Lv.{p.level} · {palName(p.characterId)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-mono text-[11px] text-ink/40">
+                        {p.ivHp}/{p.ivAttack}/{p.ivDefense}
+                      </span>
+                    </button>
+                  ))}
+              </div>
             ))}
-          {mode === "save" && saved.length === 0 && (
+          {mode === "save" && shownGroups.length === 0 && (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              {saveStatus ?? "No pals found in the save."}
+              {saveStatus ?? (q ? `No pal in the save matches “${query}”.` : "No pals found in the save.")}
             </p>
           )}
         </div>

@@ -21,6 +21,10 @@ web/dist/*
 web/public/palworld-map.*
 web/public/palworld-treemap.*
 
+# UI screenshots taken while developing (Claude's headless-browser passes
+# land here so they're viewable in the editor). Never committed.
+/screenshots/
+
 # Real Palworld saves used for local debugging. These hold player names and
 # platform account IDs, and are far too big for the repo — the committed
 # fixtures in internal/palsave/testdata/ are synthetic instead.
