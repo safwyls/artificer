@@ -102,6 +102,9 @@ export function ServerSubNav({ server }: { server: Server }) {
         <NavLink to={`/servers/${server.id}/guilds`} className={navLinkClass}>
           Guilds
         </NavLink>
+        <NavLink to={`/servers/${server.id}/calculators`} className={navLinkClass}>
+          Calculators
+        </NavLink>
         {can("settings") && (
           <NavLink to={`/servers/${server.id}/settings`} className={navLinkClass}>
             Settings
