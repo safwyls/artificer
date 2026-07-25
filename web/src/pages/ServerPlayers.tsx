@@ -7,6 +7,7 @@ import { initials, playerColor } from "../lib/palette";
 import { agoLabel } from "../lib/time";
 import { elementColor, palEntry, palIconUrl, palName, passiveName, rarityTier } from "../lib/paldex";
 import { palEffectiveStats } from "../lib/stats";
+import { TalentTriplet } from "../components/TalentTriplet";
 import { cn } from "../lib/utils";
 import { PassiveBadge } from "../components/PassiveBadge";
 import { ServerUnreachable } from "../components/ServerUnreachable";
@@ -190,9 +191,12 @@ function PalCard({ pal, onOpen }: { pal: Pal; onOpen: () => void }) {
               Lucky
             </Badge>
           )}
-          <span className="font-mono text-[10px] text-ink/40" title="IVs: HP / Attack / Defense">
-            {pal.talentHp}/{pal.talentShot}/{pal.talentDefense}
-          </span>
+          <TalentTriplet
+            hp={pal.talentHp}
+            attack={pal.talentShot}
+            defense={pal.talentDefense}
+            className="font-mono text-[10px] text-ink/40"
+          />
         </div>
 
         {pal.passives.length > 0 && (

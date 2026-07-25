@@ -4,6 +4,7 @@ import { palName } from "../lib/paldex";
 import { BREEDABLE } from "../lib/breeding";
 import { cn } from "../lib/utils";
 import { PalPortrait } from "./PalPortrait";
+import { TalentTriplet } from "./TalentTriplet";
 import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 
@@ -193,9 +194,12 @@ export function PalPicker({
                           Lv.{p.level} · {palName(p.characterId)}
                         </p>
                       </div>
-                      <span className="shrink-0 font-mono text-[11px] text-ink/40">
-                        {p.ivHp}/{p.ivAttack}/{p.ivDefense}
-                      </span>
+                      <TalentTriplet
+                        hp={p.ivHp}
+                        attack={p.ivAttack}
+                        defense={p.ivDefense}
+                        className="shrink-0 font-mono text-[11px] text-ink/40"
+                      />
                     </button>
                   ))}
               </div>

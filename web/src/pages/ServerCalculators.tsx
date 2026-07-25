@@ -6,9 +6,10 @@ import { api, ApiError } from "../lib/api";
 import { palEntry, palName, passiveName, elementColor } from "../lib/paldex";
 import { breedChild, parentPairsFor, isBreedable } from "../lib/breeding";
 import { planRoutes, type BreedStep, type StepParent } from "../lib/breeding-path";
-import { computeStats, talentRating, hasCombatStats, passiveStatEffect, friendshipRank } from "../lib/stats";
+import { computeStats, talentRating, hasCombatStats, passiveStatEffect, friendshipRank, talentTone } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
+import { TalentTriplet } from "../components/TalentTriplet";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
 import { NumberField as NumberInput } from "../components/ui/number-field";
 import { Select } from "../components/ui/select";
@@ -325,7 +326,8 @@ function ParentSlot({
       </button>
       {pick.save ? (
         <p className="mt-1 font-mono text-[11px] text-ink/40">
-          Lv.{pick.save.level} · {pick.save.ivHp}/{pick.save.ivAttack}/{pick.save.ivDefense}
+          Lv.{pick.save.level} ·{" "}
+          <TalentTriplet hp={pick.save.ivHp} attack={pick.save.ivAttack} defense={pick.save.ivDefense} />
         </p>
       ) : (
         <ElementChips characterId={pick.characterId} />
@@ -352,7 +354,9 @@ function TalentTargets({ a, b }: { a: SavePal; b: SavePal }) {
         {rows.map(([name, av, bv]) => (
           <div key={name} className="text-center">
             <p className="text-[11px] text-ink/40">{name}</p>
-            <p className="font-mono text-lg font-bold text-foreground">{Math.max(av, bv)}</p>
+            <p className="font-mono text-lg font-bold" style={{ color: talentTone(Math.max(av, bv)) }}>
+              {Math.max(av, bv)}
+            </p>
           </div>
         ))}
       </div>
@@ -491,9 +495,16 @@ function PathFinder({ savePals, saveStatus }: { savePals?: SavePal[]; saveStatus
                     )}
                   >
                     <span>{opt.eggs === 0 ? "In the box" : `${opt.eggs} ${opt.eggs === 1 ? "egg" : "eggs"}`}</span>
-                    <span className={cn("font-mono text-[11px]", active ? "text-paper/80" : "text-ink/40")}>
-                      {opt.ceiling.join("/")}
-                    </span>
+                    {active ? (
+                      <span className="font-mono text-[11px] text-paper/80">{opt.ceiling.join("/")}</span>
+                    ) : (
+                      <TalentTriplet
+                        hp={opt.ceiling[0]}
+                        attack={opt.ceiling[1]}
+                        defense={opt.ceiling[2]}
+                        className="font-mono text-[11px] text-ink/40"
+                      />
+                    )}
                   </button>
                 );
               })}
@@ -606,7 +617,9 @@ function StepCard({ step, final }: { step: BreedStep<SavePal>; final: boolean })
               <p className="truncate font-display text-base font-bold">{palName(step.childId)}</p>
               {step.special && <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand-amber" />}
             </div>
-            <p className="font-mono text-[11px] text-ink/40">best {step.ceiling.join("/")}</p>
+            <p className="font-mono text-[11px] text-ink/40">
+              best <TalentTriplet hp={step.ceiling[0]} attack={step.ceiling[1]} defense={step.ceiling[2]} />
+            </p>
             {final && (
               <span className="mt-1 inline-flex rounded-full bg-brand-amber/15 px-2 py-0.5 text-[11px] font-semibold text-brand-amber">
                 Target
@@ -638,7 +651,8 @@ function ParentRow({ parent }: { parent: StepParent<SavePal> }) {
             )}
           </p>
           <p className="truncate font-mono text-[11px] text-ink/40">
-            Lv.{p.level} · {p.ivHp}/{p.ivAttack}/{p.ivDefense} · {p.playerName}
+            Lv.{p.level} · <TalentTriplet hp={p.ivHp} attack={p.ivAttack} defense={p.ivDefense} /> ·{" "}
+            {p.playerName}
           </p>
         </div>
       </div>

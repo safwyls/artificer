@@ -160,6 +160,14 @@ export function palEffectiveStats(pal: Pal): StatResult | null {
   });
 }
 
+/** IV color cue, shared by every talent readout in the app: gold is a
+ * perfect 100, green (70–99) is breeding stock, blue is below par. */
+export function talentTone(v: number): string {
+  if (v >= 100) return "#D4A017";
+  if (v >= 70) return "#4A9D7C";
+  return "#5B9BD5";
+}
+
 export interface TalentRating {
   /** Single-letter tier, S being a near-perfect roll. */
   tier: "S" | "A" | "B" | "C" | "D";
