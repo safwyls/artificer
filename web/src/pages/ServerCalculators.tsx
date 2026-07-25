@@ -3,9 +3,9 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Sparkles, X } from "lucide-react";
 import { api, ApiError } from "../lib/api";
-import { palEntry, palName, elementColor } from "../lib/paldex";
+import { palEntry, palName, passiveName, elementColor } from "../lib/paldex";
 import { breedChild, parentPairsFor, isBreedable } from "../lib/breeding";
-import { computeStats, talentRating, hasCombatStats } from "../lib/stats";
+import { computeStats, talentRating, hasCombatStats, passiveStatEffect } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
@@ -39,6 +39,9 @@ export function ServerCalculators() {
       for (const pal of [...player.party, ...player.palbox, ...player.base]) {
         if (seen.has(pal.instanceId)) continue;
         seen.add(pal.instanceId);
+        // Soul upgrades come back keyed by the game's stat labels; pull the
+        // three combat ones. Rank is 1-based (1 = no condenser), so stars = rank-1.
+        const souls = pal.souls ?? {};
         out.push({
           key: pal.instanceId,
           characterId: pal.characterId,
@@ -47,6 +50,14 @@ export function ServerCalculators() {
           ivHp: pal.talentHp,
           ivAttack: pal.talentShot,
           ivDefense: pal.talentDefense,
+          condenser: Math.max(0, (pal.rank ?? 1) - 1),
+          souls: {
+            hp: souls["Max HP"] ?? 0,
+            attack: souls["Attack"] ?? 0,
+            defense: souls["Defense"] ?? 0,
+          },
+          passives: pal.passives ?? [],
+          isAlpha: pal.isBoss,
           playerName: player.nickname,
         });
       }
@@ -365,6 +376,9 @@ interface StatForm {
   soulAttack: number;
   soulDefense: number;
   condenser: number;
+  trust: number;
+  passives: string[];
+  isAlpha: boolean;
 }
 
 const emptyStatForm: StatForm = {
@@ -377,6 +391,9 @@ const emptyStatForm: StatForm = {
   soulAttack: 0,
   soulDefense: 0,
   condenser: 0,
+  trust: 0,
+  passives: [],
+  isAlpha: false,
 };
 
 function StatCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; saveStatus?: string }) {
@@ -386,16 +403,27 @@ function StatCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; saveSt
 
   const onPick = (pick: PickedPal) => {
     if (pick.save) {
+      const s = pick.save;
       setForm((f) => ({
         ...f,
         characterId: pick.characterId,
-        level: pick.save!.level,
-        ivHp: pick.save!.ivHp,
-        ivAttack: pick.save!.ivAttack,
-        ivDefense: pick.save!.ivDefense,
+        level: s.level,
+        ivHp: s.ivHp,
+        ivAttack: s.ivAttack,
+        ivDefense: s.ivDefense,
+        condenser: s.condenser,
+        soulHp: s.souls.hp,
+        soulAttack: s.souls.attack,
+        soulDefense: s.souls.defense,
+        passives: s.passives,
+        isAlpha: s.isAlpha,
+        // Trust stays manual: the save stores raw friendship points, not the
+        // 0–5 bond level the game shows, and the mapping isn't published.
+        trust: 0,
       }));
     } else {
-      set("characterId", pick.characterId);
+      // A bare species has no passives or alpha flag of its own to carry over.
+      setForm((f) => ({ ...f, characterId: pick.characterId, passives: [], isAlpha: false }));
     }
   };
 
@@ -410,10 +438,15 @@ function StatCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; saveSt
         soulAttack: form.soulAttack,
         soulDefense: form.soulDefense,
         condenser: form.condenser,
+        trust: form.trust,
+        passives: form.passives,
+        isAlpha: form.isAlpha,
       })
     : null;
   const rating = talentRating(form.ivHp, form.ivAttack, form.ivDefense);
   const noStats = form.characterId && !hasCombatStats(form.characterId);
+  // Passives that actually move the numbers, for the applied-effects list.
+  const statPassives = form.passives.filter((c) => passiveStatEffect(c));
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -459,10 +492,55 @@ function StatCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; saveSt
             <NumberField label="Soul Atk" min={0} max={10} value={form.soulAttack} onChange={(v) => set("soulAttack", v)} />
             <NumberField label="Soul Def" min={0} max={10} value={form.soulDefense} onChange={(v) => set("soulDefense", v)} />
           </div>
-          <div className="mt-3 w-1/3 pr-2">
+          <div className="mt-3 grid grid-cols-3 items-end gap-3">
             <NumberField label="Condenser ★" min={0} max={4} value={form.condenser} onChange={(v) => set("condenser", v)} />
+            <NumberField label="Trust" min={0} max={20} value={form.trust} onChange={(v) => set("trust", v)} />
+            <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={form.isAlpha}
+                onChange={(e) => set("isAlpha", e.target.checked)}
+                className="h-4 w-4 accent-brand-red"
+              />
+              Alpha
+            </label>
           </div>
         </div>
+
+        {form.passives.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">Passives</p>
+            <div className="flex flex-wrap gap-1.5">
+              {form.passives.map((code) => {
+                const eff = passiveStatEffect(code);
+                const label = !eff
+                  ? ""
+                  : ["Atk", "Def", "HP"]
+                      .map((n, i) => (eff[i] ? `${n} ${eff[i] > 0 ? "+" : ""}${eff[i]}%` : null))
+                      .filter(Boolean)
+                      .join(" · ");
+                return (
+                  <span
+                    key={code}
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                      eff ? "bg-brand-red/10 text-brand-red" : "bg-ink/5 text-ink/40",
+                    )}
+                    title={eff ? label : "No effect on the displayed stats"}
+                  >
+                    {passiveName(code)}
+                    {eff && <span className="ml-1 font-mono">{label}</span>}
+                  </span>
+                );
+              })}
+            </div>
+            {form.passives.length > statPassives.length && (
+              <p className="mt-1.5 text-[11px] text-ink/35">
+                Greyed passives boost element damage or buff you, not this pal's shown stats.
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-ink/10 bg-white/70 p-5 lg:p-6">
@@ -495,7 +573,8 @@ function StatCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; saveSt
             <StatBar label="Attack" value={stats.attack} max={1500} color="#E0502F" />
             <StatBar label="Defense" value={stats.defense} max={1500} color="#5B8DEF" />
             <p className="pt-2 text-[11px] text-ink/35">
-              Estimated from the community stat formula — expect a point or two of drift from in-game values.
+              Calibrated against in-game values — Attack and Defense are exact. Trust is the one estimate, so a
+              high-bond pal may read a touch low.
             </p>
           </div>
         ) : (
