@@ -7,11 +7,12 @@ import activeSkills from "../data/activeSkills.json";
  * Lookups that turn a save file's internal ids into what the game actually
  * calls things — "PinkCat" is Cattiva, "PAL_ALLAttack_up1" is Brave.
  *
- * Data and icons are vendored from palworld-server-manager (MIT), which
- * sources the catalogs from palworld-save-pal's English localization; see
- * web/public/pal-icons/README.md. Every lookup falls back to the raw id, so
- * a pal added by a game update shows up with its internal name rather than
- * disappearing.
+ * Names and icons are vendored from palworld-server-manager (MIT), which
+ * sources the catalogs from palworld-save-pal's English localization; skill
+ * and passive descriptions are merged from deafdudecomputers/PalworldSaveTools
+ * (MIT). See web/public/pal-icons/README.md. Every lookup falls back to a
+ * humanized id, so a pal or skill added by a game update still shows a
+ * readable name rather than disappearing or leaking a raw internal id.
  */
 
 interface PalEntry {
@@ -51,8 +52,23 @@ export function palIconUrl(characterId: string): string {
   return `/pal-icons/${palKey(characterId)}.webp`;
 }
 
+/** Turns a leftover internal id into something readable, for the rare code
+ * the catalog has no localized name for — mostly boss-only skills and utility
+ * buffs a player never sees on their own pals. "Unique_WorldTreeDragon_BigBang"
+ * becomes "World Tree Dragon Big Bang", "AccuracyDecrease" becomes "Accuracy
+ * Decrease". */
+function humanizeCode(code: string): string {
+  return code
+    .replace(/^(Unique_|PAL_|EPalWazaID::)/i, "")
+    .replace(/[_:]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function passiveName(code: string): string {
-  return passives[code]?.n ?? code;
+  const n = passives[code]?.n;
+  return n && n !== code ? n : humanizeCode(code);
 }
 
 /** Description, or "" when the catalog just repeats the name (many do). */
@@ -63,7 +79,8 @@ export function passiveDescription(code: string): string {
 }
 
 export function skillName(code: string): string {
-  return actives[code]?.n ?? code;
+  const n = actives[code]?.n;
+  return n && n !== code ? n : humanizeCode(code);
 }
 
 export function skillDescription(code: string): string {
