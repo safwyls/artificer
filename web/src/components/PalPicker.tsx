@@ -23,6 +23,8 @@ export interface SavePal {
   passives: string[];
   /** Captured field boss — carries an HP bonus. */
   isAlpha: boolean;
+  /** Bond/trust rank 0–10, mapped from the save's friendship points. */
+  trust: number;
   playerName: string;
 }
 

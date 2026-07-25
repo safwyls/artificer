@@ -184,6 +184,28 @@ def status_points(param, key):
     return out
 
 
+def soul_ranks(param):
+    """Pal Soul upgrades (+3% per rank), as {stat: rank}. Current saves store
+    them as per-stat Rank_* ints; the extractor reads whichever spelling is
+    present and falls back to the older Japanese-labelled list."""
+    out = {}
+    for field, name in (
+        ("Rank_HP", "Max HP"),
+        ("Rank_Attack", "Attack"),
+        ("Rank_Defense", "Defense"),
+        ("Rank_CraftSpeed", "Work Speed"),
+    ):
+        pts = num(param, field, default=0)
+        if pts:
+            out[name] = pts
+    # Palworld's internal names use the British "Defence" in some builds.
+    if "Defense" not in out:
+        d = num(param, "Rank_Defence", default=0)
+        if d:
+            out["Defense"] = d
+    return out or status_points(param, "GotExStatusPointList")
+
+
 def parse_pal(param, instance_id):
     char_id = text(param, "CharacterID")
     gender = text(param, "Gender")
@@ -219,7 +241,7 @@ def parse_pal(param, instance_id):
         "stomach": round(num(param, "FullStomach"), 1),
         "friendship": num(param, "FriendshipPoint"),
         "sick": sick,
-        "souls": status_points(param, "GotExStatusPointList"),
+        "souls": soul_ranks(param),
         "slotIndex": num(param, "SlotId", "SlotIndex", default=-1),
     }
 

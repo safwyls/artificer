@@ -5,7 +5,7 @@ import { ArrowRight, Sparkles, X } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { palEntry, palName, passiveName, elementColor } from "../lib/paldex";
 import { breedChild, parentPairsFor, isBreedable } from "../lib/breeding";
-import { computeStats, talentRating, hasCombatStats, passiveStatEffect } from "../lib/stats";
+import { computeStats, talentRating, hasCombatStats, passiveStatEffect, friendshipRank } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
@@ -58,6 +58,7 @@ export function ServerCalculators() {
           },
           passives: pal.passives ?? [],
           isAlpha: pal.isBoss,
+          trust: friendshipRank(pal.friendship),
           playerName: player.nickname,
         });
       }
@@ -417,9 +418,7 @@ function StatCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; saveSt
         soulDefense: s.souls.defense,
         passives: s.passives,
         isAlpha: s.isAlpha,
-        // Trust stays manual: the save stores raw friendship points, not the
-        // 0–5 bond level the game shows, and the mapping isn't published.
-        trust: 0,
+        trust: s.trust,
       }));
     } else {
       // A bare species has no passives or alpha flag of its own to carry over.
@@ -494,7 +493,7 @@ function StatCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; saveSt
           </div>
           <div className="mt-3 grid grid-cols-3 items-end gap-3">
             <NumberField label="Condenser ★" min={0} max={4} value={form.condenser} onChange={(v) => set("condenser", v)} />
-            <NumberField label="Trust" min={0} max={20} value={form.trust} onChange={(v) => set("trust", v)} />
+            <NumberField label="Trust" min={0} max={10} value={form.trust} onChange={(v) => set("trust", v)} />
             <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm text-foreground">
               <input
                 type="checkbox"
