@@ -14,7 +14,7 @@ import { ShutdownDialog } from "./ServerActionDialogs";
 
 const segmentClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "flex-1 rounded-lg py-1.5 text-center text-sm font-semibold transition",
+    "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-sm font-semibold transition",
     isActive ? "bg-brand-red text-paper" : "text-paper/60",
   );
 
@@ -166,7 +166,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
       </div>
 
       {server && (
-        <div className="mt-3 flex rounded-xl bg-white/10 p-1">
+        <div className="mt-3 flex gap-0.5 overflow-x-auto rounded-xl bg-white/10 p-1">
           <NavLink to={`/servers/${server.id}`} end className={segmentClass}>
             Dashboard
           </NavLink>
@@ -178,6 +178,9 @@ export function MobileTopBar({ server }: { server: Server | null }) {
           </NavLink>
           <NavLink to={`/servers/${server.id}/guilds`} className={segmentClass}>
             Guilds
+          </NavLink>
+          <NavLink to={`/servers/${server.id}/calculators`} className={segmentClass}>
+            Calculators
           </NavLink>
           {can("settings") && (
             <NavLink to={`/servers/${server.id}/settings`} className={segmentClass}>

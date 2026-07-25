@@ -43,6 +43,24 @@ blurb: passive work flags (`CollectItem_*`), Pal Sphere modifiers
 lookup layer humanizes any such leftover id (`Unique_WorldTreeDragon_BigBang`
 → "World Tree Dragon Big Bang") so the UI never shows a raw internal name.
 
+## Breeding & combat data (calculators)
+
+The Calculators tab is backed by two more files derived from
+[PalworldSaveTools](https://github.com/deafdudecomputers/PalworldSaveTools)
+(MIT):
+
+| File | Derived from | Contents |
+| --- | --- | --- |
+| `web/src/data/breeding.json` | `resources/game_data/breedingdata.json` | Every parent-pair → child outcome, as a dense upper-triangular table, plus the set of hand-authored "special" combos |
+| `web/src/data/palCombat.json` | `resources/game_data/characters.json` | Base `[hp, attack, defense]` per species, for the stat estimator |
+
+The breeding table is inverted from the upstream `child_to_parents_*` maps and
+validated to match its `parent_to_children_formula` exactly, so the outcomes
+are the game's, not a reimplemented formula. `web/src/lib/breeding.ts` reads it;
+`web/src/lib/stats.ts` applies the community stat formula (base + per-level
+scaling, talents up to +30%, souls +3% each, condenser +5% per star), which
+the UI labels "estimated".
+
 ## Naming
 
 A file is named for the pal's internal id, lowercased, with the `BOSS_` prefix

@@ -20,6 +20,11 @@ const ServerPlayers = lazy(() =>
 const ServerGuilds = lazy(() =>
   import("./pages/ServerGuilds").then((m) => ({ default: m.ServerGuilds })),
 );
+// Split out: pulls in the breeding table + base-stats catalog, which only
+// this route needs.
+const ServerCalculators = lazy(() =>
+  import("./pages/ServerCalculators").then((m) => ({ default: m.ServerCalculators })),
+);
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { username, loading } = useAuth();
@@ -59,6 +64,14 @@ export function App() {
             element={
               <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
                 <ServerPlayers />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/servers/:serverID/calculators"
+            element={
+              <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
+                <ServerCalculators />
               </Suspense>
             }
           />
