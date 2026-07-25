@@ -219,7 +219,11 @@ func TestRead(t *testing.T) {
 	tests := []struct {
 		name string
 		// path is relative to this package; a directory must resolve to the
-		// Level.sav inside it, a file must be read directly.
+		// Level.sav inside it, a file must be read directly. Empty means the
+		// fixture is generated into a temp dir by gen_newlayout_fixture.py —
+		// it needs only palworld_save_tools, which this test already
+		// requires, and generating keeps the storage sidecars covered
+		// without committing more .sav binaries.
 		path       string
 		needsOodle bool
 		// The newlayout fixture also carries pal-storage files: a
@@ -233,7 +237,7 @@ func TestRead(t *testing.T) {
 		// container ids in Players/<uid>.sav, so ownership resolves by
 		// container. Produced zero pals for every player before that was
 		// handled — hence a fixture rather than trusting the old one.
-		{name: "container-based ownership", path: "testdata/newlayout", hasStorage: true},
+		{name: "container-based ownership", hasStorage: true},
 	}
 
 	for _, tc := range tests {
@@ -245,7 +249,17 @@ func TestRead(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			path, err := filepath.Abs(tc.path)
+			fixture := tc.path
+			if fixture == "" {
+				dir := t.TempDir()
+				gen := exec.Command("python3", "gen_newlayout_fixture.py", dir)
+				gen.Dir = "testdata"
+				if out, err := gen.CombinedOutput(); err != nil {
+					t.Fatalf("generating newlayout fixture: %v: %s", err, out)
+				}
+				fixture = dir
+			}
+			path, err := filepath.Abs(fixture)
 			if err != nil {
 				t.Fatal(err)
 			}

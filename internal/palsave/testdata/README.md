@@ -8,7 +8,7 @@ safe to commit.
 | --- | --- | --- |
 | `Level.sav` | `PlZ` (zlib) | The original save format |
 | `Level_oodle.sav` | `PlM` (Oodle Kraken) | The newer format used by game builds 0.6+ |
-| `newlayout/` | `PlZ` (zlib) | 0.6-era container-based ownership, plus pal storage: a `Players/<uid>_dps.sav` Dimensional Pal Storage sidecar (with an empty slot that must be skipped) and a `GlobalPalStorage.sav` attributed by `OldOwnerPlayerUIds` |
+| (generated) | `PlZ` (zlib) | 0.6-era container-based ownership, plus pal storage: a `Players/<uid>_dps.sav` Dimensional Pal Storage sidecar (with an empty slot that must be skipped) and a `GlobalPalStorage.sav` attributed by `OldOwnerPlayerUIds`. Built into a temp dir at test time by `gen_newlayout_fixture.py`, so no extra `.sav` binaries need committing; a `newlayout/` on disk is a leftover from running the generator by hand |
 
 ## Regenerating
 
