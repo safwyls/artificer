@@ -18,11 +18,30 @@ Vendored from [palworld-server-manager](https://github.com/amantu-qbit/palworld-
 | --- | --- |
 | `web/src/data/palDex.json` | `src/data/palDex.json` — display name, elements, rarity |
 | `web/src/data/passiveSkills.json` | `bridge/data/passive_skills.json` — passive id → English name |
+| `web/src/data/activeSkills.json` | `bridge/data/active_skills.json` — active skill id → English name |
 
 Those catalogs originate from [palworld-save-pal](https://github.com/oMaN-Rod/palworld-save-pal)'s
 English localization data, which in turn derives from
 [palworld-save-tools](https://github.com/cheahjs/palworld-save-tools). Both are
 static id → display-name lookups; no code was copied from either project.
+
+## Skill & passive descriptions
+
+Active-skill descriptions (the `d` field in `activeSkills.json`) come with the
+palworld-server-manager catalog above. Its passive catalog ships **names
+only**, so the passive descriptions in `passiveSkills.json` are merged in from
+[PalworldSaveTools](https://github.com/deafdudecomputers/PalworldSaveTools)
+(MIT), path `resources/game_data/skills.json` — a static id → description
+table. The merge keeps the localized names and only fills the `d` field,
+matching on the internal skill id (`asset`); in-game `\r\n` line breaks are
+collapsed to single spaces. See the commit that added them for the transform.
+
+Descriptions that stayed blank are internal entries with no player-facing
+blurb: passive work flags (`CollectItem_*`), Pal Sphere modifiers
+(`SphereModule_*`), and boss-only active skills (`Unique_*Boss*`, `*_GYM_Act`,
+`Unique_WorldTreeDragon_*`) that never appear on a player's own pals. The
+lookup layer humanizes any such leftover id (`Unique_WorldTreeDragon_BigBang`
+→ "World Tree Dragon Big Bang") so the UI never shows a raw internal name.
 
 ## Naming
 

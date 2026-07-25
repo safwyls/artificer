@@ -18,6 +18,7 @@ const emptyForm: ServerWriteInput = {
   useRest: true,
   enabled: true,
   savePath: "",
+  configPath: "",
   containerName: "",
 };
 
@@ -33,6 +34,7 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
       useRest: server.useRest,
       enabled: server.enabled,
       savePath: server.savePath,
+      configPath: server.configPath,
       containerName: server.containerName,
     };
   }
@@ -140,6 +142,20 @@ export function ServerFormDialog({
             <p className="text-xs text-muted-foreground">
               Container path to the world save folder (holds <code>Level.sav</code>), mounted read-only.
               Enables the Pal party/palbox viewer.
+            </p>
+          </div>
+
+          <div className="mt-4 space-y-1.5">
+            <Label>Config path (optional)</Label>
+            <Input
+              value={form.configPath}
+              placeholder="/config/myserver"
+              onChange={(e) => setForm({ ...form, configPath: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Container path to the folder holding <code>PalWorldSettings.ini</code>, mounted
+              <strong> read-write</strong>. Enables the settings editor. Keep this separate from the save
+              mount so save data stays read-only.
             </p>
           </div>
 

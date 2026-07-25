@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import { api, type Server } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { formatUptime } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { Badge } from "./ui/badge";
@@ -19,6 +20,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 /** Desktop second column: the active server's identity + view navigation. */
 export function ServerSubNav({ server }: { server: Server }) {
+  const { can } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -100,6 +102,11 @@ export function ServerSubNav({ server }: { server: Server }) {
         <NavLink to={`/servers/${server.id}/guilds`} className={navLinkClass}>
           Guilds
         </NavLink>
+        {can("settings") && (
+          <NavLink to={`/servers/${server.id}/settings`} className={navLinkClass}>
+            Settings
+          </NavLink>
+        )}
       </nav>
 
       {metricsQuery.isSuccess && (

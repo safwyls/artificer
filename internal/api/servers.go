@@ -24,6 +24,7 @@ type serverDTO struct {
 	UseREST         bool   `json:"useRest"`
 	Enabled         bool   `json:"enabled"`
 	SavePath        string `json:"savePath"`
+	ConfigPath      string `json:"configPath"`
 	ContainerName   string `json:"containerName"`
 }
 
@@ -39,6 +40,7 @@ func toDTO(srv *store.Server) serverDTO {
 		UseREST:         srv.UseREST,
 		Enabled:         srv.Enabled,
 		SavePath:        srv.SavePath,
+		ConfigPath:      srv.ConfigPath,
 		ContainerName:   srv.ContainerName,
 	}
 }
@@ -53,6 +55,7 @@ type serverWriteRequest struct {
 	UseREST       bool   `json:"useRest"`
 	Enabled       bool   `json:"enabled"`
 	SavePath      string `json:"savePath"`
+	ConfigPath    string `json:"configPath"`
 	ContainerName string `json:"containerName"`
 }
 
@@ -102,7 +105,7 @@ func (s *Server) handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		RCONPort: req.RCONPort, RCONPassword: req.RCONPassword,
 		RESTPort: req.RESTPort, RESTPassword: req.RESTPassword,
 		UseREST: req.UseREST, Enabled: req.Enabled,
-		SavePath: req.SavePath, ContainerName: req.ContainerName,
+		SavePath: req.SavePath, ConfigPath: req.ConfigPath, ContainerName: req.ContainerName,
 	}
 	id, err := s.store.CreateServer(r.Context(), srv)
 	if err != nil {
@@ -129,7 +132,7 @@ func (s *Server) handleUpdateServer(w http.ResponseWriter, r *http.Request) {
 		RCONPort: req.RCONPort, RCONPassword: req.RCONPassword,
 		RESTPort: req.RESTPort, RESTPassword: req.RESTPassword,
 		UseREST: req.UseREST, Enabled: req.Enabled,
-		SavePath: req.SavePath, ContainerName: req.ContainerName,
+		SavePath: req.SavePath, ConfigPath: req.ConfigPath, ContainerName: req.ContainerName,
 	}
 	if err := s.store.UpdateServer(r.Context(), srv); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update server")

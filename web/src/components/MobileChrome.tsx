@@ -21,7 +21,7 @@ const segmentClass = ({ isActive }: { isActive: boolean }) =>
 /** Mobile top bar: active server identity, Dashboard/Live map segmented control,
  * and an overflow menu carrying the actions that have no other mobile home. */
 export function MobileTopBar({ server }: { server: Server | null }) {
-  const { username, logout } = useAuth();
+  const { username, logout, can } = useAuth();
   const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -179,6 +179,11 @@ export function MobileTopBar({ server }: { server: Server | null }) {
           <NavLink to={`/servers/${server.id}/guilds`} className={segmentClass}>
             Guilds
           </NavLink>
+          {can("settings") && (
+            <NavLink to={`/servers/${server.id}/settings`} className={segmentClass}>
+              Settings
+            </NavLink>
+          )}
         </div>
       )}
 
