@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 # ---- backend build ----
-FROM golang:1.22-alpine AS backend
+FROM golang:1.26-alpine AS backend
 WORKDIR /app
 # Download modules against the committed go.mod/go.sum before copying
 # sources, so source-only changes reuse the cached module layer and the
@@ -19,7 +19,7 @@ COPY --from=frontend /app/web/dist ./web/dist
 RUN CGO_ENABLED=0 go build -o /out/palcon ./cmd/palcon
 
 # ---- runtime ----
-FROM alpine:3.20
+FROM alpine:3.22
 # python3 + palworld-save-tools power the phase 5 Pal viewer (reading
 # Level.sav). pyooz unwraps the newer Oodle-compressed ("PlM") save
 # container that palworld-save-tools doesn't handle yet; it ships prebuilt
