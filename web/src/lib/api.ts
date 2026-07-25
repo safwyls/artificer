@@ -42,6 +42,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+/** The server's explanation for a failed request — for toasts that would
+ * otherwise say what failed but not why. */
+export function errorDetail(err: unknown): string | undefined {
+  return err instanceof ApiError && err.message ? err.message : undefined;
+}
+
 export const PERMISSIONS = ["power", "broadcast", "save", "moderate", "shutdown", "settings"] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

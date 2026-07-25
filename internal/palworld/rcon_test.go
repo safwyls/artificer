@@ -52,6 +52,15 @@ type fakeRCON struct {
 
 	mu       sync.Mutex
 	commands []string
+	// Close the connection after reading a command instead of replying, the
+	// way real Palworld servers answer KickPlayer/BanPlayer on some builds.
+	dropAfterCommand bool
+}
+
+func (f *fakeRCON) setDropAfterCommand() {
+	f.mu.Lock()
+	f.dropAfterCommand = true
+	f.mu.Unlock()
 }
 
 func newFakeRCON(t *testing.T, password, response string, preAuthNoise bool) *fakeRCON {
@@ -98,7 +107,11 @@ func (f *fakeRCON) handle(conn net.Conn) {
 	}
 	f.mu.Lock()
 	f.commands = append(f.commands, cmd)
+	drop := f.dropAfterCommand
 	f.mu.Unlock()
+	if drop {
+		return // deferred Close drops the connection with no reply
+	}
 	writePacket(conn, cmdID, 0, f.response)
 }
 
@@ -156,6 +169,31 @@ func TestRCONInfoParsing(t *testing.T) {
 	}
 	if info.ServerName != "My Cool Server" || info.Version != "0.5.2.63216" || info.Transport != "rcon" {
 		t.Errorf("info = %+v", info)
+	}
+}
+
+func TestRCONKickToleratesDroppedReply(t *testing.T) {
+	f := newFakeRCON(t, "pw", "", false)
+	f.setDropAfterCommand()
+
+	if err := f.client().Kick(context.Background(), "7656119", "bye"); err != nil {
+		t.Errorf("kick with dropped reply: want success, got %v", err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.commands) != 1 || f.commands[0] != "KickPlayer 7656119" {
+		t.Errorf("commands = %v, want [KickPlayer 7656119]", f.commands)
+	}
+}
+
+func TestRCONBroadcastStillFailsOnDroppedReply(t *testing.T) {
+	// Only moderation commands are fire-and-forget; everything else must
+	// keep reporting a dropped connection.
+	f := newFakeRCON(t, "pw", "", false)
+	f.setDropAfterCommand()
+
+	if err := f.client().Broadcast(context.Background(), "hello"); err == nil {
+		t.Error("broadcast with dropped reply: want error, got nil")
 	}
 }
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Ban, Megaphone, Power, UserX } from "lucide-react";
 import { toast } from "sonner";
-import { api, type Player } from "../lib/api";
+import { api, errorDetail, type Player } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { NumberField } from "./ui/number-field";
@@ -34,7 +34,7 @@ export function BroadcastDialog({
       setMessage("");
       onOpenChange(false);
     },
-    onError: () => toast.error("Failed to send broadcast"),
+    onError: (err) => toast.error("Failed to send broadcast", { description: errorDetail(err) }),
   });
 
   return (
@@ -90,14 +90,20 @@ export function ModerationDialog({
   }, [target]);
 
   const act = useMutation({
-    mutationFn: ({ action, player }: ModerationTarget) =>
-      action === "kick" ? api.kick(serverId, player.playerId, reason) : api.ban(serverId, player.playerId, reason),
+    // Kick/ban take the steam/platform id (userId), not the in-game player
+    // uid — the game rejects the latter. Old RCON builds can omit the steam
+    // column from ShowPlayers, so fall back rather than send nothing.
+    mutationFn: ({ action, player }: ModerationTarget) => {
+      const uid = player.userId || player.playerId;
+      return action === "kick" ? api.kick(serverId, uid, reason) : api.ban(serverId, uid, reason);
+    },
     onSuccess: (_, { action, player }) => {
       toast.success(`${action === "kick" ? "Kicked" : "Banned"} ${player.name}`);
       onClose();
       onDone?.();
     },
-    onError: (_, { action, player }) => toast.error(`Failed to ${action} ${player.name}`),
+    onError: (err, { action, player }) =>
+      toast.error(`Failed to ${action} ${player.name}`, { description: errorDetail(err) }),
   });
 
   const isBan = target?.action === "ban";
@@ -155,7 +161,7 @@ export function ShutdownDialog({
       toast.success("Shutdown initiated");
       onOpenChange(false);
     },
-    onError: () => toast.error("Shutdown failed"),
+    onError: (err) => toast.error("Shutdown failed", { description: errorDetail(err) }),
   });
 
   return (

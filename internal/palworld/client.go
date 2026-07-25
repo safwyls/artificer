@@ -20,8 +20,8 @@ type ServerInfo struct {
 
 type Player struct {
 	Name      string  `json:"name"`
-	PlayerUID string  `json:"playerId"` // steam/platform id, used for kick/ban
-	UserID    string  `json:"userId"`
+	PlayerUID string  `json:"playerId"` // in-game player uid (hex over REST, decimal over RCON)
+	UserID    string  `json:"userId"`   // steam/platform id — the one kick/ban/unban expect
 	Level     int     `json:"level"`
 	Ping      float64 `json:"ping"`
 	LocationX float64 `json:"location_x"`

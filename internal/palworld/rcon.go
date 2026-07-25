@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -41,6 +43,26 @@ func (c *RCONClient) dialTimeout() time.Duration {
 // simple (no auth-expiry or reconnect bookkeeping) at the cost of a little
 // latency, which is fine for an admin tool.
 func (c *RCONClient) exec(ctx context.Context, command string) (string, error) {
+	return c.execOpts(ctx, command, false)
+}
+
+// execFireAndForget is exec for commands Palworld executes on receipt but
+// often answers by just dropping the connection — KickPlayer and BanPlayer do
+// this on some builds, which used to surface as "failed" for a kick that
+// visibly happened. Auth and write failures still fail; only a dropped reply
+// after a successfully written command is forgiven.
+func (c *RCONClient) execFireAndForget(ctx context.Context, command string) error {
+	_, err := c.execOpts(ctx, command, true)
+	return err
+}
+
+// isConnDrop reports whether reading failed because the server closed or
+// reset the connection, as opposed to answering badly or timing out.
+func isConnDrop(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET)
+}
+
+func (c *RCONClient) execOpts(ctx context.Context, command string, tolerateDroppedReply bool) (string, error) {
 	d := net.Dialer{Timeout: c.dialTimeout()}
 	conn, err := d.DialContext(ctx, "tcp", c.addr)
 	if err != nil {
@@ -79,6 +101,9 @@ func (c *RCONClient) exec(ctx context.Context, command string) (string, error) {
 	}
 	_, _, body, err := readPacket(conn)
 	if err != nil {
+		if tolerateDroppedReply && isConnDrop(err) {
+			return "", nil
+		}
 		return "", fmt.Errorf("rcon exec %q response: %w", command, err)
 	}
 	return body, nil
@@ -173,18 +198,15 @@ func (c *RCONClient) Broadcast(ctx context.Context, message string) error {
 }
 
 func (c *RCONClient) Kick(ctx context.Context, playerUID, message string) error {
-	_, err := c.exec(ctx, "KickPlayer "+playerUID)
-	return err
+	return c.execFireAndForget(ctx, "KickPlayer "+playerUID)
 }
 
 func (c *RCONClient) Ban(ctx context.Context, playerUID, message string) error {
-	_, err := c.exec(ctx, "BanPlayer "+playerUID)
-	return err
+	return c.execFireAndForget(ctx, "BanPlayer "+playerUID)
 }
 
 func (c *RCONClient) Unban(ctx context.Context, playerUID string) error {
-	_, err := c.exec(ctx, "UnBanPlayer "+playerUID)
-	return err
+	return c.execFireAndForget(ctx, "UnBanPlayer "+playerUID)
 }
 
 func (c *RCONClient) Save(ctx context.Context) error {

@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut, MoreVertical, Pencil, Plus, Power, RefreshCw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { api, type Server } from "../lib/api";
+import { api, errorDetail, type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { serverColor, initials } from "../lib/palette";
 import { cn } from "../lib/utils";
@@ -41,7 +41,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
   const save = useMutation({
     mutationFn: () => api.save(server!.id),
     onSuccess: () => toast.success("World saved"),
-    onError: () => toast.error("Save failed"),
+    onError: (err) => toast.error("Save failed", { description: errorDetail(err) }),
   });
 
   const menuItem =
