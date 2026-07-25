@@ -16,8 +16,9 @@ import { cn } from "../lib/utils";
 import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 
-/** IV colour cue: green is worth keeping, amber is middling, grey is poor. */
-const ivTone = (v: number) => (v >= 70 ? "#4A9D7C" : v >= 40 ? "#F2A93B" : "#9C9186");
+/** IV colour cue: gold is a perfect 100, green is worth keeping, amber is
+ * middling, grey is poor. */
+const ivTone = (v: number) => (v >= 100 ? "#D4A017" : v >= 70 ? "#4A9D7C" : v >= 40 ? "#F2A93B" : "#9C9186");
 
 /** A stat with a value and a bar, scaled to a per-stat ceiling so a strong
  * pal fills it and a weak one doesn't. */
