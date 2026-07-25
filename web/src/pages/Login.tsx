@@ -31,7 +31,7 @@ export function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="app-min-height flex items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <ServerCog className="mb-1 h-8 w-8 text-brand-red" />

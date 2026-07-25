@@ -48,7 +48,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
     "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-ink hover:bg-ink/5 transition-colors";
 
   return (
-    <div className="shrink-0 bg-ink px-4 pb-3 pt-4 text-paper">
+    <div className="shrink-0 bg-ink px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] text-paper">
       <div className="flex items-center justify-between">
         {server ? (
           <div className="flex min-w-0 items-center gap-2.5">
@@ -224,7 +224,7 @@ export function MobileBottomRail({ servers, activeServerId }: { servers: Server[
   };
 
   return (
-    <div className="flex shrink-0 items-center justify-around border-t border-black/20 bg-ink py-2.5">
+    <div className="flex shrink-0 items-center justify-around border-t border-black/20 bg-ink pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
       {servers.map((server) => (
         <ServerSphere
           key={server.id}

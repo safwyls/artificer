@@ -36,6 +36,19 @@ body {
   @apply bg-background text-foreground font-body;
 }
 
+/* Mobile browsers' collapsing address bars make 100vh taller than what's
+   actually visible, which shoved the bottom server rail behind the toolbar
+   until a scroll. dvh tracks the real visible height; the vh line is the
+   fallback for browsers that predate it. */
+.app-height {
+  height: 100vh;
+  height: 100dvh;
+}
+.app-min-height {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 /* Signature clipped-corner shape from the mocks, used sparingly on primary
    CTAs and hero panels — not applied globally, or it stops reading as a
    deliberate accent. */

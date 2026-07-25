@@ -28,7 +28,7 @@ export function AppShell() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="app-height flex overflow-hidden bg-background">
       <div className="hidden lg:flex">
         <ServerRail servers={servers} activeServerId={activeServerId} />
         {activeServer && <ServerSubNav server={activeServer} />}
