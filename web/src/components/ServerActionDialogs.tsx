@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { NumberField } from "./ui/number-field";
 import { Label } from "./ui/label";
 import {
   Dialog,
@@ -99,7 +100,7 @@ export function ShutdownDialog({
         <div className="flex gap-2">
           <div className="w-24 space-y-1">
             <Label className="text-xs">Wait (s)</Label>
-            <Input type="number" value={waitSeconds} onChange={(e) => setWaitSeconds(Number(e.target.value))} />
+            <NumberField value={waitSeconds} onChange={setWaitSeconds} min={0} />
           </div>
           <div className="flex-1 space-y-1">
             <Label className="text-xs">Message</Label>
