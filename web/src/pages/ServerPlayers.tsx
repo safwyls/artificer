@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, Check, ChevronDown, RefreshCw, Search, SlidersHoriz
 import { api, ApiError, type Pal, type PlayerPals } from "../lib/api";
 import { initials, playerColor } from "../lib/palette";
 import { elementColor, palEntry, palIconUrl, palName, passiveName, rarityTier } from "../lib/paldex";
-import { computeStats } from "../lib/stats";
+import { palEffectiveStats } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { ServerUnreachable } from "../components/ServerUnreachable";
 import { SaveReadProgress } from "../components/SaveReadProgress";
@@ -36,25 +36,7 @@ const METRIC_LABELS: Record<Metric, string> = {
 };
 const METRICS = Object.keys(METRIC_LABELS) as Metric[];
 
-/** A pal's calibrated in-game stats, or null when the species has no combat
- * data. Level, condenser (rank), souls, passives and alpha all feed in. */
-function effectiveOf(pal: Pal) {
-  return computeStats({
-    characterId: pal.characterId,
-    level: pal.level,
-    ivHp: pal.talentHp,
-    ivAttack: pal.talentShot,
-    ivDefense: pal.talentDefense,
-    condenser: Math.max(0, pal.rank - 1),
-    soulHp: pal.souls["Max HP"] ?? 0,
-    soulAttack: pal.souls["Attack"] ?? 0,
-    soulDefense: pal.souls["Defense"] ?? 0,
-    passives: pal.passives,
-    isAlpha: pal.isBoss,
-  });
-}
-
-function metricValue(pal: Pal, m: Metric, eff: ReturnType<typeof effectiveOf> | undefined): number {
+function metricValue(pal: Pal, m: Metric, eff: ReturnType<typeof palEffectiveStats> | undefined): number {
   switch (m) {
     case "iv-total":
       return pal.talentHp + pal.talentShot + pal.talentDefense;
@@ -81,7 +63,7 @@ interface Controls {
   sortKey: SortKey;
   sortDir: "asc" | "desc";
   /** instanceId -> effective stats, memoized so sorting doesn't recompute. */
-  effMap: Map<string, ReturnType<typeof effectiveOf>>;
+  effMap: Map<string, ReturnType<typeof palEffectiveStats>>;
 }
 
 function controlsActive(c: Controls): boolean {
@@ -446,9 +428,9 @@ export function ServerPlayers() {
 
   // Effective stats and passive counts, recomputed only when the roster does.
   const effMap = useMemo(() => {
-    const m = new Map<string, ReturnType<typeof effectiveOf>>();
+    const m = new Map<string, ReturnType<typeof palEffectiveStats>>();
     for (const player of players)
-      for (const pal of [...player.party, ...player.palbox, ...player.base]) m.set(pal.instanceId, effectiveOf(pal));
+      for (const pal of [...player.party, ...player.palbox, ...player.base]) m.set(pal.instanceId, palEffectiveStats(pal));
     return m;
   }, [players]);
   // Keyed by display name (so duplicate-named codes merge), counting how many
