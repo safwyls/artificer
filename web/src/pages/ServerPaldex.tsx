@@ -45,6 +45,74 @@ function ownedLabels(p: PlayerPals): Set<string> {
 const BASE_ENTRIES = DECK_ENTRIES.filter((e) => /^\d+$/.test(e.label));
 const VARIANT_ENTRIES = DECK_ENTRIES.filter((e) => !/^\d+$/.test(e.label));
 
+/**
+ * The hero wears the game's passive-tier tiles as the server levels up:
+ * the negative red tile below 25%, tier-1 ice to 50%, gold to 75%, and the
+ * Rainbow aqua from 75%. Same anatomy as the in-game tiles — a thick
+ * tier-colored left edge, dark ground with a diagonal facet, thin tinted
+ * outline — using the tier colors sampled in tailwind.config.js.
+ */
+function heroLook(pct: number) {
+  if (pct >= 75) {
+    return {
+      style: {
+        // Facet sliver layered over an opaque ground — transparent stops
+        // would show the page's paper through the tile.
+        background:
+          "linear-gradient(115deg, transparent 44%, rgba(122,255,242,0.16) 44%, rgba(122,255,242,0.05) 58%, transparent 58%), linear-gradient(120deg, #0f3b41 0%, #14545c 55%, #0f3b41 100%)",
+        borderColor: "rgba(122,255,242,0.55)",
+        borderLeft: "4px solid #7AFFF2",
+        boxShadow: "0 0 18px rgba(122,255,242,0.18)",
+      },
+      label: "text-tier-aqua/70",
+      number: "text-tier-aqua",
+      sub: "text-tier-aqua/70",
+      bar: "#7AFFF2",
+    };
+  }
+  if (pct >= 50) {
+    return {
+      style: {
+        // A step more saturated than the vendored tier.gold (#FFE083),
+        // which reads cream at this size; the reference tile's text is a
+        // richer yellow-gold.
+        background:
+          "linear-gradient(115deg, transparent 48%, rgba(255,211,77,0.12) 48%, rgba(255,211,77,0.04) 62%, transparent 62%), linear-gradient(120deg, #211f13 0%, #262214 60%, #211f13 100%)",
+        borderColor: "rgba(255,211,77,0.5)",
+        borderLeft: "4px solid #FFD34D",
+      },
+      label: "text-[#FFD34D]/70",
+      number: "text-[#FFD34D]",
+      sub: "text-[#FFD34D]/70",
+      bar: "#FFD34D",
+    };
+  }
+  if (pct >= 25) {
+    return {
+      style: {
+        background: "linear-gradient(120deg, #182220 0%, #1B2725 55%, #20302d 100%)",
+        borderColor: "rgba(233,248,250,0.35)",
+        borderLeft: "4px solid #E9F8FA",
+      },
+      label: "text-paper/60",
+      number: "text-paper",
+      sub: "text-paper/60",
+      bar: "#E9F8FA",
+    };
+  }
+  return {
+    style: {
+      background: "linear-gradient(120deg, #201a1c 0%, #241d1f 60%, #2a2124 100%)",
+      borderColor: "rgba(255,70,73,0.45)",
+      borderLeft: "4px solid #FF4649",
+    },
+    label: "text-paper/60",
+    number: "text-paper",
+    sub: "text-paper/60",
+    bar: "#FF4649",
+  };
+}
+
 function PlayerChip({ name }: { name: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -85,6 +153,7 @@ function CompletionRow({ player }: { player: PlayerPals }) {
   const caught = useMemo(() => deckLabels(player), [player]);
   const owned = useMemo(() => ownedLabels(player), [player]);
   const caughtBase = useMemo(() => BASE_ENTRIES.filter((e) => caught.has(e.label)).length, [caught]);
+  const caughtVariants = useMemo(() => VARIANT_ENTRIES.filter((e) => caught.has(e.label)).length, [caught]);
   const total = BASE_ENTRIES.length;
   const pct = total ? Math.round((caughtBase / total) * 100) : 0;
   const missingBase = useMemo(() => BASE_ENTRIES.filter((e) => !caught.has(e.label)), [caught]);
@@ -116,8 +185,15 @@ function CompletionRow({ player }: { player: PlayerPals }) {
             <span className="hidden h-2 w-40 overflow-hidden rounded-full bg-ink/10 sm:block lg:w-64">
               <span className="block h-full rounded-full bg-brand-red" style={{ width: `${pct}%` }} />
             </span>
-            <span className="w-24 text-right font-mono text-sm tabular-nums">
-              {caughtBase}/{total}
+            <span className="w-24 text-right" title="Species, with registered B-variants beneath">
+              <span className="block font-mono text-sm tabular-nums">
+                {caughtBase}/{total}
+              </span>
+              {caughtVariants > 0 && (
+                <span className="block font-mono text-[11px] tabular-nums text-ink/40">
+                  +{caughtVariants}/{VARIANT_ENTRIES.length}
+                </span>
+              )}
             </span>
             <span className="w-12 text-right font-mono text-sm font-semibold tabular-nums">{pct}%</span>
             <ChevronDown className={cn("h-4 w-4 shrink-0 text-ink/30 transition-transform", open && "rotate-180")} />
@@ -194,6 +270,9 @@ function RecordCard({
 export function ServerPaldex() {
   const { serverID } = useParams();
   const id = Number(serverID);
+  // MOCKUP ONLY: ?heroPct= previews the hero at any completion — remove
+  // once the tier styling is settled.
+  const heroPctParam = new URLSearchParams(window.location.search).get("heroPct");
 
   const serverQuery = useQuery({ queryKey: ["server", id], queryFn: () => api.getServer(id) });
   const infoQuery = useQuery({ queryKey: ["server-info", id], queryFn: () => api.serverInfo(id), retry: false });
@@ -335,20 +414,35 @@ export function ServerPaldex() {
             )}
 
             {/* The one bold element: how much of the Paldex this server has
-                seen, all players together. */}
-            <section className="clip-notch-lg rounded-br-[10px] rounded-tl-[10px] border border-ink/10 bg-white px-6 py-5 lg:px-8">
-              <p className="text-xs font-bold uppercase tracking-widest text-ink/50">Server Paldex</p>
-              <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="font-display text-4xl font-extrabold lg:text-5xl">{pct}%</span>
-                <span className="font-mono text-sm text-ink/50">
-                  {serverCaughtBase} of {baseTotal} species registered by someone
-                  {serverCaughtVariants > 0 && ` · +${serverCaughtVariants}/${VARIANT_ENTRIES.length} variants`}
-                </span>
-              </div>
-              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-ink/10">
-                <div className="h-full rounded-full bg-brand-red" style={{ width: `${pct}%` }} />
-              </div>
-            </section>
+                seen, all players together — dressed as the game's passive
+                tier for this much progress. */}
+            {(() => {
+              const shownPct = heroPctParam !== null ? Number(heroPctParam) : pct;
+              const look = heroLook(shownPct);
+              return (
+                <section
+                  className="clip-notch-lg rounded-br-[10px] rounded-tl-[10px] border px-6 py-5 lg:px-8"
+                  style={look.style}
+                >
+                  <p className={cn("text-xs font-bold uppercase tracking-widest", look.label)}>Server Paldex</p>
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className={cn("font-display text-4xl font-extrabold lg:text-5xl", look.number)}>
+                      {shownPct}%
+                    </span>
+                    <span className={cn("font-mono text-sm", look.sub)}>
+                      {serverCaughtBase} of {baseTotal} species registered by someone
+                      {serverCaughtVariants > 0 && ` · +${serverCaughtVariants}/${VARIANT_ENTRIES.length} variants`}
+                    </span>
+                  </div>
+                  <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${shownPct}%`, backgroundColor: look.bar }}
+                    />
+                  </div>
+                </section>
+              );
+            })()}
 
             <section className="rounded-xl border border-ink/10 bg-white">
               <div className="border-b border-ink/5 px-5 py-4">
