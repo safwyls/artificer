@@ -33,13 +33,15 @@ type Client struct {
 	base string
 }
 
-// State is the subset of container status the dashboard shows.
+// State is the subset of container status the dashboard shows (and the
+// crash watchdog decides from).
 type State struct {
-	Name      string `json:"name"`
-	Status    string `json:"status"` // created, running, paused, exited, ...
-	Running   bool   `json:"running"`
-	StartedAt string `json:"startedAt"`
-	ExitCode  int    `json:"exitCode"`
+	Name       string `json:"name"`
+	Status     string `json:"status"` // created, running, paused, exited, ...
+	Running    bool   `json:"running"`
+	StartedAt  string `json:"startedAt"`
+	FinishedAt string `json:"finishedAt"`
+	ExitCode   int    `json:"exitCode"`
 }
 
 // New builds a client for a DOCKER_HOST-style endpoint: tcp://host:port,
@@ -136,21 +138,23 @@ func (c *Client) Inspect(ctx context.Context, container string) (*State, error) 
 	var payload struct {
 		Name  string `json:"Name"`
 		State struct {
-			Status    string `json:"Status"`
-			Running   bool   `json:"Running"`
-			StartedAt string `json:"StartedAt"`
-			ExitCode  int    `json:"ExitCode"`
+			Status     string `json:"Status"`
+			Running    bool   `json:"Running"`
+			StartedAt  string `json:"StartedAt"`
+			FinishedAt string `json:"FinishedAt"`
+			ExitCode   int    `json:"ExitCode"`
 		} `json:"State"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, fmt.Errorf("parsing docker response: %w", err)
 	}
 	return &State{
-		Name:      strings.TrimPrefix(payload.Name, "/"),
-		Status:    payload.State.Status,
-		Running:   payload.State.Running,
-		StartedAt: payload.State.StartedAt,
-		ExitCode:  payload.State.ExitCode,
+		Name:       strings.TrimPrefix(payload.Name, "/"),
+		Status:     payload.State.Status,
+		Running:    payload.State.Running,
+		StartedAt:  payload.State.StartedAt,
+		FinishedAt: payload.State.FinishedAt,
+		ExitCode:   payload.State.ExitCode,
 	}, nil
 }
 
@@ -166,6 +170,47 @@ func (c *Client) action(ctx context.Context, container, verb, query string) erro
 		return nil
 	}
 	return dockerError(verb, status, body)
+}
+
+// Logs returns the container's last `tail` log lines, stdout and stderr
+// interleaved. Non-following by design: the viewer polls, which keeps this
+// a plain bounded GET instead of a held-open stream through the proxy.
+func (c *Client) Logs(ctx context.Context, container string, tail int) (string, error) {
+	if tail < 1 {
+		tail = 200
+	}
+	path := fmt.Sprintf("/containers/%s/logs?stdout=1&stderr=1&tail=%d", url.PathEscape(container), tail)
+	body, status, err := c.do(ctx, http.MethodGet, path, 20*time.Second)
+	if err != nil {
+		return "", err
+	}
+	if status != http.StatusOK {
+		return "", dockerError("logs", status, body)
+	}
+	return demuxLogStream(body), nil
+}
+
+// demuxLogStream unwraps Docker's multiplexed log framing: without a TTY,
+// the daemon prefixes every chunk with an 8-byte header — stream id (0/1/2),
+// three zero bytes, then a big-endian payload length. A container running
+// with a TTY streams raw bytes instead, so anything that doesn't look like
+// a frame is returned as-is rather than mangled.
+func demuxLogStream(body []byte) string {
+	if len(body) < 8 || body[0] > 2 || body[1] != 0 || body[2] != 0 || body[3] != 0 {
+		return string(body)
+	}
+	var out strings.Builder
+	out.Grow(len(body))
+	for len(body) >= 8 {
+		size := int(body[4])<<24 | int(body[5])<<16 | int(body[6])<<8 | int(body[7])
+		body = body[8:]
+		if size > len(body) {
+			size = len(body) // truncated final frame (body was length-capped)
+		}
+		out.Write(body[:size])
+		body = body[size:]
+	}
+	return out.String()
 }
 
 func (c *Client) Start(ctx context.Context, container string) error {

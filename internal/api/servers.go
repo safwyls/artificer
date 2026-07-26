@@ -125,6 +125,7 @@ func (s *Server) handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	srv.ID = id
+	s.audit(r, id, "server-create", srv.Name)
 	writeJSON(w, http.StatusCreated, toDTO(srv))
 }
 
@@ -158,6 +159,7 @@ func (s *Server) handleUpdateServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to reload server")
 		return
 	}
+	s.audit(r, id, "server-update", stored.Name)
 	writeJSON(w, http.StatusOK, toDTO(stored))
 }
 
@@ -171,5 +173,8 @@ func (s *Server) handleDeleteServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to delete server")
 		return
 	}
+	// The audit row outlives the server row (no FK) — the trail of a
+	// deletion shouldn't be deleted by it.
+	s.audit(r, id, "server-delete", "")
 	w.WriteHeader(http.StatusNoContent)
 }

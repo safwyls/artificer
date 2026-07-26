@@ -21,6 +21,7 @@ import (
 	"github.com/safwyls/palcon/internal/api"
 	"github.com/safwyls/palcon/internal/crypto"
 	"github.com/safwyls/palcon/internal/db"
+	"github.com/safwyls/palcon/internal/notify"
 	"github.com/safwyls/palcon/internal/store"
 )
 
@@ -56,7 +57,7 @@ func newTestApp(t *testing.T) *testApp {
 	}
 	st := store.New(sqlDB, box)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := api.New(st, []byte("test-jwt-secret-0123456789abcdef"), logger, nil, nil)
+	srv := api.New(st, []byte("test-jwt-secret-0123456789abcdef"), logger, nil, nil, notify.New(st, logger))
 	staticFS := fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html></html>")}}
 	return &testApp{handler: srv.Routes(staticFS), store: st}
 }

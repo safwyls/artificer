@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -75,6 +78,31 @@ func (s *Server) prepareForStop(ctx context.Context, r *http.Request, container,
 	s.logger.Info("asked the game to shut down", "container", container, "user", actor)
 }
 
+// ansiEscape strips terminal color codes some server images write into
+// their logs; the viewer renders plain text.
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+// handleContainerLogs returns the tail of the container's log. Gated on the
+// power permission by the router: logs can carry chat and player identities,
+// which is container-management territory, not general viewing.
+func (s *Server) handleContainerLogs(w http.ResponseWriter, r *http.Request) {
+	name, ok := s.containerForRequest(w, r)
+	if !ok {
+		return
+	}
+	tail := 300
+	if n, err := strconv.Atoi(r.URL.Query().Get("tail")); err == nil && n > 0 {
+		tail = min(n, 2000)
+	}
+	raw, err := s.docker.Logs(r.Context(), name, tail)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	lines := strings.Split(strings.TrimRight(ansiEscape.ReplaceAllString(raw, ""), "\n"), "\n")
+	writeJSON(w, http.StatusOK, map[string]any{"lines": lines})
+}
+
 func (s *Server) handleContainerStatus(w http.ResponseWriter, r *http.Request) {
 	name, ok := s.containerForRequest(w, r)
 	if !ok {
@@ -136,6 +164,7 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.Info("container action", "action", action, "container", name, "user", actor)
+	s.audit(r, serverIDOf(r), "power-"+action, name)
 	state, err := s.docker.Inspect(r.Context(), name)
 	if err != nil {
 		// The action worked; only the follow-up read didn't.

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/safwyls/palcon/internal/palconfig"
 )
@@ -70,6 +72,15 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// Record which keys changed — never the values, which include the
+	// admin/join passwords.
+	keys := make([]string, 0, len(req.Changes))
+	for k := range req.Changes {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	s.audit(r, srv.ID, "config-update", strings.Join(keys, ", "))
 
 	// Return the freshly-read settings so the client re-syncs to disk.
 	res, err := palconfig.Read(srv.ConfigPath)

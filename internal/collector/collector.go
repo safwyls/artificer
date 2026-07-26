@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/safwyls/palcon/internal/notify"
 	"github.com/safwyls/palcon/internal/palworld"
 	"github.com/safwyls/palcon/internal/store"
 )
@@ -21,6 +22,13 @@ const (
 	// Retention is how far back charts can look; at Interval that's about
 	// 20k rows per server, which sqlite handles without noticing.
 	Retention = 7 * 24 * time.Hour
+	// ActivityRetention bounds the player join/leave history. Events are
+	// sparse (rows only when someone comes or goes), so three months stays
+	// tiny.
+	ActivityRetention = 90 * 24 * time.Hour
+	// AuditRetention keeps the admin-action trail for a year — it's the
+	// record consulted least often and missed most when it's gone.
+	AuditRetention = 365 * 24 * time.Hour
 	// pruneEvery is deliberately much coarser than Interval — deleting a
 	// few expired rows is not urgent work.
 	pruneEvery = time.Hour
@@ -29,16 +37,27 @@ const (
 type Collector struct {
 	store  *store.Store
 	logger *slog.Logger
+	// notifier turns reachability changes and player joins/leaves into
+	// Discord messages. Nil disables event watching entirely.
+	notifier *notify.Notifier
 
 	// unreachable tracks which servers are currently failing, so a server
 	// that goes down logs once instead of every Interval forever.
 	// Guarded by mu: samples run concurrently.
 	mu          sync.Mutex
 	unreachable map[int64]bool
+	// watchState is the per-server notification state (also under mu).
+	watchState map[int64]*serverState
 }
 
-func New(st *store.Store, logger *slog.Logger) *Collector {
-	return &Collector{store: st, logger: logger, unreachable: make(map[int64]bool)}
+func New(st *store.Store, notifier *notify.Notifier, logger *slog.Logger) *Collector {
+	return &Collector{
+		store:       st,
+		logger:      logger,
+		notifier:    notifier,
+		unreachable: make(map[int64]bool),
+		watchState:  make(map[int64]*serverState),
+	}
 }
 
 // Run samples until ctx is cancelled. Intended to be started in a goroutine.
@@ -102,6 +121,10 @@ func (c *Collector) sample(ctx context.Context, srv *store.Server) {
 		PreferREST:   srv.UseREST,
 	})
 
+	// Reachability and join/leave watching rides the same tick, over the
+	// player list (which both transports can serve).
+	c.watch(ctx, srv, client)
+
 	// Metrics are REST-only; an RCON-only server has nothing to sample and
 	// isn't an error worth reporting.
 	ext, ok := client.(palworld.ExtendedClient)
@@ -144,12 +167,23 @@ func (c *Collector) sample(ctx context.Context, srv *store.Server) {
 }
 
 func (c *Collector) prune(ctx context.Context) {
-	n, err := c.store.PruneMetrics(ctx, time.Now().UTC().Add(-Retention))
-	if err != nil {
-		c.logger.Error("metrics collector: pruning", "error", err)
-		return
-	}
-	if n > 0 {
-		c.logger.Info("metrics collector: pruned expired samples", "rows", n)
+	now := time.Now().UTC()
+	for _, p := range []struct {
+		what string
+		fn   func(context.Context, time.Time) (int64, error)
+		keep time.Duration
+	}{
+		{"metric samples", c.store.PruneMetrics, Retention},
+		{"player events", c.store.PrunePlayerEvents, ActivityRetention},
+		{"audit entries", c.store.PruneAudit, AuditRetention},
+	} {
+		n, err := p.fn(ctx, now.Add(-p.keep))
+		if err != nil {
+			c.logger.Error("collector: pruning "+p.what, "error", err)
+			continue
+		}
+		if n > 0 {
+			c.logger.Info("collector: pruned expired "+p.what, "rows", n)
+		}
 	}
 }

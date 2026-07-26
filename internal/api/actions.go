@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/safwyls/palcon/internal/palworld"
@@ -45,17 +46,27 @@ func writeServerLoadError(w http.ResponseWriter, err error) {
 	}
 }
 
-func (s *Server) withClient(w http.ResponseWriter, r *http.Request, fn func(palworld.Client) error) {
+// withClient runs fn against the server's client, reporting success so
+// callers can audit actions that actually happened.
+func (s *Server) withClient(w http.ResponseWriter, r *http.Request, fn func(palworld.Client) error) bool {
 	client, _, err := s.clientForServerID(r)
 	if err != nil {
 		writeServerLoadError(w, err)
-		return
+		return false
 	}
 	if err := fn(client); err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
-		return
+		return false
 	}
 	w.WriteHeader(http.StatusNoContent)
+	return true
+}
+
+// serverIDOf is the path's server id, for audit rows; 0 only on a malformed
+// path, which no successful action can have had.
+func serverIDOf(r *http.Request) int64 {
+	id, _ := serverIDFromRequest(r)
+	return id
 }
 
 func (s *Server) handleServerInfo(w http.ResponseWriter, r *http.Request) {
@@ -94,9 +105,11 @@ func (s *Server) handleServerBroadcast(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	s.withClient(w, r, func(c palworld.Client) error {
+	if s.withClient(w, r, func(c palworld.Client) error {
 		return c.Broadcast(r.Context(), req.Message)
-	})
+	}) {
+		s.audit(r, serverIDOf(r), "broadcast", req.Message)
+	}
 }
 
 func (s *Server) handleServerKick(w http.ResponseWriter, r *http.Request) {
@@ -108,9 +121,11 @@ func (s *Server) handleServerKick(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	s.withClient(w, r, func(c palworld.Client) error {
+	if s.withClient(w, r, func(c palworld.Client) error {
 		return c.Kick(r.Context(), req.PlayerUID, req.Message)
-	})
+	}) {
+		s.audit(r, serverIDOf(r), "kick", req.PlayerUID)
+	}
 }
 
 func (s *Server) handleServerBan(w http.ResponseWriter, r *http.Request) {
@@ -122,9 +137,11 @@ func (s *Server) handleServerBan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	s.withClient(w, r, func(c palworld.Client) error {
+	if s.withClient(w, r, func(c palworld.Client) error {
 		return c.Ban(r.Context(), req.PlayerUID, req.Message)
-	})
+	}) {
+		s.audit(r, serverIDOf(r), "ban", req.PlayerUID)
+	}
 }
 
 func (s *Server) handleServerUnban(w http.ResponseWriter, r *http.Request) {
@@ -135,15 +152,19 @@ func (s *Server) handleServerUnban(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	s.withClient(w, r, func(c palworld.Client) error {
+	if s.withClient(w, r, func(c palworld.Client) error {
 		return c.Unban(r.Context(), req.PlayerUID)
-	})
+	}) {
+		s.audit(r, serverIDOf(r), "unban", req.PlayerUID)
+	}
 }
 
 func (s *Server) handleServerSave(w http.ResponseWriter, r *http.Request) {
-	s.withClient(w, r, func(c palworld.Client) error {
+	if s.withClient(w, r, func(c palworld.Client) error {
 		return c.Save(r.Context())
-	})
+	}) {
+		s.audit(r, serverIDOf(r), "save-world", "")
+	}
 }
 
 func (s *Server) handleServerShutdown(w http.ResponseWriter, r *http.Request) {
@@ -155,9 +176,11 @@ func (s *Server) handleServerShutdown(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	s.withClient(w, r, func(c palworld.Client) error {
+	if s.withClient(w, r, func(c palworld.Client) error {
 		return c.Shutdown(r.Context(), req.WaitSeconds, req.Message)
-	})
+	}) {
+		s.audit(r, serverIDOf(r), "shutdown", fmt.Sprintf("in %ds: %s", req.WaitSeconds, req.Message))
+	}
 }
 
 func (s *Server) handleServerSettings(w http.ResponseWriter, r *http.Request) {

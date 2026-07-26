@@ -34,6 +34,10 @@ type Server struct {
 	// ContainerName is the Docker container this server runs in, used for
 	// start/stop/restart via the socket proxy. Empty = power control off.
 	ContainerName string
+	// Watchdog restarts the container after an unclean exit. Toggled via
+	// SetWatchdog, not UpdateServer — the server-edit form doesn't carry it,
+	// and a form save must never silently switch the watchdog off.
+	Watchdog bool
 }
 
 type serverRow struct {
@@ -49,6 +53,7 @@ type serverRow struct {
 	SavePath        string
 	ConfigPath      string
 	ContainerName   string
+	Watchdog        int
 }
 
 func (s *Store) decryptServer(r serverRow) (*Server, error) {
@@ -73,14 +78,15 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 		SavePath:      r.SavePath,
 		ConfigPath:    r.ConfigPath,
 		ContainerName: r.ContainerName,
+		Watchdog:      r.Watchdog != 0,
 	}, nil
 }
 
-const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, container_name`
+const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, container_name, watchdog`
 
 func scanServerRow(scan func(dest ...any) error) (serverRow, error) {
 	var r serverRow
-	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.ContainerName)
+	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.ContainerName, &r.Watchdog)
 	return r, err
 }
 
@@ -171,6 +177,20 @@ func (s *Store) UpdateServer(ctx context.Context, srv *Server) error {
 		WHERE id = ?`,
 		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc,
 		boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.ContainerName, srv.ID)
+	return err
+}
+
+// SetWatchdog flips the crash watchdog on its own — see the field comment
+// for why this isn't part of UpdateServer.
+func (s *Store) SetWatchdog(ctx context.Context, id int64, enabled bool) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE servers SET watchdog = ? WHERE id = ?`, boolToInt(enabled), id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
 	return err
 }
 

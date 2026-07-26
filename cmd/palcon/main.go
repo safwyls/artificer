@@ -19,8 +19,11 @@ import (
 	"github.com/safwyls/palcon/internal/crypto"
 	"github.com/safwyls/palcon/internal/db"
 	"github.com/safwyls/palcon/internal/dockerctl"
+	"github.com/safwyls/palcon/internal/notify"
 	"github.com/safwyls/palcon/internal/palsave"
+	"github.com/safwyls/palcon/internal/sched"
 	"github.com/safwyls/palcon/internal/store"
+	"github.com/safwyls/palcon/internal/watchdog"
 	"github.com/safwyls/palcon/web"
 )
 
@@ -71,9 +74,13 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
+	// Discord notifications: the collector reports reachability changes
+	// and player joins/leaves through it, the scheduler restart notices.
+	notifier := notify.New(st, logger)
+
 	// Samples server health in the background so the dashboard charts have
 	// history to draw, rather than only what's happened since page load.
-	go collector.New(st, logger).Run(ctx)
+	go collector.New(st, notifier, logger).Run(ctx)
 
 	// Keeps the save-parse cache warm across autosaves (and restarts), so
 	// the pals pages open onto a cache hit instead of a multi-second parse.
@@ -89,7 +96,16 @@ func run(logger *slog.Logger) error {
 		logger.Info("docker control enabled", "endpoint", cfg.DockerHost)
 	}
 
-	apiServer := api.New(st, cfg.JWTSecret, logger, palReader, docker)
+	// Runs scheduled restarts (warnings included) for every server.
+	go sched.New(st, notifier, docker, logger).Run(ctx)
+
+	// Crash watchdog: revives watched containers after an unclean exit.
+	// Meaningless without docker control, so it only runs alongside it.
+	if docker != nil {
+		go watchdog.New(st, docker, notifier, logger).Run(ctx)
+	}
+
+	apiServer := api.New(st, cfg.JWTSecret, logger, palReader, docker, notifier)
 	apiServer.CookieSecure = cfg.CookieSecure
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,

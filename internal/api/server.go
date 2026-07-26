@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/safwyls/palcon/internal/dockerctl"
+	"github.com/safwyls/palcon/internal/notify"
 	"github.com/safwyls/palcon/internal/palsave"
 	"github.com/safwyls/palcon/internal/store"
 )
@@ -26,12 +27,15 @@ type Server struct {
 	CookieSecure bool
 	// docker is nil when no DOCKER_HOST is set; power control is then
 	// simply unavailable rather than broken.
-	docker       *dockerctl.Client
+	docker *dockerctl.Client
+	// notifier delivers Discord messages; the API only uses it for the
+	// "send a test message" endpoint.
+	notifier     *notify.Notifier
 	loginLimiter *loginLimiter
 }
 
-func New(st *store.Store, jwtSecret []byte, logger *slog.Logger, palReader *palsave.Reader, docker *dockerctl.Client) *Server {
-	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, palReader: palReader, docker: docker, loginLimiter: newLoginLimiter()}
+func New(st *store.Store, jwtSecret []byte, logger *slog.Logger, palReader *palsave.Reader, docker *dockerctl.Client, notifier *notify.Notifier) *Server {
+	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, palReader: palReader, docker: docker, notifier: notifier, loginLimiter: newLoginLimiter()}
 }
 
 // Routes builds the full HTTP handler: JSON API under /api, and the built
@@ -89,12 +93,31 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				// signed in; changing it needs the grant.
 				r.Get("/container", s.handleContainerStatus)
 				r.With(s.requirePermission(store.PermPower)).Post("/container/{action}", s.handleContainerAction)
+				r.With(s.requirePermission(store.PermPower)).Get("/container/logs", s.handleContainerLogs)
 				r.Get("/settings", s.handleServerSettings)
 
 				// PalWorldSettings.ini editor. Gated even for reading: the
 				// file holds the admin/join passwords in the clear.
 				r.With(s.requirePermission(store.PermSettings)).Get("/config", s.handleGetConfig)
 				r.With(s.requirePermission(store.PermSettings)).Put("/config", s.handleUpdateConfig)
+
+				// Automation: restart schedules are visible to anyone
+				// signed in ("when's the next restart?" is player-facing
+				// information); changing them, and everything Discord, is
+				// admin infrastructure config.
+				r.Get("/automation", s.handleGetAutomation)
+				r.With(s.requireAdmin).Post("/schedules", s.handleCreateSchedule)
+				r.With(s.requireAdmin).Put("/schedules/{scheduleID}", s.handleUpdateSchedule)
+				r.With(s.requireAdmin).Delete("/schedules/{scheduleID}", s.handleDeleteSchedule)
+				r.With(s.requireAdmin).Put("/discord", s.handleUpdateDiscord)
+				r.With(s.requireAdmin).Delete("/discord", s.handleDeleteDiscord)
+				r.With(s.requireAdmin).Post("/discord/test", s.handleTestDiscord)
+				r.With(s.requireAdmin).Put("/watchdog", s.handleUpdateWatchdog)
+
+				// Player join/leave history is player-facing; the audit
+				// trail names which admin did what and stays admin-only.
+				r.Get("/activity", s.handleServerActivity)
+				r.With(s.requireAdmin).Get("/audit", s.handleServerAudit)
 
 				r.Get("/metrics", s.handleServerMetrics)
 				r.Get("/metrics/history", s.handleServerMetricsHistory)
