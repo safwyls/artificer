@@ -259,6 +259,7 @@ export function PlayerMap({
   selectedId,
   focusId,
   onSelect,
+  onMarkerSelect,
   onFocusDone,
   className,
 }: {
@@ -272,6 +273,9 @@ export function PlayerMap({
   selectedId: string | null;
   focusId: string | null;
   onSelect: (player: Player) => void;
+  /** Tap/click on a base or offline marker. Without hover there are no
+   * tooltips on touch, so tapping is how mobile learns what a marker is. */
+  onMarkerSelect?: (marker: MapMarker) => void;
   onFocusDone: () => void;
   className?: string;
 }) {
@@ -400,9 +404,13 @@ export function PlayerMap({
                       <ScaledPin key={m.id} id={mapMarkerId(m.id)} left={xPct} top={yPct}>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span
+                            {/* after:-inset-2 pads the tap target past the
+                                16px pin — markers must be hittable with a
+                                thumb, not just a cursor. */}
+                            <button
+                              onClick={() => onMarkerSelect?.(m)}
                               className={cn(
-                                "flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] border shadow",
+                                "relative flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] border shadow after:absolute after:-inset-2 after:content-['']",
                                 m.kind === "base"
                                   ? "border-paper bg-brand-amber"
                                   : "border-paper/70 bg-ink/60",
@@ -413,7 +421,7 @@ export function PlayerMap({
                               ) : (
                                 <span className="h-1.5 w-1.5 rounded-full bg-paper/80" />
                               )}
-                            </span>
+                            </button>
                           </TooltipTrigger>
                           <TooltipContent>
                             {m.label}
@@ -434,7 +442,7 @@ export function PlayerMap({
                           <button
                             onClick={() => onSelect(p)}
                             className={cn(
-                              "h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-paper shadow transition-transform",
+                              "relative h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-paper shadow transition-transform after:absolute after:-inset-2 after:content-['']",
                               selected && "scale-[1.35]",
                             )}
                             style={{

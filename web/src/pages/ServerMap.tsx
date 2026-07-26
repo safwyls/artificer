@@ -283,15 +283,28 @@ export function ServerMap() {
     staleTime: 60_000,
   });
 
+  // Match live players to save players by uid — the REST API's playerId is
+  // the same guid as the save's PlayerUId (hex vs dashed). Matching by name
+  // listed anyone whose Steam name differs from their character name as
+  // BOTH online and "last seen Nh ago", which read as a wrong clock rather
+  // than a wrong join. Name matching stays as a fallback for RCON, whose
+  // player ids come in a different shape.
+  const onlineUids = useMemo(() => new Set(online.map((p) => p.playerId.toLowerCase().replace(/-/g, ""))), [online]);
   const onlineNames = useMemo(() => new Set(online.map((p) => p.name.toLowerCase())), [online]);
 
   const offline = useMemo<OfflinePlayer[]>(() => {
     if (!saveQuery.data) return [];
     return saveQuery.data.players
-      .filter((p) => p.lastX != null && p.lastY != null && !onlineNames.has(p.nickname.toLowerCase()))
+      .filter(
+        (p) =>
+          p.lastX != null &&
+          p.lastY != null &&
+          !onlineUids.has(p.uid.toLowerCase().replace(/-/g, "")) &&
+          !onlineNames.has(p.nickname.toLowerCase()),
+      )
       .map((p) => ({ uid: p.uid, name: p.nickname || "Unknown", level: p.level, lastOnline: p.lastOnline, x: p.lastX!, y: p.lastY! }))
       .sort((a, b) => b.lastOnline - a.lastOnline);
-  }, [saveQuery.data, onlineNames]);
+  }, [saveQuery.data, onlineUids, onlineNames]);
 
   const guildBases = useMemo<GuildBases[]>(() => {
     if (!saveQuery.data) return [];
@@ -379,6 +392,15 @@ export function ServerMap() {
             onSelect={(p) =>
               focusTarget({ domId: `player-marker-${p.playerId}`, x: p.location_x, y: p.location_y, name: p.name, playerId: p.playerId })
             }
+            onMarkerSelect={(m) =>
+              focusTarget({
+                domId: mapMarkerId(m.id),
+                x: m.x,
+                y: m.y,
+                name: m.sublabel ? `${m.label} · ${m.sublabel}` : m.label,
+                playerId: m.kind === "offline" ? m.id : undefined,
+              })
+            }
             onFocusDone={() => setFocusId(null)}
           />
         </div>
@@ -441,14 +463,21 @@ export function ServerMap() {
             Players &amp; bases
           </button>
         )}
+        {/* flex-col + min-h-0 so the list scrolls INSIDE the sheet — a
+            fixed vh cap on the inner list overshot the sheet's real height
+            and clipped everything past the first handful of rows. */}
         <div
           className={cn(
-            "absolute inset-x-0 bottom-0 z-20 max-h-[60%] overflow-hidden rounded-t-2xl border-t border-ink/10 bg-white p-4 transition-transform duration-300 lg:hidden",
+            "absolute inset-x-0 bottom-0 z-20 flex max-h-[60%] flex-col overflow-hidden rounded-t-2xl border-t border-ink/10 bg-white p-4 transition-transform duration-300 lg:hidden",
             sheetOpen ? "translate-y-0" : "translate-y-full",
           )}
         >
-          <button className="mx-auto mb-3 block h-1 w-10 rounded-full bg-ink/20" onClick={() => setSheetOpen(false)} />
-          <div className="max-h-[calc(60vh-3rem)] space-y-3 overflow-y-auto">
+          <button
+            className="mx-auto mb-3 block h-1 w-10 shrink-0 rounded-full bg-ink/20"
+            onClick={() => setSheetOpen(false)}
+            aria-label="Close the list"
+          />
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
             <MapSidePanel
               tab={tab}
               onTab={setTab}

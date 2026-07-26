@@ -577,8 +577,10 @@ function BackupsCard({ serverId }: { serverId: number }) {
         {data?.available && (
           <>
             <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Schedule</Label>
+              <div className="space-y-1.5">
+                {/* block: Label renders inline, and the Select wrapper is
+                    inline-flex — without it they share a line, glued. */}
+                <Label className="block text-xs">Schedule</Label>
                 <Select
                   value={String(data.intervalHours)}
                   onChange={(e) => settings.mutate({ intervalHours: Number(e.target.value), keep: data.keep })}
@@ -591,8 +593,8 @@ function BackupsCard({ serverId }: { serverId: number }) {
                   ))}
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Keep</Label>
+              <div className="space-y-1.5">
+                <Label className="block text-xs">Keep</Label>
                 <Select
                   value={String(data.keep)}
                   onChange={(e) => settings.mutate({ intervalHours: data.intervalHours, keep: Number(e.target.value) })}
