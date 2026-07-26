@@ -19,6 +19,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/safwyls/palcon/internal/api"
+	"github.com/safwyls/palcon/internal/backup"
 	"github.com/safwyls/palcon/internal/crypto"
 	"github.com/safwyls/palcon/internal/db"
 	"github.com/safwyls/palcon/internal/notify"
@@ -57,7 +58,8 @@ func newTestApp(t *testing.T) *testApp {
 	}
 	st := store.New(sqlDB, box)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := api.New(st, []byte("test-jwt-secret-0123456789abcdef"), logger, nil, nil, notify.New(st, logger))
+	srv := api.New(st, []byte("test-jwt-secret-0123456789abcdef"), logger, nil, nil, notify.New(st, logger),
+		backup.New(st, nil, logger, t.TempDir()))
 	staticFS := fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html></html>")}}
 	return &testApp{handler: srv.Routes(staticFS), store: st}
 }

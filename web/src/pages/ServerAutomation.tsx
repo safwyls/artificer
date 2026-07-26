@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Copy, Dog, Globe, Pencil, Plus, RotateCw, Send, Trash2, Webhook } from "lucide-react";
+import {
+  CalendarClock,
+  Copy,
+  Dog,
+  Download,
+  Globe,
+  HardDriveDownload,
+  Pencil,
+  Plus,
+  RotateCw,
+  Send,
+  Trash2,
+  Webhook,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   api,
@@ -12,6 +25,7 @@ import {
   type ScheduleWriteInput,
 } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { agoLabel } from "../lib/time";
 import { cn } from "../lib/utils";
 import { Button } from "../components/ui/button";
 import {
@@ -24,6 +38,7 @@ import {
 } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { Select } from "../components/ui/select";
 import { Switch } from "../components/ui/switch";
 
 const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -75,7 +90,10 @@ export function ServerAutomation() {
         {data && <NextRestartHero schedules={data.schedules} />}
 
         {data && (
-          <div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
+          // grid-cols-1 is load-bearing on mobile: its minmax(0,1fr) stops
+          // one card's min-content (a long URL, a mono timestamp row) from
+          // widening the whole column past the viewport.
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-6">
             <SchedulesCard
               serverId={id}
               data={data}
@@ -86,6 +104,7 @@ export function ServerAutomation() {
             {data.discord && <DiscordCard serverId={id} config={data.discord} />}
             {data.watchdog && <WatchdogCard serverId={id} config={data.watchdog} />}
             {data.publicStatus && <PublicStatusCard serverId={id} config={data.publicStatus} />}
+            {isAdmin && <BackupsCard serverId={id} />}
           </div>
         )}
       </div>
@@ -470,6 +489,177 @@ function WatchdogCard({ serverId, config }: { serverId: number; config: { enable
           <p className="text-xs text-ink/60">
             Needs power control: a Docker endpoint on this Palcon instance and a container name on this server.
           </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+const BACKUP_INTERVALS = [
+  { hours: 0, label: "No schedule" },
+  { hours: 6, label: "Every 6 hours" },
+  { hours: 12, label: "Every 12 hours" },
+  { hours: 24, label: "Daily" },
+  { hours: 48, label: "Every 2 days" },
+  { hours: 168, label: "Weekly" },
+];
+const BACKUP_KEEPS = [7, 14, 30];
+
+function fmtBytes(n: number): string {
+  if (n >= 1 << 30) return `${(n / (1 << 30)).toFixed(1)} GB`;
+  if (n >= 1 << 20) return `${(n / (1 << 20)).toFixed(1)} MB`;
+  if (n >= 1 << 10) return `${Math.round(n / (1 << 10))} KB`;
+  return `${n} B`;
+}
+
+function BackupsCard({ serverId }: { serverId: number }) {
+  const queryClient = useQueryClient();
+  const backupsQuery = useQuery({
+    queryKey: ["backups", serverId],
+    queryFn: () => api.listBackups(serverId),
+    // Poll fast while a snapshot is being written so it appears when done.
+    refetchInterval: (query) => (query.state.data?.running ? 2000 : 30_000),
+  });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["backups", serverId] });
+
+  const settings = useMutation({
+    mutationFn: (next: { intervalHours: number; keep: number }) =>
+      api.setBackupSettings(serverId, next.intervalHours, next.keep),
+    onSuccess: () => {
+      toast.success("Backup schedule saved");
+      invalidate();
+    },
+    onError: (err) => toast.error("Could not save backup settings", { description: errorDetail(err) }),
+  });
+
+  const run = useMutation({
+    mutationFn: () => api.runBackup(serverId),
+    onSuccess: () => {
+      toast.success("Backup started");
+      invalidate();
+    },
+    onError: (err) => toast.error("Could not start a backup", { description: errorDetail(err) }),
+  });
+
+  const remove = useMutation({
+    mutationFn: (name: string) => api.deleteBackup(serverId, name),
+    onSuccess: () => {
+      toast.success("Snapshot deleted");
+      invalidate();
+    },
+    onError: (err) => toast.error("Could not delete the snapshot", { description: errorDetail(err) }),
+  });
+
+  const data = backupsQuery.data;
+
+  return (
+    <section className="rounded-xl border border-ink/10 bg-white lg:col-span-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/5 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <HardDriveDownload className="h-4 w-4 text-pal-green" />
+          <h2 className="font-display text-base font-bold">Save backups</h2>
+        </div>
+        {data?.available && (
+          <Button size="sm" disabled={data.running || run.isPending} onClick={() => run.mutate()}>
+            {data.running ? "Backing up…" : "Back up now"}
+          </Button>
+        )}
+      </div>
+
+      <div className="space-y-4 px-5 py-4">
+        {data && !data.available && (
+          <p className="text-sm text-ink/60">
+            Backups snapshot the save directory, so this server needs a save path first (edit the server from the
+            sidebar). The save mount stays read-only — snapshots are written to Palcon's own data directory.
+          </p>
+        )}
+
+        {data?.available && (
+          <>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Schedule</Label>
+                <Select
+                  value={String(data.intervalHours)}
+                  onChange={(e) => settings.mutate({ intervalHours: Number(e.target.value), keep: data.keep })}
+                  className="w-44"
+                >
+                  {BACKUP_INTERVALS.map((o) => (
+                    <option key={o.hours} value={o.hours}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Keep</Label>
+                <Select
+                  value={String(data.keep)}
+                  onChange={(e) => settings.mutate({ intervalHours: data.intervalHours, keep: Number(e.target.value) })}
+                  className="w-40"
+                >
+                  {BACKUP_KEEPS.map((k) => (
+                    <option key={k} value={k}>
+                      Last {k} snapshots
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <p className="pb-2 text-xs text-ink/45">
+                Skips runs while the save hasn't changed. Restores are manual: stop the server, unpack a snapshot
+                over the save, start it again.
+              </p>
+            </div>
+
+            {data.snapshots.length === 0 ? (
+              <p className="text-sm text-ink/60">
+                No snapshots yet{data.running ? " — one is being written now." : "."}
+              </p>
+            ) : (
+              <ul className="divide-y divide-ink/5">
+                {data.snapshots.map((snap) => (
+                  <li key={snap.name} className="flex items-center gap-3 py-2 text-sm">
+                    <span className="font-mono text-xs tabular-nums text-ink/70">
+                      {new Date(snap.ts).toLocaleString([], {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-xs text-ink/40">{agoLabel(snap.ts)}</span>
+                    <span className="w-20 text-right font-mono text-xs tabular-nums text-ink/60">
+                      {fmtBytes(snap.bytes)}
+                    </span>
+                    <a
+                      href={api.backupDownloadURL(serverId, snap.name)}
+                      className="rounded p-1.5 text-ink/40 hover:bg-ink/5 hover:text-ink"
+                      title="Download snapshot"
+                      download
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </a>
+                    <button
+                      className="rounded p-1.5 text-ink/40 hover:bg-ink/5 hover:text-destructive"
+                      title="Delete snapshot"
+                      disabled={remove.isPending}
+                      onClick={() => remove.mutate(snap.name)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {data.snapshots.length > 0 && (
+              <p className="text-xs text-ink/40">
+                {data.snapshots.length} snapshot{data.snapshots.length === 1 ? "" : "s"} ·{" "}
+                {fmtBytes(data.totalBytes)} on disk
+              </p>
+            )}
+          </>
         )}
       </div>
     </section>

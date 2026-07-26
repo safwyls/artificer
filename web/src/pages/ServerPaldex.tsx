@@ -260,7 +260,7 @@ export function ServerPaldex() {
             </section>
 
             <h2 className="pt-2 font-display text-base font-bold">Server records</h2>
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <RecordCard icon={<Sparkles className="h-4 w-4 text-brand-amber" />} title="Best pals · IV total">
                 {records.best.length === 0 ? (
                   <p className="py-2 text-sm text-ink/60">No pals in the save yet.</p>

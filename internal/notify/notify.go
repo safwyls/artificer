@@ -153,6 +153,17 @@ func (n *Notifier) WatchdogGaveUp(ctx context.Context, srv *store.Server, attemp
 	})
 }
 
+// BackupFailed fires once per failure streak (the caller dedupes) — a
+// backup that quietly stops working is the failure mode backups exist to
+// prevent.
+func (n *Notifier) BackupFailed(ctx context.Context, srv *store.Server, cause error) {
+	n.send(ctx, srv, EventStatus, embed{
+		Title:       "💾 Backup failed",
+		Description: fmt.Sprintf("**%s**'s scheduled save backup failed: %s", srv.Name, cause),
+		Color:       colorRed,
+	})
+}
+
 // Test sends a test message and, unlike every other notification, reports
 // failure to the caller — it exists so the settings UI can prove the pasted
 // webhook actually works.

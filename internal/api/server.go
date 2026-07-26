@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/safwyls/palcon/internal/backup"
 	"github.com/safwyls/palcon/internal/dockerctl"
 	"github.com/safwyls/palcon/internal/notify"
 	"github.com/safwyls/palcon/internal/palsave"
@@ -30,12 +31,14 @@ type Server struct {
 	docker *dockerctl.Client
 	// notifier delivers Discord messages; the API only uses it for the
 	// "send a test message" endpoint.
-	notifier     *notify.Notifier
+	notifier *notify.Notifier
+	// backups runs the snapshot schedule and owns the archive directory.
+	backups      *backup.Runner
 	loginLimiter *loginLimiter
 }
 
-func New(st *store.Store, jwtSecret []byte, logger *slog.Logger, palReader *palsave.Reader, docker *dockerctl.Client, notifier *notify.Notifier) *Server {
-	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, palReader: palReader, docker: docker, notifier: notifier, loginLimiter: newLoginLimiter()}
+func New(st *store.Store, jwtSecret []byte, logger *slog.Logger, palReader *palsave.Reader, docker *dockerctl.Client, notifier *notify.Notifier, backups *backup.Runner) *Server {
+	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, palReader: palReader, docker: docker, notifier: notifier, backups: backups, loginLimiter: newLoginLimiter()}
 }
 
 // Routes builds the full HTTP handler: JSON API under /api, and the built
@@ -118,6 +121,14 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.With(s.requireAdmin).Post("/discord/test", s.handleTestDiscord)
 				r.With(s.requireAdmin).Put("/watchdog", s.handleUpdateWatchdog)
 				r.With(s.requireAdmin).Put("/public", s.handleUpdatePublicStatus)
+
+				// Save backups: the archive is the whole world, so even
+				// listing is admin-only.
+				r.With(s.requireAdmin).Get("/backups", s.handleListBackups)
+				r.With(s.requireAdmin).Put("/backups/settings", s.handleUpdateBackupSettings)
+				r.With(s.requireAdmin).Post("/backups/run", s.handleRunBackup)
+				r.With(s.requireAdmin).Get("/backups/{name}/download", s.handleDownloadBackup)
+				r.With(s.requireAdmin).Delete("/backups/{name}", s.handleDeleteBackup)
 
 				// Player join/leave history is player-facing; the audit
 				// trail names which admin did what and stays admin-only.

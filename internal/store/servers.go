@@ -42,6 +42,11 @@ type Server struct {
 	// /status/<token>; empty = off. Managed via SetPublicToken, outside
 	// UpdateServer for the same reason as Watchdog.
 	PublicToken string
+	// Save-backup schedule: snapshot every BackupIntervalHours (0 = no
+	// schedule), keeping the newest BackupKeep snapshots. Managed via
+	// SetBackupSettings, outside UpdateServer like the other automations.
+	BackupIntervalHours int
+	BackupKeep          int
 }
 
 type serverRow struct {
@@ -59,6 +64,8 @@ type serverRow struct {
 	ContainerName   string
 	Watchdog        int
 	PublicToken     string
+	BackupInterval  int
+	BackupKeep      int
 }
 
 func (s *Store) decryptServer(r serverRow) (*Server, error) {
@@ -71,28 +78,30 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 		return nil, fmt.Errorf("decrypting rest password: %w", err)
 	}
 	return &Server{
-		ID:            r.ID,
-		Name:          r.Name,
-		Host:          r.Host,
-		RCONPort:      r.RCONPort,
-		RCONPassword:  rconPass,
-		RESTPort:      r.RESTPort,
-		RESTPassword:  restPass,
-		UseREST:       r.UseREST != 0,
-		Enabled:       r.Enabled != 0,
-		SavePath:      r.SavePath,
-		ConfigPath:    r.ConfigPath,
-		ContainerName: r.ContainerName,
-		Watchdog:      r.Watchdog != 0,
-		PublicToken:   r.PublicToken,
+		ID:                  r.ID,
+		Name:                r.Name,
+		Host:                r.Host,
+		RCONPort:            r.RCONPort,
+		RCONPassword:        rconPass,
+		RESTPort:            r.RESTPort,
+		RESTPassword:        restPass,
+		UseREST:             r.UseREST != 0,
+		Enabled:             r.Enabled != 0,
+		SavePath:            r.SavePath,
+		ConfigPath:          r.ConfigPath,
+		ContainerName:       r.ContainerName,
+		Watchdog:            r.Watchdog != 0,
+		PublicToken:         r.PublicToken,
+		BackupIntervalHours: r.BackupInterval,
+		BackupKeep:          r.BackupKeep,
 	}, nil
 }
 
-const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, container_name, watchdog, public_token`
+const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, container_name, watchdog, public_token, backup_interval_hours, backup_keep`
 
 func scanServerRow(scan func(dest ...any) error) (serverRow, error) {
 	var r serverRow
-	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.ContainerName, &r.Watchdog, &r.PublicToken)
+	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep)
 	return r, err
 }
 
@@ -229,6 +238,21 @@ func (s *Store) GetServerByPublicToken(ctx context.Context, token string) (*Serv
 		return nil, err
 	}
 	return s.decryptServer(r)
+}
+
+// SetBackupSettings updates the backup schedule, outside UpdateServer like
+// the other automation toggles.
+func (s *Store) SetBackupSettings(ctx context.Context, id int64, intervalHours, keep int) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE servers SET backup_interval_hours = ?, backup_keep = ? WHERE id = ?`,
+		intervalHours, keep, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (s *Store) DeleteServer(ctx context.Context, id int64) error {

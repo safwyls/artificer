@@ -305,6 +305,23 @@ export interface AutomationResult {
   publicStatus?: { enabled: boolean; token: string };
 }
 
+export interface BackupSnapshot {
+  name: string;
+  ts: string;
+  bytes: number;
+}
+
+export interface BackupsResult {
+  /** False when the server has no save path to snapshot. */
+  available: boolean;
+  running: boolean;
+  /** 0 = no schedule; manual backups still work. */
+  intervalHours: number;
+  keep: number;
+  snapshots: BackupSnapshot[];
+  totalBytes: number;
+}
+
 /** The unauthenticated status snapshot behind a public token. */
 export interface PublicStatus {
   name: string;
@@ -370,6 +387,17 @@ export const api = {
       body: JSON.stringify({ enabled }),
     }),
   publicStatus: (token: string) => request<PublicStatus>(`/public/status/${token}`),
+
+  // Save backups — admin-only end to end (a snapshot is the whole world).
+  listBackups: (id: number) => request<BackupsResult>(`/servers/${id}/backups`),
+  setBackupSettings: (id: number, intervalHours: number, keep: number) =>
+    request<{ intervalHours: number; keep: number }>(`/servers/${id}/backups/settings`, {
+      method: "PUT",
+      body: JSON.stringify({ intervalHours, keep }),
+    }),
+  runBackup: (id: number) => request<void>(`/servers/${id}/backups/run`, { method: "POST" }),
+  deleteBackup: (id: number, name: string) => request<void>(`/servers/${id}/backups/${name}`, { method: "DELETE" }),
+  backupDownloadURL: (id: number, name: string) => `/api/servers/${id}/backups/${name}/download`,
 
   listServers: () => request<Server[]>("/servers"),
   getServer: (id: number) => request<Server>(`/servers/${id}`),

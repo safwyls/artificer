@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/safwyls/palcon/internal/api"
+	"github.com/safwyls/palcon/internal/backup"
 	"github.com/safwyls/palcon/internal/collector"
 	"github.com/safwyls/palcon/internal/config"
 	"github.com/safwyls/palcon/internal/crypto"
@@ -105,7 +106,12 @@ func run(logger *slog.Logger) error {
 		go watchdog.New(st, docker, notifier, logger).Run(ctx)
 	}
 
-	apiServer := api.New(st, cfg.JWTSecret, logger, palReader, docker, notifier)
+	// Save backups: zip snapshots of the read-only save mount into the
+	// data dataset, on each server's schedule.
+	backups := backup.New(st, notifier, logger, cfg.DataDir)
+	go backups.Run(ctx)
+
+	apiServer := api.New(st, cfg.JWTSecret, logger, palReader, docker, notifier, backups)
 	apiServer.CookieSecure = cfg.CookieSecure
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,

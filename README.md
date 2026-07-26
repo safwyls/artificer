@@ -47,6 +47,11 @@ TrueNAS Scale.
 - **Crash watchdog** — optionally revives a container that exits with an
   error, with a cooldown and a three-strikes stand-down so a crash loop gets a
   human instead of a fourth restart. Clean stops are never revived.
+- **Save backups** — zip snapshots of the (read-only) save mount into
+  Palcon's data dataset on a schedule, with count-based retention,
+  mid-write detection, skip-when-unchanged, and a browse/download/delete
+  list. Restores are manual by design: stop the server, unpack a snapshot
+  over the save, start it again.
 - **Scheduled restarts** — per-server restart schedules (weekdays + time) with
   in-game warning broadcasts at configurable lead times; the world is saved
   before every restart. With power control configured the container is
