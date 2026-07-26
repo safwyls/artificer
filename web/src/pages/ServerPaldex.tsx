@@ -159,7 +159,7 @@ export function ServerPaldex() {
         (a, b) =>
           b.pal.talentHp + b.pal.talentShot + b.pal.talentDefense - (a.pal.talentHp + a.pal.talentShot + a.pal.talentDefense),
       )
-      .slice(0, 5);
+      .slice(0, 25);
 
     const captures = players
       .map((p) => ({
@@ -198,7 +198,7 @@ export function ServerPaldex() {
       .filter(([, v]) => v.n === 1)
       .map(([label, v]) => ({ label, ...v }))
       .sort((a, b) => parseInt(b.label, 10) - parseInt(a.label, 10))
-      .slice(0, 8);
+      .slice(0, 25);
 
     return { best, captures, hunters, rarest };
   }, [players]);
@@ -231,7 +231,7 @@ export function ServerPaldex() {
           <>
             {/* The one bold element: how much of the Paldex this server has
                 seen, all players together. */}
-            <section className="clip-notch-lg border border-ink/10 bg-white px-6 py-5 lg:px-8">
+            <section className="clip-notch-lg rounded-br-[10px] rounded-tl-[10px] border border-ink/10 bg-white px-6 py-5 lg:px-8">
               <p className="text-xs font-bold uppercase tracking-widest text-ink/50">Server Paldex</p>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="font-display text-4xl font-extrabold lg:text-5xl">{pct}%</span>
@@ -265,7 +265,9 @@ export function ServerPaldex() {
                 {records.best.length === 0 ? (
                   <p className="py-2 text-sm text-ink/60">No pals in the save yet.</p>
                 ) : (
-                  <ul className="divide-y divide-ink/5">
+                  // Top 25, scrolling after roughly the first six — the
+                  // half-visible row is the scroll affordance.
+                  <ul className="max-h-80 divide-y divide-ink/5 overflow-y-auto pr-1">
                     {records.best.map(({ pal, owner }) => (
                       <li key={pal.instanceId} className="flex items-center gap-3 py-2">
                         <PalPortrait characterId={pal.characterId} size="sm" />
@@ -284,22 +286,29 @@ export function ServerPaldex() {
                 )}
               </RecordCard>
 
-              <RecordCard icon={<Target className="h-4 w-4 text-pal-blue" />} title="Most captures">
-                {records.captures.length === 0 ? (
-                  <p className="py-2 text-sm text-ink/60">No captures recorded yet.</p>
+              <RecordCard icon={<Crown className="h-4 w-4 text-legendary" />} title="One of a kind">
+                {records.rarest.length === 0 ? (
+                  <p className="py-2 text-sm text-ink/60">No species is down to a single specimen.</p>
                 ) : (
-                  <ul className="divide-y divide-ink/5">
-                    {records.captures.map((c, i) => (
-                      <li key={c.name} className="flex items-center gap-3 py-2 text-sm">
-                        <span className="w-5 font-mono text-xs text-ink/35">{i + 1}.</span>
-                        <span className="min-w-0 flex-1 truncate font-semibold">
-                          <PlayerChip name={c.name} />
-                        </span>
-                        <span className="font-mono text-xs text-ink/45">{c.species} species</span>
-                        <span className="w-16 text-right font-mono font-semibold tabular-nums">{c.total}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <p className="pb-1 text-xs text-ink/45">Species with exactly one specimen on the server.</p>
+                    <ul className="max-h-80 divide-y divide-ink/5 overflow-y-auto pr-1">
+                      {records.rarest.map((r) => (
+                        <li key={r.label} className="flex items-center gap-3 py-2 text-sm">
+                          <PalPortrait characterId={r.characterId} size="sm" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold">
+                              <span className="font-mono text-xs text-ink/40">#{r.label}</span>{" "}
+                              {palName(r.characterId)}
+                            </span>
+                            <span className="block truncate text-xs text-ink/45">
+                              <PlayerChip name={r.owner} />
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
               </RecordCard>
 
@@ -323,29 +332,22 @@ export function ServerPaldex() {
                 )}
               </RecordCard>
 
-              <RecordCard icon={<Crown className="h-4 w-4 text-legendary" />} title="One of a kind">
-                {records.rarest.length === 0 ? (
-                  <p className="py-2 text-sm text-ink/60">No species is down to a single specimen.</p>
+              <RecordCard icon={<Target className="h-4 w-4 text-pal-blue" />} title="Most captures">
+                {records.captures.length === 0 ? (
+                  <p className="py-2 text-sm text-ink/60">No captures recorded yet.</p>
                 ) : (
-                  <>
-                    <p className="pb-1 text-xs text-ink/45">Species with exactly one specimen on the server.</p>
-                    <ul className="divide-y divide-ink/5">
-                      {records.rarest.map((r) => (
-                        <li key={r.label} className="flex items-center gap-3 py-2 text-sm">
-                          <PalPortrait characterId={r.characterId} size="sm" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate font-semibold">
-                              <span className="font-mono text-xs text-ink/40">#{r.label}</span>{" "}
-                              {palName(r.characterId)}
-                            </span>
-                            <span className="block truncate text-xs text-ink/45">
-                              <PlayerChip name={r.owner} />
-                            </span>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
+                  <ul className="divide-y divide-ink/5">
+                    {records.captures.map((c, i) => (
+                      <li key={c.name} className="flex items-center gap-3 py-2 text-sm">
+                        <span className="w-5 font-mono text-xs text-ink/35">{i + 1}.</span>
+                        <span className="min-w-0 flex-1 truncate font-semibold">
+                          <PlayerChip name={c.name} />
+                        </span>
+                        <span className="font-mono text-xs text-ink/45">{c.species} species</span>
+                        <span className="w-16 text-right font-mono font-semibold tabular-nums">{c.total}</span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </RecordCard>
             </div>
