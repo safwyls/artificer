@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut, MoreVertical, Pencil, Plus, Power, RefreshCw, Save, Trash2 } from "lucide-react";
@@ -12,11 +12,12 @@ import { ServerFormDialog } from "./ServerFormDialog";
 import { DeleteServerDialog } from "./DeleteServerDialog";
 import { ShutdownDialog } from "./ServerActionDialogs";
 
-// basis-[30%] wraps the pills into rows of at most three that stretch to fill
-// the bar, so every page fits on screen with no sideways scrolling.
+// One scrollable row instead of three wrapped ones: nine pages of pills ate
+// a third of a phone screen. shrink-0 keeps every pill full-width in the
+// scroller; the active pill is auto-centered by the effect in MobileTopBar.
 const segmentClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "flex-1 basis-[30%] whitespace-nowrap rounded-lg px-2 py-1.5 text-center text-sm font-semibold transition",
+    "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-sm font-semibold transition",
     isActive ? "bg-brand-red text-paper" : "text-paper/60",
   );
 
@@ -29,6 +30,18 @@ export function MobileTopBar({ server }: { server: Server | null }) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
+
+  // Keep the active pill in view as the user navigates — deep pages like
+  // Automation live past the right edge of the scroller. Keyed on the
+  // server too: on a cold load the pill row only renders once the server
+  // query lands, after the pathname effect has already fired.
+  const navRef = useRef<HTMLDivElement>(null);
+  const { pathname } = useLocation();
+  useEffect(() => {
+    navRef.current
+      ?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [pathname, server?.id]);
 
   const infoQuery = useQuery({
     queryKey: ["server-info", server?.id],
@@ -176,7 +189,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
       </div>
 
       {server && (
-        <div className="mt-3 flex flex-wrap gap-0.5 rounded-xl bg-white/10 p-1">
+        <div ref={navRef} className="no-scrollbar scroll-fade-x mt-3 flex gap-0.5 overflow-x-auto rounded-xl bg-white/10 p-1">
           <NavLink to={`/servers/${server.id}`} end className={segmentClass}>
             Dashboard
           </NavLink>

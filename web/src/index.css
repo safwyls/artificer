@@ -36,6 +36,20 @@ body {
   @apply bg-background text-foreground font-body;
 }
 
+/* Horizontal pill-bar scroller (mobile nav): no scrollbar — the edge fade
+   and the half-visible next pill are the scroll affordance instead. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.scroll-fade-x {
+  mask-image: linear-gradient(90deg, transparent, black 14px, black calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 14px, black calc(100% - 14px), transparent);
+}
+
 /* Mobile browsers' collapsing address bars make 100vh taller than what's
    actually visible, which shoved the bottom server rail behind the toolbar
    until a scroll. dvh tracks the real visible height; the vh line is the
