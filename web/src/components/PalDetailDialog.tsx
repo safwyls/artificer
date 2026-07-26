@@ -46,6 +46,17 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** In-game position for a container slot: the palbox and pal storage
+ * arrange pals in 30-slot pages (6×5), so raw "slot 47" is really page 2,
+ * slot 18 — which is where a player will actually find the pal. Party and
+ * base containers are single grids and keep a bare slot number. */
+const PALBOX_PAGE_SIZE = 30;
+export function palPosition(location: string, slotIndex: number): string {
+  if (slotIndex < 0) return "";
+  if (!/palbox|storage/i.test(location)) return `slot ${slotIndex + 1}`;
+  return `page ${Math.floor(slotIndex / PALBOX_PAGE_SIZE) + 1}, slot ${(slotIndex % PALBOX_PAGE_SIZE) + 1}`;
+}
+
 export function PalDetailDialog({
   pal,
   location,
@@ -111,7 +122,7 @@ export function PalDetailDialog({
                   <span className="font-mono">#{palDeckNo(pal.characterId)} · </span>
                 )}
                 {pal.nickname ? `${species} · ` : ""}Lv.{pal.level} · {location}
-                {pal.slotIndex >= 0 && ` slot ${pal.slotIndex + 1}`}
+                {pal.slotIndex >= 0 && ` · ${palPosition(location, pal.slotIndex)}`}
               </span>
             </span>
             {/* Raw talents, stacked like the game's Potential box. */}
