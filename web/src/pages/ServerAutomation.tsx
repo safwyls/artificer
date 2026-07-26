@@ -497,6 +497,7 @@ function WatchdogCard({ serverId, config }: { serverId: number; config: { enable
 
 const BACKUP_INTERVALS = [
   { hours: 0, label: "No schedule" },
+  { hours: 1, label: "Every hour" },
   { hours: 6, label: "Every 6 hours" },
   { hours: 12, label: "Every 12 hours" },
   { hours: 24, label: "Daily" },
