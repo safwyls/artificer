@@ -62,8 +62,12 @@ export function PalPicker({
 }) {
   const [mode, setMode] = useState<Mode>("all");
   const [query, setQuery] = useState("");
-  // Player groups the user has opened; searching overrides this and shows all.
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  // Explicit open/closed choices per player group. Anything untouched
+  // falls back to the default — open while searching (matches should be
+  // visible), collapsed when browsing a multi-player save — but a tap on
+  // the header always wins, so a noisy player can be folded away even
+  // mid-search.
+  const [groupOverrides, setGroupOverrides] = useState<Map<string, boolean>>(() => new Map());
   const q = query.trim().toLowerCase();
 
   const species = useMemo(
@@ -93,12 +97,11 @@ export function PalPicker({
       }))
       .filter((g) => g.pals.length > 0);
   }, [groups, q]);
-  const groupOpen = (key: string) => q !== "" || groups.length === 1 || expanded.has(key);
+  const groupOpen = (key: string) => groupOverrides.get(key) ?? (q !== "" || groups.length === 1);
   const toggleGroup = (key: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+    setGroupOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(key, !groupOpen(key));
       return next;
     });
 
