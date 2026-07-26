@@ -78,6 +78,12 @@ type PlayerPals struct {
 	LastY            *float64 `json:"lastY"`
 	Platform         string   `json:"platform"`
 	TechnologyPoints int      `json:"technologyPoints"`
+
+	// Paldex progress from the player save's RecordData: Paldeck lists the
+	// registered species (survives selling/releasing the pal), Captures the
+	// per-species sphere-capture counts the game itself displays.
+	Paldeck  []string       `json:"paldeck"`
+	Captures map[string]int `json:"captures"`
 }
 
 type GuildMember struct {

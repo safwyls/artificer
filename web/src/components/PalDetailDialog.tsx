@@ -2,6 +2,7 @@ import type { Pal } from "../lib/api";
 import {
   elementColor,
   palBaseStats,
+  palDeckNo,
   palEntry,
   palIconUrl,
   palName,
@@ -11,7 +12,7 @@ import {
   skillDescription,
   skillName,
 } from "../lib/paldex";
-import { palEffectiveStats, talentTone } from "../lib/stats";
+import { friendshipRank, palEffectiveStats, talentTone } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { PassiveTierTile } from "./PassiveBadge";
 import { Badge } from "./ui/badge";
@@ -106,6 +107,9 @@ export function PalDetailDialog({
                 )}
               </span>
               <span className="block text-sm font-normal text-ink/50">
+                {palDeckNo(pal.characterId) && (
+                  <span className="font-mono">#{palDeckNo(pal.characterId)} · </span>
+                )}
                 {pal.nickname ? `${species} · ` : ""}Lv.{pal.level} · {location}
                 {pal.slotIndex >= 0 && ` slot ${pal.slotIndex + 1}`}
               </span>
@@ -178,12 +182,22 @@ export function PalDetailDialog({
           )}
 
           <div className="grid grid-cols-3 gap-2">
+            {/* stomach < 0 is the extractor saying "full" — the save omits
+                the field entirely when nothing has been eaten off it. */}
             <Stat
               label="Stomach"
-              value={base?.stomach ? `${Math.round(pal.stomach)}/${base.stomach}` : String(Math.round(pal.stomach))}
+              value={
+                pal.stomach < 0
+                  ? base?.stomach
+                    ? `${base.stomach}/${base.stomach}`
+                    : "Full"
+                  : base?.stomach
+                    ? `${Math.round(pal.stomach)}/${base.stomach}`
+                    : String(Math.round(pal.stomach))
+              }
             />
-            <Stat label="Sanity" value={`${Math.round(pal.sanity)}`} />
-            <Stat label="Friendship" value={String(pal.friendship)} />
+            <Stat label="Sanity" value={`${Math.round(pal.sanity)}/100`} />
+            <Stat label="Trust" value={`${friendshipRank(pal.friendship)} / 10`} />
           </div>
 
           {pal.skills.length > 0 && (

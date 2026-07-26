@@ -95,3 +95,13 @@ curl -sL https://github.com/amantu-qbit/palworld-server-manager/archive/refs/hea
 The lookup tables are trimmed to the fields the UI renders (descriptions and
 unused columns are dropped) to keep them out of the JS bundle's way; see the
 commit that added them for the exact transform.
+
+## Paldeck numbers
+
+`web/src/data/palDeck.json` maps a lowercased pal id to its Paldeck label —
+"94" for a base pal, "94B" for a subspecies sharing its number. Vendored from
+palworld-save-pal's `data/json/pals.json` (`pal_deck_index`, MIT); suffixes
+are derived by grouping ids that share an index (the shortest id is the base),
+after folding decorated spawns (`SUMMON_…`, `QUEST_…`, `…_oilrig`, `…_MAX`)
+into the pal they decorate. Regenerate by rerunning that transform against a
+fresh clone of https://github.com/oMaN-Rod/palworld-save-pal.

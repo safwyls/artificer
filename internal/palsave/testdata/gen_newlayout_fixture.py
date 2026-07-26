@@ -98,6 +98,20 @@ def slotid(container, index):
     return sp("PalCharacterSlotId", {"ContainerId": containerid(container), "SlotIndex": i(index)})
 
 
+def namemap(value_type, pairs):
+    """MapProperty keyed by pal CharacterID — the shape RecordData uses for
+    PaldeckUnlockFlag (bool) and PalCaptureCount (int)."""
+    return {
+        "key_type": "NameProperty",
+        "value_type": value_type,
+        "key_struct_type": None,
+        "value_struct_type": None,
+        "id": None,
+        "value": [{"key": k, "value": v} for k, v in pairs],
+        "type": "MapProperty",
+    }
+
+
 def entry(player_uid, instance_id, save_parameter):
     return {
         "key": {"PlayerUId": guid(player_uid), "InstanceId": guid(instance_id)},
@@ -265,7 +279,25 @@ def main():
         "trailer": "AAAAAA==",
     }, os.path.join(outdir, "Level.sav"))
 
-    for uid, party, box in ((KYOSHI, KYOSHI_PARTY, KYOSHI_BOX), (REN, REN_PARTY, REN_BOX)):
+    # Kyoshi's save carries Paldex records (deck registrations + capture
+    # counts); Ren's deliberately has no RecordData at all, covering older
+    # or fresh player files where the whole struct is absent.
+    kyoshi_record = sp("PalLoggedinPlayerSaveDataRecordData", {
+        "PaldeckUnlockFlag": namemap("BoolProperty", [
+            ("SheepBall", True),
+            ("PinkCat", True),
+            ("Kitsunebi", True),
+            ("Penguin", False),  # seen-but-false must not count as registered
+        ]),
+        "PalCaptureCount": namemap("IntProperty", [
+            ("SheepBall", 4),
+            ("PinkCat", 1),
+        ]),
+    })
+    for uid, party, box, extra in (
+        (KYOSHI, KYOSHI_PARTY, KYOSHI_BOX, {"RecordData": kyoshi_record}),
+        (REN, REN_PARTY, REN_BOX, {}),
+    ):
         write_sav({
             "header": {**HEADER, "save_game_class_name": "/Script/Pal.PalWorldPlayerSaveGame"},
             "properties": {
@@ -273,6 +305,7 @@ def main():
                     "PlayerUId": guid(uid),
                     "OtomoCharacterContainerId": containerid(party),
                     "PalStorageContainerId": containerid(box),
+                    **extra,
                 }),
             },
             "trailer": "AAAAAA==",

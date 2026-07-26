@@ -239,8 +239,13 @@ def parse_pal(param, instance_id):
         "passives": [str(p) for p in passives],
         "skills": [str(s).split("::")[-1] for s in skills],
         "hp": round(hp_raw / 1000) if hp_raw else 0,
-        "sanity": round(num(param, "SanityValue"), 1),
-        "stomach": round(num(param, "FullStomach"), 1),
+        # The game omits properties sitting at their defaults, so a healthy
+        # pal carries no SanityValue at all — absence means full (100), not
+        # zero; a drained pal stores the real number. FullStomach works the
+        # same way but its maximum varies by species, which the extractor
+        # doesn't know — -1 tells the UI "full" without guessing the cap.
+        "sanity": round(num(param, "SanityValue", default=100.0), 1),
+        "stomach": round(num(param, "FullStomach", default=-1.0), 1),
         "friendship": num(param, "FriendshipPoint"),
         "sick": sick,
         "souls": soul_ranks(param),
@@ -453,6 +458,7 @@ def player_containers_from_dir(players_dir):
             "lastY": unwrap(translation.get("y")) if "y" in translation else None,
             "platform": text(save_data, "PlayerPlatform").split("::")[-1],
             "technologyPoints": num(save_data, "TechnologyPoint"),
+            **paldeck_records(save_data),
         }
         for key, bucket in (
             ("OtomoCharacterContainerId", "party"),
@@ -462,6 +468,30 @@ def player_containers_from_dir(players_dir):
             if cid:
                 index[cid] = (uid, bucket)
     return index, meta
+
+
+def paldeck_records(save_data):
+    """Per-player Paldex progress, from the player save's RecordData.
+
+    PaldeckUnlockFlag is the dex itself — species register on first
+    acquisition however it happened (capture, hatch, trade), and stay
+    registered after the pal is gone, which is what "completion" means.
+    PalCaptureCount only counts sphere captures, but it's the number the
+    game shows per species, so it rides along for the records views.
+    """
+    record = v(save_data, "RecordData", default=None) or {}
+    deck = []
+    for pair in v(record, "PaldeckUnlockFlag", default=None) or []:
+        if isinstance(pair, dict) and pair.get("value") and pair.get("key"):
+            deck.append(str(pair["key"]))
+    captures = {}
+    for pair in v(record, "PalCaptureCount", default=None) or []:
+        if not isinstance(pair, dict):
+            continue
+        key, count = pair.get("key"), pair.get("value")
+        if key and isinstance(count, int) and count > 0:
+            captures[str(key)] = count
+    return {"paldeck": deck, "captures": captures}
 
 
 def dashed_guid(hex32):
@@ -625,6 +655,8 @@ def main():
         rec.setdefault("lastX", None)
         rec.setdefault("lastY", None)
         rec.setdefault("platform", "")
+        rec.setdefault("paldeck", [])
+        rec.setdefault("captures", {})
 
     player_names = {uid: rec["nickname"] for uid, rec in players.items() if rec["nickname"]}
     if guild_entries:

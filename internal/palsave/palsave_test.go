@@ -277,6 +277,16 @@ func TestRead(t *testing.T) {
 				if len(ren.Storage) != 1 || ren.Storage[0].CharacterID != "Umihebi" {
 					t.Fatalf("ren storage wrong: %+v", ren.Storage)
 				}
+				// Paldex records ride in Players/<uid>.sav: three registered
+				// species (Penguin's flag is false — seen, not registered),
+				// and capture counts. Ren's save has no RecordData at all,
+				// which must yield empty, not missing, fields.
+				if len(kyoshi.Paldeck) != 3 || kyoshi.Captures["SheepBall"] != 4 || len(kyoshi.Captures) != 2 {
+					t.Fatalf("kyoshi paldex wrong: deck=%v captures=%v", kyoshi.Paldeck, kyoshi.Captures)
+				}
+				if len(ren.Paldeck) != 0 || len(ren.Captures) != 0 {
+					t.Fatalf("ren paldex should be empty: deck=%v captures=%v", ren.Paldeck, ren.Captures)
+				}
 			} else if len(kyoshi.Storage) != 0 || len(ren.Storage) != 0 {
 				t.Fatalf("unexpected storage pals: %+v %+v", kyoshi.Storage, ren.Storage)
 			}

@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, Check, ChevronDown, RefreshCw, Search, SlidersHoriz
 import { api, ApiError, type Pal, type PlayerPals } from "../lib/api";
 import { initials, playerColor } from "../lib/palette";
 import { agoLabel } from "../lib/time";
-import { elementColor, palEntry, palIconUrl, palName, passiveName, rarityTier } from "../lib/paldex";
+import { elementColor, palDeckNo, palDeckSortValue, palEntry, palIconUrl, palName, passiveName, rarityTier } from "../lib/paldex";
 import { palEffectiveStats } from "../lib/stats";
 import { TalentTriplet } from "../components/TalentTriplet";
 import { cn } from "../lib/utils";
@@ -26,7 +26,7 @@ import { Select } from "../components/ui/select";
 // ---------------------------------------------------------------------------
 
 type Metric = "iv-total" | "iv-hp" | "iv-atk" | "iv-def" | "eff-hp" | "eff-atk" | "eff-def";
-type SortKey = "name" | "level" | Metric;
+type SortKey = "name" | "level" | "deck" | Metric;
 
 const METRIC_LABELS: Record<Metric, string> = {
   "iv-total": "IV total",
@@ -97,6 +97,9 @@ function sortPals(pals: Pal[], c: Controls): Pal[] {
   return [...pals].sort((a, b) => {
     if (c.sortKey === "name") {
       return dir * palName(a.characterId).localeCompare(palName(b.characterId));
+    }
+    if (c.sortKey === "deck") {
+      return dir * (palDeckSortValue(a.characterId) - palDeckSortValue(b.characterId));
     }
     const av = c.sortKey === "level" ? a.level : metricValue(a, c.sortKey, c.effMap.get(a.instanceId));
     const bv = c.sortKey === "level" ? b.level : metricValue(b, c.sortKey, c.effMap.get(b.instanceId));
@@ -169,7 +172,10 @@ function PalCard({ pal, onOpen }: { pal: Pal; onOpen: () => void }) {
           </span>
         </div>
 
-        <p className="truncate text-xs text-ink/45">{pal.nickname ? species : ""}&nbsp;</p>
+        <p className="truncate text-xs text-ink/45">
+        {palDeckNo(pal.characterId) && <span className="font-mono">#{palDeckNo(pal.characterId)}</span>}
+        {pal.nickname ? `${palDeckNo(pal.characterId) ? " · " : ""}${species}` : ""}&nbsp;
+      </p>
 
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {elements.map((el) => (
@@ -566,6 +572,7 @@ export function ServerPlayers() {
                 <Select value={sortKey} onChange={(e) => onSortKeyChange(e.target.value as SortKey)}>
                   <option value="name">Name</option>
                   <option value="level">Level</option>
+                  <option value="deck">Paldeck #</option>
                   <optgroup label="Talent (IV)">
                     <option value="iv-total">IV total</option>
                     <option value="iv-hp">IV HP</option>

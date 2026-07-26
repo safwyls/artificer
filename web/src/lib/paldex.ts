@@ -1,3 +1,4 @@
+import palDeck from "../data/palDeck.json";
 import palDex from "../data/palDex.json";
 import palStats from "../data/palStats.json";
 import passiveSkills from "../data/passiveSkills.json";
@@ -105,6 +106,57 @@ export function skillDescription(code: string): string {
 export function palBaseStats(characterId: string): { hp: number; stomach: number } | undefined {
   return stats[palKey(characterId)];
 }
+
+/** Paldeck numbers as the game labels them — "94" for a base pal, "94B" for
+ * its subspecies — vendored from palworld-save-pal's pal_deck_index (see
+ * web/public/pal-icons/README.md). Lookup strips the same capture decorations
+ * breeding does ("PREDATOR_", "SUMMON_…_MAX"), so a captured variant shows
+ * its species' number. Null for NPCs and unreleased pals. */
+const deck = palDeck as Record<string, string>;
+const DECK_PREFIX = /^(boss|predator|raid|summon|gym)_/;
+const DECK_SUFFIX = /_(oilrig|largeoilrig|minioilrig|tower|invader|max|avatar|otomo|servant|quest|enemy|friend|\d+)$/;
+
+export function palDeckNo(characterId: string): string | null {
+  let key = palKey(characterId);
+  for (;;) {
+    const hit = deck[key];
+    if (hit) return hit;
+    let next = key.replace(DECK_PREFIX, "");
+    if (next === key) next = key.replace(DECK_SUFFIX, "");
+    if (next === key) return null;
+    key = next;
+  }
+}
+
+/** Orders deck labels naturally: 94 before 94B before 95; unnumbered last. */
+export function palDeckSortValue(characterId: string): number {
+  const label = palDeckNo(characterId);
+  if (!label) return Number.MAX_SAFE_INTEGER;
+  const suffix = label.replace(/^\d+/, "");
+  return parseInt(label, 10) * 8 + (suffix ? suffix.charCodeAt(0) - 65 : -1) + 1;
+}
+
+function deckLabelSort(a: string, b: string): number {
+  const na = parseInt(a, 10) - parseInt(b, 10);
+  if (na !== 0) return na;
+  return a.localeCompare(b); // "94" before "94B"
+}
+
+/** The full Paldeck: every catchable entry ("1"…"204" plus B variants),
+ * each with a representative character id for icon/name display. Decorated
+ * spawn ids (SUMMON_…, …_oilrig) share their species' label; the shortest
+ * id is the plain species. This is the universe Paldex completion is
+ * measured against. */
+export const DECK_ENTRIES: { label: string; characterId: string }[] = (() => {
+  const byLabel = new Map<string, string>();
+  for (const [id, label] of Object.entries(deck)) {
+    const existing = byLabel.get(label);
+    if (!existing || id.length < existing.length) byLabel.set(label, id);
+  }
+  return [...byLabel.entries()]
+    .map(([label, characterId]) => ({ label, characterId }))
+    .sort((a, b) => deckLabelSort(a.label, b.label));
+})();
 
 /** Rarity 8+ is the game's own threshold for a rare (blue-tier) pal, 12+ for
  * legendary — used only to tint the icon frame. */
