@@ -49,6 +49,18 @@ version whenever the caps change:
   breeding calculator implements), not official. Re-verify if a patch
   touches breeding.
 
+## Local touch-ups to preserve on refresh
+
+- `palDex.json`: `plantslime_flower` is renamed to **"Gumoss (Special)"** —
+  upstream names it plain "Gumoss", identical to the base pal, which made
+  the #12B entry in the Paldex missing-list read as base Gumoss missing.
+  It's the only base/variant name collision in the catalog; keep it fixed.
+- **Known drift (as of 2026-07)**: the Yakushima creatures
+  (`YakushimaMonster001/_Blue/_Pink`, `YakushimaMonster002`,
+  `YakushimaBoss001…`) exist in real saves but are absent from
+  `palDeck.json`/`palDex.json`. They currently fall out of Paldex and
+  species math silently; pick them up on the next catalog refresh.
+
 ## How to refresh
 
 1. Pull the current catalogs from the upstream repos listed above (their

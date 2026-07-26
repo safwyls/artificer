@@ -27,6 +27,24 @@ function deckLabels(p: PlayerPals): Set<string> {
   return out;
 }
 
+/** Deck labels of the species a player currently owns, for flagging
+ * "in the box but never registered" (a traded-in pal doesn't write the
+ * receiver's dex — verified against a real save). */
+function ownedLabels(p: PlayerPals): Set<string> {
+  const out = new Set<string>();
+  for (const pal of allPals(p)) {
+    const label = palDeckNo(pal.characterId);
+    if (label) out.add(label);
+  }
+  return out;
+}
+
+// Completion percentages track the numbered entries, like the game's own
+// counter — B-subspecies sit under the same number in-game and are shown
+// separately rather than dragging the headline down.
+const BASE_ENTRIES = DECK_ENTRIES.filter((e) => /^\d+$/.test(e.label));
+const VARIANT_ENTRIES = DECK_ENTRIES.filter((e) => !/^\d+$/.test(e.label));
+
 function PlayerChip({ name }: { name: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -41,12 +59,43 @@ function PlayerChip({ name }: { name: string }) {
   );
 }
 
+function MissingChip({ entry, owned }: { entry: { label: string; characterId: string }; owned: boolean }) {
+  return (
+    <span
+      className={cn(
+        "flex items-center gap-1.5 rounded-lg border bg-white py-1 pl-1 pr-2",
+        owned ? "border-brand-amber/60 ring-1 ring-brand-amber/40" : "border-ink/10",
+      )}
+      title={
+        owned
+          ? `${palName(entry.characterId)} — in their box but not registered; the dex only counts pals they acquired themselves (a traded pal doesn't register).`
+          : palName(entry.characterId)
+      }
+    >
+      <img src={palIconUrl(entry.characterId)} alt="" loading="lazy" className="h-5 w-5 object-contain" />
+      <span className="font-mono text-[10px] text-ink/40">#{entry.label}</span>
+      <span className="max-w-[7rem] truncate text-xs text-ink/70">{palName(entry.characterId)}</span>
+      {owned && <span className="text-[10px] font-semibold text-brand-amber">owned</span>}
+    </span>
+  );
+}
+
 function CompletionRow({ player }: { player: PlayerPals }) {
   const [open, setOpen] = useState(false);
   const caught = useMemo(() => deckLabels(player), [player]);
-  const total = DECK_ENTRIES.length;
-  const pct = total ? Math.round((caught.size / total) * 100) : 0;
-  const missing = useMemo(() => DECK_ENTRIES.filter((e) => !caught.has(e.label)), [caught]);
+  const owned = useMemo(() => ownedLabels(player), [player]);
+  const caughtBase = useMemo(() => BASE_ENTRIES.filter((e) => caught.has(e.label)).length, [caught]);
+  const total = BASE_ENTRIES.length;
+  const pct = total ? Math.round((caughtBase / total) * 100) : 0;
+  const missingBase = useMemo(() => BASE_ENTRIES.filter((e) => !caught.has(e.label)), [caught]);
+  const missingVariants = useMemo(() => VARIANT_ENTRIES.filter((e) => !caught.has(e.label)), [caught]);
+  const ownedUnregistered = useMemo(
+    () => [...missingBase, ...missingVariants].filter((e) => owned.has(e.label)).length,
+    [missingBase, missingVariants, owned],
+  );
+  // A player file with no dex record reads as zero registered while they
+  // plainly own pals — that's missing data, not a 0% player.
+  const noRecord = player.paldeck.length === 0 && allPals(player).length > 0;
 
   return (
     <li>
@@ -54,43 +103,66 @@ function CompletionRow({ player }: { player: PlayerPals }) {
         className="flex w-full items-center gap-4 px-5 py-3.5 text-left hover:bg-ink/[0.02]"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        disabled={noRecord}
       >
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold">{player.nickname || player.uid.slice(0, 8)}</span>
           <span className="font-mono text-xs text-ink/40">Lv.{player.level}</span>
         </span>
-        <span className="hidden h-2 w-40 overflow-hidden rounded-full bg-ink/10 sm:block lg:w-64">
-          <span className="block h-full rounded-full bg-brand-red" style={{ width: `${pct}%` }} />
-        </span>
-        <span className="w-24 text-right font-mono text-sm tabular-nums">
-          {caught.size}/{total}
-        </span>
-        <span className="w-12 text-right font-mono text-sm font-semibold tabular-nums">{pct}%</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-ink/30 transition-transform", open && "rotate-180")} />
+        {noRecord ? (
+          <span className="text-xs text-ink/45">no Paldex record in the save</span>
+        ) : (
+          <>
+            <span className="hidden h-2 w-40 overflow-hidden rounded-full bg-ink/10 sm:block lg:w-64">
+              <span className="block h-full rounded-full bg-brand-red" style={{ width: `${pct}%` }} />
+            </span>
+            <span className="w-24 text-right font-mono text-sm tabular-nums">
+              {caughtBase}/{total}
+            </span>
+            <span className="w-12 text-right font-mono text-sm font-semibold tabular-nums">{pct}%</span>
+            <ChevronDown className={cn("h-4 w-4 shrink-0 text-ink/30 transition-transform", open && "rotate-180")} />
+          </>
+        )}
       </button>
 
-      {open && (
-        <div className="border-t border-ink/5 bg-ink/[0.015] px-5 py-4">
-          {missing.length === 0 ? (
-            <p className="text-sm text-ink/60">Paldex complete — every species is registered. 🎉</p>
+      {open && !noRecord && (
+        <div className="space-y-3 border-t border-ink/5 bg-ink/[0.015] px-5 py-4">
+          {missingBase.length === 0 && missingVariants.length === 0 ? (
+            <p className="text-sm text-ink/60">Paldex complete — every species and variant is registered. 🎉</p>
           ) : (
             <>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/35">
-                Missing · {missing.length}
-              </p>
-              <div className="flex max-h-64 flex-wrap gap-1.5 overflow-y-auto">
-                {missing.map((e) => (
-                  <span
-                    key={e.label}
-                    className="flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white py-1 pl-1 pr-2"
-                    title={palName(e.characterId)}
-                  >
-                    <img src={palIconUrl(e.characterId)} alt="" loading="lazy" className="h-5 w-5 object-contain" />
-                    <span className="font-mono text-[10px] text-ink/40">#{e.label}</span>
-                    <span className="max-w-[7rem] truncate text-xs text-ink/70">{palName(e.characterId)}</span>
-                  </span>
-                ))}
-              </div>
+              {ownedUnregistered > 0 && (
+                <p className="text-xs text-ink/50">
+                  <span className="font-semibold text-brand-amber">{ownedUnregistered}</span> of these are in their
+                  box but unregistered — the dex only counts pals a player acquired themselves, so traded-in pals
+                  don't register.
+                </p>
+              )}
+              {missingBase.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/35">
+                    Missing · {missingBase.length}
+                  </p>
+                  <div className="flex max-h-64 flex-wrap gap-1.5 overflow-y-auto">
+                    {missingBase.map((e) => (
+                      <MissingChip key={e.label} entry={e} owned={owned.has(e.label)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {missingVariants.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/35">
+                    Variants missing · {missingVariants.length}
+                    <span className="ml-1 normal-case text-ink/30">(not counted in the %)</span>
+                  </p>
+                  <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
+                    {missingVariants.map((e) => (
+                      <MissingChip key={e.label} entry={e} owned={owned.has(e.label)} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -139,13 +211,27 @@ export function ServerPaldex() {
     [palsQuery.data],
   );
 
-  const total = DECK_ENTRIES.length;
-
   const serverCaught = useMemo(() => {
     const union = new Set<string>();
     for (const p of players) for (const label of deckLabels(p)) union.add(label);
     return union;
   }, [players]);
+  const serverCaughtBase = useMemo(
+    () => BASE_ENTRIES.filter((e) => serverCaught.has(e.label)).length,
+    [serverCaught],
+  );
+  const serverCaughtVariants = useMemo(
+    () => VARIANT_ENTRIES.filter((e) => serverCaught.has(e.label)).length,
+    [serverCaught],
+  );
+
+  // Every player showing an empty dex while owning pals means the save's
+  // Players/*.sav records weren't readable — say so instead of rendering a
+  // page of zeros that looks like nobody ever caught anything.
+  const recordsUnavailable =
+    players.length > 0 &&
+    players.every((p) => p.paldeck.length === 0) &&
+    players.some((p) => allPals(p).length > 0);
 
   const records = useMemo(() => {
     const owned: { pal: Pal; owner: string }[] = [];
@@ -162,11 +248,19 @@ export function ServerPaldex() {
       .slice(0, 25);
 
     const captures = players
-      .map((p) => ({
-        name: p.nickname || p.uid.slice(0, 8),
-        total: Object.values(p.captures).reduce((n, c) => n + c, 0),
-        species: Object.keys(p.captures).length,
-      }))
+      .map((p) => {
+        // PalCaptureCount keys are raw ids — BOSS_ variants and captured
+        // HUMANS included. Fold everything through the deck so a species
+        // counts once, and humans stay off a pal leaderboard.
+        const byLabel = new Map<string, number>();
+        for (const [cid, n] of Object.entries(p.captures)) {
+          const label = palDeckNo(cid);
+          if (label) byLabel.set(label, (byLabel.get(label) ?? 0) + n);
+        }
+        let total = 0;
+        for (const n of byLabel.values()) total += n;
+        return { name: p.nickname || p.uid.slice(0, 8), total, species: byLabel.size };
+      })
       .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
@@ -176,7 +270,9 @@ export function ServerPaldex() {
         const pals = allPals(p);
         return {
           name: p.nickname || p.uid.slice(0, 8),
-          alphas: pals.filter((x) => x.isBoss).length,
+          // The game stores luckies with the BOSS_ prefix too, so "boss"
+          // alone would count every lucky as an alpha as well.
+          alphas: pals.filter((x) => x.isBoss && !x.isLucky).length,
           luckies: pals.filter((x) => x.isLucky).length,
         };
       })
@@ -207,7 +303,8 @@ export function ServerPaldex() {
   if (serverQuery.isError || !serverQuery.data) return <p className="p-6 text-destructive">Server not found.</p>;
 
   const notConfigured = palsQuery.isError && palsQuery.error instanceof ApiError && palsQuery.error.status === 400;
-  const pct = total ? Math.round((serverCaught.size / total) * 100) : 0;
+  const baseTotal = BASE_ENTRIES.length;
+  const pct = baseTotal ? Math.round((serverCaughtBase / baseTotal) * 100) : 0;
 
   return (
     <div className="pb-24">
@@ -229,6 +326,14 @@ export function ServerPaldex() {
 
         {palsQuery.data && (
           <>
+            {recordsUnavailable && (
+              <p className="rounded-lg border border-brand-amber/50 bg-brand-amber/10 px-4 py-3 text-sm text-ink/70">
+                No Paldex records were found in the save — completion can't be computed. The records live in the
+                world folder's <code className="font-mono">Players/*.sav</code> files, so make sure the server's
+                save path mounts the whole folder, not just Level.sav.
+              </p>
+            )}
+
             {/* The one bold element: how much of the Paldex this server has
                 seen, all players together. */}
             <section className="clip-notch-lg rounded-br-[10px] rounded-tl-[10px] border border-ink/10 bg-white px-6 py-5 lg:px-8">
@@ -236,7 +341,8 @@ export function ServerPaldex() {
               <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="font-display text-4xl font-extrabold lg:text-5xl">{pct}%</span>
                 <span className="font-mono text-sm text-ink/50">
-                  {serverCaught.size} of {total} species registered by someone
+                  {serverCaughtBase} of {baseTotal} species registered by someone
+                  {serverCaughtVariants > 0 && ` · +${serverCaughtVariants}/${VARIANT_ENTRIES.length} variants`}
                 </span>
               </div>
               <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-ink/10">
