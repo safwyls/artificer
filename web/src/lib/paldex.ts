@@ -158,6 +158,11 @@ export const DECK_ENTRIES: { label: string; characterId: string }[] = (() => {
     .sort((a, b) => deckLabelSort(a.label, b.label));
 })();
 
+// Completion percentages track the numbered entries, like the game's own
+// counter — B-subspecies sit under the same number in-game.
+export const DECK_BASE_ENTRIES = DECK_ENTRIES.filter((e) => /^\d+$/.test(e.label));
+export const DECK_VARIANT_ENTRIES = DECK_ENTRIES.filter((e) => !/^\d+$/.test(e.label));
+
 /** Rarity 8+ is the game's own threshold for a rare (blue-tier) pal, 12+ for
  * legendary — used only to tint the icon frame. */
 export function rarityTier(rarity: number): "legendary" | "rare" | "common" {

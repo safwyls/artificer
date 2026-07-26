@@ -205,6 +205,9 @@ export interface Pal {
   /** Soul upgrades applied, keyed by stat name. */
   souls: Record<string, number>;
   slotIndex: number;
+  /** The base camp a working pal belongs to (matches a guild base's id);
+   * empty for pals not working at a base. */
+  baseId: string;
 }
 
 export interface PlayerPals {
@@ -342,7 +345,7 @@ export interface Guild {
   baseCampLevel: number;
   members: GuildMember[];
   memberCount: number;
-  bases: { x: number; y: number }[];
+  bases: { id: string; x: number; y: number }[];
 }
 
 export interface GuildsResult {

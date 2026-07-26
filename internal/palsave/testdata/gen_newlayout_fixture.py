@@ -22,6 +22,7 @@ Usage: python3 gen_newlayout_fixture.py [outdir]
 import os
 import sys
 
+from palworld_save_tools.archive import FArchiveWriter
 from palworld_save_tools.gvas import GvasFile
 from palworld_save_tools.palsav import compress_gvas_to_sav
 from palworld_save_tools.paltypes import PALWORLD_CUSTOM_PROPERTIES
@@ -35,6 +36,8 @@ KYOSHI_BOX = "aaaaaaaa-1111-0000-0000-000000000002"
 REN_PARTY = "bbbbbbbb-2222-0000-0000-000000000001"
 REN_BOX = "bbbbbbbb-2222-0000-0000-000000000002"
 BASE_CONTAINER = "cccccccc-0000-0000-0000-000000000001"
+CAMP_ID = "eeeeeeee-0000-0000-0000-000000000001"
+GUILD_ID = "ffffffff-0000-0000-0000-000000000001"
 
 
 def sp(struct_type, value):
@@ -96,6 +99,53 @@ def guidarray(prop_name, values):
 
 def slotid(container, index):
     return sp("PalCharacterSlotId", {"ContainerId": containerid(container), "SlotIndex": i(index)})
+
+
+def bytearray_prop(values):
+    """A plain byte ArrayProperty — how the raw blobs the extractor scans
+    sequentially (base camp, worker director) are carried."""
+    return {"array_type": "ByteProperty", "id": None, "value": {"values": values}, "type": "ArrayProperty"}
+
+
+def _transform(x, y):
+    return {
+        "rotation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+        "translation": {"x": x, "y": y, "z": 0.0},
+        "scale3d": {"x": 1.0, "y": 1.0, "z": 1.0},
+    }
+
+
+def base_camp_entry(camp_id, guild_id, container_id, x, y):
+    """One BaseCampSaveData entry: the camp blob the extractor reads for
+    id/transform/guild, and the WorkerDirector blob it reads the worker
+    container id from. Both get trailing junk bytes on purpose — newer
+    saves append fields there and the reader must not care."""
+    w = FArchiveWriter()
+    w.guid(camp_id)
+    w.fstring("Camp")
+    w.byte(3)
+    w.ftransform(_transform(x, y))
+    w.float(3000.0)
+    w.guid(guild_id)
+    w.write(b"\x00\x00\x00\x00")
+    camp_raw = list(w.bytes())
+
+    w = FArchiveWriter()
+    w.guid(camp_id)
+    w.ftransform(_transform(x, y))
+    w.byte(0)
+    w.byte(0)
+    w.guid(container_id)
+    w.write(b"\x00\x00\x00\x00")
+    director_raw = list(w.bytes())
+
+    return {
+        "key": camp_id,
+        "value": {
+            "RawData": bytearray_prop(camp_raw),
+            "WorkerDirector": sp("PalWorkerDirector", {"RawData": bytearray_prop(director_raw)}),
+        },
+    }
 
 
 def namemap(value_type, pairs):
@@ -272,6 +322,17 @@ def main():
                     "value_struct_type": "PalCharacterSaveParameter",
                     "id": None,
                     "value": entries,
+                    "type": "MapProperty",
+                },
+                # One base camp whose worker container is the container the
+                # base pal (Penguin) sits in — covers the worker→base join.
+                "BaseCampSaveData": {
+                    "key_type": "StructProperty",
+                    "value_type": "StructProperty",
+                    "key_struct_type": "Guid",
+                    "value_struct_type": "PalBaseCampSaveData",
+                    "id": None,
+                    "value": [base_camp_entry(CAMP_ID, GUILD_ID, BASE_CONTAINER, 123400.0, -56700.0)],
                     "type": "MapProperty",
                 },
             }),

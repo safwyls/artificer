@@ -2,12 +2,38 @@ import mapPois from "../data/mapPois.json";
 
 /** Static map points of interest, vendored from palworld-save-pal (see
  * docs/vendored-game-data.md). Coordinates are world units — the same space
- * players and bases are plotted in. */
+ * players and bases are plotted in. Fast travel statues and watchtowers
+ * carry their in-game names; the other layers are anonymous spawns. */
 export type PoiKind = "fastTravel" | "watchtower" | "dungeon" | "alpha" | "predator";
 
 export const POI_KINDS: PoiKind[] = ["fastTravel", "watchtower", "dungeon", "alpha", "predator"];
 
-export const POI_POINTS = mapPois as Record<PoiKind, [number, number][]>;
+/** [x, y] for anonymous layers; [x, y, name] for the named ones. */
+export type PoiPoint = [number, number] | [number, number, string];
+
+export const POI_POINTS = mapPois as unknown as Record<PoiKind, PoiPoint[]>;
+
+// Statues and watchtowers double as the map's named landmarks — each is
+// named for its locality, which makes "near X" a better answer to "where
+// is this base" than raw coordinates.
+const LANDMARKS: { name: string; x: number; y: number }[] = (["fastTravel", "watchtower"] as const).flatMap((kind) =>
+  POI_POINTS[kind].flatMap(([x, y, name]) => (name ? [{ name, x, y }] : [])),
+);
+
+/** The closest named landmark to a world position, with the distance in
+ * meters (world units are centimeters). */
+export function nearestLandmark(x: number, y: number): { name: string; meters: number } | null {
+  let best: { name: string; x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (const l of LANDMARKS) {
+    const d = (l.x - x) ** 2 + (l.y - y) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = l;
+    }
+  }
+  return best ? { name: best.name, meters: Math.round(Math.sqrt(bestD) / 100) } : null;
+}
 
 /** Display metadata per layer. Colors are existing palette tokens — the
  * legend chips and the pins must agree, so both read from here. */

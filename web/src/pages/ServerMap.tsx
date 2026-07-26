@@ -4,7 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Home, WifiOff } from "lucide-react";
 import { api, type Player } from "../lib/api";
 import { DEFAULT_MAP_AREA, MAP_AREAS, mapOf, type MapArea } from "../lib/map";
-import { POI_KINDS, POI_META, POI_POINTS, loadPoiLayers, savePoiLayers, type PoiKind } from "../lib/pois";
+import {
+  POI_KINDS,
+  POI_META,
+  POI_POINTS,
+  loadPoiLayers,
+  nearestLandmark,
+  savePoiLayers,
+  type PoiKind,
+} from "../lib/pois";
 import { playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { PlayerMap, mapMarkerId, type MapMarker } from "../components/PlayerMap";
@@ -124,18 +132,20 @@ function PoiLegend({ layers, onToggle }: { layers: Set<PoiKind>; onToggle: (kind
 }
 
 function BaseRow({ label, area, x, y, onClick }: { label: string; area: string; x: number; y: number; onClick: () => void }) {
+  const landmark = nearestLandmark(x, y);
   return (
     <button
       onClick={onClick}
       className="flex w-full items-center gap-3 rounded-xl border border-ink/10 px-3 py-2.5 text-left transition hover:border-ink/25"
+      title={landmark ? `${landmark.name} · ${landmark.meters}m away · ${Math.round(x)}, ${Math.round(y)}` : undefined}
     >
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-amber/15">
         <Home className="h-3.5 w-3.5 text-brand-amber" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold">{label}</span>
-        <span className="block font-mono text-xs text-ink/40">
-          {area} · {Math.round(x)}, {Math.round(y)}
+        <span className="block truncate font-mono text-xs text-ink/40">
+          {landmark ? `near ${landmark.name}` : `${area} · ${Math.round(x)}, ${Math.round(y)}`}
         </span>
       </span>
     </button>
@@ -321,7 +331,15 @@ export function ServerMap() {
     const out: MapMarker[] = [];
     for (const g of guildBases) {
       for (const b of g.bases) {
-        out.push({ id: b.domId, label: g.guildName, sublabel: `Base ${b.index + 1}`, x: b.x, y: b.y, kind: "base" });
+        const landmark = nearestLandmark(b.x, b.y);
+        out.push({
+          id: b.domId,
+          label: g.guildName,
+          sublabel: landmark ? `Base ${b.index + 1} · near ${landmark.name}` : `Base ${b.index + 1}`,
+          x: b.x,
+          y: b.y,
+          kind: "base",
+        });
       }
     }
     for (const p of offline) {
@@ -401,6 +419,12 @@ export function ServerMap() {
                 playerId: m.kind === "offline" ? m.id : undefined,
               })
             }
+            // A named POI just identifies itself in the HUD — no zoom; the
+            // user is already looking right at it.
+            onPoiSelect={(name, x, y) => {
+              setSelectedId(null);
+              setFocus({ domId: "", x, y, name });
+            }}
             onFocusDone={() => setFocusId(null)}
           />
         </div>

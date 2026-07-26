@@ -287,6 +287,14 @@ func TestRead(t *testing.T) {
 				if len(ren.Paldeck) != 0 || len(ren.Captures) != 0 {
 					t.Fatalf("ren paldex should be empty: deck=%v captures=%v", ren.Paldeck, ren.Captures)
 				}
+				// The base pal ties to its camp via the WorkerDirector's
+				// container id; party/palbox pals carry no base.
+				if kyoshi.Base[0].BaseID != "eeeeeeee-0000-0000-0000-000000000001" {
+					t.Fatalf("base pal BaseID = %q, want the fixture camp id", kyoshi.Base[0].BaseID)
+				}
+				if kyoshi.Party[0].BaseID != "" {
+					t.Fatalf("party pal BaseID = %q, want empty", kyoshi.Party[0].BaseID)
+				}
 			} else if len(kyoshi.Storage) != 0 || len(ren.Storage) != 0 {
 				t.Fatalf("unexpected storage pals: %+v %+v", kyoshi.Storage, ren.Storage)
 			}

@@ -92,10 +92,19 @@ const POI_CLIP: Record<PoiKind, string | undefined> = {
  * Static POI pins for the visible layers. Hundreds of markers, so unlike
  * ScaledPin (one transform subscription per pin) the counter-scale is a
  * single CSS variable on the layer container that every pin inherits.
- * pointer-events-none throughout: POIs are terrain annotation and must
- * never intercept a click meant for the map or a player.
+ * The layer itself is pointer-events-none so terrain annotation never
+ * blocks the map; only the NAMED pins (statues, watchtowers) opt back in,
+ * with a native title on hover and a tap reporting the name to the HUD.
  */
-function PoiLayer({ area, layers }: { area: MapArea; layers: Set<PoiKind> }) {
+function PoiLayer({
+  area,
+  layers,
+  onPoiSelect,
+}: {
+  area: MapArea;
+  layers: Set<PoiKind>;
+  onPoiSelect?: (name: string, x: number, y: number) => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const context = useTransformContext();
 
@@ -112,25 +121,31 @@ function PoiLayer({ area, layers }: { area: MapArea; layers: Set<PoiKind> }) {
       {[...layers].map((kind) =>
         POI_POINTS[kind]
           .filter(([x, y]) => mapOf(x, y) === area)
-          .map(([x, y], i) => {
+          .map(([x, y, name], i) => {
             const { xPct, yPct } = worldToMapPercent(x, y, area);
             const clip = POI_CLIP[kind];
+            const style: React.CSSProperties = {
+              left: `${xPct}%`,
+              top: `${yPct}%`,
+              width: 9,
+              height: 9,
+              transform: "translate(-50%,-50%) scale(var(--poi-inv))",
+              clipPath: clip,
+              borderRadius: clip ? undefined : "50%",
+              backgroundColor: kind === "predator" ? "transparent" : POI_META[kind].color,
+              border: kind === "predator" ? `2.5px solid ${POI_META[kind].color}` : undefined,
+              boxShadow: clip ? undefined : "0 0 0 1px rgba(245,237,225,0.75)",
+            };
+            if (!name) {
+              return <span key={`${kind}-${i}`} className="absolute" style={style} />;
+            }
             return (
-              <span
+              <button
                 key={`${kind}-${i}`}
-                className="absolute"
-                style={{
-                  left: `${xPct}%`,
-                  top: `${yPct}%`,
-                  width: 9,
-                  height: 9,
-                  transform: "translate(-50%,-50%) scale(var(--poi-inv))",
-                  clipPath: clip,
-                  borderRadius: clip ? undefined : "50%",
-                  backgroundColor: kind === "predator" ? "transparent" : POI_META[kind].color,
-                  border: kind === "predator" ? `2.5px solid ${POI_META[kind].color}` : undefined,
-                  boxShadow: clip ? undefined : "0 0 0 1px rgba(245,237,225,0.75)",
-                }}
+                className="pointer-events-auto absolute cursor-pointer after:absolute after:-inset-1.5 after:content-['']"
+                style={style}
+                title={name}
+                onClick={() => onPoiSelect?.(name, x, y)}
               />
             );
           }),
@@ -260,6 +275,7 @@ export function PlayerMap({
   focusId,
   onSelect,
   onMarkerSelect,
+  onPoiSelect,
   onFocusDone,
   className,
 }: {
@@ -276,6 +292,8 @@ export function PlayerMap({
   /** Tap/click on a base or offline marker. Without hover there are no
    * tooltips on touch, so tapping is how mobile learns what a marker is. */
   onMarkerSelect?: (marker: MapMarker) => void;
+  /** Tap/click on a named POI (fast travel statue, watchtower). */
+  onPoiSelect?: (name: string, x: number, y: number) => void;
   onFocusDone: () => void;
   className?: string;
 }) {
@@ -394,7 +412,9 @@ export function PlayerMap({
                   className="absolute inset-0 h-full w-full"
                 />
 
-                {poiLayers && poiLayers.size > 0 && <PoiLayer area={area} layers={poiLayers} />}
+                {poiLayers && poiLayers.size > 0 && (
+                  <PoiLayer area={area} layers={poiLayers} onPoiSelect={onPoiSelect} />
+                )}
 
                 {markers
                   .filter((m) => mapOf(m.x, m.y) === area)

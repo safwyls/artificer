@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Crown, Sparkles, Swords, Target } from "lucide-react";
 import { api, ApiError, type Pal, type PlayerPals } from "../lib/api";
-import { DECK_ENTRIES, palDeckNo, palIconUrl, palName } from "../lib/paldex";
+import { DECK_BASE_ENTRIES, DECK_VARIANT_ENTRIES, palDeckNo, palIconUrl, palName } from "../lib/paldex";
 import { initials, playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
@@ -39,11 +39,8 @@ function ownedLabels(p: PlayerPals): Set<string> {
   return out;
 }
 
-// Completion percentages track the numbered entries, like the game's own
-// counter — B-subspecies sit under the same number in-game and are shown
-// separately rather than dragging the headline down.
-const BASE_ENTRIES = DECK_ENTRIES.filter((e) => /^\d+$/.test(e.label));
-const VARIANT_ENTRIES = DECK_ENTRIES.filter((e) => !/^\d+$/.test(e.label));
+const BASE_ENTRIES = DECK_BASE_ENTRIES;
+const VARIANT_ENTRIES = DECK_VARIANT_ENTRIES;
 
 /**
  * The hero wears the game's passive-tier tiles as the server levels up:

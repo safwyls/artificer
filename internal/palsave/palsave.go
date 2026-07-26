@@ -57,6 +57,9 @@ type Pal struct {
 	Sick       string         `json:"sick"`
 	Souls      map[string]int `json:"souls"`
 	SlotIndex  int            `json:"slotIndex"`
+	// BaseID is the base camp a working pal belongs to (matches a guild
+	// base's ID); empty for pals not working at a base.
+	BaseID string `json:"baseId"`
 }
 
 type PlayerPals struct {
@@ -92,8 +95,10 @@ type GuildMember struct {
 }
 
 type GuildBase struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	// ID is the camp's guid, which working pals reference via BaseID.
+	ID string  `json:"id"`
+	X  float64 `json:"x"`
+	Y  float64 `json:"y"`
 }
 
 type Guild struct {

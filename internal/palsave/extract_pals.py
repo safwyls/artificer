@@ -349,18 +349,21 @@ def read_gvas(path, custom_properties):
 
 
 def parse_base_camps(entries, reader_source):
-    """Base camps as {guild id: [{x, y}]}.
+    """Base camps as {guild id: [{id, x, y, containerId}]}.
 
     A camp's own name is an untranslated internal placeholder, so camps are
     labelled by the guild that owns them instead. Coordinates come out in
     the same world space the live map already plots players in.
+
+    containerId is the camp's worker container (from its WorkerDirector),
+    which is what ties the pals working at a base to that specific base.
     """
     by_guild = {}
     for entry in entries or []:
         try:
             raw = bytes(entry["value"]["RawData"]["value"]["values"])
             r = reader_source.internal_copy(raw, debug=False)
-            r.guid()          # camp id
+            camp_id = str(r.guid())
             r.fstring()       # placeholder name
             r.byte()          # state
             transform = r.ftransform()
@@ -369,9 +372,23 @@ def parse_base_camps(entries, reader_source):
         except Exception as exc:
             print(f"warning: skipping a base camp: {exc}", file=sys.stderr)
             continue
+        # The WorkerDirector blob grew trailing fields in newer saves, so
+        # read just past the container guid and ignore the rest. A camp
+        # whose blob fails still shows — its workers just won't attribute.
+        container = ""
+        try:
+            wd = bytes(entry["value"]["WorkerDirector"]["value"]["RawData"]["value"]["values"])
+            rw = reader_source.internal_copy(wd, debug=False)
+            rw.guid()         # director id
+            rw.ftransform()   # spawn transform
+            rw.byte()         # current order type
+            rw.byte()         # current battle type
+            container = str(rw.guid())
+        except Exception as exc:
+            print(f"warning: no worker container for a base camp: {exc}", file=sys.stderr)
         t = transform.get("translation", {})
         by_guild.setdefault(guild_id, []).append(
-            {"x": t.get("x", 0.0), "y": t.get("y", 0.0)}
+            {"id": camp_id, "x": t.get("x", 0.0), "y": t.get("y", 0.0), "containerId": container}
         )
     return by_guild
 
@@ -602,6 +619,14 @@ def main():
                 old_owners.insert(0, owner)
             pals.append((cid, old_owners, parse_pal(param, instance_id)))
 
+    # Worker container → camp id, so base pals can say WHICH base they
+    # work at, not just that they work at one.
+    base_by_container = {}
+    for camp_list in camps.values():
+        for c in camp_list:
+            if c.get("containerId"):
+                base_by_container[c["containerId"]] = c["id"]
+
     for cid, old_owners, pal in pals:
         owner_bucket = containers.get(cid) if cid else None
         if owner_bucket is not None:
@@ -613,6 +638,8 @@ def main():
         # recent owner if we know one; a pal with no owner at all is wild.
         for uid in old_owners:
             if uid and uid != ZERO_GUID:
+                if cid and cid in base_by_container:
+                    pal["baseId"] = base_by_container[cid]
                 record_for(uid)["base"].append(pal)
                 break
 
@@ -662,6 +689,11 @@ def main():
     if guild_entries:
         with contextlib.redirect_stdout(sys.stderr):
             guilds = parse_guilds(guild_entries, camps, player_names)
+    # containerId was only needed for the worker join above; the API
+    # payload carries the camp id instead, which base pals reference.
+    for g in guilds:
+        for b in g.get("bases", []):
+            b.pop("containerId", None)
 
     out = {
         "players": sorted(players.values(), key=lambda r: (r["nickname"].lower(), r["uid"])),
