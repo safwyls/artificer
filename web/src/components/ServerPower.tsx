@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Play, RotateCw, Square } from "lucide-react";
+import { Play, RotateCw, ScrollText, Square } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
+import { ContainerLogsDialog } from "./ContainerLogsDialog";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ export function ServerPower({ serverId }: { serverId: number }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<Action | null>(null);
+  const [logsOpen, setLogsOpen] = useState(false);
 
   const statusQuery = useQuery({
     queryKey: ["container", serverId],
@@ -97,6 +99,13 @@ export function ServerPower({ serverId }: { serverId: number }) {
 
       <div className="flex items-center gap-2">
         {!allowed && <span className="text-xs text-ink/40">You don't have power permission</span>}
+        {/* Logs share the power grant — same gate as the endpoint. */}
+        {allowed && (
+          <Button variant="secondary" size="sm" onClick={() => setLogsOpen(true)}>
+            <ScrollText className="h-4 w-4" />
+            Logs
+          </Button>
+        )}
         <Button
           variant="secondary"
           size="sm"
@@ -125,6 +134,13 @@ export function ServerPower({ serverId }: { serverId: number }) {
           Stop
         </Button>
       </div>
+
+      <ContainerLogsDialog
+        serverId={serverId}
+        containerName={state?.name ?? ""}
+        open={logsOpen}
+        onOpenChange={setLogsOpen}
+      />
 
       <Dialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
         <DialogContent>

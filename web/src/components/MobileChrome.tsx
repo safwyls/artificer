@@ -186,11 +186,20 @@ export function MobileTopBar({ server }: { server: Server | null }) {
           <NavLink to={`/servers/${server.id}/players`} className={segmentClass}>
             Pals
           </NavLink>
+          <NavLink to={`/servers/${server.id}/paldex`} className={segmentClass}>
+            Paldex
+          </NavLink>
           <NavLink to={`/servers/${server.id}/guilds`} className={segmentClass}>
             Guilds
           </NavLink>
           <NavLink to={`/servers/${server.id}/calculators`} className={segmentClass}>
             Calculators
+          </NavLink>
+          <NavLink to={`/servers/${server.id}/activity`} className={segmentClass}>
+            Activity
+          </NavLink>
+          <NavLink to={`/servers/${server.id}/automation`} className={segmentClass}>
+            Automation
           </NavLink>
           {can("settings") && (
             <NavLink to={`/servers/${server.id}/settings`} className={segmentClass}>

@@ -10,6 +10,7 @@ import {
 import { Home, ZoomIn, ZoomOut, Maximize } from "lucide-react";
 import type { Player } from "../lib/api";
 import { MAP_AREAS, mapOf, worldToMapPercent, type MapArea } from "../lib/map";
+import { POI_META, POI_POINTS, type PoiKind } from "../lib/pois";
 import { playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -75,6 +76,67 @@ function ScaledPin({
 /** DOM id for a save-derived marker, so it can be zoomed to like a player. */
 export function mapMarkerId(id: string) {
   return `map-marker-${id}`;
+}
+
+/** Per-kind pin shape, via clip-path — color alone doesn't survive being
+ * 9px tall over busy terrain, so each layer gets a distinct silhouette. */
+const POI_CLIP: Record<PoiKind, string | undefined> = {
+  fastTravel: undefined, // circle, via border-radius
+  watchtower: "polygon(50% 0, 100% 100%, 0 100%)",
+  dungeon: "polygon(50% 0, 100% 50%, 50% 100%, 0 50%)",
+  alpha: "polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%)",
+  predator: undefined, // ring, via border
+};
+
+/**
+ * Static POI pins for the visible layers. Hundreds of markers, so unlike
+ * ScaledPin (one transform subscription per pin) the counter-scale is a
+ * single CSS variable on the layer container that every pin inherits.
+ * pointer-events-none throughout: POIs are terrain annotation and must
+ * never intercept a click meant for the map or a player.
+ */
+function PoiLayer({ area, layers }: { area: MapArea; layers: Set<PoiKind> }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const context = useTransformContext();
+
+  useTransformEffect(({ state }) => {
+    ref.current?.style.setProperty("--poi-inv", String(1 / state.scale));
+  });
+
+  return (
+    <div
+      ref={ref}
+      className="pointer-events-none absolute inset-0"
+      style={{ "--poi-inv": String(1 / (context.state.scale || 1)) } as React.CSSProperties}
+    >
+      {[...layers].map((kind) =>
+        POI_POINTS[kind]
+          .filter(([x, y]) => mapOf(x, y) === area)
+          .map(([x, y], i) => {
+            const { xPct, yPct } = worldToMapPercent(x, y, area);
+            const clip = POI_CLIP[kind];
+            return (
+              <span
+                key={`${kind}-${i}`}
+                className="absolute"
+                style={{
+                  left: `${xPct}%`,
+                  top: `${yPct}%`,
+                  width: 9,
+                  height: 9,
+                  transform: "translate(-50%,-50%) scale(var(--poi-inv))",
+                  clipPath: clip,
+                  borderRadius: clip ? undefined : "50%",
+                  backgroundColor: kind === "predator" ? "transparent" : POI_META[kind].color,
+                  border: kind === "predator" ? `2.5px solid ${POI_META[kind].color}` : undefined,
+                  boxShadow: clip ? undefined : "0 0 0 1px rgba(245,237,225,0.75)",
+                }}
+              />
+            );
+          }),
+      )}
+    </div>
+  );
 }
 
 const MAX_SCALE = 12;
@@ -192,6 +254,7 @@ export interface MapMarker {
 export function PlayerMap({
   players,
   markers = [],
+  poiLayers,
   area,
   selectedId,
   focusId,
@@ -203,6 +266,8 @@ export function PlayerMap({
   /** Save-derived overlays: guild bases and where offline players logged
    * off. Drawn beneath live players, which are the reason for the view. */
   markers?: MapMarker[];
+  /** Static POI layers to draw (vendored data), beneath everything else. */
+  poiLayers?: Set<PoiKind>;
   area: MapArea;
   selectedId: string | null;
   focusId: string | null;
@@ -324,6 +389,8 @@ export function PlayerMap({
                   aria-label={`Palworld map — ${MAP_AREAS[area].label}`}
                   className="absolute inset-0 h-full w-full"
                 />
+
+                {poiLayers && poiLayers.size > 0 && <PoiLayer area={area} layers={poiLayers} />}
 
                 {markers
                   .filter((m) => mapOf(m.x, m.y) === area)

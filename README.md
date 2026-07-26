@@ -19,13 +19,35 @@ TrueNAS Scale.
 - **Performance charts** — server FPS, frame time and player count sampled
   every 30s and kept for 7 days.
 - **Live map** — players plotted on the real world map with pan/zoom and
-  click-to-focus, across both the main map and the Tree area.
+  click-to-focus, across both the main map and the Tree area, with
+  toggleable point-of-interest layers (fast travel statues, watchtowers,
+  dungeon entrances, alpha and predator pal spawns).
 - **Player pals** — every player's party, palbox and base pals read from the
   save file, with real names, artwork, IVs, passives and equipped skills.
 - **Guilds** — membership, base camp level and base locations, also plotted
   on the map alongside where offline players last logged off.
+- **Paldex** — per-player completion (registered species from each player's
+  save record, with a "what's missing" browser) plus a server record book:
+  best-IV pals, capture leaders, alpha/lucky tallies, one-of-a-kind catches.
+- **Activity** — join/leave history with per-player playtime and session
+  lengths, and an admin-only audit trail of every management action taken
+  through Palcon (power, saves, broadcasts, moderation, settings and
+  automation changes — scheduled restarts included).
 - **Power control** — start/stop/restart the game server's container through a
-  scoped Docker socket proxy.
+  scoped Docker socket proxy, with a container log viewer (tail, auto-refresh,
+  download) beside the buttons.
+- **Crash watchdog** — optionally revives a container that exits with an
+  error, with a cooldown and a three-strikes stand-down so a crash loop gets a
+  human instead of a fourth restart. Clean stops are never revived.
+- **Scheduled restarts** — per-server restart schedules (weekdays + time) with
+  in-game warning broadcasts at configurable lead times; the world is saved
+  before every restart. With power control configured the container is
+  bounced; without it the game is asked to shut down and the container's
+  restart policy brings it back.
+- **Discord notifications** — a per-server Discord webhook (encrypted at
+  rest, never sent back to the browser) for server down/back-online, player
+  joins and leaves, and scheduled-restart notices, each individually
+  toggleable.
 - **Users and permissions** — give players accounts with only the rights you
   want them to have.
 

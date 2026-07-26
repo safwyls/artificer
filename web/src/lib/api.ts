@@ -223,6 +223,84 @@ export interface PlayerPals {
   lastY: number | null;
   platform: string;
   technologyPoints: number;
+  /** Paldex progress: registered species ids (survive selling the pal) and
+   * per-species sphere-capture counts, from the player's save record. */
+  paldeck: string[];
+  captures: Record<string, number>;
+}
+
+export interface PlayerEvent {
+  id: number;
+  ts: string;
+  userId: string;
+  name: string;
+  event: "join" | "leave";
+}
+
+export interface ActivityResult {
+  events: PlayerEvent[];
+  hours: number;
+  /** Sampling cadence — session edges are only this precise. */
+  intervalSeconds: number;
+}
+
+export interface AuditEntry {
+  id: number;
+  ts: string;
+  username: string;
+  action: string;
+  detail: string;
+}
+
+export interface RestartSchedule {
+  id: number;
+  enabled: boolean;
+  /** Weekdays, 0 (Sunday) through 6 (Saturday). */
+  days: number[];
+  /** "HH:MM", 24-hour, in Palcon's local timezone. */
+  timeOfDay: string;
+  /** Warning broadcast lead times in minutes, descending. */
+  warningMinutes: number[];
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+}
+
+export interface ScheduleWriteInput {
+  enabled: boolean;
+  days: number[];
+  timeOfDay: string;
+  warningMinutes: number[];
+}
+
+/** The webhook URL itself is write-only; the API only ever reports that
+ * one is configured. */
+export interface DiscordConfig {
+  configured: boolean;
+  enabled: boolean;
+  onStatus: boolean;
+  onPlayers: boolean;
+  onRestarts: boolean;
+}
+
+export interface DiscordWriteInput {
+  /** Empty string keeps the stored webhook (like password updates). */
+  webhookUrl: string;
+  enabled: boolean;
+  onStatus: boolean;
+  onPlayers: boolean;
+  onRestarts: boolean;
+}
+
+export interface AutomationResult {
+  schedules: RestartSchedule[];
+  /** Palcon's local timezone name, which schedule times are read in. */
+  timezone: string;
+  /** True when a scheduled restart can bounce the container itself. */
+  dockerRestart: boolean;
+  /** Absent for non-admins. */
+  discord?: DiscordConfig;
+  /** Absent for non-admins. `available` = docker control + container name. */
+  watchdog?: { enabled: boolean; available: boolean };
 }
 
 export interface GuildMember {
@@ -270,6 +348,11 @@ export const api = {
   containerStatus: (id: number) => request<ContainerState>(`/servers/${id}/container`),
   containerAction: (id: number, action: "start" | "stop" | "restart") =>
     request<ContainerState>(`/servers/${id}/container/${action}`, { method: "POST" }),
+  // Needs the power permission, like the actions beside it.
+  containerLogs: (id: number, tail: number) =>
+    request<{ lines: string[] }>(`/servers/${id}/container/logs?tail=${tail}`),
+  setWatchdog: (id: number, enabled: boolean) =>
+    request<{ enabled: boolean }>(`/servers/${id}/watchdog`, { method: "PUT", body: JSON.stringify({ enabled }) }),
 
   listServers: () => request<Server[]>("/servers"),
   getServer: (id: number) => request<Server>(`/servers/${id}`),
@@ -308,4 +391,23 @@ export const api = {
   // no save path configured.
   serverPals: (id: number) => request<PalsResult>(`/servers/${id}/pals`),
   serverGuilds: (id: number) => request<GuildsResult>(`/servers/${id}/guilds`),
+
+  // Activity: join/leave history for anyone signed in; the audit trail of
+  // management actions is admin-only.
+  serverActivity: (id: number, hours: number) => request<ActivityResult>(`/servers/${id}/activity?hours=${hours}`),
+  serverAudit: (id: number, limit = 200) => request<{ entries: AuditEntry[] }>(`/servers/${id}/audit?limit=${limit}`),
+
+  // Automation: restart schedules (readable by anyone signed in) and
+  // Discord notifications (admin-only, and part of the same payload).
+  serverAutomation: (id: number) => request<AutomationResult>(`/servers/${id}/automation`),
+  createSchedule: (id: number, input: ScheduleWriteInput) =>
+    request<RestartSchedule>(`/servers/${id}/schedules`, { method: "POST", body: JSON.stringify(input) }),
+  updateSchedule: (id: number, scheduleId: number, input: ScheduleWriteInput) =>
+    request<RestartSchedule>(`/servers/${id}/schedules/${scheduleId}`, { method: "PUT", body: JSON.stringify(input) }),
+  deleteSchedule: (id: number, scheduleId: number) =>
+    request<void>(`/servers/${id}/schedules/${scheduleId}`, { method: "DELETE" }),
+  setDiscord: (id: number, input: DiscordWriteInput) =>
+    request<DiscordConfig>(`/servers/${id}/discord`, { method: "PUT", body: JSON.stringify(input) }),
+  deleteDiscord: (id: number) => request<void>(`/servers/${id}/discord`, { method: "DELETE" }),
+  testDiscord: (id: number) => request<void>(`/servers/${id}/discord/test`, { method: "POST" }),
 };

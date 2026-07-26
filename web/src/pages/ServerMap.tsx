@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Home, WifiOff } from "lucide-react";
 import { api, type Player } from "../lib/api";
 import { DEFAULT_MAP_AREA, MAP_AREAS, mapOf, type MapArea } from "../lib/map";
+import { POI_KINDS, POI_META, POI_POINTS, loadPoiLayers, savePoiLayers, type PoiKind } from "../lib/pois";
 import { playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { PlayerMap, mapMarkerId, type MapMarker } from "../components/PlayerMap";
@@ -86,6 +87,39 @@ function PersonRow({
         </span>
       </span>
     </button>
+  );
+}
+
+/** The layer legend: one chip per POI kind, showing its pin glyph and how
+ * many points the layer holds — the chip is both the toggle and the key. */
+function PoiLegend({ layers, onToggle }: { layers: Set<PoiKind>; onToggle: (kind: PoiKind) => void }) {
+  return (
+    <div className="inline-flex flex-wrap justify-center gap-1 rounded-xl border border-ink/15 bg-paper p-1 shadow-lg">
+      {POI_KINDS.map((kind) => {
+        const active = layers.has(kind);
+        return (
+          <button
+            key={kind}
+            onClick={() => onToggle(kind)}
+            aria-pressed={active}
+            title={`${POI_META[kind].label} · ${POI_POINTS[kind].length} on the map`}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors",
+              active ? "bg-ink/90 text-paper" : "text-ink/45 hover:bg-ink/5",
+            )}
+          >
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: POI_META[kind].color, opacity: active ? 1 : 0.4 }}
+            />
+            <span className="hidden sm:inline">{POI_META[kind].label}</span>
+            <span className={cn("font-mono text-[10px]", active ? "text-paper/60" : "text-ink/30")}>
+              {POI_POINTS[kind].length}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -220,6 +254,7 @@ export function ServerMap() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [area, setArea] = useState<MapArea>(DEFAULT_MAP_AREA);
+  const [poiLayers, setPoiLayers] = useState<Set<PoiKind>>(loadPoiLayers);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -337,6 +372,7 @@ export function ServerMap() {
           <PlayerMap
             players={online}
             markers={markers}
+            poiLayers={poiLayers}
             area={area}
             selectedId={selectedId}
             focusId={focusId}
@@ -373,7 +409,21 @@ export function ServerMap() {
           )}
         </div>
 
-        <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
+        {/* w-max: an abspos box at left-1/2 shrink-fits against the right
+            half only, which wraps the legend chips for no visual reason. */}
+        <div className="absolute bottom-4 left-1/2 z-10 flex w-max max-w-[calc(100%-1rem)] -translate-x-1/2 flex-col items-center gap-2">
+          <PoiLegend
+            layers={poiLayers}
+            onToggle={(kind) =>
+              setPoiLayers((prev) => {
+                const next = new Set(prev);
+                if (next.has(kind)) next.delete(kind);
+                else next.add(kind);
+                savePoiLayers(next);
+                return next;
+              })
+            }
+          />
           <MapAreaToggle area={area} onChange={setArea} />
         </div>
 
@@ -386,7 +436,7 @@ export function ServerMap() {
         {!sheetOpen && (
           <button
             onClick={() => setSheetOpen(true)}
-            className="absolute bottom-16 left-1/2 z-10 -translate-x-1/2 rounded-full bg-ink px-4 py-2 font-display text-xs font-bold text-paper shadow-lg lg:hidden"
+            className="absolute bottom-28 left-1/2 z-10 -translate-x-1/2 rounded-full bg-ink px-4 py-2 font-display text-xs font-bold text-paper shadow-lg lg:hidden"
           >
             Players &amp; bases
           </button>

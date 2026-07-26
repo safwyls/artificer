@@ -22,6 +22,8 @@ All files live in `web/src/data/`:
 | `palCombat.json` | id → [hp, shotAttack, defense, 3 friendship rates] | palworld-save-pal data, calibrated (see `web/src/lib/stats.ts` header) |
 | `palPassives.json` | passive code → [atk%, def%, hp%] | same |
 | `breeding.json` | breeding combination table | palworld-save-pal |
+| `palDeck.json` | id → Paldeck label ("94", "94B") | palworld-save-pal `pals.json` (`pal_deck_index`); see `web/public/pal-icons/README.md` for the transform |
+| `mapPois.json` | map POI world coordinates by kind | palworld-save-pal `fast_travel_points.json` (fast travel + watchtowers, split on the `UnlockMapPoint` class) and `map_objects.json` (dungeons, alpha/predator spawns), rounded to whole units |
 
 Pal icons: `web/public/pal-icons/` — see the README there. Map textures are
 **not** vendored (copyrighted; user-supplied, gitignored — see
