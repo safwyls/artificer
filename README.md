@@ -29,10 +29,18 @@ TrueNAS Scale.
 - **Paldex** — per-player completion (registered species from each player's
   save record, with a "what's missing" browser) plus a server record book:
   best-IV pals, capture leaders, alpha/lucky tallies, one-of-a-kind catches.
-- **Activity** — join/leave history with per-player playtime and session
-  lengths, and an admin-only audit trail of every management action taken
-  through Palcon (power, saves, broadcasts, moderation, settings and
-  automation changes — scheduled restarts included).
+- **Activity** — join/leave history with a ranked playtime board (totals,
+  session counts, longest session over 24h–90d), and an admin-only audit
+  trail of every management action taken through Palcon (power, saves,
+  broadcasts, moderation, settings and automation changes — scheduled
+  restarts included).
+- **Breeding calculators** — child species, reverse lookup, talent targets,
+  route planning, and passive-inheritance odds (exact-set and with-extras
+  chances plus expected egg counts, from the community-measured rates).
+- **Public status page** — an opt-in, unauthenticated page behind an
+  unguessable link: online/offline, player count, next scheduled restart.
+  Served entirely from Palcon's own data, so visitors never touch the game
+  server; no player names or addresses.
 - **Power control** — start/stop/restart the game server's container through a
   scoped Docker socket proxy, with a container log viewer (tail, auto-refresh,
   download) beside the buttons.

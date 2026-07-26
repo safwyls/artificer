@@ -9,6 +9,7 @@ import { ServerMap } from "./pages/ServerMap";
 import { ServerConfig } from "./pages/ServerConfig";
 import { ServerAutomation } from "./pages/ServerAutomation";
 import { ServerActivity } from "./pages/ServerActivity";
+import { PublicStatus } from "./pages/PublicStatus";
 import { AppShell } from "./components/AppShell";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -52,6 +53,8 @@ export function App() {
       <Toaster position="bottom-right" />
       <Routes>
         <Route path="/login" element={<Login />} />
+        {/* Public, no session required — the token is the whole gate. */}
+        <Route path="/status/:token" element={<PublicStatus />} />
         <Route
           element={
             <RequireAuth>

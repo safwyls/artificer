@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Dog, Pencil, Plus, RotateCw, Send, Trash2, Webhook } from "lucide-react";
+import { CalendarClock, Copy, Dog, Globe, Pencil, Plus, RotateCw, Send, Trash2, Webhook } from "lucide-react";
 import { toast } from "sonner";
 import {
   api,
@@ -85,6 +85,7 @@ export function ServerAutomation() {
             />
             {data.discord && <DiscordCard serverId={id} config={data.discord} />}
             {data.watchdog && <WatchdogCard serverId={id} config={data.watchdog} />}
+            {data.publicStatus && <PublicStatusCard serverId={id} config={data.publicStatus} />}
           </div>
         )}
       </div>
@@ -440,7 +441,7 @@ function WatchdogCard({ serverId, config }: { serverId: number; config: { enable
   });
 
   return (
-    <section className="rounded-xl border border-ink/10 bg-white lg:col-span-5">
+    <section className="rounded-xl border border-ink/10 bg-white lg:col-span-3">
       <div className="flex items-center justify-between gap-3 border-b border-ink/5 px-5 py-4">
         <div className="flex items-center gap-2">
           <Dog className="h-4 w-4 text-brand-amber" />
@@ -468,6 +469,76 @@ function WatchdogCard({ serverId, config }: { serverId: number; config: { enable
         {!config.available && (
           <p className="text-xs text-ink/60">
             Needs power control: a Docker endpoint on this Palcon instance and a container name on this server.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PublicStatusCard({ serverId, config }: { serverId: number; config: { enabled: boolean; token: string } }) {
+  const queryClient = useQueryClient();
+  const url = config.token ? `${window.location.origin}/status/${config.token}` : "";
+
+  const toggle = useMutation({
+    mutationFn: (enabled: boolean) => api.setPublicStatus(serverId, enabled),
+    onSuccess: (res) => {
+      toast.success(res.enabled ? "Status page is live" : "Status page taken down");
+      queryClient.invalidateQueries({ queryKey: ["automation", serverId] });
+    },
+    onError: (err) => toast.error("Could not update the status page", { description: errorDetail(err) }),
+  });
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Could not copy — select the link text instead");
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-ink/10 bg-white lg:col-span-2">
+      <div className="flex items-center justify-between gap-3 border-b border-ink/5 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <Globe className="h-4 w-4 text-pal-green" />
+          <h2 className="font-display text-base font-bold">Public status page</h2>
+        </div>
+        <Switch
+          checked={config.enabled}
+          disabled={toggle.isPending}
+          onCheckedChange={(on) => toggle.mutate(on)}
+          aria-label={config.enabled ? "Take the status page down" : "Publish the status page"}
+        />
+      </div>
+      <div className="space-y-3 px-5 py-4 text-sm text-ink/60">
+        <p>
+          A read-only page anyone with the link can open, no account needed: online or not, player count, and the
+          next scheduled restart. Served from Palcon's own data — visitors never touch the game server. No player
+          names, no addresses.
+        </p>
+        {config.enabled && url && (
+          <div className="flex items-center gap-2">
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="min-w-0 flex-1 truncate rounded-lg border border-ink/10 bg-ink/[0.03] px-2.5 py-1.5 font-mono text-xs text-ink/70 hover:text-ink"
+              title={url}
+            >
+              {url}
+            </a>
+            <Button variant="outline" size="sm" onClick={copy}>
+              <Copy className="h-3.5 w-3.5" />
+              Copy
+            </Button>
+          </div>
+        )}
+        {config.enabled && (
+          <p className="text-xs text-ink/45">
+            The link is the only key — anyone holding it can view the page. Turning it off and on again mints a new
+            link and kills the old one.
           </p>
         )}
       </div>

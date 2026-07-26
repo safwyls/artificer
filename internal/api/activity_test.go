@@ -3,6 +3,7 @@ package api_test
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -105,5 +106,50 @@ func TestWatchdogToggle(t *testing.T) {
 	// Enabled per the toggle; unavailable because no docker is configured.
 	if !auto.Watchdog.Enabled || auto.Watchdog.Available {
 		t.Errorf("watchdog = %+v, want enabled+unavailable", auto.Watchdog)
+	}
+}
+
+func TestPublicStatusTokenFlow(t *testing.T) {
+	app, admin := newTestAppWithAdmin(t)
+	id := createTestServer(t, app)
+	base := "/api/servers/" + itoa(id)
+
+	// Off by default: no token, nothing served.
+	if rec := app.do(t, "GET", "/api/public/status/nonexistent", nil, nil); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown token: got %d, want 404", rec.Code)
+	}
+
+	rec := app.do(t, "PUT", base+"/public", map[string]any{"enabled": true}, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("enable: got %d (body %s)", rec.Code, rec.Body)
+	}
+	var res struct {
+		Enabled bool   `json:"enabled"`
+		Token   string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !res.Enabled || len(res.Token) != 32 {
+		t.Fatalf("res = %+v, want enabled with a 32-hex token", res)
+	}
+
+	// The public endpoint needs no session and must not leak connection
+	// details or the server id.
+	rec = app.do(t, "GET", "/api/public/status/"+res.Token, nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("public status: got %d (body %s)", rec.Code, rec.Body)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "10.0.0.5") || strings.Contains(body, "25575") {
+		t.Errorf("public payload leaked connection details: %s", body)
+	}
+
+	// Disabling revokes the token.
+	if rec := app.do(t, "PUT", base+"/public", map[string]any{"enabled": false}, admin); rec.Code != http.StatusOK {
+		t.Fatalf("disable: got %d", rec.Code)
+	}
+	if rec := app.do(t, "GET", "/api/public/status/"+res.Token, nil, nil); rec.Code != http.StatusNotFound {
+		t.Errorf("revoked token: got %d, want 404", rec.Code)
 	}
 }

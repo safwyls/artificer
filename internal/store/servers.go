@@ -38,6 +38,10 @@ type Server struct {
 	// SetWatchdog, not UpdateServer — the server-edit form doesn't carry it,
 	// and a form save must never silently switch the watchdog off.
 	Watchdog bool
+	// PublicToken makes a read-only status page available at
+	// /status/<token>; empty = off. Managed via SetPublicToken, outside
+	// UpdateServer for the same reason as Watchdog.
+	PublicToken string
 }
 
 type serverRow struct {
@@ -54,6 +58,7 @@ type serverRow struct {
 	ConfigPath      string
 	ContainerName   string
 	Watchdog        int
+	PublicToken     string
 }
 
 func (s *Store) decryptServer(r serverRow) (*Server, error) {
@@ -79,14 +84,15 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 		ConfigPath:    r.ConfigPath,
 		ContainerName: r.ContainerName,
 		Watchdog:      r.Watchdog != 0,
+		PublicToken:   r.PublicToken,
 	}, nil
 }
 
-const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, container_name, watchdog`
+const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, container_name, watchdog, public_token`
 
 func scanServerRow(scan func(dest ...any) error) (serverRow, error) {
 	var r serverRow
-	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.ContainerName, &r.Watchdog)
+	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.ContainerName, &r.Watchdog, &r.PublicToken)
 	return r, err
 }
 
@@ -192,6 +198,37 @@ func (s *Store) SetWatchdog(ctx context.Context, id int64, enabled bool) error {
 		return ErrNotFound
 	}
 	return err
+}
+
+// SetPublicToken sets or clears the public status token, outside
+// UpdateServer for the same never-wiped-by-a-form-save reason as Watchdog.
+func (s *Store) SetPublicToken(ctx context.Context, id int64, token string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE servers SET public_token = ? WHERE id = ?`, token, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// GetServerByPublicToken resolves a public status token. An empty token
+// never matches — it's the "feature off" value on every row.
+func (s *Store) GetServerByPublicToken(ctx context.Context, token string) (*Server, error) {
+	if token == "" {
+		return nil, ErrNotFound
+	}
+	row := s.db.QueryRowContext(ctx, `SELECT `+serverColumns+` FROM servers WHERE public_token = ?`, token)
+	r, err := scanServerRow(row.Scan)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.decryptServer(r)
 }
 
 func (s *Store) DeleteServer(ctx context.Context, id int64) error {

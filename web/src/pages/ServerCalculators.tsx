@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Sparkles, X } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { palEntry, palName, passiveName, elementColor } from "../lib/paldex";
 import { breedChild, parentPairsFor, isBreedable } from "../lib/breeding";
+import { eggsForConfidence, expectedEggs, passiveOdds } from "../lib/inheritance";
 import { planRoutes, type BreedStep, type StepParent } from "../lib/breeding-path";
 import { computeStats, talentRating, hasCombatStats, passiveStatEffect, friendshipRank, talentTone } from "../lib/stats";
 import { cn } from "../lib/utils";
@@ -228,6 +229,7 @@ function BreedingCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; sa
               </div>
             )}
             {bothFromSave && <TalentTargets a={a!.save!} b={b!.save!} />}
+            {bothFromSave && <PassiveOddsPanel a={a!.save!} b={b!.save!} />}
           </div>
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">
@@ -291,6 +293,89 @@ function BreedingCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; sa
         savePals={savePals}
         saveStatus={saveStatus}
       />
+    </div>
+  );
+}
+
+/**
+ * Passive inheritance odds for the picked parents. The pool is both
+ * parents' passives deduped; tapping chips selects the set you're breeding
+ * for, and the numbers answer "how many eggs is this going to take".
+ * Rates are the community-derived model — see lib/inheritance.ts.
+ */
+function PassiveOddsPanel({ a, b }: { a: SavePal; b: SavePal }) {
+  const pool = useMemo(() => [...new Set([...a.passives, ...b.passives])], [a, b]);
+  const [wanted, setWanted] = useState<string[]>([]);
+  // Reset the selection when the parents change — the old set may not
+  // even exist in the new pool.
+  useEffect(() => setWanted([]), [pool]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (pool.length === 0) {
+    return (
+      <p className="mt-4 text-xs text-ink/45">Neither parent carries passive skills, so there's nothing to inherit.</p>
+    );
+  }
+
+  const selected = wanted.filter((p) => pool.includes(p));
+  const odds = passiveOdds(pool.length, selected.length);
+  const fmt = (p: number) => (p >= 0.1 ? `${Math.round(p * 100)}%` : `${(p * 100).toFixed(1)}%`);
+
+  return (
+    <div className="mt-5 w-full max-w-md rounded-xl border border-ink/10 bg-ink/[0.02] p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Passive inheritance</p>
+      <p className="mt-1 text-xs text-ink/45">
+        Both parents' passives, deduped ({pool.length} in the pool). Tap the ones the child must have.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {pool.map((code) => {
+          const on = selected.includes(code);
+          return (
+            <button
+              key={code}
+              type="button"
+              aria-pressed={on}
+              className={cn(
+                "rounded-full px-2.5 py-1 text-xs transition-colors",
+                on
+                  ? "bg-brand-amber/25 text-ink ring-1 ring-brand-amber"
+                  : "border border-ink/15 text-ink/50 hover:border-ink/30 hover:text-ink",
+              )}
+              onClick={() =>
+                setWanted((prev) => (prev.includes(code) ? prev.filter((x) => x !== code) : [...prev, code]))
+              }
+            >
+              {passiveName(code)}
+            </button>
+          );
+        })}
+      </div>
+
+      {selected.length > 0 && odds && (
+        <div className="mt-3 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+          <div>
+            <p className="font-mono text-lg font-semibold tabular-nums">{fmt(odds.exact)}</p>
+            <p className="text-[11px] text-ink/45">exactly these</p>
+          </div>
+          <div>
+            <p className="font-mono text-lg font-semibold tabular-nums">{fmt(odds.atLeast)}</p>
+            <p className="text-[11px] text-ink/45">these + extras</p>
+          </div>
+          <div>
+            <p className="font-mono text-lg font-semibold tabular-nums">~{Math.ceil(expectedEggs(odds.exact))}</p>
+            <p className="text-[11px] text-ink/45">eggs on average</p>
+          </div>
+          <div>
+            <p className="font-mono text-lg font-semibold tabular-nums">{eggsForConfidence(odds.exact)}</p>
+            <p className="text-[11px] text-ink/45">eggs for 90%</p>
+          </div>
+        </div>
+      )}
+      {selected.length > 0 && !odds && (
+        <p className="mt-3 text-xs text-destructive">A pal holds at most 4 passives — pick fewer.</p>
+      )}
+      <p className="mt-3 text-[11px] text-ink/35">
+        Community-measured rates, not official ones. Egg counts are for the exact set with no strays.
+      </p>
     </div>
   );
 }

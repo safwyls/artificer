@@ -118,6 +118,10 @@ func (s *Server) handleGetAutomation(w http.ResponseWriter, r *http.Request) {
 			// control plus a container name.
 			"available": s.docker != nil && srv.ContainerName != "",
 		}
+		resp["publicStatus"] = map[string]any{
+			"enabled": srv.PublicToken != "",
+			"token":   srv.PublicToken,
+		}
 	}
 
 	writeJSON(w, http.StatusOK, resp)

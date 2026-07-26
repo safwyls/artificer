@@ -43,6 +43,11 @@ version whenever the caps change:
 - **Condenser stars** — 4 (+5% each).
 - **`TRUST_SCALE = 0.85`** in `stats.ts` — empirical calibration; re-check
   against in-game numbers if a patch touches the bond bonus.
+- **Passive inheritance rates** — `web/src/lib/inheritance.ts`: the
+  40/30/20/10 inherit-count weights, the matching random-passive roll, and
+  the 4-slot cap are community reverse-engineered (the model every public
+  breeding calculator implements), not official. Re-verify if a patch
+  touches breeding.
 
 ## How to refresh
 

@@ -91,3 +91,25 @@ func (s *Store) PruneMetrics(ctx context.Context, before time.Time) (int64, erro
 	}
 	return res.RowsAffected()
 }
+
+// LatestMetric returns the newest sample for a server, or nil when none has
+// ever been collected. The public status page reads this instead of probing
+// the game server, so public traffic can never add load to it.
+func (s *Store) LatestMetric(ctx context.Context, serverID int64) (*MetricSample, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT ts, player_count, max_players, server_fps, frame_time
+		FROM server_metrics WHERE server_id = ? ORDER BY ts DESC, id DESC LIMIT 1`, serverID)
+	var (
+		m  MetricSample
+		ts string
+	)
+	err := row.Scan(&ts, &m.PlayerCount, &m.MaxPlayers, &m.ServerFPS, &m.FrameTime)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	m.TS, _ = time.ParseInLocation(sqliteTime, ts, time.UTC)
+	return &m, nil
+}

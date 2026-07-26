@@ -11,6 +11,8 @@ const RANGES = [
   { hours: 24, label: "24h" },
   { hours: 48, label: "48h" },
   { hours: 168, label: "7d" },
+  { hours: 720, label: "30d" },
+  { hours: 2160, label: "90d" },
 ];
 
 function fmtDuration(ms: number): string {
@@ -34,6 +36,7 @@ interface PlayerSummary {
   userId: string;
   totalMs: number;
   sessions: number;
+  longestMs: number;
   online: boolean;
 }
 
@@ -49,7 +52,7 @@ function analyze(events: PlayerEvent[], rangeStart: Date, now: Date) {
   const summary = (e: PlayerEvent): PlayerSummary => {
     let s = totals.get(e.userId);
     if (!s) {
-      s = { name: e.name, userId: e.userId, totalMs: 0, sessions: 0, online: false };
+      s = { name: e.name, userId: e.userId, totalMs: 0, sessions: 0, longestMs: 0, online: false };
       totals.set(e.userId, s);
     }
     s.name = e.name; // latest display name wins
@@ -69,14 +72,17 @@ function analyze(events: PlayerEvent[], rangeStart: Date, now: Date) {
       const ms = Math.max(0, t - start);
       s.totalMs += ms;
       s.sessions += 1;
+      s.longestMs = Math.max(s.longestMs, ms);
       sessionByEventId.set(e.id, { ms, ongoing: false });
     }
   }
   for (const [userId, start] of open) {
     const s = totals.get(userId);
     if (s) {
-      s.totalMs += Math.max(0, now.getTime() - start);
+      const ms = Math.max(0, now.getTime() - start);
+      s.totalMs += ms;
       s.sessions += 1;
+      s.longestMs = Math.max(s.longestMs, ms);
       s.online = true;
     }
   }
@@ -183,24 +189,44 @@ export function ServerActivity() {
           {activityQuery.isLoading && <p className="px-5 py-6 text-sm text-muted-foreground">Loading…</p>}
 
           {activityQuery.data && summaries.length > 0 && (
-            <div className="flex flex-wrap gap-2 border-b border-ink/5 px-5 py-3">
-              {summaries.map((s) => (
-                <span
-                  key={s.userId}
-                  className="flex items-center gap-1.5 rounded-full border border-ink/10 py-1 pl-1 pr-2.5 text-xs"
-                  title={`${s.sessions} session${s.sessions === 1 ? "" : "s"} in the last ${hours}h`}
-                >
-                  <span
-                    className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold text-paper"
-                    style={{ backgroundColor: playerColor(s.userId) }}
-                  >
-                    {initials(s.name)}
-                  </span>
-                  <span className="font-semibold">{s.name}</span>
-                  <span className="font-mono text-ink/45">{fmtDuration(s.totalMs)}</span>
-                  {s.online && <span className="h-1.5 w-1.5 rounded-full bg-pal-green" title="online now" />}
-                </span>
-              ))}
+            <div className="border-b border-ink/5 px-5 py-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/35">
+                Playtime · last {RANGES.find((r) => r.hours === hours)?.label}
+              </p>
+              <ul className="space-y-1.5">
+                {summaries.map((s, i) => (
+                  <li key={s.userId} className="flex items-center gap-3 text-sm">
+                    <span className="w-4 shrink-0 text-right font-mono text-xs text-ink/35">{i + 1}</span>
+                    <span
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-paper"
+                      style={{ backgroundColor: playerColor(s.userId) }}
+                    >
+                      {initials(s.name)}
+                    </span>
+                    <span className="w-28 truncate font-semibold sm:w-36">
+                      {s.name}
+                      {s.online && (
+                        <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-pal-green" title="online now" />
+                      )}
+                    </span>
+                    <span className="hidden h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-ink/10 sm:block">
+                      <span
+                        className="block h-full rounded-full bg-pal-green/70"
+                        style={{ width: `${Math.max(2, (s.totalMs / summaries[0].totalMs) * 100)}%` }}
+                      />
+                    </span>
+                    <span className="w-16 shrink-0 text-right font-mono text-xs font-semibold tabular-nums">
+                      {fmtDuration(s.totalMs)}
+                    </span>
+                    <span
+                      className="hidden w-28 shrink-0 text-right font-mono text-[11px] text-ink/40 md:block"
+                      title="sessions · longest"
+                    >
+                      {s.sessions}× · {fmtDuration(s.longestMs)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

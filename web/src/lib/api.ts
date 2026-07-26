@@ -301,6 +301,17 @@ export interface AutomationResult {
   discord?: DiscordConfig;
   /** Absent for non-admins. `available` = docker control + container name. */
   watchdog?: { enabled: boolean; available: boolean };
+  /** Absent for non-admins. Token is the /status/<token> URL segment. */
+  publicStatus?: { enabled: boolean; token: string };
+}
+
+/** The unauthenticated status snapshot behind a public token. */
+export interface PublicStatus {
+  name: string;
+  online: boolean;
+  players?: number;
+  maxPlayers?: number;
+  nextRestartAt?: string;
 }
 
 export interface GuildMember {
@@ -353,6 +364,12 @@ export const api = {
     request<{ lines: string[] }>(`/servers/${id}/container/logs?tail=${tail}`),
   setWatchdog: (id: number, enabled: boolean) =>
     request<{ enabled: boolean }>(`/servers/${id}/watchdog`, { method: "PUT", body: JSON.stringify({ enabled }) }),
+  setPublicStatus: (id: number, enabled: boolean) =>
+    request<{ enabled: boolean; token: string }>(`/servers/${id}/public`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    }),
+  publicStatus: (token: string) => request<PublicStatus>(`/public/status/${token}`),
 
   listServers: () => request<Server[]>("/servers"),
   getServer: (id: number) => request<Server>(`/servers/${id}`),

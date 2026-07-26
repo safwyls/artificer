@@ -60,6 +60,10 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 		})
 		r.Post("/login", s.handleLogin)
 
+		// The only unauthenticated data endpoint: token-gated, read-only,
+		// served entirely from Palcon's own database. See public.go.
+		r.Get("/public/status/{token}", s.handlePublicStatus)
+
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireAuth)
 			r.Post("/logout", s.handleLogout)
@@ -113,6 +117,7 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.With(s.requireAdmin).Delete("/discord", s.handleDeleteDiscord)
 				r.With(s.requireAdmin).Post("/discord/test", s.handleTestDiscord)
 				r.With(s.requireAdmin).Put("/watchdog", s.handleUpdateWatchdog)
+				r.With(s.requireAdmin).Put("/public", s.handleUpdatePublicStatus)
 
 				// Player join/leave history is player-facing; the audit
 				// trail names which admin did what and stays admin-only.
