@@ -37,10 +37,36 @@ const tiers = passiveTiers as Record<string, number>;
 const actives = activeSkills as Record<string, NamedEntry>;
 const stats = palStats as Record<string, { hp: number; stomach: number }>;
 
-/** Icons and dex entries share one key: the id lowercased, minus the
- * BOSS_ prefix that marks an alpha variant of an otherwise normal pal. */
+// Decorations the game hangs on capture ids: spawn-context prefixes and
+// suffixes like BOSS_KingWhale_otomo (a captured raid companion). Shared by
+// the dex/icon/stats key and the Paldeck-number lookup so every view folds
+// a decorated capture into its species the same way.
+const DECOR_PREFIX = /^(boss|predator|raid|summon|gym)_/;
+const DECOR_SUFFIX = /_(oilrig|largeoilrig|minioilrig|tower|invader|max|avatar|otomo|servant|quest|enemy|friend|\d+)$/;
+
+const keyCache = new Map<string, string>();
+
+/** Icons, dex entries and stat tables share one key: the id lowercased,
+ * stripped of the BOSS_ alpha prefix — and, when that alone misses the
+ * catalog, of the other spawn decorations until something matches. An id
+ * the catalog simply doesn't know keeps its plain de-bossed form, so icon
+ * paths stay stable for genuinely unknown pals. */
 export function palKey(characterId: string): string {
-  return characterId.toLowerCase().replace(/^boss_/, "");
+  const raw = characterId.toLowerCase().replace(/^boss_/, "");
+  const cached = keyCache.get(raw);
+  if (cached !== undefined) return cached;
+  let key = raw;
+  while (!(key in dex)) {
+    let next = key.replace(DECOR_PREFIX, "");
+    if (next === key) next = key.replace(DECOR_SUFFIX, "");
+    if (next === key) {
+      key = raw;
+      break;
+    }
+    key = next;
+  }
+  keyCache.set(raw, key);
+  return key;
 }
 
 export function palEntry(characterId: string): PalEntry | undefined {
@@ -113,16 +139,14 @@ export function palBaseStats(characterId: string): { hp: number; stomach: number
  * breeding does ("PREDATOR_", "SUMMON_…_MAX"), so a captured variant shows
  * its species' number. Null for NPCs and unreleased pals. */
 const deck = palDeck as Record<string, string>;
-const DECK_PREFIX = /^(boss|predator|raid|summon|gym)_/;
-const DECK_SUFFIX = /_(oilrig|largeoilrig|minioilrig|tower|invader|max|avatar|otomo|servant|quest|enemy|friend|\d+)$/;
 
 export function palDeckNo(characterId: string): string | null {
   let key = palKey(characterId);
   for (;;) {
     const hit = deck[key];
     if (hit) return hit;
-    let next = key.replace(DECK_PREFIX, "");
-    if (next === key) next = key.replace(DECK_SUFFIX, "");
+    let next = key.replace(DECOR_PREFIX, "");
+    if (next === key) next = key.replace(DECOR_SUFFIX, "");
     if (next === key) return null;
     key = next;
   }
