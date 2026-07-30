@@ -9,6 +9,11 @@ app.yaml
 # Go
 /bin/
 *.exe
+# Local `go build -o` outputs at the repo root (30MB apiece — one slipped
+# into history once; never again)
+/palcon
+/palagent
+palcon.log
 
 # Node / frontend
 web/node_modules/
