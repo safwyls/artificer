@@ -21,6 +21,8 @@ const emptyForm: ServerWriteInput = {
   savePath: "",
   configPath: "",
   installPath: "",
+  agentUrl: "",
+  agentToken: "",
   containerName: "",
 };
 
@@ -38,6 +40,8 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
       savePath: server.savePath,
       configPath: server.configPath,
       installPath: server.installPath,
+      agentUrl: server.agentUrl,
+      agentToken: "",
       containerName: server.containerName,
     };
   }
@@ -171,6 +175,29 @@ export function ServerFormDialog({
               Container path to the Palworld install root (holds <code>steamapps</code>), mounted
               <strong> read-write</strong>. Enables clearing the SteamCMD cache when a game update
               corrupts it.
+            </p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Agent URL (optional)</Label>
+              <Input
+                value={form.agentUrl}
+                placeholder="http://palagent:8811"
+                onChange={(e) => setForm({ ...form, agentUrl: e.target.value })}
+              />
+            </div>
+            <Field
+              label="Agent token"
+              value={form.agentToken ?? ""}
+              onChange={(v) => setForm({ ...form, agentToken: v })}
+              type="password"
+              placeholder={mode === "edit" && server?.hasAgentToken ? "unchanged" : undefined}
+            />
+            <p className="col-span-2 text-xs text-muted-foreground">
+              The <code>palagent</code> sidecar deployed next to this game server. Replaces the
+              install-path mount and adds SteamCMD updates from the dashboard. Token must match the
+              agent's <code>PALAGENT_TOKEN</code>.
             </p>
           </div>
 

@@ -26,6 +26,8 @@ type serverDTO struct {
 	SavePath        string `json:"savePath"`
 	ConfigPath      string `json:"configPath"`
 	InstallPath     string `json:"installPath"`
+	AgentURL        string `json:"agentUrl"`
+	HasAgentToken   bool   `json:"hasAgentToken"`
 	ContainerName   string `json:"containerName"`
 }
 
@@ -43,6 +45,8 @@ func toDTO(srv *store.Server) serverDTO {
 		SavePath:        srv.SavePath,
 		ConfigPath:      srv.ConfigPath,
 		InstallPath:     srv.InstallPath,
+		AgentURL:        srv.AgentURL,
+		HasAgentToken:   srv.AgentToken != "",
 		ContainerName:   srv.ContainerName,
 	}
 }
@@ -59,6 +63,8 @@ type serverWriteRequest struct {
 	SavePath      string `json:"savePath"`
 	ConfigPath    string `json:"configPath"`
 	InstallPath   string `json:"installPath"`
+	AgentURL      string `json:"agentUrl"`
+	AgentToken    string `json:"agentToken"`
 	ContainerName string `json:"containerName"`
 }
 
@@ -120,7 +126,8 @@ func (s *Server) handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		RCONPort: req.RCONPort, RCONPassword: req.RCONPassword,
 		RESTPort: req.RESTPort, RESTPassword: req.RESTPassword,
 		UseREST: req.UseREST, Enabled: req.Enabled,
-		SavePath: req.SavePath, ConfigPath: req.ConfigPath, InstallPath: req.InstallPath, ContainerName: req.ContainerName,
+		SavePath: req.SavePath, ConfigPath: req.ConfigPath, InstallPath: req.InstallPath,
+		AgentURL: req.AgentURL, AgentToken: req.AgentToken, ContainerName: req.ContainerName,
 	}
 	id, err := s.store.CreateServer(r.Context(), srv)
 	if err != nil {
@@ -148,7 +155,8 @@ func (s *Server) handleUpdateServer(w http.ResponseWriter, r *http.Request) {
 		RCONPort: req.RCONPort, RCONPassword: req.RCONPassword,
 		RESTPort: req.RESTPort, RESTPassword: req.RESTPassword,
 		UseREST: req.UseREST, Enabled: req.Enabled,
-		SavePath: req.SavePath, ConfigPath: req.ConfigPath, InstallPath: req.InstallPath, ContainerName: req.ContainerName,
+		SavePath: req.SavePath, ConfigPath: req.ConfigPath, InstallPath: req.InstallPath,
+		AgentURL: req.AgentURL, AgentToken: req.AgentToken, ContainerName: req.ContainerName,
 	}
 	if err := s.store.UpdateServer(r.Context(), srv); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update server")

@@ -1,0 +1,191 @@
+package palagent_test
+
+import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/safwyls/palcon/internal/palagent"
+)
+
+const testToken = "test-token-0123456789abcdef"
+
+// newTestAgent builds an agent over a fresh install dir with cache
+// contents, using the given script (a shell body) as its fake steamcmd.
+func newTestAgent(t *testing.T, script string) (*httptest.Server, string) {
+	t.Helper()
+	install := t.TempDir()
+	for _, d := range []string{"steamapps/downloading", "steam/packages"} {
+		if err := os.MkdirAll(filepath.Join(install, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(install, "steamapps", "appmanifest_2394010.acf"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	steamcmd := filepath.Join(t.TempDir(), "steamcmd")
+	if err := os.WriteFile(steamcmd, []byte("#!/bin/sh\n"+script+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	agent, err := palagent.New(palagent.Config{
+		Token:      testToken,
+		InstallDir: install,
+		SteamCmd:   steamcmd,
+		Version:    "test",
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(agent.Handler())
+	t.Cleanup(srv.Close)
+	return srv, install
+}
+
+func do(t *testing.T, srv *httptest.Server, method, path, token string, body any) (*http.Response, map[string]any) {
+	t.Helper()
+	var buf io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		buf = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, srv.URL+path, buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var m map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&m)
+	return resp, m
+}
+
+func TestAgentRejectsShortToken(t *testing.T) {
+	_, err := palagent.New(palagent.Config{Token: "short", InstallDir: t.TempDir()})
+	if err == nil {
+		t.Fatal("agent accepted a sub-minimum token")
+	}
+}
+
+func TestAgentAuth(t *testing.T) {
+	srv, _ := newTestAgent(t, "exit 0")
+
+	for _, token := range []string{"", "wrong-token-0123456789abcdef"} {
+		if resp, _ := do(t, srv, "GET", "/v1/health", token, nil); resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("token %q: got %d, want 401", token, resp.StatusCode)
+		}
+	}
+
+	// healthz is the unauthenticated container healthcheck.
+	if resp, _ := do(t, srv, "GET", "/healthz", "", nil); resp.StatusCode != http.StatusNoContent {
+		t.Errorf("healthz: got %d, want 204", resp.StatusCode)
+	}
+
+	resp, health := do(t, srv, "GET", "/v1/health", testToken, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("health: got %d", resp.StatusCode)
+	}
+	if health["apiVersion"] != float64(palagent.APIVersion) || health["mode"] != "companion" || health["installDirOk"] != true {
+		t.Errorf("health = %v", health)
+	}
+}
+
+func TestAgentClearCache(t *testing.T) {
+	srv, install := newTestAgent(t, "exit 0")
+
+	resp, m := do(t, srv, "POST", "/v1/steam/clear-cache", testToken, nil)
+	if resp.StatusCode != http.StatusOK || m["removed"] != float64(2) {
+		t.Fatalf("clear: got %d %v, want 200 removed=2", resp.StatusCode, m)
+	}
+	entries, err := os.ReadDir(filepath.Join(install, "steamapps"))
+	if err != nil || len(entries) != 0 {
+		t.Errorf("steamapps not emptied: %v %d", err, len(entries))
+	}
+}
+
+// waitForJob polls the job endpoint until it leaves the running state.
+func waitForJob(t *testing.T, srv *httptest.Server, id string) map[string]any {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, m := do(t, srv, "GET", "/v1/jobs/"+id, testToken, nil)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("job: got %d", resp.StatusCode)
+		}
+		job := m["job"].(map[string]any)
+		if job["state"] != "running" {
+			return job
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("job never finished")
+	return nil
+}
+
+func TestAgentUpdateJob(t *testing.T) {
+	srv, _ := newTestAgent(t, `echo "Update state (0x61) downloading"; echo "Success! App '2394010' fully installed."`)
+
+	resp, m := do(t, srv, "POST", "/v1/steam/update", testToken, map[string]bool{"validate": true})
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("update: got %d %v", resp.StatusCode, m)
+	}
+	id := m["job"].(map[string]any)["id"].(string)
+
+	job := waitForJob(t, srv, id)
+	if job["state"] != "done" {
+		t.Fatalf("job = %v, want done", job)
+	}
+	log := job["log"].([]any)
+	if len(log) != 2 {
+		t.Errorf("log = %v, want the script's 2 lines", log)
+	}
+
+	// The finished job is discoverable via health (palcon-restart path).
+	_, health := do(t, srv, "GET", "/v1/health", testToken, nil)
+	if health["job"].(map[string]any)["id"] != id {
+		t.Error("health does not report the last job")
+	}
+}
+
+func TestAgentUpdateFailures(t *testing.T) {
+	// Zero exit but a SteamCMD error line: the classic 0x602 lie.
+	srv, _ := newTestAgent(t, `echo "Error! App '2394010' state is 0x602 after update job."; exit 0`)
+	_, m := do(t, srv, "POST", "/v1/steam/update", testToken, nil)
+	job := waitForJob(t, srv, m["job"].(map[string]any)["id"].(string))
+	if job["state"] != "failed" || job["error"] == "" {
+		t.Errorf("zero-exit steam error: job = %v, want failed with error", job)
+	}
+
+	// Non-zero exit.
+	srv2, _ := newTestAgent(t, "exit 8")
+	_, m2 := do(t, srv2, "POST", "/v1/steam/update", testToken, nil)
+	if job := waitForJob(t, srv2, m2["job"].(map[string]any)["id"].(string)); job["state"] != "failed" {
+		t.Errorf("nonzero exit: job = %v, want failed", job)
+	}
+}
+
+func TestAgentOneJobAtATime(t *testing.T) {
+	srv, _ := newTestAgent(t, "sleep 2")
+
+	if resp, _ := do(t, srv, "POST", "/v1/steam/update", testToken, nil); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("first update: got %d", resp.StatusCode)
+	}
+	if resp, _ := do(t, srv, "POST", "/v1/steam/update", testToken, nil); resp.StatusCode != http.StatusConflict {
+		t.Errorf("second update: got %d, want 409", resp.StatusCode)
+	}
+}
