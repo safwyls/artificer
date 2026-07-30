@@ -19,6 +19,8 @@ ENV PALAGENT_INSTALL_DIR=/palworld \
     PALAGENT_STEAMCMD=steamcmd \
     PALAGENT_ADDR=:8811
 EXPOSE 8811
+# The steamcmd base ships neither wget nor curl; the agent binary probes
+# its own /healthz instead.
 HEALTHCHECK --interval=30s --timeout=5s \
-    CMD wget -q -O /dev/null http://127.0.0.1:8811/healthz || exit 1
+    CMD ["/usr/local/bin/palagent", "-healthz"]
 ENTRYPOINT ["/usr/local/bin/palagent"]

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/safwyls/palcon/internal/palagent"
 )
@@ -18,6 +19,21 @@ import (
 var version = "dev"
 
 func main() {
+	// Container healthcheck mode: probe our own /healthz and exit. The
+	// runtime image (steamcmd base) ships neither wget nor curl, so the
+	// binary is its own probe.
+	if len(os.Args) > 1 && os.Args[1] == "-healthz" {
+		addr := envOr("PALAGENT_ADDR", ":8811")
+		if strings.HasPrefix(addr, ":") {
+			addr = "127.0.0.1" + addr
+		}
+		resp, err := http.Get("http://" + addr + "/healthz")
+		if err != nil || resp.StatusCode != http.StatusNoContent {
+			os.Exit(1)
+		}
+		return
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	appID := 0
