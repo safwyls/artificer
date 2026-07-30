@@ -101,6 +101,9 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.Get("/container", s.handleContainerStatus)
 				r.With(s.requirePermission(store.PermPower)).Post("/container/{action}", s.handleContainerAction)
 				r.With(s.requirePermission(store.PermPower)).Get("/container/logs", s.handleContainerLogs)
+				// SteamCMD cache repair — power territory: it exists to
+				// get a broken container updating again.
+				r.With(s.requirePermission(store.PermPower)).Post("/steam-cache/clear", s.handleClearSteamCache)
 				r.Get("/settings", s.handleServerSettings)
 
 				// PalWorldSettings.ini editor. Gated even for reading: the

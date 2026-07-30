@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Play, RotateCw, ScrollText, Square } from "lucide-react";
+import { Eraser, Play, RotateCw, ScrollText, Square } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -39,11 +39,12 @@ const CONFIRM: Record<Action, { title: string; body: string; verb: string }> = {
  * has a container name — power control is optional, and a server without it
  * should look no different from before the feature existed.
  */
-export function ServerPower({ serverId }: { serverId: number }) {
+export function ServerPower({ serverId, installPath }: { serverId: number; installPath?: string }) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<Action | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [cacheConfirmOpen, setCacheConfirmOpen] = useState(false);
 
   const statusQuery = useQuery({
     queryKey: ["container", serverId],
@@ -66,6 +67,19 @@ export function ServerPower({ serverId }: { serverId: number }) {
       }, 5000);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Action failed"),
+  });
+
+  const clearCache = useMutation({
+    mutationFn: () => api.clearSteamCache(serverId),
+    onSuccess: ({ removed }) => {
+      toast.success(
+        removed === 0
+          ? "SteamCMD cache was already empty"
+          : "SteamCMD cache cleared — restart the server to re-download",
+      );
+      setCacheConfirmOpen(false);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to clear the SteamCMD cache"),
   });
 
   // Not configured (400) is the normal "feature is off" case, so the card
@@ -135,12 +149,57 @@ export function ServerPower({ serverId }: { serverId: number }) {
         </Button>
       </div>
 
+      {/* Maintenance strip: a repair tool, not a routine action, so it sits
+          below the power row rather than crowding it. Hidden entirely when no
+          install path is configured — same principle as the card itself. */}
+      {allowed && installPath && (
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-3">
+          <div>
+            <p className="font-display text-sm font-bold">SteamCMD cache</p>
+            <p className="text-xs text-ink/40">
+              Stuck updating after a Palworld patch? Clear the cache, then restart.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={clearCache.isPending}
+            onClick={() => setCacheConfirmOpen(true)}
+          >
+            <Eraser className="h-4 w-4" />
+            Clear cache
+          </Button>
+        </div>
+      )}
+
       <ContainerLogsDialog
         serverId={serverId}
         containerName={state?.name ?? ""}
         open={logsOpen}
         onOpenChange={setLogsOpen}
       />
+
+      <Dialog open={cacheConfirmOpen} onOpenChange={setCacheConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear the SteamCMD cache?</DialogTitle>
+            <DialogDescription>
+              Deletes everything inside <code className="font-mono">steamapps/</code> and{" "}
+              <code className="font-mono">steam/packages/</code> under the install directory. Game
+              files and saves are untouched — SteamCMD re-validates and re-downloads on the next
+              server start.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCacheConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={clearCache.isPending} onClick={() => clearCache.mutate()}>
+              {clearCache.isPending ? "Clearing…" : "Clear cache"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
         <DialogContent>

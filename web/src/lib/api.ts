@@ -53,7 +53,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 /** Human labels for the permission checkboxes, and what each actually allows. */
 export const PERMISSION_LABELS: Record<Permission, { label: string; help: string }> = {
-  power: { label: "Power", help: "Start, stop and restart the server container" },
+  power: { label: "Power", help: "Start, stop and restart the server container, and clear its SteamCMD cache" },
   broadcast: { label: "Broadcast", help: "Send in-game messages" },
   save: { label: "Save world", help: "Trigger a world save" },
   moderate: { label: "Moderate", help: "Kick, ban and unban players" },
@@ -104,6 +104,7 @@ export interface Server {
   enabled: boolean;
   savePath: string;
   configPath: string;
+  installPath: string;
   containerName: string;
 }
 
@@ -118,6 +119,7 @@ export interface ServerWriteInput {
   enabled: boolean;
   savePath: string;
   configPath: string;
+  installPath: string;
   containerName: string;
 }
 
@@ -382,6 +384,11 @@ export const api = {
   // Needs the power permission, like the actions beside it.
   containerLogs: (id: number, tail: number) =>
     request<{ lines: string[] }>(`/servers/${id}/container/logs?tail=${tail}`),
+  // Empties steamapps/ and steam/packages/ under the install path so
+  // SteamCMD re-downloads after a game update corrupts its cache. Needs the
+  // power permission and a configured install path.
+  clearSteamCache: (id: number) =>
+    request<{ removed: number }>(`/servers/${id}/steam-cache/clear`, { method: "POST" }),
   setWatchdog: (id: number, enabled: boolean) =>
     request<{ enabled: boolean }>(`/servers/${id}/watchdog`, { method: "PUT", body: JSON.stringify({ enabled }) }),
   setPublicStatus: (id: number, enabled: boolean) =>

@@ -20,6 +20,7 @@ const emptyForm: ServerWriteInput = {
   enabled: true,
   savePath: "",
   configPath: "",
+  installPath: "",
   containerName: "",
 };
 
@@ -36,6 +37,7 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
       enabled: server.enabled,
       savePath: server.savePath,
       configPath: server.configPath,
+      installPath: server.installPath,
       containerName: server.containerName,
     };
   }
@@ -155,6 +157,20 @@ export function ServerFormDialog({
               Container path to the folder holding <code>PalWorldSettings.ini</code>, mounted
               <strong> read-write</strong>. Enables the settings editor. Keep this separate from the save
               mount so save data stays read-only.
+            </p>
+          </div>
+
+          <div className="mt-4 space-y-1.5">
+            <Label>Install path (optional)</Label>
+            <Input
+              value={form.installPath}
+              placeholder="/palworld"
+              onChange={(e) => setForm({ ...form, installPath: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Container path to the Palworld install root (holds <code>steamapps</code>), mounted
+              <strong> read-write</strong>. Enables clearing the SteamCMD cache when a game update
+              corrupts it.
             </p>
           </div>
 
