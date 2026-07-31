@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,6 +177,54 @@ func TestAgentUpdateFailures(t *testing.T) {
 	_, m2 := do(t, srv2, "POST", "/v1/steam/update", testToken, nil)
 	if job := waitForJob(t, srv2, m2["job"].(map[string]any)["id"].(string)); job["state"] != "failed" {
 		t.Errorf("nonzero exit: job = %v, want failed", job)
+	}
+}
+
+// The "Missing configuration" failure a cold SteamCMD bootstrap throws
+// once must be retried automatically — and succeed when the second run
+// does. The script fails on its first invocation only, tracked by a
+// sentinel file beside it.
+func TestAgentUpdateRetriesColdBootstrapFlake(t *testing.T) {
+	srv, _ := newTestAgent(t, `sentinel="$(dirname "$0")/ran-once"
+if [ ! -f "$sentinel" ]; then
+  touch "$sentinel"
+  echo "ERROR! Failed to install app '2394010' (Missing configuration)"
+  exit 0
+fi
+echo "Success! App '2394010' fully installed."`)
+
+	_, m := do(t, srv, "POST", "/v1/steam/update", testToken, nil)
+	job := waitForJob(t, srv, m["job"].(map[string]any)["id"].(string))
+	if job["state"] != "done" {
+		t.Fatalf("job = %v, want done after retry", job)
+	}
+	joined := ""
+	for _, l := range job["log"].([]any) {
+		joined += l.(string) + "\n"
+	}
+	if !strings.Contains(joined, "palagent: retrying (2/2)") {
+		t.Errorf("log missing retry marker:\n%s", joined)
+	}
+}
+
+// Uppercase ERROR! lines (SteamCMD uses both spellings) must fail the job
+// even on exit 0, and only one retry is attempted for a persistent error.
+func TestAgentUpdatePersistentErrorFailsOnce(t *testing.T) {
+	srv, _ := newTestAgent(t, `echo "ERROR! Failed to install app '2394010' (Missing configuration)"; exit 0`)
+	_, m := do(t, srv, "POST", "/v1/steam/update", testToken, nil)
+	job := waitForJob(t, srv, m["job"].(map[string]any)["id"].(string))
+	if job["state"] != "failed" || !strings.Contains(job["error"].(string), "Missing configuration") {
+		t.Errorf("job = %v, want failed with the ERROR! line", job)
+	}
+}
+
+// ANSI color codes in SteamCMD output must not reach the stored log.
+func TestAgentJobLogStripsANSI(t *testing.T) {
+	srv, _ := newTestAgent(t, `printf 'Loading Steam API...\033[0mOK\n'`)
+	_, m := do(t, srv, "POST", "/v1/steam/update", testToken, nil)
+	job := waitForJob(t, srv, m["job"].(map[string]any)["id"].(string))
+	if log := job["log"].([]any); log[0] != "Loading Steam API...OK" {
+		t.Errorf("log[0] = %q, want ANSI stripped", log[0])
 	}
 }
 

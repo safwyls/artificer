@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -72,10 +74,40 @@ func (r *jobRunner) start(kind, command string, args []string) (*Job, error) {
 	return copyJob(job), nil
 }
 
-// run executes the command, streaming output into the job's capped log.
-// Deliberately detached from any request context: the whole point of job
-// semantics is that the caller can go away.
+// ansiEscape strips the terminal color codes SteamCMD sprinkles through
+// its output ("Loading Steam API...\x1b[0mOK"); the dashboard renders the
+// log as plain text, same as palcon does for container logs.
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+// retryableSteamError matches failures a fresh SteamCMD bootstrap commonly
+// throws exactly once: "ERROR! Failed to install app '...' (Missing
+// configuration)" happens when the first app_update runs before the
+// app-info cache is populated (the agent's HOME is ephemeral, so every new
+// container starts cold), and an immediate retry succeeds.
+func retryableSteamError(errMsg string) bool {
+	return strings.Contains(strings.ToLower(errMsg), "missing configuration")
+}
+
+// run executes the command, streaming output into the job's capped log,
+// retrying once for SteamCMD's known cold-start flake. Deliberately
+// detached from any request context: the whole point of job semantics is
+// that the caller can go away.
 func (r *jobRunner) run(id, command string, args []string) {
+	const maxAttempts = 2
+	for attemptNo := 1; ; attemptNo++ {
+		errMsg := r.attempt(id, command, args)
+		if errMsg == "" || attemptNo >= maxAttempts || !retryableSteamError(errMsg) {
+			r.finish(id, errMsg)
+			return
+		}
+		r.appendLog(id, fmt.Sprintf(
+			"palagent: retrying (%d/%d) — %q is SteamCMD's usual cold-bootstrap flake and normally clears on the second run",
+			attemptNo+1, maxAttempts, errMsg))
+	}
+}
+
+// attempt is one execution; "" means success.
+func (r *jobRunner) attempt(id, command string, args []string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
 	defer cancel()
 
@@ -86,32 +118,35 @@ func (r *jobRunner) run(id, command string, args []string) {
 		err = cmd.Start()
 	}
 	if err != nil {
-		r.finish(id, "failed to start: "+err.Error())
-		return
+		return "failed to start: " + err.Error()
 	}
 
-	// SteamCMD's exit code is not always trustworthy: disk/corruption
-	// failures like "Error! App '2394010' state is 0x602 after update job"
-	// have shipped with exit 0. Watch the output for the telltale line.
+	// SteamCMD's exit code is not always trustworthy: failures like
+	// "Error! App '2394010' state is 0x602 after update job" and "ERROR!
+	// Failed to install app" (yes, both spellings) have shipped with exit
+	// 0. Watch the output for the telltale line.
 	steamError := ""
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := strings.TrimRight(ansiEscape.ReplaceAllString(scanner.Text(), ""), "\r")
 		r.appendLog(id, line)
-		if steamError == "" && strings.HasPrefix(strings.TrimSpace(line), "Error!") {
-			steamError = strings.TrimSpace(line)
+		trimmed := strings.TrimSpace(line)
+		if steamError == "" && strings.HasPrefix(strings.ToLower(trimmed), "error!") {
+			steamError = trimmed
 		}
 	}
 
 	switch waitErr := cmd.Wait(); {
 	case ctx.Err() != nil:
-		r.finish(id, "timed out after "+jobTimeout.String())
-	case waitErr != nil:
-		r.finish(id, waitErr.Error())
+		return "timed out after " + jobTimeout.String()
 	case steamError != "":
-		r.finish(id, steamError)
+		// Prefer SteamCMD's own line over a bare "exit status 8" — it
+		// names the cause, and the retry heuristic keys off it.
+		return steamError
+	case waitErr != nil:
+		return waitErr.Error()
 	default:
-		r.finish(id, "")
+		return ""
 	}
 }
 
