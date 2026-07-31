@@ -61,6 +61,7 @@
   <ul>
     <li><a href="automation.html">Automation & alerts</a></li>
     <li><a href="palagent.html" class="active" aria-current="page">palagent sidecar</a></li>
+    <li><a href="migrate-supervisor.html">Migrate to supervisor mode</a></li>
   </ul>
 </div><div class="side-cat">
   <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
@@ -92,6 +93,7 @@
   <ul>
     <li><a href="automation.html">Automation & alerts</a></li>
     <li><a href="palagent.html" class="active" aria-current="page">palagent sidecar</a></li>
+    <li><a href="migrate-supervisor.html">Migrate to supervisor mode</a></li>
   </ul>
 </div><div class="side-cat">
   <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
@@ -173,10 +175,10 @@ logs to the agent automatically, and management interfaces (REST/RCON) are enfor
 <p>Deploy each game server as its own stack, never inside Palcon's — a
 <code>docker compose down</code> on the dashboard must be structurally unable to take a game
 server with it. The <a href="first-server.html#wizard">New server wizard</a> generates these
-stack files for you, and the
+stack files for you. Running a companion today? The
+<a href="migrate-supervisor.html">migration guide</a> walks through the switch; the
 <a href="https://github.com/safwyls/palcon/blob/main/docs/sidecar-agent.md">full design doc</a>
-covers the migration path from companion to supervisor, the API surface and lifecycle
-details.</p>
+covers the API surface and lifecycle details.</p>
 
 <h2 id="provisioner">One-click provisioning</h2>
 <p>Palcon itself never gains Docker create rights. The optional provisioner-mode agent
@@ -199,7 +201,7 @@ out the three attack paths.</p></div>
 like RCON/REST passwords, and pasted into the agent's environment. The agent refuses to start
 with a token under 16 characters.</p>
 
-<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="automation.html"><small>← Previous</small><b>Automation & alerts</b></a><a class="pager-card next" href="troubleshooting.html"><small>Next →</small><b>Troubleshooting</b></a></nav>
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="automation.html"><small>← Previous</small><b>Automation & alerts</b></a><a class="pager-card next" href="migrate-supervisor.html"><small>Next →</small><b>Migrate to supervisor mode</b></a></nav>
   </main>
 </div>
 <footer class="doc-footer">

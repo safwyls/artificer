@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Troubleshooting — Palcon docs</title>
-<meta name="description" content="The failure modes we know about, and what they actually mean.">
+<title>Migrate to supervisor mode — Palcon docs</title>
+<meta name="description" content="Retire the game image and let the agent run the server — one restart of downtime, fully reversible.">
 <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Troubleshooting — Palcon docs">
-<meta property="og:description" content="The failure modes we know about, and what they actually mean.">
-<meta property="og:url" content="https://safwyls.github.io/palcon/docs/troubleshooting.html">
+<meta property="og:title" content="Migrate to supervisor mode — Palcon docs">
+<meta property="og:description" content="Retire the game image and let the agent run the server — one restart of downtime, fully reversible.">
+<meta property="og:url" content="https://safwyls.github.io/palcon/docs/migrate-supervisor.html">
 <meta property="og:image" content="https://safwyls.github.io/palcon/assets/og.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -61,12 +61,12 @@
   <ul>
     <li><a href="automation.html">Automation & alerts</a></li>
     <li><a href="palagent.html">palagent sidecar</a></li>
-    <li><a href="migrate-supervisor.html">Migrate to supervisor mode</a></li>
+    <li><a href="migrate-supervisor.html" class="active" aria-current="page">Migrate to supervisor mode</a></li>
   </ul>
 </div><div class="side-cat">
   <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
   <ul>
-    <li><a href="troubleshooting.html" class="active" aria-current="page">Troubleshooting</a></li>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
   </ul>
 </div>
     </nav>
@@ -93,57 +93,87 @@
   <ul>
     <li><a href="automation.html">Automation & alerts</a></li>
     <li><a href="palagent.html">palagent sidecar</a></li>
-    <li><a href="migrate-supervisor.html">Migrate to supervisor mode</a></li>
+    <li><a href="migrate-supervisor.html" class="active" aria-current="page">Migrate to supervisor mode</a></li>
   </ul>
 </div><div class="side-cat">
   <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
   <ul>
-    <li><a href="troubleshooting.html" class="active" aria-current="page">Troubleshooting</a></li>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
   </ul>
 </div>
   </aside>
   <main class="doc" id="content">
-    <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Help <span>/</span> Troubleshooting</p>
-    <h1>Troubleshooting</h1>
+    <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Guides <span>/</span> Migrate to supervisor mode</p>
+    <h1>Migrate to supervisor mode</h1>
 
-<p class="lead">Each of these has shown up in real deployments. If yours isn't here,
-<a href="https://github.com/safwyls/palcon/issues">open an issue</a> with the container logs.</p>
+<p class="lead">Companion mode is the compatibility path for servers that predate the agent.
+Migrating retires the game image, the companion agent, and — once no companions remain — the
+docker socket proxy. The world survives because everything lives in the dataset: the game
+install, saves and config never move. Expect one restart's worth of downtime.</p>
 
-<h2 id="sqlite">"unable to open database file: out of memory (14)" on startup</h2>
-<p>SQLite's error 14 is <code>SQLITE_CANTOPEN</code>; the "out of memory" wording is a generic
-driver string, not a real memory problem. The container can't write to <code>/data</code>. Check
-ownership of the host dataset with <code>ls -la</code> — either set <code>user:</code> to match
-its owning uid/gid, or <code>chmod 775</code> the directory so the container's group can
-write.</p>
+<div class="callout note"><p><b>What you end up with</b>: one
+<a href="palagent.html#supervisor">supervisor-mode</a> container per server that installs,
+runs and restarts the game itself — real exit codes, crash backoff, game logs in the dashboard,
+and no <a href="power-control.html">docker proxy</a> needed for that server.</p></div>
 
-<h2 id="save-path">Player pals shows "Set up save file reading"</h2>
-<p>The server has no <b>Save path</b> set, or the path doesn't point at a directory containing
-<code>Level.sav</code>. Remember it's the path <i>inside the container</i>
-(<code>/saves/myserver</code>), not the host path. See
-<a href="save-files.html#setup">Reading save files</a>.</p>
+<h2 id="steps">The migration, step by step</h2>
+<ol>
+  <li><b>Safety net.</b> Run a backup from the dashboard, and snapshot the server's dataset.</li>
+  <li><b>Stop the old server.</b> Stop from the server card (the usual save-then-shutdown
+    sequence runs), then stop and delete the old game container's app. <b>Keep the
+    dataset.</b></li>
+  <li><b>Turn off the watchdog and clear the container name</b> on the server's edit form —
+    the supervisor owns restarts now, and a stale container name would race it.</li>
+  <li><b>Swap the stacks.</b> Remove the companion agent service from wherever it lives, and
+    deploy a supervisor-mode stack for the server:
+<div class="code-card" data-copy>
+<div class="code-head"><span>palworld-main/docker-compose.yml — the agent IS the server</span><button class="copy-btn">Copy</button></div>
+<pre><span class="k">services</span>:
+  <span class="k">palagent</span>:
+    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/palagent:latest</span>
+    <span class="k">environment</span>:
+      - <span class="v">PALAGENT_TOKEN=${PALAGENT_TOKEN}</span>          <span class="c"># reuse the companion's token</span>
+      - <span class="v">PALAGENT_MODE=supervisor</span>
+      - <span class="v">PALAGENT_ADMIN_PASSWORD=${PALWORLD_ADMIN_PASSWORD}</span>  <span class="c"># the row's REST/RCON password</span>
+    <span class="k">volumes</span>: <span class="v">["./palworld:/palworld"]</span>       <span class="c"># same path the game used before</span>
+    <span class="k">ports</span>:
+      - <span class="v">"8211:8211/udp"</span>   <span class="c"># the ports the old app published</span>
+      - <span class="v">"8212:8212"</span>
+      - <span class="v">"25575:25575"</span>
+    <span class="k">networks</span>: <span class="v">[default, palcon-net]</span>
+    <span class="k">restart</span>: <span class="v">unless-stopped</span>
+<span class="k">networks</span>:
+  <span class="k">palcon-net</span>:
+    <span class="k">external</span>: <span class="v">true</span></pre>
+</div>
+    Three details matter: the <b>same volume path</b> the old game container used; <b>no</b>
+    <code>SaveGames :ro</code> overlay (unlike a companion, the game writes its own saves
+    through this mount); and deploy it as its <b>own stack</b>, not inside Palcon's — the agent
+    <i>is</i> the game server now, and a <code>compose down</code> on the dashboard must never
+    be able to take it along. Reusing the companion's token saves a form edit.</li>
+  <li><b>Update the server row</b> if ports or the agent URL changed — a standalone stack
+    publishes the agent port instead of sharing Palcon's network.</li>
+  <li><b>Start from the card.</b> The existing <code>PalWorldSettings.ini</code> is kept as-is;
+    the management interfaces (REST/RCON) are enforced on every start, so the dashboard
+    connects on its own. Verify the card shows <b>palagent · supervisor</b> and players can
+    join.</li>
+</ol>
 
-<h2 id="no-power">Power controls don't appear</h2>
-<p>Either <code>DOCKER_HOST</code> isn't set on the Palcon container, or the server has no
-<b>Container name</b>. If both are set and actions fail with a permission error, the proxy needs
-<code>CONTAINERS=1</code> and <code>POST=1</code>. See
-<a href="power-control.html">Power control</a>.</p>
+<div class="callout warn"><p><b>Don't leave a watchdog or container name configured</b> on a
+supervised server (step 3). Both assume Docker owns the process; the supervisor does now, and
+they'll fight over restarts.</p></div>
 
-<h2 id="crashed">TrueNAS reports the container as "crashed" after a stop</h2>
-<p>Palworld images generally ignore SIGTERM, so a forced stop records exit code 137, which
-TrueNAS labels "crashed". Palcon avoids this by asking the game to exit on its own — if you still
-see 137, the game was already unresponsive when you pressed stop. Explained in
-<a href="power-control.html#how-stopping-works">How stopping works</a>.</p>
+<h2 id="rollback">Rollback</h2>
+<p>If anything misbehaves: stop the supervisor stack, redeploy the old game app and companion
+agent, restore the watchdog/container-name settings — the dataset was never modified
+structurally, so the world is exactly where you left it.</p>
 
-<h2 id="revived">The container comes back up on its own after a stop</h2>
-<p>Check the Palworld app's restart policy — TrueNAS may be reviving it independently of Docker's
-own bookkeeping.</p>
+<h2 id="after">After the last companion</h2>
+<p>Once every server is supervised, nothing uses the docker socket proxy anymore — remove the
+<code>docker-proxy</code> service and the <code>DOCKER_HOST</code> variable from Palcon's own
+stack. Power for every server now flows through its agent.</p>
 
-<h2 id="no-metrics">Metrics, settings or charts are missing</h2>
-<p>Those features are REST-only; Palworld's RCON command set has no equivalent. Enable the REST
-API in <code>PalWorldSettings.ini</code> — see
-<a href="deploy-truenas.html#reach-the-game-server">the deploy guide</a>.</p>
-
-<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="migrate-supervisor.html"><small>← Previous</small><b>Migrate to supervisor mode</b></a><a class="pager-card next" href="../index.html#support"><small>Done? →</small><b>Support the project</b></a></nav>
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="palagent.html"><small>← Previous</small><b>palagent sidecar</b></a><a class="pager-card next" href="troubleshooting.html"><small>Next →</small><b>Troubleshooting</b></a></nav>
   </main>
 </div>
 <footer class="doc-footer">
