@@ -2,6 +2,9 @@
 
 [![Docker](https://github.com/safwyls/palcon/actions/workflows/docker.yml/badge.svg)](https://github.com/safwyls/palcon/actions/workflows/docker.yml)
 
+**Homepage:** <https://safwyls.github.io/palcon/> — screenshots, feature tour
+and a five-minute quickstart. Source in [`site/`](site/).
+
 Self-hosted web management for Palworld dedicated servers. A single Go binary
 with the React frontend embedded, built to run as a Docker container on
 TrueNAS Scale.
