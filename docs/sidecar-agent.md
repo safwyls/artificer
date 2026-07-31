@@ -56,13 +56,40 @@ Container power stays with the docker socket proxy in this mode. The agent
 cannot see the game process (separate container), so palcon — which can —
 refuses SteamCMD updates while the container is running.
 
-**Supervisor (the end state, phase 3).** The same agent image *is* the
-server container: it installs the game via SteamCMD and runs `PalServer.sh`
-as a child process. Start/stop/restart, update, crash detection and clean
-shutdown become agent verbs; the docker proxy becomes unnecessary for these
-servers; the watchdog gets real exit codes. A server graduates from
-companion to supervisor by redeploying its stack — palcon only cares what
-`/health` reports.
+**Supervisor (phase 3, shipped).** The same agent image *is* the server
+container: `PALAGENT_MODE=supervisor` makes it install the game via
+SteamCMD on first boot and run `PalServer.sh` as a child process (own
+process group, so signals reach the real binary). Start/stop/restart,
+crash auto-restart with backoff, and the game's stdout become agent verbs
+(`/v1/power/*`); palcon routes power, status and logs to the agent
+whenever `/health` reports supervisor mode, docker proxy not required.
+Desired state persists in the install volume, so a recreated agent
+resumes what the operator last asked for (docker's unless-stopped, one
+level down) — which also means palcon's existing in-game-shutdown
+restart flow and restart schedules work unchanged: the game exits, the
+supervisor brings it back. SteamCMD updates and a running game are
+mutually exclusive, enforced agent-side. Config knobs:
+`PALAGENT_GAME_CMD`/`PALAGENT_GAME_ARGS`, `PALAGENT_STOP_GRACE`,
+`PALAGENT_AUTOSTART`. Don't combine supervisor mode with a
+`containerName`/watchdog on the same server — the supervisor owns
+restarts. A server graduates from companion to supervisor by redeploying
+its stack.
+
+Supervisor-mode stack (replaces the game image entirely):
+
+```yaml
+# palworld-main/docker-compose.yml — the agent IS the server
+services:
+  palagent:
+    image: ghcr.io/safwyls/palagent:latest
+    environment:
+      - PALAGENT_TOKEN=${PALAGENT_TOKEN}
+      - PALAGENT_MODE=supervisor
+    volumes: ["./palworld:/palworld"]   # no :ro SaveGames overlay — the game writes its own saves
+    ports: ["8211:8211/udp"]
+    networks: [default, palcon-net]
+    restart: unless-stopped
+```
 
 ## Lifecycle coupling (the question that shaped this)
 
@@ -185,8 +212,9 @@ spinning up a new Palworld server from the dashboard — lands in two steps:
 2. **File verbs** — SHIPPED 2026-07 (API v2): save bundle, config GET/PUT;
    `internal/agentfiles` sync layer feeding the existing parser, editor and
    backup archiver. Retires the save/config/install mounts.
-3. **Supervisor mode**: process management, log streaming, exit handling,
-   `/v1/power/*`.
+3. **Supervisor mode** — SHIPPED 2026-07 (API v3): the agent runs the game
+   as a child process; power/status/logs route through it, crash restarts
+   and install-on-first-boot included.
 4. **Compose-snippet generator** + docs.
 
 ## Accepted tradeoffs

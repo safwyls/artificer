@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/safwyls/palcon/internal/palagent"
 )
@@ -46,18 +47,40 @@ func main() {
 		appID = n
 	}
 
+	var stopGrace time.Duration
+	if v := os.Getenv("PALAGENT_STOP_GRACE"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			logger.Error("invalid PALAGENT_STOP_GRACE", "value", v)
+			os.Exit(1)
+		}
+		stopGrace = d
+	}
+	var autostart *bool
+	if v := os.Getenv("PALAGENT_AUTOSTART"); v != "" {
+		b := v == "true" || v == "1"
+		autostart = &b
+	}
+
 	agent, err := palagent.New(palagent.Config{
-		Token:      os.Getenv("PALAGENT_TOKEN"),
-		InstallDir: envOr("PALAGENT_INSTALL_DIR", "/palworld"),
-		SteamCmd:   envOr("PALAGENT_STEAMCMD", "steamcmd"),
-		AppID:      appID,
-		Version:    version,
-		Logger:     logger,
+		Token:       os.Getenv("PALAGENT_TOKEN"),
+		InstallDir:  envOr("PALAGENT_INSTALL_DIR", "/palworld"),
+		SteamCmd:    envOr("PALAGENT_STEAMCMD", "steamcmd"),
+		AppID:       appID,
+		Mode:        envOr("PALAGENT_MODE", "companion"),
+		GameCommand: os.Getenv("PALAGENT_GAME_CMD"),
+		GameArgs:    strings.Fields(os.Getenv("PALAGENT_GAME_ARGS")),
+		StopGrace:   stopGrace,
+		Autostart:   autostart,
+		Version:     version,
+		Logger:      logger,
 	})
 	if err != nil {
 		logger.Error("invalid configuration", "error", err)
 		os.Exit(1)
 	}
+	// Supervisor boot: install if missing, then start per desired state.
+	go agent.Run()
 
 	addr := envOr("PALAGENT_ADDR", ":8811")
 	logger.Info("palagent listening", "addr", addr, "version", version, "apiVersion", palagent.APIVersion)
