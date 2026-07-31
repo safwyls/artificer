@@ -25,6 +25,11 @@ import (
 var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`)
 var provRunAsPattern = regexp.MustCompile(`^\d{1,7}:\d{1,7}$`)
 
+// tagPattern is docker's tag grammar. The image repository is hardcoded,
+// so a hostile tag can't leave this repo's images regardless — but the
+// code in front of a root socket accepts no loose input on principle.
+var tagPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$`)
+
 // ProvisionRequest instantiates the template. Every field is data for
 // the fixed template — none of it changes what kind of container is made.
 type ProvisionRequest struct {
@@ -74,6 +79,10 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.ImageTag == "" {
 		req.ImageTag = "latest"
+	}
+	if !tagPattern.MatchString(req.ImageTag) {
+		writeError(w, http.StatusBadRequest, "image tag must match docker tag grammar")
+		return
 	}
 	seen := map[int]bool{}
 	for _, p := range []int{req.GamePort, req.RESTPort, req.RCONPort, req.AgentPort} {

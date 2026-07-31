@@ -53,6 +53,10 @@ type provisionRequest struct {
 
 var runAsPattern = regexp.MustCompile(`^\d{1,7}:\d{1,7}$`)
 
+// imageTagPattern is docker's tag grammar; anything looser could inject
+// lines into the generated stack yaml.
+var imageTagPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$`)
+
 func randomHex(n int) string {
 	b := make([]byte, n)
 	_, _ = rand.Read(b)
@@ -101,6 +105,10 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.ImageTag == "" {
 		req.ImageTag = "latest"
+	}
+	if !imageTagPattern.MatchString(req.ImageTag) {
+		writeError(w, http.StatusBadRequest, "image tag must match docker tag grammar")
+		return
 	}
 	if req.AdminPassword == "" {
 		req.AdminPassword = randomHex(10)

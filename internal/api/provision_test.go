@@ -146,7 +146,9 @@ func TestProvisionValidation(t *testing.T) {
 		{"host": "h", "dataPath": "/x"},                                             // no name
 		{"name": "n", "dataPath": "/x"},                                             // no host
 		{"name": "n", "host": "h", "dataPath": "relative/path"},                     // non-absolute path
-		{"name": "n", "host": "h", "dataPath": "/x", "gamePort": 80, "restPort": 80}, // duplicate ports
+		{"name": "n", "host": "h", "dataPath": "/x", "gamePort": 80, "restPort": 80},          // duplicate ports
+		{"name": "n", "host": "h", "dataPath": "/x", "imageTag": "beta\n    evil: true"},      // yaml injection via tag
+		{"name": "n", "host": "h", "dataPath": "/x", "imageTag": "beta beta"},                 // not a docker tag
 	}
 	for i, body := range cases {
 		if rec := app.do(t, "POST", "/api/servers/provision", body, admin); rec.Code != http.StatusBadRequest {

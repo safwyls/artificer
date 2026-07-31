@@ -106,6 +106,41 @@ or the agent's container name on the shared network with the container
 ports. The REST/RCON password in the server row is the
 `PALAGENT_ADMIN_PASSWORD` value.
 
+## Migrating a companion-mode server to supervisor
+
+Companion mode is the compatibility path for servers that predate the
+agent; migrating retires the game image, the companion, and (once no
+companions remain) the docker socket proxy. The world survives because
+everything lives in the dataset — the game install, saves, and config
+never move. Expect one restart's worth of downtime.
+
+1. **Safety net**: run a backup from the dashboard, and snapshot the
+   server's dataset.
+2. **Stop the server** from the card (save-then-shutdown runs as usual),
+   then stop and delete the old game container's app. Keep the dataset.
+3. **Turn off the watchdog** and **clear the container name** on the
+   server's edit form — the supervisor owns restarts now, and a stale
+   container name would race it.
+4. **Remove the companion agent service** from wherever it lives, and
+   deploy a supervisor-mode stack for the server (per the example above):
+   same volume path, `PALAGENT_MODE=supervisor`,
+   `PALAGENT_ADMIN_PASSWORD` set to the row's REST/RCON password, the
+   game/REST/RCON ports the old app published, and **no** SaveGames `:ro`
+   overlay — the game writes its own saves through this mount. Reusing
+   the companion's token saves a form edit. As its own stack, not inside
+   palcon's app: the agent is the game server now, and the
+   separate-stacks rule applies to it.
+5. **Update the server row** if ports or the agent URL changed (a
+   standalone stack publishes the agent port instead of sharing palcon's
+   network).
+6. **Start from the card.** The existing PalWorldSettings.ini is kept
+   as-is (identity seeding only applies to fresh installs); the
+   management settings are enforced on start, so REST connects on its
+   own. Verify the card shows "palagent · supervisor" and players can
+   join.
+7. **Rollback**, if needed: stop the supervisor stack, redeploy the old
+   game app and companion — the dataset was never modified structurally.
+
 ## Lifecycle coupling (the question that shaped this)
 
 - **Palcon restarts never touch game servers**, in either mode. The agent

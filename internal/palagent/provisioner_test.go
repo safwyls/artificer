@@ -108,6 +108,7 @@ func TestProvisionerValidation(t *testing.T) {
 		{"slug": "ok", "token": "long-enough-token-123456", "adminPassword": "", "gamePort": 1, "restPort": 2, "rconPort": 3, "agentPort": 4},
 		{"slug": "ok", "token": "long-enough-token-123456", "adminPassword": "x", "runAs": "steam", "gamePort": 1, "restPort": 2, "rconPort": 3, "agentPort": 4},
 		{"slug": "ok", "token": "long-enough-token-123456", "adminPassword": "x", "gamePort": 5, "restPort": 5, "rconPort": 3, "agentPort": 4},
+		{"slug": "ok", "token": "long-enough-token-123456", "adminPassword": "x", "imageTag": "beta@sha256:junk", "gamePort": 1, "restPort": 2, "rconPort": 3, "agentPort": 4},
 	}
 	for i, body := range cases {
 		if resp, m := do(t, srv, "POST", "/v1/provision", testToken, body); resp.StatusCode != http.StatusBadRequest {
