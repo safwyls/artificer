@@ -49,7 +49,7 @@ async function world(): Promise<Fixture> {
     fx.saveModTime = new Date(now - 7 * 60_000).toISOString();
     // Two players are "online" right now (see playersOnline); the others
     // logged off recently rather than at the capture's real date.
-    const offsets: Record<string, number> = { AzarA: 300, Gigi: 300, Bobachu: 3 * 3600, safwyl: 26 * 3600 };
+    const offsets: Record<string, number> = { Aster: 300, Juniper: 300, Bramble: 3 * 3600, Fenwick: 26 * 3600 };
     for (const p of fx.players) {
       p.lastOnline = Math.floor(now / 1000) - (offsets[p.nickname] ?? 8 * 3600);
     }
@@ -99,9 +99,9 @@ const state = {
   discord: { configured: true, enabled: true, onStatus: true, onPlayers: true, onRestarts: true },
   users: [
     { id: 1, username: "demo", role: "admin", permissions: [], disabled: false },
-    { id: 2, username: "AzarA", role: "member", permissions: ["power", "broadcast"], disabled: false },
-    { id: 3, username: "Gigi", role: "member", permissions: ["broadcast", "save"], disabled: false },
-    { id: 4, username: "Bobachu", role: "member", permissions: ["power"], disabled: false },
+    { id: 2, username: "Aster", role: "member", permissions: ["power", "broadcast"], disabled: false },
+    { id: 3, username: "Juniper", role: "member", permissions: ["broadcast", "save"], disabled: false },
+    { id: 4, username: "Bramble", role: "member", permissions: ["power"], disabled: false },
   ] as AppUser[],
   nextUserId: 5,
   config: null as ConfigSetting[] | null,
@@ -136,7 +136,7 @@ function unreachable(): never {
 async function playersOnline(): Promise<Player[]> {
   if (!state.containerRunning) unreachable();
   const fx = await world();
-  const online = ["AzarA", "Gigi"];
+  const online = ["Aster", "Juniper"];
   return fx.players
     .filter((p) => online.includes(p.nickname) && p.lastX != null && p.lastY != null)
     .map((p, i) => ({
@@ -224,10 +224,10 @@ async function activity(hours: number): Promise<ActivityResult> {
 
 const AUDIT: AuditEntry[] = [
   { id: 6, ts: new Date(Date.now() - 40 * 60_000).toISOString(), username: "demo", action: "broadcast", detail: "\"Server restart in 15 minutes\"" },
-  { id: 5, ts: new Date(Date.now() - 5 * 3600_000).toISOString(), username: "AzarA", action: "power.restart", detail: "container palworld-main" },
+  { id: 5, ts: new Date(Date.now() - 5 * 3600_000).toISOString(), username: "Aster", action: "power.restart", detail: "container palworld-main" },
   { id: 4, ts: new Date(Date.now() - 26 * 3600_000).toISOString(), username: "demo", action: "settings.update", detail: "PalCaptureRate: 1.0 → 1.2" },
   { id: 3, ts: new Date(Date.now() - 2 * 24 * 3600_000).toISOString(), username: "demo", action: "backup.run", detail: "manual snapshot" },
-  { id: 2, ts: new Date(Date.now() - 3 * 24 * 3600_000).toISOString(), username: "Gigi", action: "save", detail: "world save" },
+  { id: 2, ts: new Date(Date.now() - 3 * 24 * 3600_000).toISOString(), username: "Juniper", action: "save", detail: "world save" },
   { id: 1, ts: new Date(Date.now() - 5 * 24 * 3600_000).toISOString(), username: "demo", action: "schedule.create", detail: "daily 04:00, warnings 15/5/1" },
 ];
 
@@ -332,8 +332,8 @@ const CONTAINER_LOGS = [
   "[2026.07.31-11.03.12] LogPal: REST API listening on 0.0.0.0:8212",
   "[2026.07.31-11.03.12] LogPal: RCON listening on 0.0.0.0:25575",
   "[2026.07.31-11.03.13] LogPal: Session established. Server started.",
-  "[2026.07.31-18.13.51] LogPal: Player joined: AzarA (Lv.73)",
-  "[2026.07.31-18.14.09] LogPal: Player joined: Gigi (Lv.78)",
+  "[2026.07.31-18.13.51] LogPal: Player joined: Aster (Lv.73)",
+  "[2026.07.31-18.14.09] LogPal: Player joined: Juniper (Lv.78)",
   "[2026.07.31-18.40.00] LogPal: Autosave complete (2.1s)",
 ];
 
