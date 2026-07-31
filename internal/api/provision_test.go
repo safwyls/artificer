@@ -140,6 +140,97 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	}
 }
 
+func TestProvisionDefaultsAndDiscover(t *testing.T) {
+	app, admin := newTestAppWithAdmin(t)
+
+	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/containers/json":
+			w.Write([]byte(`[
+			  {"Id":"c1","Names":["/palagent-adopted"],"Image":"ghcr.io/safwyls/palagent:beta","State":"running",
+			   "Ports":[{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"},{"PrivatePort":8212,"PublicPort":9212,"Type":"tcp"}]},
+			  {"Id":"c2","Names":["/palagent-orphan"],"Image":"ghcr.io/safwyls/palagent:beta","State":"exited",
+			   "Ports":[{"PrivatePort":8811,"PublicPort":9911,"Type":"tcp"}]}
+			]`))
+		case r.URL.Path == "/containers/c1/json", r.URL.Path == "/containers/c2/json":
+			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=supervisor"]}}`))
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	t.Cleanup(dockerSrv.Close)
+
+	provAgent, err := palagent.New(palagent.Config{
+		Token: agentToken, InstallDir: t.TempDir(), Version: "test",
+		Mode: "provisioner", DockerHost: dockerSrv.URL, DataRoot: t.TempDir(),
+		PublicHost: "10.99.0.5",
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provSrv := httptest.NewServer(provAgent.Handler())
+	t.Cleanup(provSrv.Close)
+	app.api.Provisioner, err = agentctl.New(provSrv.URL, agentToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// An existing row holding the default port set (and the "adopted"
+	// candidate's agent port) forces the proposal to a free offset and
+	// marks the candidate registered.
+	if _, err := app.store.CreateServer(t.Context(), &store.Server{
+		Name: "existing", Host: "10.99.0.5", RCONPort: 25575, RESTPort: 8212, GamePort: 8211,
+		UseREST: true, Enabled: true, AgentURL: "http://10.99.0.5:9811", AgentToken: agentToken,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := app.do(t, "GET", "/api/servers/provision/defaults", nil, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("defaults: %d (body %s)", rec.Code, rec.Body)
+	}
+	var defs struct {
+		Available bool           `json:"available"`
+		Host      string         `json:"host"`
+		RunAs     string         `json:"runAs"`
+		Ports     map[string]int `json:"ports"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &defs); err != nil {
+		t.Fatal(err)
+	}
+	if !defs.Available || defs.Host != "10.99.0.5" || defs.RunAs != "568:568" {
+		t.Errorf("defaults = %+v, want declared host + run-as", defs)
+	}
+	used := map[int]bool{8211: true, 8212: true, 25575: true, 9811: true}
+	for _, p := range defs.Ports {
+		if used[p] {
+			t.Errorf("proposed ports collide with tracked ones: %v", defs.Ports)
+		}
+	}
+
+	rec = app.do(t, "GET", "/api/servers/provision/discover", nil, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("discover: %d (body %s)", rec.Code, rec.Body)
+	}
+	var disc struct {
+		Servers []struct {
+			Name       string `json:"name"`
+			Registered bool   `json:"registered"`
+		} `json:"servers"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &disc); err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]bool{}
+	for _, s := range disc.Servers {
+		byName[s.Name] = s.Registered
+	}
+	if !byName["palagent-adopted"] || byName["palagent-orphan"] {
+		t.Errorf("registered flags wrong: %v", disc.Servers)
+	}
+}
+
 func TestProvisionValidation(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 	cases := []map[string]any{

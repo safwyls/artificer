@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/safwyls/palcon/internal/agentctl"
 	"github.com/safwyls/palcon/internal/palagent"
 	"github.com/safwyls/palcon/internal/store"
 )
@@ -219,6 +222,123 @@ services:
 		"deployError":   deployError,
 		"dataDir":       dataDir,
 	})
+}
+
+// handleProvisionDefaults reports everything the wizard can prefill: the
+// provisioner's own configuration (data root, public host, run-as, image
+// tag) plus a free-port proposal computed from the servers palcon already
+// manages. The proposal is a suggestion — something else on the box can
+// still hold a port, in which case the deploy fails cleanly at create
+// time.
+func (s *Server) handleProvisionDefaults(w http.ResponseWriter, r *http.Request) {
+	if s.Provisioner == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"available": false})
+		return
+	}
+	health, err := s.Provisioner.Health(r.Context())
+	if err != nil || health.Provision == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"available": false})
+		return
+	}
+	servers, err := s.store.ListServers(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list servers")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"available": true,
+		"host":      s.inferHost(health.Provision.PublicHost, servers),
+		"dataRoot":  health.Provision.DataRoot,
+		"runAs":     health.Provision.RunAs,
+		"imageTag":  health.Provision.ImageTag,
+		"ports":     proposePorts(servers),
+	})
+}
+
+// inferHost picks the address for new servers: the provisioner's declared
+// public host wins; else the host part of the provisioner URL when it's a
+// real address (a bare compose service name — no dots, not an IP — can't
+// be reached by players or by palcon's REST client); else the address the
+// existing servers already use.
+func (s *Server) inferHost(declared string, servers []*store.Server) string {
+	if declared != "" {
+		return declared
+	}
+	if u, err := url.Parse(s.Provisioner.BaseURL()); err == nil {
+		if h := u.Hostname(); strings.Contains(h, ".") {
+			return h
+		}
+	}
+	counts := map[string]int{}
+	best := ""
+	for _, srv := range servers {
+		counts[srv.Host]++
+		if best == "" || counts[srv.Host] > counts[best] {
+			best = srv.Host
+		}
+	}
+	return best
+}
+
+// proposePorts finds the first offset where none of the four default
+// ports collide with any port palcon already tracks.
+func proposePorts(servers []*store.Server) map[string]int {
+	used := map[int]bool{}
+	for _, srv := range servers {
+		used[srv.GamePort] = true
+		used[srv.RESTPort] = true
+		used[srv.RCONPort] = true
+		if u, err := url.Parse(srv.AgentURL); err == nil {
+			if p, err := strconv.Atoi(u.Port()); err == nil {
+				used[p] = true
+			}
+		}
+	}
+	for offset := 0; offset < 1000; offset++ {
+		game, rest, rcon, agent := 8211+offset, 8212+offset, 25575+offset, 8811+offset
+		if !used[game] && !used[rest] && !used[rcon] && !used[agent] && game != rest {
+			return map[string]int{"game": game, "rest": rest, "rcon": rcon, "agent": agent}
+		}
+	}
+	return map[string]int{"game": 8211, "rest": 8212, "rcon": 25575, "agent": 8811}
+}
+
+// handleProvisionDiscover surfaces Palworld-shaped containers already on
+// the provisioner's host, marking the ones palcon knows about so the add
+// dialog offers only genuine adoptees prominently.
+func (s *Server) handleProvisionDiscover(w http.ResponseWriter, r *http.Request) {
+	if s.Provisioner == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"available": false, "servers": []any{}})
+		return
+	}
+	found, err := s.Provisioner.Discover(r.Context())
+	if err != nil {
+		writeAgentError(w, err)
+		return
+	}
+	servers, err := s.store.ListServers(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list servers")
+		return
+	}
+	registeredAgentPorts := map[int]bool{}
+	for _, srv := range servers {
+		if u, err := url.Parse(srv.AgentURL); err == nil {
+			if p, err := strconv.Atoi(u.Port()); err == nil {
+				registeredAgentPorts[p] = true
+			}
+		}
+	}
+	type candidate struct {
+		agentctl.DiscoveredServer
+		Registered bool `json:"registered"`
+	}
+	out := make([]candidate, 0, len(found))
+	for _, f := range found {
+		out = append(out, candidate{f, f.AgentPort != 0 && registeredAgentPorts[f.AgentPort]})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"available": true, "servers": out})
 }
 
 // slugify reduces a display name to a container/directory-safe slug.

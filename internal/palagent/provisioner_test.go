@@ -2,6 +2,7 @@ package palagent_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -30,6 +31,18 @@ func (f *fakeDockerAPI) handler() http.Handler {
 			json.NewDecoder(r.Body).Decode(&f.create)
 			w.WriteHeader(http.StatusCreated)
 			w.Write([]byte(`{"Id":"deadbeef"}`))
+		case r.URL.Path == "/containers/json":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[
+			  {"Id":"c1","Names":["/palagent-main"],"Image":"ghcr.io/safwyls/palagent:beta","State":"running",
+			   "Ports":[{"PrivatePort":8211,"PublicPort":9211,"Type":"udp"},{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"},{"PrivatePort":8212,"PublicPort":9212,"Type":"tcp"}]},
+			  {"Id":"c2","Names":["/palprovisioner"],"Image":"ghcr.io/safwyls/palagent:beta","State":"running","Ports":[]},
+			  {"Id":"c3","Names":["/nginx"],"Image":"nginx:latest","State":"running","Ports":[]}
+			]`))
+		case r.URL.Path == "/containers/c1/json":
+			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=supervisor","PALAGENT_TOKEN=secret-must-not-leak"]}}`))
+		case r.URL.Path == "/containers/c2/json":
+			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=provisioner"]}}`))
 		default:
 			w.WriteHeader(http.StatusNoContent)
 		}
@@ -98,6 +111,36 @@ func toStrings(in []any) []string {
 		out[i] = v.(string)
 	}
 	return out
+}
+
+func TestProvisionerHealthDefaultsAndDiscover(t *testing.T) {
+	srv, _, dataRoot := newProvisioner(t)
+
+	// Health carries the wizard defaults from the provisioner's config.
+	_, health := do(t, srv, "GET", "/v1/health", testToken, nil)
+	prov, _ := health["provision"].(map[string]any)
+	if prov == nil || prov["dataRoot"] != dataRoot || prov["runAs"] != "568:568" || prov["imageTag"] != "latest" {
+		t.Fatalf("health provision block = %v", prov)
+	}
+
+	// Discover: the supervisor shows with its ports; the provisioner
+	// itself and unrelated containers don't; env never leaks.
+	resp, m := do(t, srv, "GET", "/v1/discover", testToken, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("discover: %d %v", resp.StatusCode, m)
+	}
+	servers := m["servers"].([]any)
+	if len(servers) != 1 {
+		t.Fatalf("discovered = %v, want exactly the supervisor", servers)
+	}
+	got := servers[0].(map[string]any)
+	if got["name"] != "palagent-main" || got["mode"] != "supervisor" || got["running"] != true ||
+		got["gamePort"] != float64(9211) || got["agentPort"] != float64(9811) {
+		t.Errorf("candidate = %v", got)
+	}
+	if strings.Contains(fmt.Sprint(m), "secret-must-not-leak") {
+		t.Fatal("discovery leaked container env")
+	}
 }
 
 func TestProvisionerValidation(t *testing.T) {

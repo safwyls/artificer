@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, type Server, type ServerWriteInput } from "../lib/api";
+import { api, type DiscoveredServer, type Server, type ServerWriteInput } from "../lib/api";
+import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { NumberField } from "./ui/number-field";
@@ -66,11 +67,46 @@ export function ServerFormDialog({
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ServerWriteInput>(() => formStateFor(mode, server));
+  // How the game runs decides which fields matter; the toggle keeps the
+  // create form from asking companion questions about supervised servers.
+  const [kind, setKind] = useState<"companion" | "supervised">("companion");
+
+  // Existing installs on the provisioner's host, offered for adoption.
+  const discoverQuery = useQuery({
+    queryKey: ["provision-discover"],
+    queryFn: () => api.provisionDiscover(),
+    enabled: open && mode === "create",
+    staleTime: 30_000,
+  });
+  const defaultsQuery = useQuery({
+    queryKey: ["provision-defaults"],
+    queryFn: () => api.provisionDefaults(),
+    enabled: open && mode === "create",
+    staleTime: 60_000,
+  });
+  const candidates = (discoverQuery.data?.servers ?? []).filter((c) => c.mode === "supervisor");
+
+  const adopt = (c: DiscoveredServer) => {
+    const host = defaultsQuery.data?.host || form.host;
+    setForm({
+      ...form,
+      name: form.name || c.name.replace(/^palagent-/, "").replace(/-/g, " "),
+      host,
+      gamePort: c.gamePort || form.gamePort,
+      restPort: c.restPort || form.restPort,
+      rconPort: c.rconPort || form.rconPort,
+      agentUrl: c.agentPort && host ? `http://${host}:${c.agentPort}` : form.agentUrl,
+      useRest: true,
+    });
+  };
 
   // Reset to fresh values every time the dialog opens, so stale form state
   // from a previous open (or a different server, in edit mode) doesn't leak in.
   useEffect(() => {
-    if (open) setForm(formStateFor(mode, server));
+    if (open) {
+      setForm(formStateFor(mode, server));
+      setKind("companion");
+    }
   }, [open, mode, server]);
 
   const save = useMutation({
@@ -113,6 +149,60 @@ export function ServerFormDialog({
             </button>
           )}
 
+          {mode === "create" && (
+            <div className="mt-4">
+              <div className="grid grid-cols-2 gap-1 rounded-xl border border-ink/10 bg-ink/5 p-1">
+                {(
+                  [
+                    ["companion", "Companion"],
+                    ["supervised", "Supervised"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setKind(value)}
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-xs font-semibold transition",
+                      kind === value ? "bg-white text-ink shadow-sm" : "text-ink/50 hover:text-ink",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {kind === "companion"
+                  ? "The game runs in its own container (an existing server image); a palagent beside it handles files and updates, and power goes through the docker proxy."
+                  : "The palagent container runs the game itself — power, updates, files and logs all flow through the agent. No container name or path mounts needed."}
+              </p>
+
+              {kind === "supervised" && candidates.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-ink/60">Found on the provisioner's host</p>
+                  {candidates.map((c) => (
+                    <button
+                      key={c.name}
+                      type="button"
+                      disabled={c.registered}
+                      onClick={() => adopt(c)}
+                      className="flex w-full items-center gap-2 rounded-xl border border-ink/10 px-3 py-2 text-left text-xs transition hover:border-ink/30 hover:bg-ink/5 disabled:opacity-50"
+                    >
+                      <span
+                        className={cn("h-2 w-2 shrink-0 rounded-full", c.running ? "bg-pal-green" : "bg-ink/30")}
+                      />
+                      <span className="font-mono">{c.name}</span>
+                      <span className="text-ink/40">agent :{c.agentPort || "?"}</span>
+                      <span className="ml-auto text-ink/40">
+                        {c.registered ? "already added" : "click to prefill"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Field label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <Field label="Host" value={form.host} onChange={(v) => setForm({ ...form, host: v })} />
@@ -145,6 +235,8 @@ export function ServerFormDialog({
             </div>
           </div>
 
+          {(mode === "edit" || kind === "companion") && (
+          <>
           <div className="mt-4 space-y-1.5">
             <Label>Container name (optional)</Label>
             <Input
@@ -199,6 +291,8 @@ export function ServerFormDialog({
               corrupts it. Not needed with an agent.
             </p>
           </div>
+          </>
+          )}
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

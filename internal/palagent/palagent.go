@@ -90,6 +90,12 @@ type Config struct {
 	// dirs are created under. Provisioner mode only.
 	DockerHost string
 	DataRoot   string
+	// PublicHost/DefaultRunAs/DefaultImageTag are the provisioner's
+	// wizard defaults, reported in /v1/health so palcon can prefill
+	// instead of asking. Provisioner mode only.
+	PublicHost      string
+	DefaultRunAs    string
+	DefaultImageTag string
 	// Version is the agent build version, reported in /v1/health.
 	Version string
 	Logger  *slog.Logger
@@ -211,8 +217,10 @@ func (a *Agent) Handler() http.Handler {
 		// answer 400 so palcon falls back to the docker proxy.
 		r.Post("/power/{action}", a.handlePower)
 		r.Get("/power/logs", a.handleGameLogs)
-		// Phase 5 — provisioner mode's single verb.
+		// Phase 5 — provisioner mode: the create verb and read-only
+		// discovery of existing installs.
 		r.Post("/provision", a.handleProvision)
+		r.Get("/discover", a.handleDiscover)
 	})
 	return r
 }
@@ -250,6 +258,8 @@ type Health struct {
 	DiskFreeBytes uint64 `json:"diskFreeBytes"`
 	// Game is the supervised process's state; nil in companion mode.
 	Game *GameStatus `json:"game,omitempty"`
+	// Provision carries the wizard defaults; nil outside provisioner mode.
+	Provision *ProvisionDefaults `json:"provision,omitempty"`
 	// Job is the running job if there is one, else the most recently
 	// finished one, else null. Exposing it here (not only under /jobs)
 	// lets palcon rediscover in-flight work after its own restart.
@@ -278,6 +288,14 @@ func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	if a.game != nil {
 		st := a.game.Status()
 		h.Game = &st
+	}
+	if a.cfg.Mode == "provisioner" {
+		h.Provision = &ProvisionDefaults{
+			DataRoot:   a.cfg.DataRoot,
+			PublicHost: a.cfg.PublicHost,
+			RunAs:      a.cfg.DefaultRunAs,
+			ImageTag:   a.cfg.DefaultImageTag,
+		}
 	}
 	writeJSON(w, http.StatusOK, h)
 }

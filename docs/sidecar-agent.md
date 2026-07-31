@@ -271,6 +271,13 @@ spinning up a new Palworld server from the dashboard — lands in two steps:
         - PALAGENT_MODE=provisioner
         - PALAGENT_TOKEN=${PROVISIONER_TOKEN}
         - PALAGENT_DATA_ROOT=/mnt/pool/apps/palworld-servers
+        # Wizard defaults, reported via /v1/health so the form prefills
+        # instead of asking. PUBLIC_HOST is the LAN address palcon and
+        # players reach this box on — it can't be guessed from inside a
+        # container ("localhost" would be the container itself).
+        - PALAGENT_PUBLIC_HOST=10.0.0.5
+        - PALAGENT_DEFAULT_RUN_AS=568:568   # default anyway
+        - PALAGENT_DEFAULT_IMAGE_TAG=latest # default anyway
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
         # MUST be mounted at the identical path: the provisioner mkdirs
@@ -285,6 +292,17 @@ spinning up a new Palworld server from the dashboard — lands in two steps:
   Caveat: one-click containers are plain docker containers — on TrueNAS
   they show as external/discovered, not as apps. Use the paste flow when
   you want them managed as TrueNAS custom apps.
+
+  With a provisioner configured, the wizard infers nearly everything:
+  `/v1/health` reports the provisioner's data root, public host, and
+  run-as/image-tag defaults; palcon adds a free-port proposal computed
+  from the servers it already tracks; and the form collapses to name +
+  MOTD with the rest behind an Advanced disclosure (data path disappears
+  entirely — one-click servers always live at `<data root>/<slug>`).
+  `/v1/discover` additionally lists palagent-shaped containers on the
+  host (name, mode, published ports, running state — never environment
+  values, which carry tokens), so the add-server dialog can offer
+  existing supervisor installs for adoption with their ports prefilled.
 
   ### Understand the risk before deploying the provisioner
 

@@ -187,6 +187,30 @@ export interface ProvisionResult {
   dataDir?: string;
 }
 
+/** What the wizard can prefill from the provisioner's configuration. */
+export interface ProvisionDefaults {
+  available: boolean;
+  host?: string;
+  dataRoot?: string;
+  runAs?: string;
+  imageTag?: string;
+  ports?: { game: number; rest: number; rcon: number; agent: number };
+}
+
+/** A Palworld-shaped container found on the provisioner's host. */
+export interface DiscoveredServer {
+  name: string;
+  image: string;
+  mode: string;
+  running: boolean;
+  gamePort?: number;
+  restPort?: number;
+  rconPort?: number;
+  agentPort?: number;
+  /** Already known to palcon (matched by agent port). */
+  registered: boolean;
+}
+
 export interface ServerInfo {
   servername: string;
   version: string;
@@ -488,6 +512,9 @@ export const api = {
   // supervisor stack file to deploy (docs/sidecar-agent.md phase 4).
   provisionServer: (input: ProvisionInput) =>
     request<ProvisionResult>("/servers/provision", { method: "POST", body: JSON.stringify(input) }),
+  provisionDefaults: () => request<ProvisionDefaults>("/servers/provision/defaults"),
+  provisionDiscover: () =>
+    request<{ available: boolean; servers: DiscoveredServer[] }>("/servers/provision/discover"),
   getServer: (id: number) => request<Server>(`/servers/${id}`),
   createServer: (input: ServerWriteInput) => request<Server>("/servers", { method: "POST", body: JSON.stringify(input) }),
   updateServer: (id: number, input: ServerWriteInput) =>

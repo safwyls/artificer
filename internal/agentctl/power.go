@@ -55,3 +55,17 @@ func (c *Client) Provision(ctx context.Context, req palagent.ProvisionRequest) (
 	}
 	return &res, nil
 }
+
+// DiscoveredServer mirrors the provisioner's wire type.
+type DiscoveredServer = palagent.DiscoveredServer
+
+// Discover lists Palworld-shaped containers on the provisioner's host.
+func (c *Client) Discover(ctx context.Context) ([]DiscoveredServer, error) {
+	var res struct {
+		Servers []DiscoveredServer `json:"servers"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/v1/discover", nil, &res, 30*time.Second); err != nil {
+		return nil, err
+	}
+	return res.Servers, nil
+}

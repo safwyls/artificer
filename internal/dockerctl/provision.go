@@ -77,6 +77,8 @@ type ContainerSpec struct {
 	Binds []string
 	// Ports maps host port -> container "port/proto" (e.g. "8211/udp").
 	Ports map[int]string
+	// Labels tag the container (e.g. as palcon-provisioned, for discovery).
+	Labels map[string]string
 	// RestartUnlessStopped applies docker's unless-stopped policy.
 	RestartUnlessStopped bool
 }
@@ -109,6 +111,9 @@ func (c *Client) ContainerCreate(ctx context.Context, spec ContainerSpec) (strin
 	if spec.User != "" {
 		payload["User"] = spec.User
 	}
+	if len(spec.Labels) > 0 {
+		payload["Labels"] = spec.Labels
+	}
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -138,4 +143,79 @@ func (c *Client) ContainerCreate(ctx context.Context, spec ContainerSpec) (strin
 		return "", fmt.Errorf("parsing create response: %w", err)
 	}
 	return created.ID, nil
+}
+
+// ContainerSummary is the discovery-relevant subset of a container.
+type ContainerSummary struct {
+	ID     string
+	Name   string
+	Image  string
+	State  string // running, exited, ...
+	Labels map[string]string
+	// Ports maps "containerPort/proto" -> published host port (absent when
+	// unpublished).
+	Ports map[string]int
+}
+
+// ContainerList returns all containers (running or not).
+func (c *Client) ContainerList(ctx context.Context) ([]ContainerSummary, error) {
+	body, status, err := c.do(ctx, http.MethodGet, "/containers/json?all=1", 20*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, dockerError("container list", status, body)
+	}
+	var raw []struct {
+		ID     string            `json:"Id"`
+		Names  []string          `json:"Names"`
+		Image  string            `json:"Image"`
+		State  string            `json:"State"`
+		Labels map[string]string `json:"Labels"`
+		Ports  []struct {
+			PrivatePort int    `json:"PrivatePort"`
+			PublicPort  int    `json:"PublicPort"`
+			Type        string `json:"Type"`
+		} `json:"Ports"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("parsing container list: %w", err)
+	}
+	out := make([]ContainerSummary, 0, len(raw))
+	for _, r := range raw {
+		name := ""
+		if len(r.Names) > 0 {
+			name = strings.TrimPrefix(r.Names[0], "/")
+		}
+		ports := map[string]int{}
+		for _, p := range r.Ports {
+			if p.PublicPort != 0 {
+				ports[fmt.Sprintf("%d/%s", p.PrivatePort, p.Type)] = p.PublicPort
+			}
+		}
+		out = append(out, ContainerSummary{ID: r.ID, Name: name, Image: r.Image, State: r.State, Labels: r.Labels, Ports: ports})
+	}
+	return out, nil
+}
+
+// InspectEnv returns a container's environment. Discovery callers must
+// filter it before letting values leave the trust boundary — it carries
+// tokens and passwords.
+func (c *Client) InspectEnv(ctx context.Context, id string) ([]string, error) {
+	body, status, err := c.do(ctx, http.MethodGet, "/containers/"+url.PathEscape(id)+"/json", 15*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, dockerError("inspect", status, body)
+	}
+	var payload struct {
+		Config struct {
+			Env []string `json:"Env"`
+		} `json:"Config"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("parsing inspect response: %w", err)
+	}
+	return payload.Config.Env, nil
 }

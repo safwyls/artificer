@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Download, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { api, type ProvisionInput, type ProvisionResult } from "../lib/api";
@@ -45,6 +45,17 @@ export function ProvisionServerDialog({
   const [result, setResult] = useState<ProvisionResult | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // The provisioner's configuration answers most of the form; the wizard
+  // only asks what it genuinely can't know.
+  const defaultsQuery = useQuery({
+    queryKey: ["provision-defaults"],
+    queryFn: () => api.provisionDefaults(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+  const defaults = defaultsQuery.data;
+  const oneClick = defaults?.available === true;
+
   useEffect(() => {
     if (open) {
       setForm(emptyForm);
@@ -52,6 +63,25 @@ export function ProvisionServerDialog({
       setCopied(false);
     }
   }, [open]);
+
+  // Prefill once the defaults arrive (the form was just reset on open, so
+  // nothing user-typed gets clobbered).
+  useEffect(() => {
+    if (open && defaults?.available) {
+      setForm((f) => ({
+        ...f,
+        host: defaults.host || f.host,
+        imageTag: defaults.imageTag || f.imageTag,
+        runAs: defaults.runAs || f.runAs,
+        gamePort: defaults.ports?.game ?? f.gamePort,
+        restPort: defaults.ports?.rest ?? f.restPort,
+        rconPort: defaults.ports?.rcon ?? f.rconPort,
+        agentPort: defaults.ports?.agent ?? f.agentPort,
+      }));
+    }
+  }, [open, defaults]);
+
+  const slug = (form.name || "server").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
   const provision = useMutation({
     mutationFn: (input: ProvisionInput) => api.provisionServer(input),
@@ -112,33 +142,23 @@ export function ProvisionServerDialog({
               </div>
             </div>
 
-            <div className="mt-4 space-y-1.5">
-              <Label>Data path</Label>
-              <Input
-                value={form.dataPath}
-                placeholder="/mnt/pool/apps/palworld-palhalla2"
-                onChange={(e) => setForm({ ...form, dataPath: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                Host directory for the install volume — the game (~10&nbsp;GB) and its saves live here.
+            {oneClick ? (
+              <p className="mt-4 rounded-xl border border-ink/10 bg-ink/5 px-3 py-2 font-mono text-xs text-ink/50">
+                data: {defaults?.dataRoot}/{slug || "<name>"} · managed by the provisioner
               </p>
-            </div>
-
-            <div className="mt-4 grid grid-cols-4 gap-3">
-              {(
-                [
-                  ["Game (UDP)", "gamePort"],
-                  ["REST", "restPort"],
-                  ["RCON", "rconPort"],
-                  ["Agent", "agentPort"],
-                ] as const
-              ).map(([label, key]) => (
-                <div key={key} className="space-y-1.5">
-                  <Label>{label}</Label>
-                  <NumberField value={form[key]} onChange={(v) => setForm({ ...form, [key]: v })} min={1} />
-                </div>
-              ))}
-            </div>
+            ) : (
+              <div className="mt-4 space-y-1.5">
+                <Label>Data path</Label>
+                <Input
+                  value={form.dataPath}
+                  placeholder="/mnt/pool/apps/palworld-palhalla2"
+                  onChange={(e) => setForm({ ...form, dataPath: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Host directory for the install volume — the game (~10&nbsp;GB) and its saves live here.
+                </p>
+              </div>
+            )}
 
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -157,6 +177,23 @@ export function ProvisionServerDialog({
                   onChange={(e) => setForm({ ...form, serverDesc: e.target.value })}
                 />
               </div>
+            </div>
+
+            <MaybeAdvanced advanced={oneClick}>
+            <div className="mt-4 grid grid-cols-4 gap-3">
+              {(
+                [
+                  ["Game (UDP)", "gamePort"],
+                  ["REST", "restPort"],
+                  ["RCON", "rconPort"],
+                  ["Agent", "agentPort"],
+                ] as const
+              ).map(([label, key]) => (
+                <div key={key} className="space-y-1.5">
+                  <Label>{label}</Label>
+                  <NumberField value={form[key]} onChange={(v) => setForm({ ...form, [key]: v })} min={1} />
+                </div>
+              ))}
             </div>
 
             <div className="mt-4 grid grid-cols-3 gap-3">
@@ -183,13 +220,20 @@ export function ProvisionServerDialog({
                 />
               </div>
             </div>
+            </MaybeAdvanced>
 
             <DialogFooter className="mt-6">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" className="clip-notch" disabled={provision.isPending}>
-                {provision.isPending ? "Generating..." : "Generate server"}
+                {provision.isPending
+                  ? oneClick
+                    ? "Deploying..."
+                    : "Generating..."
+                  : oneClick
+                    ? "Deploy server"
+                    : "Generate server"}
               </Button>
             </DialogFooter>
           </form>
@@ -294,5 +338,19 @@ export function ProvisionServerDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Children inline in paste mode; behind a disclosure when the provisioner
+ * already answered them. */
+function MaybeAdvanced({ advanced, children }: { advanced: boolean; children: React.ReactNode }) {
+  if (!advanced) return <>{children}</>;
+  return (
+    <details className="mt-4 rounded-xl border border-ink/10 px-3 pb-1">
+      <summary className="cursor-pointer py-2 text-xs font-semibold text-ink/50">
+        Advanced — ports, image, user, password (prefilled from the provisioner)
+      </summary>
+      {children}
+    </details>
   );
 }

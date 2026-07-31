@@ -143,6 +143,7 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 			req.RCONPort:  "25575/tcp",
 			req.AgentPort: "8811/tcp",
 		},
+		Labels:               map[string]string{"palcon.provisioned": "true", "palcon.slug": req.Slug},
 		RestartUnlessStopped: true,
 	})
 	if err != nil {
@@ -161,6 +162,80 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ProvisionDefaults is what the wizard can infer instead of asking: the
+// provisioner's own configuration is the source of truth for where and
+// how servers land on this host.
+type ProvisionDefaults struct {
+	DataRoot string `json:"dataRoot"`
+	// PublicHost is the address palcon (and players) reach this host on —
+	// PALAGENT_PUBLIC_HOST. Inside containers "localhost" means the
+	// container itself, so this must be declared, not guessed.
+	PublicHost string `json:"publicHost,omitempty"`
+	RunAs      string `json:"runAs"`
+	ImageTag   string `json:"imageTag"`
+}
+
+// DiscoveredServer is one Palworld-shaped container found on the host.
+// Deliberately free of environment values: a container's env carries its
+// token and admin password, and those never leave the provisioner.
+type DiscoveredServer struct {
+	Name    string `json:"name"`
+	Image   string `json:"image"`
+	Mode    string `json:"mode"` // supervisor | companion | "" (unknown)
+	Running bool   `json:"running"`
+	// Published host ports for the well-known container ports.
+	GamePort  int `json:"gamePort,omitempty"`
+	RESTPort  int `json:"restPort,omitempty"`
+	RCONPort  int `json:"rconPort,omitempty"`
+	AgentPort int `json:"agentPort,omitempty"`
+}
+
+// handleDiscover lists palagent-shaped containers on the host so the add
+// dialog can offer existing installs for adoption.
+func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.Mode != "provisioner" {
+		writeError(w, http.StatusBadRequest, "agent is not a provisioner")
+		return
+	}
+	containers, err := a.docker.ContainerList(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	var out []DiscoveredServer
+	for _, c := range containers {
+		if !strings.Contains(c.Image, "palagent") && c.Labels["palcon.provisioned"] != "true" {
+			continue
+		}
+		mode := ""
+		if env, err := a.docker.InspectEnv(r.Context(), c.ID); err == nil {
+			for _, e := range env {
+				// Only the mode crosses the boundary — never other env.
+				if v, ok := strings.CutPrefix(e, "PALAGENT_MODE="); ok {
+					mode = v
+				}
+			}
+		}
+		if mode == "provisioner" {
+			continue // that's us (or a peer), not a game server
+		}
+		if mode == "" {
+			mode = "companion" // palagent's default mode
+		}
+		out = append(out, DiscoveredServer{
+			Name:      c.Name,
+			Image:     c.Image,
+			Mode:      mode,
+			Running:   c.State == "running",
+			GamePort:  c.Ports["8211/udp"],
+			RESTPort:  c.Ports["8212/tcp"],
+			RCONPort:  c.Ports["25575/tcp"],
+			AgentPort: c.Ports["8811/tcp"],
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"servers": out})
+}
+
 // validateProvisionerConfig is called from New for mode=provisioner.
 func validateProvisionerConfig(cfg *Config) (*dockerctl.Client, error) {
 	if cfg.DataRoot == "" {
@@ -171,6 +246,12 @@ func validateProvisionerConfig(cfg *Config) (*dockerctl.Client, error) {
 	}
 	if cfg.DockerHost == "" {
 		cfg.DockerHost = "unix:///var/run/docker.sock"
+	}
+	if cfg.DefaultRunAs == "" {
+		cfg.DefaultRunAs = "568:568"
+	}
+	if cfg.DefaultImageTag == "" {
+		cfg.DefaultImageTag = "latest"
 	}
 	return dockerctl.New(cfg.DockerHost)
 }
