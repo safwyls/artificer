@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/safwyls/palcon/internal/palconfig"
 )
 
 // supervisor runs PalServer as a child process — supervisor mode's core
@@ -51,10 +53,11 @@ type GameStatus struct {
 }
 
 type supervisor struct {
-	installDir string
-	command    string
-	args       []string
-	grace      time.Duration
+	installDir    string
+	command       string
+	args          []string
+	adminPassword string
+	grace         time.Duration
 	// backoffFloor is the first crash-restart delay (doubles per failure);
 	// tests shrink it.
 	backoffFloor time.Duration
@@ -100,10 +103,11 @@ func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
 		command = "./PalServer.sh"
 	}
 	return &supervisor{
-		installDir:   cfg.InstallDir,
-		command:      command,
-		args:         args,
-		grace:        grace,
+		installDir:    cfg.InstallDir,
+		command:       command,
+		args:          args,
+		adminPassword: cfg.AdminPassword,
+		grace:         grace,
 		backoffFloor: backoff,
 		logger:       cfg.Logger,
 		jobsBusy:     jobsBusy,
@@ -352,8 +356,9 @@ func (s *supervisor) Logs(tail int) []string {
 }
 
 // prepareRuntime covers what server images do before first launch: seed
-// PalWorldSettings.ini from the game's shipped defaults, and put
-// steamclient.so where the game looks for it.
+// PalWorldSettings.ini from the game's shipped defaults, enforce the
+// management interfaces, and put steamclient.so where the game looks for
+// it.
 func (s *supervisor) prepareRuntime() {
 	iniDir := filepath.Join(s.installDir, "Pal", "Saved", "Config", "LinuxServer")
 	ini := filepath.Join(iniDir, "PalWorldSettings.ini")
@@ -365,6 +370,22 @@ func (s *supervisor) prepareRuntime() {
 					s.logger.Info("seeded PalWorldSettings.ini from defaults")
 				}
 			}
+		}
+	}
+
+	// Palworld ships with REST and RCON disabled — a supervised server
+	// left that way runs fine but is deaf to the dashboard. With an
+	// admin password configured, manageability is enforced every start.
+	if s.adminPassword != "" {
+		err := palconfig.Write(ini, map[string]string{
+			"AdminPassword":  s.adminPassword,
+			"RCONEnabled":    "True",
+			"RESTAPIEnabled": "True",
+		})
+		if err != nil {
+			s.logger.Warn("could not enforce management settings; the dashboard may not reach this server", "error", err)
+		} else {
+			s.logger.Info("enforced RCON/REST enabled with the configured admin password")
 		}
 	}
 

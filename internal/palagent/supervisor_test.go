@@ -215,6 +215,51 @@ func TestSupervisorUpdateGameMutualExclusion(t *testing.T) {
 	}
 }
 
+// A supervised server must be manageable by construction: with an admin
+// password configured, starting the game seeds the ini from the game's
+// defaults and flips the (shipped-disabled) REST/RCON interfaces on.
+func TestSupervisorEnforcesManagementConfig(t *testing.T) {
+	install := t.TempDir()
+	writeGame(t, install, steadyGame)
+	def := `[/Script/Pal.PalGameWorldSettings]
+OptionSettings=(Difficulty=None,AdminPassword="",RCONEnabled=False,RCONPort=25575,RESTAPIEnabled=False,RESTAPIPort=8212)
+`
+	if err := os.WriteFile(filepath.Join(install, "DefaultPalWorldSettings.ini"), []byte(def), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := palagent.New(palagent.Config{
+		Token: testToken, InstallDir: install, SteamCmd: "/bin/true", Version: "test",
+		Mode: "supervisor", StopGrace: 500 * time.Millisecond,
+		AdminPassword: "hunter2-but-longer",
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(agent.Handler())
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() {
+		req, _ := http.NewRequest("POST", srv.URL+"/v1/power/stop", nil)
+		req.Header.Set("Authorization", "Bearer "+testToken)
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			resp.Body.Close()
+		}
+	})
+
+	do(t, srv, "POST", "/v1/power/start", testToken, nil)
+	waitGameState(t, srv, "running")
+
+	ini, err := os.ReadFile(filepath.Join(install, "Pal", "Saved", "Config", "LinuxServer", "PalWorldSettings.ini"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`AdminPassword="hunter2-but-longer"`, "RCONEnabled=True", "RESTAPIEnabled=True"} {
+		if !strings.Contains(string(ini), want) {
+			t.Errorf("ini missing %s:\n%s", want, ini)
+		}
+	}
+}
+
 func TestCompanionRefusesPower(t *testing.T) {
 	srv, _ := newTestAgent(t, "exit 0")
 	if resp, _ := do(t, srv, "POST", "/v1/power/start", testToken, nil); resp.StatusCode != http.StatusBadRequest {

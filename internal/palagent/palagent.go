@@ -64,6 +64,14 @@ type Config struct {
 	// StopGrace is how long a SIGTERM'd game gets before SIGKILL;
 	// defaults to 30s.
 	StopGrace time.Duration
+	// AdminPassword, when set, is enforced into PalWorldSettings.ini
+	// before every game start — along with RCONEnabled/RESTAPIEnabled —
+	// so a supervised server is manageable by construction. Palworld
+	// ships with both interfaces disabled, which otherwise leaves a
+	// freshly provisioned server running but deaf to the dashboard.
+	// Authoritative: an ini edit to these three keys is re-applied from
+	// here on the next start. Supervisor mode only.
+	AdminPassword string
 	// Autostart starts the game on agent boot when no persisted desired
 	// state exists yet (a fresh provision). Defaults true in supervisor
 	// mode; a persisted "stopped" always wins.

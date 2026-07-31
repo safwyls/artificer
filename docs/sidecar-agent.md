@@ -85,11 +85,26 @@ services:
     environment:
       - PALAGENT_TOKEN=${PALAGENT_TOKEN}
       - PALAGENT_MODE=supervisor
+      # Enforced into PalWorldSettings.ini before every start, along
+      # with RCONEnabled/RESTAPIEnabled=True. Palworld ships with both
+      # interfaces DISABLED — without this the game runs but the
+      # dashboard can't connect to it.
+      - PALAGENT_ADMIN_PASSWORD=${PALWORLD_ADMIN_PASSWORD}
     volumes: ["./palworld:/palworld"]   # no :ro SaveGames overlay — the game writes its own saves
-    ports: ["8211:8211/udp"]
+    ports:
+      - "8211:8211/udp"   # game
+      - "8212:8212"       # REST — for palcon (omit if palcon shares palcon-net and targets the container name)
+      - "25575:25575"     # RCON — same
     networks: [default, palcon-net]
     restart: unless-stopped
 ```
+
+Dashboard wiring for a supervised server: the game's REST/RCON listen
+*inside the agent container*, so the palcon server row's Host must point
+where they're reachable — the host IP with the ports published as above,
+or the agent's container name on the shared network with the container
+ports. The REST/RCON password in the server row is the
+`PALAGENT_ADMIN_PASSWORD` value.
 
 ## Lifecycle coupling (the question that shaped this)
 
