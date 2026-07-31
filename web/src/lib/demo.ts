@@ -119,6 +119,7 @@ const SERVER: Server = {
   restPort: 8212,
   hasRestPassword: true,
   gamePort: 8211,
+  joinAddress: "play.verdant-isle.gg",
   useRest: true,
   enabled: true,
   savePath: "/saves/verdant-isle",

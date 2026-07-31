@@ -109,6 +109,8 @@ export interface Server {
   hasRestPassword: boolean;
   /** UDP port players join on — display metadata. */
   gamePort: number;
+  /** Public address players outside the LAN connect to; empty = use host. */
+  joinAddress: string;
   useRest: boolean;
   enabled: boolean;
   savePath: string;
@@ -127,6 +129,7 @@ export interface ServerWriteInput {
   restPort: number;
   restPassword?: string;
   gamePort: number;
+  joinAddress: string;
   useRest: boolean;
   enabled: boolean;
   savePath: string;

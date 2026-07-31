@@ -3,11 +3,19 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Crown, Sparkles, Swords, Target } from "lucide-react";
 import { api, ApiError, type Pal, type PlayerPals } from "../lib/api";
-import { DECK_BASE_ENTRIES, DECK_VARIANT_ENTRIES, palDeckNo, palIconUrl, palName } from "../lib/paldex";
+import {
+  DECK_BASE_ENTRIES,
+  DECK_UNCATCHABLE_ENTRIES,
+  DECK_VARIANT_ENTRIES,
+  palDeckNo,
+  palIconUrl,
+  palName,
+} from "../lib/paldex";
 import { initials, playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
 import { TalentTriplet } from "../components/TalentTriplet";
+import { TIER_LOOKS, TierTile, type TierLook } from "../components/TierTile";
 import { SavePathSetup } from "../components/SavePathSetup";
 import { ServerUnreachable } from "../components/ServerUnreachable";
 
@@ -41,73 +49,19 @@ function ownedLabels(p: PlayerPals): Set<string> {
 
 const BASE_ENTRIES = DECK_BASE_ENTRIES;
 const VARIANT_ENTRIES = DECK_VARIANT_ENTRIES;
+const UNCATCHABLE = DECK_UNCATCHABLE_ENTRIES;
 
 /**
  * The hero wears the game's passive-tier tiles as the server levels up:
  * the negative red tile below 25%, tier-1 ice to 50%, gold to 75%, and the
- * Rainbow aqua from 75%. Same anatomy as the in-game tiles — a thick
- * tier-colored left edge, dark ground with a diagonal facet, thin tinted
- * outline — using the tier colors sampled in tailwind.config.js.
+ * Rainbow aqua from 75%. The tile itself lives in TierTile — the Automation
+ * page's next-restart hero wears the same four looks.
  */
-function heroLook(pct: number) {
-  if (pct >= 75) {
-    return {
-      style: {
-        // Facet sliver layered over an opaque ground — transparent stops
-        // would show the page's paper through the tile.
-        background:
-          "linear-gradient(115deg, transparent 44%, rgba(122,255,242,0.16) 44%, rgba(122,255,242,0.05) 58%, transparent 58%), linear-gradient(120deg, #0f3b41 0%, #14545c 55%, #0f3b41 100%)",
-        borderColor: "rgba(122,255,242,0.55)",
-        borderLeft: "4px solid #7AFFF2",
-        boxShadow: "0 0 18px rgba(122,255,242,0.18)",
-      },
-      label: "text-tier-aqua/70",
-      number: "text-tier-aqua",
-      sub: "text-tier-aqua/70",
-      bar: "#7AFFF2",
-    };
-  }
-  if (pct >= 50) {
-    return {
-      style: {
-        // A step more saturated than the vendored tier.gold (#FFE083),
-        // which reads cream at this size; the reference tile's text is a
-        // richer yellow-gold.
-        background:
-          "linear-gradient(115deg, transparent 48%, rgba(255,211,77,0.12) 48%, rgba(255,211,77,0.04) 62%, transparent 62%), linear-gradient(120deg, #211f13 0%, #262214 60%, #211f13 100%)",
-        borderColor: "rgba(255,211,77,0.5)",
-        borderLeft: "4px solid #FFD34D",
-      },
-      label: "text-[#FFD34D]/70",
-      number: "text-[#FFD34D]",
-      sub: "text-[#FFD34D]/70",
-      bar: "#FFD34D",
-    };
-  }
-  if (pct >= 25) {
-    return {
-      style: {
-        background: "linear-gradient(120deg, #182220 0%, #1B2725 55%, #20302d 100%)",
-        borderColor: "rgba(233,248,250,0.35)",
-        borderLeft: "4px solid #E9F8FA",
-      },
-      label: "text-paper/60",
-      number: "text-paper",
-      sub: "text-paper/60",
-      bar: "#E9F8FA",
-    };
-  }
-  return {
-    style: {
-      background: "linear-gradient(120deg, #201a1c 0%, #241d1f 60%, #2a2124 100%)",
-      borderColor: "rgba(255,70,73,0.45)",
-      borderLeft: "4px solid #FF4649",
-    },
-    label: "text-paper/60",
-    number: "text-paper",
-    sub: "text-paper/60",
-    bar: "#FF4649",
-  };
+function heroLook(pct: number): TierLook {
+  if (pct >= 75) return TIER_LOOKS.aqua;
+  if (pct >= 50) return TIER_LOOKS.gold;
+  if (pct >= 25) return TIER_LOOKS.ice;
+  return TIER_LOOKS.red;
 }
 
 function PlayerChip({ name }: { name: string }) {
@@ -417,33 +371,38 @@ export function ServerPaldex() {
               const shownPct = heroPctParam !== null ? Number(heroPctParam) : pct;
               const look = heroLook(shownPct);
               return (
-                <section
-                  className="clip-notch-lg rounded-br-[10px] rounded-tl-[10px] border px-6 py-5 lg:px-8"
-                  style={look.style}
-                >
-                  <p className={cn("text-xs font-bold uppercase tracking-widest", look.label)}>Server Paldex</p>
-                  <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span className={cn("font-display text-4xl font-extrabold lg:text-5xl", look.number)}>
-                      {shownPct}%
-                    </span>
-                    <span className={cn("font-mono text-sm", look.sub)}>
+                <TierTile
+                  look={look}
+                  eyebrow="Server Paldex"
+                  value={`${shownPct}%`}
+                  sub={
+                    <>
                       {serverCaughtBase} of {baseTotal} species registered by someone
                       {serverCaughtVariants > 0 && ` · +${serverCaughtVariants}/${VARIANT_ENTRIES.length} variants`}
-                    </span>
-                  </div>
-                  <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${shownPct}%`, backgroundColor: look.bar }}
-                    />
-                  </div>
-                </section>
+                    </>
+                  }
+                  footer={
+                    <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${shownPct}%`, backgroundColor: look.accent }}
+                      />
+                    </div>
+                  }
+                />
               );
             })()}
 
             <section className="rounded-xl border border-ink/10 bg-white">
               <div className="border-b border-ink/5 px-5 py-4">
                 <h2 className="font-display text-base font-bold">Completion by player</h2>
+                {UNCATCHABLE.length > 0 && (
+                  <p className="mt-0.5 text-xs text-ink/45">
+                    {UNCATCHABLE.map((e) => palName(e.characterId)).join(", ")}{" "}
+                    {UNCATCHABLE.length === 1 ? "can't be caught, so it's" : "can't be caught, so they're"} left out
+                    of the count.
+                  </p>
+                )}
               </div>
               {players.length === 0 ? (
                 <p className="px-5 py-6 text-sm text-ink/60">No players in the save yet.</p>

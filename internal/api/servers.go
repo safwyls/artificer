@@ -22,6 +22,7 @@ type serverDTO struct {
 	RESTPort        int    `json:"restPort"`
 	HasRESTPassword bool   `json:"hasRestPassword"`
 	GamePort        int    `json:"gamePort"`
+	JoinAddress     string `json:"joinAddress"`
 	UseREST         bool   `json:"useRest"`
 	Enabled         bool   `json:"enabled"`
 	SavePath        string `json:"savePath"`
@@ -42,6 +43,7 @@ func toDTO(srv *store.Server) serverDTO {
 		RESTPort:        srv.RESTPort,
 		HasRESTPassword: srv.RESTPassword != "",
 		GamePort:        srv.GamePort,
+		JoinAddress:     srv.JoinAddress,
 		UseREST:         srv.UseREST,
 		Enabled:         srv.Enabled,
 		SavePath:        srv.SavePath,
@@ -61,6 +63,7 @@ type serverWriteRequest struct {
 	RESTPort      int    `json:"restPort"`
 	RESTPassword  string `json:"restPassword"`
 	GamePort      int    `json:"gamePort"`
+	JoinAddress   string `json:"joinAddress"`
 	UseREST       bool   `json:"useRest"`
 	Enabled       bool   `json:"enabled"`
 	SavePath      string `json:"savePath"`
@@ -128,7 +131,7 @@ func (s *Server) handleCreateServer(w http.ResponseWriter, r *http.Request) {
 		Name: req.Name, Host: req.Host,
 		RCONPort: req.RCONPort, RCONPassword: req.RCONPassword,
 		RESTPort: req.RESTPort, RESTPassword: req.RESTPassword, GamePort: req.GamePort,
-		UseREST: req.UseREST, Enabled: req.Enabled,
+		JoinAddress: req.JoinAddress, UseREST: req.UseREST, Enabled: req.Enabled,
 		SavePath: req.SavePath, ConfigPath: req.ConfigPath, InstallPath: req.InstallPath,
 		AgentURL: req.AgentURL, AgentToken: req.AgentToken, ContainerName: req.ContainerName,
 	}
@@ -157,7 +160,7 @@ func (s *Server) handleUpdateServer(w http.ResponseWriter, r *http.Request) {
 		ID: id, Name: req.Name, Host: req.Host,
 		RCONPort: req.RCONPort, RCONPassword: req.RCONPassword,
 		RESTPort: req.RESTPort, RESTPassword: req.RESTPassword, GamePort: req.GamePort,
-		UseREST: req.UseREST, Enabled: req.Enabled,
+		JoinAddress: req.JoinAddress, UseREST: req.UseREST, Enabled: req.Enabled,
 		SavePath: req.SavePath, ConfigPath: req.ConfigPath, InstallPath: req.InstallPath,
 		AgentURL: req.AgentURL, AgentToken: req.AgentToken, ContainerName: req.ContainerName,
 	}

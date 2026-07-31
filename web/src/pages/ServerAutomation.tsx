@@ -28,6 +28,7 @@ import { useAuth } from "../lib/auth";
 import { agoLabel } from "../lib/time";
 import { cn } from "../lib/utils";
 import { Button } from "../components/ui/button";
+import { TIER_LOOKS, TierTile, rampLook, tierText, type TierLook } from "../components/TierTile";
 import {
   Dialog,
   DialogContent,
@@ -119,6 +120,28 @@ export function ServerAutomation() {
   );
 }
 
+/**
+ * How far out the restart is, as a tier tile. The ramp reads the game's
+ * passive tiers as a countdown — Rainbow aqua while it's still tomorrow's
+ * problem, then gold, then the tier-1 ice grey, and finally the negative
+ * red once it's minutes away. Stops are interpolated on a log scale of
+ * minutes, so the tile warms imperceptibly from one half-minute tick to the
+ * next but visibly over the course of an afternoon.
+ */
+// Anchors are placed so a daily restart spends its daytime on Rainbow aqua
+// and only warms through the evening: pure red owns the last ten minutes,
+// which is when the in-game warnings actually fire.
+const RESTART_RAMP: [number, TierLook][] = [
+  [Math.log(5), TIER_LOOKS.red], //      5 minutes
+  [Math.log(45), TIER_LOOKS.ice], //    45 minutes
+  [Math.log(180), TIER_LOOKS.gold], //   3 hours
+  [Math.log(720), TIER_LOOKS.aqua], //  12 hours
+];
+
+function restartLook(minutes: number): TierLook {
+  return rampLook(RESTART_RAMP, Math.log(Math.max(1, minutes)));
+}
+
 /** The page's one bold element: the next restart, with the warning
  * broadcasts drawn as a cadence rail running into the restart moment. */
 function NextRestartHero({ schedules }: { schedules: RestartSchedule[] }) {
@@ -142,31 +165,50 @@ function NextRestartHero({ schedules }: { schedules: RestartSchedule[] }) {
   if (!next) return null;
 
   const when = next.at.toLocaleString([], { weekday: "long", hour: "2-digit", minute: "2-digit" });
+  // MOCKUP ONLY: ?restartIn=<minutes> previews any point on the ramp, like
+  // the Paldex hero's ?heroPct=.
+  const preview = new URLSearchParams(window.location.search).get("restartIn");
+  const minutesOut = preview !== null ? Number(preview) : (next.at.getTime() - now.getTime()) / 60_000;
+  const look = restartLook(minutesOut);
 
   return (
-    <section className="clip-notch-lg border border-brand-amber/40 bg-brand-amber/10 px-5 py-4 lg:px-7 lg:py-5">
-      <p className="text-xs font-bold uppercase tracking-widest text-ink/50">Next restart</p>
-      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="font-display text-2xl font-extrabold lg:text-3xl">{when}</span>
-        <span className="font-mono text-sm text-ink/60">{countdown(next.at, now)}</span>
-      </div>
-      {next.schedule.warningMinutes.length > 0 && (
-        <div className="mt-4 flex items-center gap-2" aria-label="Players are warned in-game before the restart">
-          {next.schedule.warningMinutes.map((m) => (
-            <div key={m} className="flex items-center gap-2">
-              <div className="flex flex-col items-center">
-                <span className="font-mono text-[11px] leading-tight text-ink/60">−{m}m</span>
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-brand-amber" />
+    <TierTile
+      look={look}
+      eyebrow="Next restart"
+      value={when}
+      // A weekday-and-clock string is a lot longer than the Paldex tile's
+      // two-digit percentage, so it sits one step down the scale.
+      valueClass="text-3xl lg:text-4xl"
+      sub={countdown(next.at, now)}
+      footer={
+        next.schedule.warningMinutes.length > 0 && (
+          <div
+            // Six warning presets don't fit a phone; the rail scrolls rather
+            // than wrapping, which would break the run-up-to-restart reading.
+            className="no-scrollbar mt-4 flex items-center gap-2 overflow-x-auto"
+            aria-label="Players are warned in-game before the restart"
+          >
+            {next.schedule.warningMinutes.map((m) => (
+              <div key={m} className="flex shrink-0 items-center gap-2">
+                <div className="flex flex-col items-center">
+                  <span className="font-mono text-[11px] leading-tight" style={{ color: tierText(look, 0.7) }}>
+                    −{m}m
+                  </span>
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: look.accent }} />
+                </div>
+                <span className="h-px w-6 lg:w-12" style={{ backgroundColor: tierText(look, 0.25) }} />
               </div>
-              <span className="h-px w-6 bg-ink/20 lg:w-12" />
-            </div>
-          ))}
-          <span className="clip-notch flex items-center gap-1.5 bg-brand-red px-2.5 py-1 font-display text-xs font-bold text-paper">
-            <RotateCw className="h-3 w-3" /> restart
-          </span>
-        </div>
-      )}
-    </section>
+            ))}
+            <span
+              className="clip-notch flex shrink-0 items-center gap-1.5 px-2.5 py-1 font-display text-xs font-bold"
+              style={{ backgroundColor: look.accent, color: look.ground[1] }}
+            >
+              <RotateCw className="h-3 w-3" /> restart
+            </span>
+          </div>
+        )
+      }
+    />
   );
 }
 

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut, MoreVertical, Pencil, Plus, Power, RefreshCw, Save, Trash2 } from "lucide-react";
+import { Gamepad2, LogOut, MoreVertical, Pencil, Plus, Power, RefreshCw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, errorDetail, type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { serverColor, initials } from "../lib/palette";
-import { cn } from "../lib/utils";
+import { cn, copyText, joinAddressFor } from "../lib/utils";
 import { ServerSphere } from "./ServerSphere";
 import { ServerFormDialog } from "./ServerFormDialog";
 import { ProvisionServerDialog } from "./ProvisionServerDialog";
@@ -126,6 +126,18 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                       }}
                     >
                       <RefreshCw className="h-4 w-4 text-ink/50" /> Refresh
+                    </button>
+                    {/* The join-address chip is desktop-header only, and a
+                        phone is where you'd paste it into Discord. */}
+                    <button
+                      className={menuItem}
+                      onClick={async () => {
+                        setMenuOpen(false);
+                        const address = joinAddressFor(server);
+                        if (await copyText(address)) toast.success(`Copied ${address}`);
+                      }}
+                    >
+                      <Gamepad2 className="h-4 w-4 text-ink/50" /> Copy join address
                     </button>
                     {can("save") && (
                       <button

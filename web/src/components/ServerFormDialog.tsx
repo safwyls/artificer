@@ -18,6 +18,7 @@ const emptyForm: ServerWriteInput = {
   restPort: 8212,
   restPassword: "",
   gamePort: 8211,
+  joinAddress: "",
   useRest: true,
   enabled: true,
   savePath: "",
@@ -38,6 +39,7 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
       restPort: server.restPort,
       restPassword: "",
       gamePort: server.gamePort,
+      joinAddress: server.joinAddress,
       useRest: server.useRest,
       enabled: server.enabled,
       savePath: server.savePath,
@@ -235,8 +237,20 @@ export function ServerFormDialog({
             <div className="space-y-1.5">
               <Label>Game port (players)</Label>
               <NumberField value={form.gamePort} onChange={(v) => setForm({ ...form, gamePort: v })} min={1} />
-              <p className="text-xs text-muted-foreground">Shown as the join address on the dashboard.</p>
             </div>
+          </div>
+
+          <div className="mt-4 space-y-1.5">
+            <Label>Join address (optional)</Label>
+            <Input
+              value={form.joinAddress}
+              onChange={(e) => setForm({ ...form, joinAddress: e.target.value })}
+              placeholder={`${form.host || "play.example.com"}:${form.gamePort}`}
+            />
+            <p className="text-xs text-muted-foreground">
+              What players type to connect from outside your network. Leave blank to show the host and game port
+              above, which only works on your own network.
+            </p>
           </div>
 
           {(mode === "edit" || kind === "companion") && (

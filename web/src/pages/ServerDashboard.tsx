@@ -5,7 +5,7 @@ import { Check, Gamepad2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { cn, copyText } from "../lib/utils";
+import { cn, copyText, isPrivateHost, joinAddressFor } from "../lib/utils";
 import { PlayerList } from "../components/PlayerList";
 import { ServerMetrics } from "../components/ServerMetrics";
 import { ServerPower } from "../components/ServerPower";
@@ -79,6 +79,10 @@ export function ServerDashboard() {
 
   const server = serverQuery.data;
   const playerCount = playersQuery.data?.length;
+  const joinAddress = joinAddressFor(server);
+  // No public address set and the management host is a private one: what the
+  // chip shows works for the admin's own machine and nobody else's.
+  const lanOnly = !server.joinAddress?.trim() && isPrivateHost(server.host);
 
   const headerButton = "font-display font-bold text-sm px-4 py-2 rounded-xl clip-notch transition";
 
@@ -92,16 +96,28 @@ export function ServerDashboard() {
             {server.name} · {infoQuery.data?.version ?? (infoQuery.isError ? "unreachable" : "checking...")}
             <button
               onClick={async () => {
-                if (await copyText(`${server.host}:${server.gamePort}`)) {
+                if (await copyText(joinAddress)) {
                   setJoinCopied(true);
                   setTimeout(() => setJoinCopied(false), 2000);
                 }
               }}
-              title="Copy the address players join on"
-              className="flex items-center gap-1.5 rounded-lg border border-ink/10 px-2 py-0.5 font-mono text-xs text-ink/50 transition hover:border-ink/25 hover:text-ink"
+              title={
+                lanOnly
+                  ? "This is Palcon's own route to the server — only reachable on your network. Add a join address in Settings for players outside it."
+                  : "Copy the address players join on"
+              }
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg border px-2 py-0.5 font-mono text-xs text-ink/50 transition hover:text-ink",
+                // Same tier-edge idea as the hero tiles, at chip scale: the
+                // amber edge marks an address that won't work off the LAN.
+                lanOnly
+                  ? "border-ink/10 border-l-2 border-l-brand-amber hover:border-ink/25 hover:border-l-brand-amber"
+                  : "border-ink/10 hover:border-ink/25",
+              )}
             >
               <Gamepad2 className="h-3.5 w-3.5" />
-              {server.host}:{server.gamePort}
+              {joinAddress}
+              {lanOnly && <span className="not-italic text-brand-amber">LAN only</span>}
               {joinCopied && <Check className="h-3 w-3 text-pal-green" />}
             </button>
           </p>

@@ -44,6 +44,12 @@ version whenever the caps change:
 - **Condenser stars** — 4 (+5% each).
 - **`TRUST_SCALE = 0.85`** in `stats.ts` — empirical calibration; re-check
   against in-game numbers if a patch touches the bond bonus.
+- **Uncatchable deck entries** — `UNCATCHABLE_DECK_LABELS` in
+  `web/src/lib/paldex.ts`: Paldeck numbers the game lists but never lets a
+  player acquire, excluded from completion so 100% stays reachable and the
+  missing-list stays actionable. Currently just #204 Astralym. A patch that
+  makes a raid boss catchable (or adds an uncatchable one) has to be
+  reflected here by hand — the save gives no catchability flag.
 - **Passive inheritance rates** — `web/src/lib/inheritance.ts`: the
   40/30/20/10 inherit-count weights, the matching random-passive roll, and
   the 4-slot cap are community reverse-engineered (the model every public

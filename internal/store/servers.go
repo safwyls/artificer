@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -23,8 +24,13 @@ type Server struct {
 	// GamePort is the UDP port players join on — display/provisioning
 	// metadata only; palcon never speaks the game protocol.
 	GamePort int
-	UseREST      bool
-	Enabled      bool
+	// JoinAddress is what players outside the LAN type to connect (a public
+	// hostname or IP, optionally with :port). Host is the management address
+	// and is typically private, so it can't stand in. Empty = show
+	// Host:GamePort.
+	JoinAddress string
+	UseREST     bool
+	Enabled     bool
 	// SavePath is an optional container-local path to the directory holding
 	// the server's Level.sav (phase 5 Pal viewer), bind-mounted read-only.
 	// Empty = not configured.
@@ -72,6 +78,7 @@ type serverRow struct {
 	RESTPort        int
 	RESTPasswordEnc string
 	GamePort        int
+	JoinAddress     string
 	UseREST         int
 	Enabled         int
 	SavePath        string
@@ -108,6 +115,7 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 		RESTPort:            r.RESTPort,
 		RESTPassword:        restPass,
 		GamePort:            r.GamePort,
+		JoinAddress:         r.JoinAddress,
 		UseREST:             r.UseREST != 0,
 		Enabled:             r.Enabled != 0,
 		SavePath:            r.SavePath,
@@ -123,11 +131,11 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 	}, nil
 }
 
-const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name, watchdog, public_token, backup_interval_hours, backup_keep`
+const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, join_address, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name, watchdog, public_token, backup_interval_hours, backup_keep`
 
 func scanServerRow(scan func(dest ...any) error) (serverRow, error) {
 	var r serverRow
-	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.GamePort, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.AgentURL, &r.AgentTokenEnc, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep)
+	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.GamePort, &r.JoinAddress, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.AgentURL, &r.AgentTokenEnc, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep)
 	return r, err
 }
 
@@ -181,9 +189,9 @@ func (s *Store) CreateServer(ctx context.Context, srv *Server) (int64, error) {
 		return 0, err
 	}
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO servers (name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc, normalizeGamePort(srv.GamePort), boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath, srv.AgentURL, agentEnc, srv.ContainerName)
+		INSERT INTO servers (name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, join_address, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc, normalizeGamePort(srv.GamePort), strings.TrimSpace(srv.JoinAddress), boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath, srv.AgentURL, agentEnc, srv.ContainerName)
 	if err != nil {
 		return 0, err
 	}
@@ -224,12 +232,12 @@ func (s *Store) UpdateServer(ctx context.Context, srv *Server) error {
 	_, err = s.db.ExecContext(ctx, `
 		UPDATE servers
 		SET name = ?, host = ?, rcon_port = ?, rcon_password_enc = ?,
-		    rest_port = ?, rest_password_enc = ?, game_port = ?, use_rest = ?, enabled = ?,
+		    rest_port = ?, rest_password_enc = ?, game_port = ?, join_address = ?, use_rest = ?, enabled = ?,
 		    save_path = ?, config_path = ?, install_path = ?,
 		    agent_url = ?, agent_token_enc = ?, container_name = ?
 		WHERE id = ?`,
 		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc,
-		normalizeGamePort(srv.GamePort), boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath,
+		normalizeGamePort(srv.GamePort), strings.TrimSpace(srv.JoinAddress), boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath,
 		srv.AgentURL, agentEnc, srv.ContainerName, srv.ID)
 	return err
 }

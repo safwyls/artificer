@@ -208,7 +208,7 @@ def soul_ranks(param):
     return out or status_points(param, "GotExStatusPointList")
 
 
-def parse_pal(param, instance_id):
+def parse_pal(param, instance_id, slot_index=None):
     char_id = text(param, "CharacterID")
     gender = text(param, "Gender")
     passives = v(param, "PassiveSkillList", "values", default=None) or []
@@ -249,7 +249,8 @@ def parse_pal(param, instance_id):
         "friendship": num(param, "FriendshipPoint"),
         "sick": sick,
         "souls": soul_ranks(param),
-        "slotIndex": num(param, "SlotId", "SlotIndex", default=-1),
+        # Storage sidecars pass their own slot; see storage_slots.
+        "slotIndex": num(param, "SlotId", "SlotIndex", default=-1) if slot_index is None else slot_index,
     }
 
 
@@ -520,21 +521,27 @@ def dashed_guid(hex32):
 
 
 def storage_slots(path):
-    """Yield (save_parameter, instance_id) for each occupied slot of a pal
-    storage file — a player's Dimensional Pal Storage sidecar
+    """Yield (save_parameter, instance_id, slot_index) for each occupied slot
+    of a pal storage file — a player's Dimensional Pal Storage sidecar
     (Players/<uid>_dps.sav) or the world's GlobalPalStorage.sav. Both hold a
     root SaveParameterArray whose slots carry the same SaveParameter shape as
     Level.sav's character entries, just as plain properties rather than
-    behind the RawData decoder. Empty slots hold CharacterID "None"."""
+    behind the RawData decoder. Empty slots hold CharacterID "None".
+
+    The slot index is the pal's *position in the array*, not its own
+    SlotId.SlotIndex: in storage the latter is stale, still holding whatever
+    palbox slot the pal came from (0-959, and duplicated across pals), while
+    the array position is where the game actually draws it — occupied runs
+    break on multiples of 30, the storage page size."""
     arr = read_gvas(path, {}).properties.get("SaveParameterArray")
-    for slot in v(arr, "value", "values", default=None) or []:
+    for index, slot in enumerate(v(arr, "value", "values", default=None) or []):
         param = v(slot, "SaveParameter")
         if not isinstance(param, dict):
             continue
         if text(param, "CharacterID") in ("", "None"):
             continue
         iid = str(unwrap(v(slot, "InstanceId", "InstanceId", default="")) or "")
-        yield param, iid
+        yield param, iid, index
 
 
 def main():
@@ -654,8 +661,8 @@ def main():
             if not uid:
                 continue
             try:
-                for param, iid in storage_slots(os.path.join(players_dir, fname)):
-                    record_for(uid)["storage"].append(parse_pal(param, iid))
+                for param, iid, slot in storage_slots(os.path.join(players_dir, fname)):
+                    record_for(uid)["storage"].append(parse_pal(param, iid, slot))
             except Exception as exc:  # a broken sidecar shouldn't sink the rest
                 print(f"warning: skipping {fname}: {exc}", file=sys.stderr)
 
@@ -664,14 +671,14 @@ def main():
     gps_path = os.path.join(os.path.dirname(level_path), "GlobalPalStorage.sav")
     if os.path.isfile(gps_path):
         try:
-            for param, iid in storage_slots(gps_path):
+            for param, iid, slot in storage_slots(gps_path):
                 owner = str(unwrap(v(param, "OwnerPlayerUId", default="")) or "")
                 olds = [str(o) for o in (v(param, "OldOwnerPlayerUIds", "values", default=None) or [])]
                 if owner:
                     olds.insert(0, owner)
                 for uid in olds:
                     if uid and uid != ZERO_GUID:
-                        record_for(uid)["storage"].append(parse_pal(param, iid))
+                        record_for(uid)["storage"].append(parse_pal(param, iid, slot))
                         break
         except Exception as exc:
             print(f"warning: skipping GlobalPalStorage.sav: {exc}", file=sys.stderr)

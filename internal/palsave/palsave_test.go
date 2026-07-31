@@ -277,6 +277,17 @@ func TestRead(t *testing.T) {
 				if len(ren.Storage) != 1 || ren.Storage[0].CharacterID != "Umihebi" {
 					t.Fatalf("ren storage wrong: %+v", ren.Storage)
 				}
+				// A storage pal's slot is its position in the sidecar's array,
+				// not its own SlotId (stale in storage) — so the empty slot 1
+				// between the fixture's two pals leaves JetDragon at 2, which
+				// is what the UI turns into "page 1, slot 3".
+				if kyoshi.Storage[0].SlotIndex != 0 || kyoshi.Storage[1].SlotIndex != 2 {
+					t.Fatalf("kyoshi storage slots = %d, %d; want 0, 2",
+						kyoshi.Storage[0].SlotIndex, kyoshi.Storage[1].SlotIndex)
+				}
+				if ren.Storage[0].SlotIndex != 0 {
+					t.Fatalf("ren storage slot = %d, want 0", ren.Storage[0].SlotIndex)
+				}
 				// Paldex records ride in Players/<uid>.sav: three registered
 				// species (Penguin's flag is false — seen, not registered),
 				// and capture counts. Ren's save has no RecordData at all,

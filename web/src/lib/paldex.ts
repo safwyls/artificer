@@ -183,10 +183,29 @@ export const DECK_ENTRIES: { label: string; characterId: string }[] = (() => {
     .sort((a, b) => deckLabelSort(a.label, b.label));
 })();
 
+/**
+ * Deck entries no player can ever register: bosses the game numbers in the
+ * Paldeck but never lets you acquire. They're excluded from completion — in
+ * the denominator they'd put 100% permanently out of reach, and in the
+ * "missing" list they'd send players hunting something that doesn't drop.
+ *
+ * Hand-maintained, like the other constants that drift with game patches
+ * (see docs/vendored-game-data.md): a raid boss that becomes catchable, or a
+ * new uncatchable one, has to be moved here by hand.
+ */
+export const UNCATCHABLE_DECK_LABELS: Record<string, string> = {
+  "204": "Astralym", // World Tree boss — fought, never captured
+};
+
+/** The uncatchable entries themselves, for the note that explains why the
+ * count stops short of the full deck. */
+export const DECK_UNCATCHABLE_ENTRIES = DECK_ENTRIES.filter((e) => e.label in UNCATCHABLE_DECK_LABELS);
+
 // Completion percentages track the numbered entries, like the game's own
 // counter — B-subspecies sit under the same number in-game.
-export const DECK_BASE_ENTRIES = DECK_ENTRIES.filter((e) => /^\d+$/.test(e.label));
-export const DECK_VARIANT_ENTRIES = DECK_ENTRIES.filter((e) => !/^\d+$/.test(e.label));
+const catchable = DECK_ENTRIES.filter((e) => !(e.label in UNCATCHABLE_DECK_LABELS));
+export const DECK_BASE_ENTRIES = catchable.filter((e) => /^\d+$/.test(e.label));
+export const DECK_VARIANT_ENTRIES = catchable.filter((e) => !/^\d+$/.test(e.label));
 
 /** Rarity 8+ is the game's own threshold for a rare (blue-tier) pal, 12+ for
  * legendary — used only to tint the icon frame. */
