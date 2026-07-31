@@ -251,6 +251,44 @@ spinning up a new Palworld server from the dashboard — lands in two steps:
   they show as external/discovered, not as apps. Use the paste flow when
   you want them managed as TrueNAS custom apps.
 
+  ### Understand the risk before deploying the provisioner
+
+  **A container holding the docker socket as root IS root on the host** —
+  every pool, every dataset. If arbitrary code ever runs inside the
+  provisioner container, there is no second wall. Deploying it is a
+  deliberate trade of that exposure for one-click convenience; the paste
+  flow delivers identical capability without it. Know the three paths in:
+
+  1. **Its API.** Bounded by design: one locked verb, template in code,
+     token-authenticated. A fully hostile caller with the token can stamp
+     out Palworld-supervisor containers from this repo's image — fill a
+     disk, squat free host ports, chown under the data root — and not
+     reach host root. Keep it that way operationally: **never publish the
+     provisioner's port**; reach it over the compose network by service
+     name, so only palcon (and containers beside it) can talk to it at
+     all.
+  2. **Bugs in the provisioner itself.** The verb handler and its docker
+     payload builder are the code standing in front of a root socket —
+     the one place in this repo where an input-validation slip is
+     host-critical. Keep this surface tiny and reviewed; new
+     caller-controlled fields need a hostile-input argument before they
+     land.
+  3. **Supply chain — the realistic one.** The provisioner runs this
+     repo's own image: whoever controls the GitHub account or CI pipeline
+     controls a root-equivalent container on the host. This class of risk
+     predates phase 5 (any socket-proxy image carries it), but the
+     provisioner moves it onto *this* repo — treat the GitHub account as
+     holding root on the NAS, because it effectively does. 2FA, no stale
+     tokens, review workflow changes.
+
+  Risk-reduction modes, in increasing order of caution: run it
+  continuously (homelab-normal, same class as Portainer/Watchtower);
+  **keep it stopped and start it only while provisioning** — palcon
+  degrades gracefully to the paste flow whenever it's unreachable, so
+  nothing else breaks; or don't deploy it at all and paste. The
+  supervisors and companions it creates never hold the socket — a
+  compromised game server gets its own volume and verbs, nothing more.
+
 ## Phases
 
 1. **Agent skeleton** — SHIPPED 2026-07 (API v1): token auth, `/health`,
