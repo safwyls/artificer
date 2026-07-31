@@ -86,6 +86,9 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 
 			r.Get("/servers", s.handleListServers)
 			r.With(s.requireAdmin).Post("/servers", s.handleCreateServer)
+			// New-server wizard: registers the row and generates the
+			// supervisor stack file for the human to deploy.
+			r.With(s.requireAdmin).Post("/servers/provision", s.handleProvisionServer)
 			r.Route("/servers/{serverID}", func(r chi.Router) {
 				r.Get("/", s.handleGetServer)
 				r.With(s.requireAdmin).Put("/", s.handleUpdateServer)

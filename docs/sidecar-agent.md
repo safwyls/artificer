@@ -202,12 +202,15 @@ Palcon never gains docker create/mount rights (see the proxy comment in
 root-equivalent, and no socket proxy can validate payloads). The goal —
 spinning up a new Palworld server from the dashboard — lands in two steps:
 
-- **Phase 4, one-paste**: a "New server" wizard in palcon (name, ports,
-  world settings, generated token) emits a complete per-server stack file.
-  The human pastes it and deploys; the supervisor agent installs the game
-  via SteamCMD on first boot (visible as a job in the dashboard), writes
-  the config the wizard chose, and the server appears fully manageable.
-  Everything is dashboard-driven except the single paste.
+- **Phase 4, one-paste — SHIPPED 2026-07**: the "New server" wizard
+  (behind the add-server dialog) registers a fully wired server row —
+  host, ports, generated admin password and agent token, REST/RCON
+  credentials — and emits the complete supervisor stack file with copy /
+  download. The human pastes it and deploys; the agent installs the game
+  via SteamCMD on first boot (progress on the server's card) and comes up
+  already connected, because PALAGENT_ADMIN_PASSWORD enforces the
+  management interfaces. Everything is dashboard-driven except the single
+  paste (`POST /servers/provision`, admin-only).
 - **Phase 5 (optional), one-click**: a dedicated *provisioner* container
   holds the docker create rights palcon must never have, exposing one
   fixed verb — "stamp out a palworld stack with these parameters" — with

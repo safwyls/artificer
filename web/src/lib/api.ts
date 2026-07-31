@@ -151,6 +151,27 @@ export interface SteamUpdateStatus {
   };
 }
 
+export interface ProvisionInput {
+  name: string;
+  host: string;
+  dataPath: string;
+  gamePort: number;
+  restPort: number;
+  rconPort: number;
+  agentPort: number;
+  imageTag: string;
+  /** Blank = generated server-side. */
+  adminPassword?: string;
+}
+
+export interface ProvisionResult {
+  server: Server;
+  adminPassword: string;
+  agentToken: string;
+  /** The complete per-server compose stack to paste and deploy. */
+  stack: string;
+}
+
 export interface ServerInfo {
   servername: string;
   version: string;
@@ -448,6 +469,10 @@ export const api = {
   backupDownloadURL: (id: number, name: string) => `/api/servers/${id}/backups/${name}/download`,
 
   listServers: () => request<Server[]>("/servers"),
+  // New-server wizard: registers a fully wired row and returns the
+  // supervisor stack file to deploy (docs/sidecar-agent.md phase 4).
+  provisionServer: (input: ProvisionInput) =>
+    request<ProvisionResult>("/servers/provision", { method: "POST", body: JSON.stringify(input) }),
   getServer: (id: number) => request<Server>(`/servers/${id}`),
   createServer: (input: ServerWriteInput) => request<Server>("/servers", { method: "POST", body: JSON.stringify(input) }),
   updateServer: (id: number, input: ServerWriteInput) =>

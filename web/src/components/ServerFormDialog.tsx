@@ -53,11 +53,14 @@ export function ServerFormDialog({
   onOpenChange,
   mode,
   server,
+  onProvision,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   server?: Server;
+  /** Create mode only: switch to the new-server wizard instead. */
+  onProvision?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ServerWriteInput>(() => formStateFor(mode, server));
@@ -96,6 +99,17 @@ export function ServerFormDialog({
               {mode === "edit" && " Leave a password blank to keep the current one."}
             </DialogDescription>
           </DialogHeader>
+
+          {mode === "create" && onProvision && (
+            <button
+              type="button"
+              onClick={onProvision}
+              className="mt-3 w-full rounded-xl border border-dashed border-ink/20 px-3 py-2 text-left text-xs text-ink/60 transition hover:border-ink/40 hover:bg-ink/5"
+            >
+              Starting from scratch? <span className="font-semibold text-ink">Provision a new server</span> —
+              palcon generates the whole deployment for you.
+            </button>
+          )}
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Field label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
