@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading save files — Palcon docs</title>
+<meta name="description" content="How Player pals, Guilds and Paldex work — and why Palcon can never write a save.">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Reading save files — Palcon docs">
+<meta property="og:description" content="How Player pals, Guilds and Paldex work — and why Palcon can never write a save.">
+<meta property="og:url" content="https://safwyls.github.io/palcon/docs/save-files.html">
+<meta property="og:image" content="https://safwyls.github.io/palcon/assets/og.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html" aria-label="Palcon home">
+      <span class="sphere online"><span class="ring"><span class="core">Pa</span></span><span class="dot"></span></span>
+      <span class="wordmark">palcon</span>
+      <span class="crumb-docs">docs</span>
+    </a>
+    <nav class="nav-links" aria-label="Site">
+      <a class="hide-sm" href="../index.html#features">Features</a>
+      <a class="hide-sm" href="../index.html#get-started">Quickstart</a>
+      <a class="nav-gh" href="https://github.com/safwyls/palcon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+    </nav>
+  </div>
+</header>
+<div class="docs-shell">
+  <details class="side-mobile">
+    <summary>Docs navigation</summary>
+    <nav aria-label="Docs">
+<div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">First login & your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--sky)"><span class="ring"><span class="core"></span></span></span>Configuration</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+    <li><a href="power-control.html">Power control</a></li>
+    <li><a href="save-files.html" class="active" aria-current="page">Reading save files</a></li>
+    <li><a href="users.html">Users & permissions</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>Guides</div>
+  <ul>
+    <li><a href="automation.html">Automation & alerts</a></li>
+    <li><a href="palagent.html">palagent sidecar</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div>
+    </nav>
+  </details>
+  <aside class="side" aria-label="Docs">
+<div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">First login & your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--sky)"><span class="ring"><span class="core"></span></span></span>Configuration</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+    <li><a href="power-control.html">Power control</a></li>
+    <li><a href="save-files.html" class="active" aria-current="page">Reading save files</a></li>
+    <li><a href="users.html">Users & permissions</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>Guides</div>
+  <ul>
+    <li><a href="automation.html">Automation & alerts</a></li>
+    <li><a href="palagent.html">palagent sidecar</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div>
+  </aside>
+  <main class="doc" id="content">
+    <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Configuration <span>/</span> Reading save files</p>
+    <h1>Reading save files</h1>
+
+<p class="lead">Party composition, palbox contents, per-pal stats and guilds aren't exposed by
+REST or RCON at all, so those views read <code>Level.sav</code> (Unreal's GVAS format) directly.
+Read-only, as a hard rule — the save is only ever opened for reading.</p>
+
+<h2 id="setup">Setup</h2>
+<p>Mount the world save directory into Palcon's container read-only (the
+<a href="deploy-truenas.html#custom-app">deploy spec</a> shows the volume line), then set the
+server's <b>Save path</b> to the path <i>inside the container</i> — e.g.
+<code>/saves/myserver</code>, not the host path. The directory must contain
+<code>Level.sav</code>.</p>
+<p>With a <a href="palagent.html">palagent</a> configured, no mount is needed: the agent serves
+the save bundle over its API and Palcon caches it locally.</p>
+
+<h2 id="how-it-works">How it works</h2>
+<ul>
+  <li><b>No home-grown GVAS parser.</b> A bundled Python extractor builds on
+    <a href="https://github.com/cheahjs/palworld-save-tools">palworld-save-tools</a> (MIT, the
+    community standard). Results are cached against <code>Level.sav</code>'s mtime, so re-parsing
+    only happens after the game autosaves.</li>
+  <li><b>Only the needed sections are parsed.</b> A world save holds ~22 sections, and the unread
+    ones (foliage, placed structures, container slots) are the enormous ones. Skipping them makes
+    parsing ~100× faster and keeps memory flat on an established world.</li>
+  <li><b>Both save containers are supported.</b> <code>PlZ</code> (zlib, original) and
+    <code>PlM</code> (Oodle, game builds 0.6+). The <code>PlM</code> unwrapper is
+    decompress-only, so the read-only rule is structural, not just a convention.</li>
+  <li><b>Newer layouts are handled leniently.</b> Decoding locates shifted structures by shape
+    rather than fixed offsets, so a game update is unlikely to break it outright.</li>
+</ul>
+
+<div class="callout note"><p>Pal artwork, names and map imagery are © Pocketpair, Inc., and are
+credited on-screen wherever they appear.</p></div>
+
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="power-control.html"><small>← Previous</small><b>Power control</b></a><a class="pager-card next" href="users.html"><small>Next →</small><b>Users & permissions</b></a></nav>
+  </main>
+</div>
+<footer class="doc-footer">
+  <div class="wrap-doc">
+    <p>Palcon is an unofficial fan project, not affiliated with or endorsed by Pocketpair.
+    Palworld, pal artwork and map imagery are © Pocketpair, Inc.</p>
+    <p><a href="https://github.com/safwyls/palcon">GitHub</a> ·
+       <a href="https://github.com/safwyls/palcon/issues">Issues</a> ·
+       <a href="../index.html">Homepage</a></p>
+  </div>
+</footer>
+<script>
+  for (const card of document.querySelectorAll(".code-card[data-copy]")) {
+    const btn = card.querySelector(".copy-btn");
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(card.querySelector("pre").innerText);
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = "Copy"), 1600);
+      } catch { btn.textContent = "Select & copy"; }
+    });
+  }
+</script>
+</body>
+</html>

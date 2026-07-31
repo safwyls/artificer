@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Environment variables — Palcon docs</title>
+<meta name="description" content="Every variable Palcon reads, and which ones you must not lose.">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Environment variables — Palcon docs">
+<meta property="og:description" content="Every variable Palcon reads, and which ones you must not lose.">
+<meta property="og:url" content="https://safwyls.github.io/palcon/docs/environment.html">
+<meta property="og:image" content="https://safwyls.github.io/palcon/assets/og.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html" aria-label="Palcon home">
+      <span class="sphere online"><span class="ring"><span class="core">Pa</span></span><span class="dot"></span></span>
+      <span class="wordmark">palcon</span>
+      <span class="crumb-docs">docs</span>
+    </a>
+    <nav class="nav-links" aria-label="Site">
+      <a class="hide-sm" href="../index.html#features">Features</a>
+      <a class="hide-sm" href="../index.html#get-started">Quickstart</a>
+      <a class="nav-gh" href="https://github.com/safwyls/palcon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+    </nav>
+  </div>
+</header>
+<div class="docs-shell">
+  <details class="side-mobile">
+    <summary>Docs navigation</summary>
+    <nav aria-label="Docs">
+<div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">First login & your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--sky)"><span class="ring"><span class="core"></span></span></span>Configuration</div>
+  <ul>
+    <li><a href="environment.html" class="active" aria-current="page">Environment variables</a></li>
+    <li><a href="power-control.html">Power control</a></li>
+    <li><a href="save-files.html">Reading save files</a></li>
+    <li><a href="users.html">Users & permissions</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>Guides</div>
+  <ul>
+    <li><a href="automation.html">Automation & alerts</a></li>
+    <li><a href="palagent.html">palagent sidecar</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div>
+    </nav>
+  </details>
+  <aside class="side" aria-label="Docs">
+<div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">First login & your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--sky)"><span class="ring"><span class="core"></span></span></span>Configuration</div>
+  <ul>
+    <li><a href="environment.html" class="active" aria-current="page">Environment variables</a></li>
+    <li><a href="power-control.html">Power control</a></li>
+    <li><a href="save-files.html">Reading save files</a></li>
+    <li><a href="users.html">Users & permissions</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>Guides</div>
+  <ul>
+    <li><a href="automation.html">Automation & alerts</a></li>
+    <li><a href="palagent.html">palagent sidecar</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div>
+  </aside>
+  <main class="doc" id="content">
+    <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Configuration <span>/</span> Environment variables</p>
+    <h1>Environment variables</h1>
+
+<p class="lead">Palcon is configured entirely through environment variables — there is no config
+file. Two of them are secrets you should treat as part of your backup.</p>
+
+<table>
+  <tr><th>Variable</th><th>Required</th><th>Default</th><th>Purpose</th></tr>
+  <tr><td><code>HTTP_ADDR</code></td><td>no</td><td><code>:8080</code></td><td>listen address</td></tr>
+  <tr><td><code>DATA_DIR</code></td><td>no</td><td><code>/data</code> in the image</td><td>where <code>palcon.db</code> lives</td></tr>
+  <tr><td><code>JWT_SECRET</code></td><td>yes</td><td>—</td><td>signs session cookies</td></tr>
+  <tr><td><code>ENCRYPTION_KEY</code></td><td>yes</td><td>—</td><td>encrypts stored RCON/REST passwords; exactly 32 bytes</td></tr>
+  <tr><td><code>ADMIN_USERNAME</code></td><td>no</td><td><code>admin</code></td><td>bootstrap admin username (first run only)</td></tr>
+  <tr><td><code>ADMIN_PASSWORD</code></td><td>first run</td><td>—</td><td>bootstrap admin password (first run only)</td></tr>
+  <tr><td><code>DOCKER_HOST</code></td><td>no</td><td>—</td><td>scoped socket proxy for <a href="power-control.html">power control</a>, e.g. <code>tcp://docker-proxy:2375</code>; unset disables it</td></tr>
+  <tr><td><code>PROVISIONER_URL</code></td><td>no</td><td>—</td><td><a href="palagent.html#provisioner">provisioner-mode palagent</a> for one-click server creation; unset keeps the wizard's paste flow</td></tr>
+  <tr><td><code>PROVISIONER_TOKEN</code></td><td>no</td><td>—</td><td>bearer token matching the provisioner's <code>PALAGENT_TOKEN</code></td></tr>
+</table>
+
+<div class="callout danger"><p><b><code>ENCRYPTION_KEY</code> is unrecoverable.</b> It must be
+exactly 32 characters and must never change: it encrypts every stored server credential. If it's
+lost, re-enter each server's passwords. Back it up with the database.</p></div>
+<div class="callout warn"><p><code>JWT_SECRET</code> needs at least 32 characters — shorter
+values fail startup. Changing it signs everyone out, nothing worse.</p></div>
+
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="first-server.html"><small>← Previous</small><b>First login & your first server</b></a><a class="pager-card next" href="power-control.html"><small>Next →</small><b>Power control</b></a></nav>
+  </main>
+</div>
+<footer class="doc-footer">
+  <div class="wrap-doc">
+    <p>Palcon is an unofficial fan project, not affiliated with or endorsed by Pocketpair.
+    Palworld, pal artwork and map imagery are © Pocketpair, Inc.</p>
+    <p><a href="https://github.com/safwyls/palcon">GitHub</a> ·
+       <a href="https://github.com/safwyls/palcon/issues">Issues</a> ·
+       <a href="../index.html">Homepage</a></p>
+  </div>
+</footer>
+<script>
+  for (const card of document.querySelectorAll(".code-card[data-copy]")) {
+    const btn = card.querySelector(".copy-btn");
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(card.querySelector("pre").innerText);
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = "Copy"), 1600);
+      } catch { btn.textContent = "Select & copy"; }
+    });
+  }
+</script>
+</body>
+</html>
