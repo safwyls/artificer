@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/backup"
 	"github.com/safwyls/palcon/internal/dockerctl"
 	"github.com/safwyls/palcon/internal/notify"
@@ -33,12 +34,15 @@ type Server struct {
 	// "send a test message" endpoint.
 	notifier *notify.Notifier
 	// backups runs the snapshot schedule and owns the archive directory.
-	backups      *backup.Runner
+	backups *backup.Runner
+	// files resolves save/config to a local path — a bind mount, or the
+	// agent-synced cache (docs/sidecar-agent.md phase 2).
+	files        *agentfiles.Syncer
 	loginLimiter *loginLimiter
 }
 
-func New(st *store.Store, jwtSecret []byte, logger *slog.Logger, palReader *palsave.Reader, docker *dockerctl.Client, notifier *notify.Notifier, backups *backup.Runner) *Server {
-	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, palReader: palReader, docker: docker, notifier: notifier, backups: backups, loginLimiter: newLoginLimiter()}
+func New(st *store.Store, jwtSecret []byte, logger *slog.Logger, palReader *palsave.Reader, docker *dockerctl.Client, notifier *notify.Notifier, backups *backup.Runner, files *agentfiles.Syncer) *Server {
+	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, palReader: palReader, docker: docker, notifier: notifier, backups: backups, files: files, loginLimiter: newLoginLimiter()}
 }
 
 // Routes builds the full HTTP handler: JSON API under /api, and the built

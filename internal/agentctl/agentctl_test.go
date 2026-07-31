@@ -91,6 +91,54 @@ func TestClientRoundTrip(t *testing.T) {
 	}
 }
 
+func TestClientSyncSave(t *testing.T) {
+	// newAgent's install dir isn't exposed; spin our own with a world.
+	install := t.TempDir()
+	world := filepath.Join(install, "Pal", "Saved", "SaveGames", "0", "W1")
+	if err := os.MkdirAll(world, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(world, "Level.sav"), []byte("v1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := palagent.New(palagent.Config{
+		Token: token, InstallDir: install, SteamCmd: "/bin/true", Version: "test",
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(agent.Handler())
+	t.Cleanup(srv.Close)
+	client, _ := agentctl.New(srv.URL, token)
+	ctx := context.Background()
+
+	dest := filepath.Join(t.TempDir(), "cache")
+	etag, changed, err := client.SyncSave(ctx, dest, "")
+	if err != nil || !changed || etag == "" {
+		t.Fatalf("first sync: etag=%q changed=%v err=%v", etag, changed, err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dest, "Level.sav")); string(got) != "v1" {
+		t.Fatalf("synced Level.sav = %q", got)
+	}
+
+	// Unchanged: 304 path, no rewrite.
+	if _, changed, err = client.SyncSave(ctx, dest, etag); err != nil || changed {
+		t.Fatalf("unchanged sync: changed=%v err=%v", changed, err)
+	}
+
+	// Save rewritten → new etag, new content.
+	if err := os.WriteFile(filepath.Join(world, "Level.sav"), []byte("v2-longer"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, changed, err = client.SyncSave(ctx, dest, etag); err != nil || !changed {
+		t.Fatalf("changed sync: changed=%v err=%v", changed, err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dest, "Level.sav")); string(got) != "v2-longer" {
+		t.Errorf("resynced Level.sav = %q", got)
+	}
+}
+
 func TestClientErrorMapping(t *testing.T) {
 	srv := newAgent(t, "sleep 2")
 

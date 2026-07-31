@@ -30,7 +30,8 @@ import (
 
 // APIVersion is reported in /v1/health so palcon can refuse to drive an
 // agent it doesn't understand (and vice versa) instead of failing weirdly.
-const APIVersion = 1
+// 1 = steam verbs; 2 adds the file verbs (save bundle, config).
+const APIVersion = 2
 
 // minTokenLen is the floor for the shared token; the agent refuses to
 // start below it rather than run guessably authenticated.
@@ -91,6 +92,11 @@ func (a *Agent) Handler() http.Handler {
 		r.Post("/steam/clear-cache", a.handleClearCache)
 		r.Post("/steam/update", a.handleStartUpdate)
 		r.Get("/jobs/{jobID}", a.handleGetJob)
+		// Phase 2 file verbs — fixed locations only, never a path
+		// parameter (docs/sidecar-agent.md).
+		r.Get("/files/save", a.handleGetSave)
+		r.Get("/files/config", a.handleGetConfig)
+		r.Put("/files/config", a.handlePutConfig)
 	})
 	return r
 }
@@ -120,6 +126,11 @@ type Health struct {
 	Mode          string `json:"mode"`
 	InstallDir    string `json:"installDir"`
 	InstallDirOk  bool   `json:"installDirOk"`
+	// SaveFound/ConfigFound report whether the phase 2 file verbs have
+	// anything to serve, so palcon can distinguish "not synced yet" from
+	// "this install has no world".
+	SaveFound     bool   `json:"saveFound"`
+	ConfigFound   bool   `json:"configFound"`
 	DiskFreeBytes uint64 `json:"diskFreeBytes"`
 	// Job is the running job if there is one, else the most recently
 	// finished one, else null. Exposing it here (not only under /jobs)
@@ -132,6 +143,8 @@ func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	if _, err := os.Stat(a.cfg.InstallDir); err == nil {
 		installOk = true
 	}
+	_, saveErr := a.findSaveDir()
+	_, configErr := os.Stat(a.configPath())
 	writeJSON(w, http.StatusOK, Health{
 		Agent:         "palagent",
 		Version:       a.cfg.Version,
@@ -139,6 +152,8 @@ func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		Mode:          "companion",
 		InstallDir:    a.cfg.InstallDir,
 		InstallDirOk:  installOk,
+		SaveFound:     saveErr == nil,
+		ConfigFound:   configErr == nil,
 		DiskFreeBytes: diskFree(a.cfg.InstallDir),
 		Job:           a.jobs.current(),
 	})

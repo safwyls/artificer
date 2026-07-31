@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/store"
 )
 
@@ -42,7 +43,8 @@ func fakeSave(t *testing.T) string {
 
 func testRunner(t *testing.T) *Runner {
 	t.Helper()
-	return New(nil, nil, slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})), t.TempDir())
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	return New(nil, nil, logger, t.TempDir(), agentfiles.New(t.TempDir(), logger))
 }
 
 func srvWith(saveDir string) *store.Server {
@@ -163,7 +165,7 @@ func TestIsDueSkipsUnchangedSave(t *testing.T) {
 	srv.BackupIntervalHours = 1
 
 	// No snapshot yet: due.
-	due, err := r.isDue(srv)
+	due, err := r.isDue(context.Background(), srv)
 	if err != nil || !due {
 		t.Fatalf("first backup: due=%v err=%v, want due", due, err)
 	}
@@ -171,7 +173,7 @@ func TestIsDueSkipsUnchangedSave(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Fresh snapshot: not due regardless of save mtime.
-	if due, _ := r.isDue(srv); due {
+	if due, _ := r.isDue(context.Background(), srv); due {
 		t.Fatal("should not be due right after a backup")
 	}
 
@@ -187,7 +189,7 @@ func TestIsDueSkipsUnchangedSave(t *testing.T) {
 	if err := os.Chtimes(levelSavPath(save), past, past); err != nil {
 		t.Fatal(err)
 	}
-	if due, _ := r.isDue(srv); due {
+	if due, _ := r.isDue(context.Background(), srv); due {
 		t.Fatal("unchanged save should not be re-archived")
 	}
 
@@ -196,7 +198,7 @@ func TestIsDueSkipsUnchangedSave(t *testing.T) {
 	if err := os.Chtimes(levelSavPath(save), now, now); err != nil {
 		t.Fatal(err)
 	}
-	if due, _ := r.isDue(srv); !due {
+	if due, _ := r.isDue(context.Background(), srv); !due {
 		t.Fatal("changed save past the interval should be due")
 	}
 }

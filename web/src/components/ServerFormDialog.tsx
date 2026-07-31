@@ -146,7 +146,8 @@ export function ServerFormDialog({
             />
             <p className="text-xs text-muted-foreground">
               Container path to the world save folder (holds <code>Level.sav</code>), mounted read-only.
-              Enables the Pal party/palbox viewer.
+              Enables the Pal party/palbox viewer. Not needed with an agent — saves sync from it
+              automatically.
             </p>
           </div>
 
@@ -160,7 +161,7 @@ export function ServerFormDialog({
             <p className="text-xs text-muted-foreground">
               Container path to the folder holding <code>PalWorldSettings.ini</code>, mounted
               <strong> read-write</strong>. Enables the settings editor. Keep this separate from the save
-              mount so save data stays read-only.
+              mount so save data stays read-only. Not needed with an agent.
             </p>
           </div>
 
@@ -174,7 +175,7 @@ export function ServerFormDialog({
             <p className="text-xs text-muted-foreground">
               Container path to the Palworld install root (holds <code>steamapps</code>), mounted
               <strong> read-write</strong>. Enables clearing the SteamCMD cache when a game update
-              corrupts it.
+              corrupts it. Not needed with an agent.
             </p>
           </div>
 
@@ -195,9 +196,9 @@ export function ServerFormDialog({
               placeholder={mode === "edit" && server?.hasAgentToken ? "unchanged" : undefined}
             />
             <p className="col-span-2 text-xs text-muted-foreground">
-              The <code>palagent</code> sidecar deployed next to this game server. Replaces the
-              install-path mount and adds SteamCMD updates from the dashboard. Token must match the
-              agent's <code>PALAGENT_TOKEN</code>.
+              The <code>palagent</code> sidecar deployed next to this game server. Replaces all three
+              path mounts above: SteamCMD repair and updates, the Pal viewer, the settings editor and
+              backups all work through it. Token must match the agent's <code>PALAGENT_TOKEN</code>.
             </p>
           </div>
 

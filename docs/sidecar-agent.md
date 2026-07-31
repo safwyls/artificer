@@ -36,15 +36,21 @@ palcon becomes a pure control plane speaking HTTP to it.
 
 ## Two modes
 
-**Companion (phase 1, shipped first).** The existing game image keeps
+**Companion (phases 1–2, shipped).** The existing game image keeps
 running the server; the agent mounts the same `/palworld` volume and absorbs
 the file-side features:
 
 - SteamCMD repair: clear `steamapps/*` + `steam/packages/*`, and run
   `steamcmd +app_update 2394010 validate` itself against the shared volume
   — fixing the update-corruption class properly instead of restart-and-pray.
-- (Phase 2) Serve `Level.sav`, read/write `PalWorldSettings.ini`, build and
-  stream backup archives, tail logs, report disk space.
+- File verbs (phase 2): the world save directory as a tar bundle
+  (ETag/304, so unchanged polls transfer nothing) and
+  `PalWorldSettings.ini` GET/PUT (atomic write). Palcon mirrors these into
+  `DATA_DIR/agentfiles/<id>/` via `internal/agentfiles`, and the save
+  parser, settings editor and backup archiver consume that local cache —
+  they never learn agents exist. Game-log tail is deliberately deferred to
+  supervisor mode: the companion agent shares a volume, not a PID
+  namespace, and container stdout already flows through the docker proxy.
 
 Container power stays with the docker socket proxy in this mode. The agent
 cannot see the game process (separate container), so palcon — which can —
@@ -150,12 +156,12 @@ up -d`, server appears in the dashboard fully manageable.
 
 ## Phases
 
-1. **Agent skeleton**: token auth, `/health`, steam verbs (clear-cache,
-   update/validate as a job) + `internal/agentctl` + palcon UI (agent
-   config on the server form, update/repair from the container card). The
-   dashboard's update-repair story is complete here.
-2. **File verbs**: save serving, config editor, backups, log tail — mostly
-   relocating existing `internal/` code behind HTTP.
+1. **Agent skeleton** — SHIPPED 2026-07 (API v1): token auth, `/health`,
+   steam verbs (clear-cache, update/validate as a job), `internal/agentctl`,
+   palcon UI. Field-validated on a real TrueNAS deployment.
+2. **File verbs** — SHIPPED 2026-07 (API v2): save bundle, config GET/PUT;
+   `internal/agentfiles` sync layer feeding the existing parser, editor and
+   backup archiver. Retires the save/config/install mounts.
 3. **Supervisor mode**: process management, log streaming, exit handling,
    `/v1/power/*`.
 4. **Compose-snippet generator** + docs.

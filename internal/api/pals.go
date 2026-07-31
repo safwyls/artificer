@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/palsave"
 )
 
@@ -17,10 +18,20 @@ func (s *Server) readSaveForRequest(w http.ResponseWriter, r *http.Request) (*pa
 	if !ok {
 		return nil, false
 	}
+	savePath, err := s.files.SavePath(r.Context(), srv)
+	if errors.Is(err, agentfiles.ErrNotConfigured) {
+		writeError(w, http.StatusBadRequest, "no save path configured")
+		return nil, false
+	}
+	if err != nil {
+		s.logger.Error("save sync from agent failed", "server", srv.ID, "error", err)
+		writeError(w, http.StatusBadGateway, err.Error())
+		return nil, false
+	}
 	// Serve-stale: a save that changed since the last parse returns the old
 	// parse immediately (with its SaveModTime telling on itself) while a
 	// re-parse runs in the background; only a never-parsed save blocks.
-	result, err := s.palReader.ReadServeStale(r.Context(), srv.SavePath)
+	result, err := s.palReader.ReadServeStale(r.Context(), savePath)
 	if errors.Is(err, palsave.ErrNotConfigured) {
 		writeError(w, http.StatusBadRequest, "no save path configured")
 		return nil, false
