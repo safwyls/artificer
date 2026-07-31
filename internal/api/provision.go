@@ -82,9 +82,25 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	case req.Host == "":
 		writeError(w, http.StatusBadRequest, "host is required — the address palcon will reach the server on")
 		return
-	case req.DataPath == "" || !filepath.IsAbs(req.DataPath):
+	// With a provisioner configured the data path is its call (<data
+	// root>/<slug>) and the wizard doesn't even ask; a paste-flow deploy
+	// has no provisioner to decide, so the operator must say.
+	case req.DataPath == "" && s.Provisioner == nil:
 		writeError(w, http.StatusBadRequest, "data path must be an absolute host path for the install volume")
 		return
+	case req.DataPath != "" && !filepath.IsAbs(req.DataPath):
+		writeError(w, http.StatusBadRequest, "data path must be an absolute host path for the install volume")
+		return
+	}
+	slug := slugify(req.Name)
+	if req.DataPath == "" {
+		health, err := s.Provisioner.Health(r.Context())
+		if err != nil || health.Provision == nil || health.Provision.DataRoot == "" {
+			writeError(w, http.StatusBadGateway,
+				"the provisioner is unreachable — enter a data path to generate a stack for manual deploy instead")
+			return
+		}
+		req.DataPath = filepath.Join(health.Provision.DataRoot, slug)
 	}
 	if req.GamePort == 0 {
 		req.GamePort = 8211
@@ -190,7 +206,7 @@ services:
 	dataDir := ""
 	if s.Provisioner != nil {
 		result, err := s.Provisioner.Provision(r.Context(), palagent.ProvisionRequest{
-			Slug:          slugify(req.Name),
+			Slug:          slug,
 			ImageTag:      req.ImageTag,
 			Token:         token,
 			AdminPassword: req.AdminPassword,

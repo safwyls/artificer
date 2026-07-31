@@ -111,8 +111,10 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// No dataPath: the one-click wizard doesn't ask — the provisioner's
+	// data root decides, and the reference stack must reflect it.
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
-		"name": "One Click", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/oneclick",
+		"name": "One Click", "host": "10.0.0.9",
 		"serverDesc": "motd here",
 	}, admin)
 	if rec.Code != http.StatusCreated {
@@ -121,6 +123,7 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	var res struct {
 		Deployed bool   `json:"deployed"`
 		DataDir  string `json:"dataDir"`
+		Stack    string `json:"stack"`
 		Server   struct {
 			GamePort int `json:"gamePort"`
 		} `json:"server"`
@@ -130,6 +133,9 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	}
 	if !res.Deployed || res.DataDir != filepath.Join(dataRoot, "one-click") {
 		t.Errorf("result = %+v, want deployed into one-click", res)
+	}
+	if !strings.Contains(res.Stack, filepath.Join(dataRoot, "one-click")+":/palworld") {
+		t.Errorf("stack volume line missing the resolved data dir:\n%s", res.Stack)
 	}
 	if res.Server.GamePort != 8211 {
 		t.Errorf("gamePort = %d, want default 8211", res.Server.GamePort)
@@ -236,6 +242,7 @@ func TestProvisionValidation(t *testing.T) {
 	cases := []map[string]any{
 		{"host": "h", "dataPath": "/x"},                                             // no name
 		{"name": "n", "dataPath": "/x"},                                             // no host
+		{"name": "n", "host": "h"},                                                 // no data path, no provisioner
 		{"name": "n", "host": "h", "dataPath": "relative/path"},                     // non-absolute path
 		{"name": "n", "host": "h", "dataPath": "/x", "gamePort": 80, "restPort": 80},          // duplicate ports
 		{"name": "n", "host": "h", "dataPath": "/x", "imageTag": "beta\n    evil: true"},      // yaml injection via tag
