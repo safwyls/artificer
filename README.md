@@ -1,427 +1,144 @@
+<div align="center">
+
+<img src="site/assets/favicon-192.png" width="92" alt="">
+
 # Palcon
 
+**The dashboard your Palworld server deserves.**
+
+Self-hosted management for Palworld dedicated servers — live map, player pals,
+breeding math, backups and one-click repair.
+One Go binary. Your hardware. Your data.
+
 [![Docker](https://github.com/safwyls/palcon/actions/workflows/docker.yml/badge.svg)](https://github.com/safwyls/palcon/actions/workflows/docker.yml)
+[![Pages](https://github.com/safwyls/palcon/actions/workflows/pages.yml/badge.svg)](https://github.com/safwyls/palcon/actions/workflows/pages.yml)
 
-**Homepage:** <https://safwyls.github.io/palcon/> — screenshots, feature tour
-and a five-minute quickstart. Source in [`site/`](site/).
+[**Homepage**](https://safwyls.github.io/palcon/) ·
+[**Documentation**](https://safwyls.github.io/palcon/docs/) ·
+[Wiki](https://github.com/safwyls/palcon/wiki) ·
+[Issues](https://github.com/safwyls/palcon/issues) ·
+[Ko-fi](https://ko-fi.com/safwyl)
 
-Self-hosted web management for Palworld dedicated servers. A single Go binary
-with the React frontend embedded, built to run as a Docker container on
-TrueNAS Scale.
+</div>
+
+![Palcon's live map: players, guild bases and POI layers on the real world map](site/assets/map.webp)
 
 ## What it does
 
-- **Multi-server registry** — REST API (preferred) with automatic Source RCON
-  fallback, credentials encrypted at rest.
-- **Dashboard** — live metrics, players online, broadcast, save world, timed
-  shutdown, and a read-only view of the server's `PalWorldSettings.ini`.
-- **Settings editor** — edit `PalWorldSettings.ini` from a tiered form (common
-  gameplay settings up front, every key searchable below), written back
-  atomically over a read-write config mount that's kept separate from the
-  read-only save mount so save data can never be touched.
-- **SteamCMD repair & updates** — clear a corrupted update cache and re-run
-  `app_update` with validation from the dashboard, with the SteamCMD
-  transcript streaming live into a log viewer. Fixes the classic
-  post-patch "container can't update itself" failure without touching a
-  shell.
-- **palagent sidecar** — an optional per-server agent
-  (`ghcr.io/safwyls/palagent`) that replaces every bind mount: saves,
-  settings and backups flow through it, and in **supervisor mode** it runs
-  the game itself — install on first boot, crash auto-restart with backoff,
-  real exit codes, game logs — no game image or docker proxy needed. See
-  `docs/sidecar-agent.md` for the full design.
-- **Server provisioning** — a "New server" wizard that registers a fully
-  wired server and generates its ready-to-deploy stack file; with the
-  optional provisioner (the one component allowed to create containers,
-  behind a single locked verb) it becomes one click, and existing agent
-  containers on the host can be discovered and re-adopted — secrets
-  recovered automatically.
-- **Performance charts** — server FPS, frame time and player count sampled
-  every 30s and kept for 7 days.
-- **Live map** — players plotted on the real world map with pan/zoom and
-  click-to-focus, across both the main map and the Tree area, with
-  toggleable point-of-interest layers (fast travel statues, watchtowers,
-  dungeon entrances, alpha and predator pal spawns).
-- **Player pals** — every player's party, palbox and base pals read from the
-  save file, with real names, artwork, IVs, passives and equipped skills.
-- **Guilds** — membership, base camp level and base locations, also plotted
-  on the map alongside where offline players last logged off.
-- **Paldex** — per-player completion (registered species from each player's
-  save record, with a "what's missing" browser) plus a server record book:
-  best-IV pals, capture leaders, alpha/lucky tallies, one-of-a-kind catches.
-- **Activity** — join/leave history with a ranked playtime board (totals,
-  session counts, longest session over 24h–90d), and an admin-only audit
-  trail of every management action taken through Palcon (power, saves,
-  broadcasts, moderation, settings and automation changes — scheduled
-  restarts included).
-- **Breeding calculators** — child species, reverse lookup, talent targets,
-  route planning, and passive-inheritance odds (exact-set and with-extras
-  chances plus expected egg counts, from the community-measured rates).
-- **Public status page** — an opt-in, unauthenticated page behind an
-  unguessable link: online/offline, player count, next scheduled restart.
-  Served entirely from Palcon's own data, so visitors never touch the game
-  server; no player names or addresses.
-- **Power control** — start/stop/restart through a scoped Docker socket
-  proxy (or natively through a supervisor-mode agent), with a log viewer
-  (tail, auto-refresh, download) beside the buttons and a copyable join
-  address in the header.
-- **Crash watchdog** — optionally revives a container that exits with an
-  error, with a cooldown and a three-strikes stand-down so a crash loop gets a
-  human instead of a fourth restart. Clean stops are never revived.
-- **Save backups** — zip snapshots of the (read-only) save mount into
-  Palcon's data dataset on a schedule, with count-based retention,
-  mid-write detection, skip-when-unchanged, and a browse/download/delete
-  list. Restores are manual by design: stop the server, unpack a snapshot
-  over the save, start it again.
-- **Scheduled restarts** — per-server restart schedules (weekdays + time) with
-  in-game warning broadcasts at configurable lead times; the world is saved
-  before every restart. With power control configured the container is
-  bounced; without it the game is asked to shut down and the container's
-  restart policy brings it back.
-- **Discord notifications** — a per-server Discord webhook (encrypted at
-  rest, never sent back to the browser) for server down/back-online, player
-  joins and leaves, and scheduled-restart notices, each individually
-  toggleable.
-- **Users and permissions** — give players accounts with only the rights you
-  want them to have.
+<img src="site/assets/mobile.webp" align="right" width="215" alt="Palcon on a phone">
 
-## Deploying on TrueNAS Scale
+- **Watch** — live dashboard and performance charts, a world map with guild
+  bases and point-of-interest layers, every player's pals with IVs and
+  passives straight from the save file, paldex completion and server records,
+  and a playtime activity board.
+- **Manage** — start/stop/restart, a `PalWorldSettings.ini` editor, SteamCMD
+  repair and updates with a live transcript, scheduled save backups, and
+  per-user permissions with an admin audit trail.
+- **Automate** — scheduled restarts with in-game warnings, a crash watchdog,
+  Discord notifications, and an opt-in public status page.
+- **Plan** — breeding calculators that know what's actually in your boxes:
+  child species, reverse lookup, shortest routes, passive-inheritance odds.
 
-This is the setup the project is built around. Everything below assumes your
-Palworld server runs as its own app/container on the same host — keeping them
-separate means updating Palcon never disturbs a running game.
+The whole console is responsive and installable as a PWA, so it works as well
+from a phone as from a desk.
 
-### 1. Create a dataset for Palcon's data
+<br clear="right"/>
 
-Something like `/mnt/tank/apps/palcon`. This holds `palcon.db` (servers,
-users, metrics history).
+| Player pals | Paldex & records | Breeding calculators |
+|---|---|---|
+| ![Party and palbox with IVs and passives](site/assets/players.webp) | ![Server paldex completion and record book](site/assets/paldex.webp) | ![Reverse breeding lookup](site/assets/breeding.webp) |
 
-The container runs as a non-root user, so the dataset has to be writable by
-it. The simplest approach on TrueNAS is to run the container as the `apps`
-user (uid/gid `568`), which owns app datasets by default — that's what
-`user: "568:568"` does below.
-
-### 2. Find the two paths you'll need
-
-- **World save directory** — the folder containing `Level.sav`, typically
-  `.../Pal/Saved/SaveGames/0/<long-world-id>`. Needed for Player pals and
-  Guilds.
-- **Palworld container name** — `docker ps` on the TrueNAS shell. Needed for
-  power control.
-
-Both are optional; skip either and the corresponding feature simply doesn't
-appear.
-
-> **Prefer no mounts at all?** Deploy a `palagent` next to the game server
-> instead — it serves saves, settings, backups and SteamCMD repair over an
-> authenticated API, and palcon needs only its `/data` volume. Supervisor
-> mode goes further and replaces the game container entirely. Compose
-> examples, the provisioner for one-click server creation, and the security
-> model are all in [`docs/sidecar-agent.md`](docs/sidecar-agent.md).
-
-### 3. Add a Custom App
-
-In **Apps → Discover Apps → Custom App**, use this compose spec, adjusting
-the paths, container name and secrets:
-
-```yaml
-services:
-  palcon:
-    image: ghcr.io/safwyls/palcon:latest
-    pull_policy: always          # so redeploying actually picks up new builds
-    user: "568:568"              # TrueNAS 'apps' user; must own the data dataset
-    ports:
-      - 30801:8080
-    environment:
-      DATA_DIR: /data
-      JWT_SECRET: <random string>
-      ENCRYPTION_KEY: <exactly 32 characters>
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: <your first-login password>
-      # Optional — enables start/stop/restart. Points at the proxy below,
-      # never at the host's docker socket.
-      DOCKER_HOST: tcp://docker-proxy:2375
-    volumes:
-      - /mnt/tank/apps/palcon:/data
-      # Optional — enables Player pals and Guilds. READ-ONLY on purpose:
-      # Palcon never writes to a save file.
-      - /mnt/tank/games/palworld/Pal/Saved/SaveGames/0/<world-id>:/saves/myserver:ro
-    restart: unless-stopped
-
-  # Optional — only needed for power control.
-  docker-proxy:
-    image: ghcr.io/tecnativa/docker-socket-proxy:latest
-    environment:
-      CONTAINERS: 1              # read container state
-      POST: 1                    # allow start/stop/restart
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
-```
-
-`ENCRYPTION_KEY` must be **exactly 32 characters** and must not change: it
-encrypts stored RCON/REST passwords, and losing it makes them unrecoverable.
-Back it up with the database.
-
-### 4. Make sure Palcon can reach the game server
-
-Palcon connects to your Palworld server over its REST port (default `8212`)
-and/or RCON port (default `25575`). Either put both apps on the same Docker
-network, or use the TrueNAS host's LAN IP as the server's host.
-
-To use the REST transport, enable it in `PalWorldSettings.ini`:
-
-```ini
-RESTAPIEnabled=True
-RESTAPIPort=8212
-AdminPassword=<something>
-```
-
-Without it, Palcon falls back to RCON automatically. Note that metrics,
-settings and the performance charts are REST-only — Palworld's RCON command
-set has no equivalent.
-
-### 5. First login and configuration
-
-1. Open `http://<truenas-ip>:30801` and sign in with `ADMIN_USERNAME` /
-   `ADMIN_PASSWORD`.
-2. **Add server** in the left rail. Fill in host, ports and passwords from
-   your `PalWorldSettings.ini`. Two optional fields unlock the extras:
-   - **Container name** — the Palworld container from step 2, enabling
-     Start/Stop/Restart on the dashboard.
-   - **Save path** — the *container* path from step 3 (e.g.
-     `/saves/myserver`, not the host path), enabling Player pals and Guilds.
-3. **Users** (the icon at the bottom of the rail, admins only) — create
-   accounts for other players and grant each only what they need. Giving a
-   player just **Power** lets them start the server in the morning without
-   any other administrative access.
-
-### 6. Optional: TLS / external access
-
-Put a reverse proxy (TrueNAS ingress, Traefik, Nginx Proxy Manager) in front
-of the port. The session cookie is `HttpOnly` but not marked `Secure`, since
-LAN-only HTTP is a legitimate deployment here — add `Secure` in
-`internal/api/auth.go` once you're behind HTTPS.
-
-### Updating
-
-CI publishes a new image on every push to `main`. With `pull_policy: always`,
-redeploying the app in the TrueNAS UI pulls and restarts. Pin to a released
-version instead by using `ghcr.io/safwyls/palcon:0.1` or a specific
-`0.1.2` tag if you'd rather update deliberately.
-
-### Troubleshooting
-
-**`unable to open database file: out of memory (14)` on startup.**
-SQLite's error 14 is `SQLITE_CANTOPEN`; the "out of memory" wording is a
-generic driver string, not a real memory problem. The container can't write
-to `/data`. Check ownership of the host dataset with `ls -la` — either set
-`user:` to match its owning uid/gid (as above), or `chmod 775` the directory
-so the container's group can write.
-
-**Player pals shows "Set up save file reading".**
-The server has no **Save path** set, or the path doesn't point at a directory
-containing `Level.sav`. Remember it's the path *inside the container*
-(`/saves/myserver`), not the host path.
-
-**Power controls don't appear.**
-Either `DOCKER_HOST` isn't set on the Palcon container, or the server has no
-**Container name**. If they're both set and actions fail with a permission
-error, the proxy needs `CONTAINERS=1` and `POST=1`.
-
-**TrueNAS reports the container as "crashed" after a stop.**
-Palworld server images generally ignore SIGTERM, so a plain `docker stop`
-ends in SIGKILL and records exit code 137 — which Docker, and TrueNAS's app
-UI, label "crashed". Palcon avoids that by asking the game to exit on its
-own (see below), which produces exit code 0. If you still see 137, the game
-was already unresponsive when you pressed stop, so it couldn't be asked
-nicely; the container was stopped by force, which in that situation is
-accurate.
-
-If TrueNAS brings the container back up on its own after a stop, check the
-Palworld app's restart policy — TrueNAS may be reviving it independently of
-Docker's own bookkeeping.
-
-## Users and permissions
-
-`ADMIN_USERNAME`/`ADMIN_PASSWORD` bootstrap a single admin on first run only.
-After that, **Users** (admins only) manages accounts, each granted a subset
-of:
-
-| Permission | Allows |
-|---|---|
-| Power | Start, stop and restart the server, and repair/update its install |
-| Broadcast | Send in-game messages |
-| Save world | Trigger a world save |
-| Moderate | Kick, ban and unban players |
-| In-game shutdown | Shut the server down with a countdown |
-
-Anyone signed in can *view* everything — dashboard, map, pals, guilds. The
-permissions above gate only actions that change something. Admins hold all of
-them implicitly, plus server and user administration.
-
-In-game shutdown is deliberately separate from Power, so someone trusted to
-restart the container isn't automatically able to boot everyone mid-session.
-
-Grants are re-read from the database on every request rather than baked into
-the session token, so revoking a permission or disabling an account takes
-effect immediately rather than whenever a week-long session expires.
-
-## Server power control
-
-**Palcon does not need, and should not be given, the host's Docker socket.**
-That socket is root-equivalent — anything holding it can start a privileged
-container and take over the host. Instead,
-[docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) sits
-in front with only `CONTAINERS=1` and `POST=1`, so Palcon gets exactly
-"inspect, start, stop, restart" and nothing else: no creating containers, no
-mounting volumes, no exec. The worst case if Palcon is compromised is a
-bounced game server.
-
-Set each server's **Container name** in its edit dialog to enable the
-controls; servers without one simply don't show them.
-
-### How stopping works
-
-Stop and restart do three things in order:
-
-1. **Save the world**, so nothing is lost regardless of what follows.
-2. **Ask the game to shut itself down** (a one-second in-game countdown), so
-   the process exits normally with code 0 instead of being SIGKILLed. This is
-   what keeps TrueNAS from reporting the container as "crashed".
-3. **`docker stop`**, which observes that clean exit inside its grace window
-   and keeps Docker in charge of the transition — so a
-   `restart: unless-stopped` policy treats it as an intentional stop rather
-   than a process that died and needs reviving.
-
-Each step is best-effort. A server that's already unresponsive can't save or
-shut itself down, and neither blocks stopping the container — which is often
-exactly why you're reaching for the button.
-
-## Reading save files
-
-Party composition, palbox contents, per-pal stats and guilds aren't exposed by
-REST or RCON at all, so those views read `Level.sav` (Unreal's GVAS format)
-directly. **Read-only, as a hard rule** — the save is only ever opened for
-reading.
-
-- **No GVAS parser of our own.** A bundled Python extractor
-  (`internal/palsave/`) builds on
-  [`palworld-save-tools`](https://github.com/cheahjs/palworld-save-tools)
-  (MIT, the community standard). Results are cached against `Level.sav`'s
-  mtime, so re-parsing only happens after the game autosaves.
-- **Only the sections we need are parsed.** A world save holds ~22 sections
-  and the unread ones (foliage, every placed structure, every container slot)
-  are the enormous ones. Walking past them makes parsing ~100x faster and
-  keeps memory flat on an established world.
-- **Both save containers are supported.** `PlZ` (zlib, original) and `PlM`
-  (Oodle Kraken, game builds 0.6+). palworld-save-tools reads only `PlZ`, so
-  `PlM` is unwrapped via [`pyooz`](https://pypi.org/project/pyooz/), whose
-  published wheel is decompress-only — the read-only rule is structural, not
-  just a convention. Note `ooz` itself carries no license file; it's what
-  every community Palworld tool relies on, but worth knowing if this ever
-  stops being self-hosted personal software.
-- **Newer save layouts are handled leniently.** 0.6 saves append trailing
-  bytes and move fields around; decoding reads only what's needed and locates
-  shifted structures by shape rather than by fixed offsets, so a game update
-  is unlikely to break it outright.
-- **Tests** run against synthetic saves in all three layouts
-  (`internal/palsave/testdata/`) — no copyrighted game data in the repo.
-
-Pal artwork and names are Pocketpair's, vendored from
-[palworld-server-manager](https://github.com/amantu-qbit/palworld-server-manager);
-see `web/public/pal-icons/README.md`. The same applies to the world map
-textures in `web/public/` — the map and pal views credit Pocketpair on screen.
-
-## Docker (non-TrueNAS)
+## Quick start
 
 ```sh
-docker pull ghcr.io/safwyls/palcon:latest
 docker run -p 8080:8080 \
   -v $(pwd)/data:/data \
   -e JWT_SECRET=... -e ENCRYPTION_KEY=<32 chars> -e ADMIN_PASSWORD=... \
   ghcr.io/safwyls/palcon:latest
 ```
 
-Or `docker compose up` using the bundled `docker-compose.yml`, which already
-includes the socket proxy and annotated volume mounts.
+Then open `http://localhost:8080`, sign in, and add your server. The docs
+cover the real-world setups:
 
-Tags published: `latest` (tip of `main`), `main`, `sha-<short-sha>` for every
-commit, and `X.Y.Z`/`X.Y` when a `vX.Y.Z` git tag is pushed. A `beta` branch
-publishes `:beta` for both images as a test channel.
+- [Deploy on TrueNAS Scale](https://safwyls.github.io/palcon/docs/deploy-truenas.html) — the reference setup
+- [Deploy with Docker](https://safwyls.github.io/palcon/docs/deploy-docker.html) — any Linux box
+- [First login & your first server](https://safwyls.github.io/palcon/docs/first-server.html)
+- [Troubleshooting](https://safwyls.github.io/palcon/docs/troubleshooting.html)
 
-Nothing beyond the compose examples is TrueNAS-specific: any Linux box with
-docker works identically (use your own `uid:gid` in place of `568:568`), and
-Windows works through Docker Desktop/WSL2 with the usual caveats — keep the
-data volume inside the Linux filesystem, and expect UDP game traffic through
-Docker Desktop's port forwarding to be fine for friends, less so for a large
-public server.
+## Under the hood
 
-## Environment variables
+Palcon talks to the game over its REST API with automatic RCON fallback, and
+reads the world save directly for everything no admin command exposes. Three
+rules the design never breaks:
 
-| Variable | Required | Default | Purpose |
-|---|---|---|---|
-| `HTTP_ADDR` | no | `:8080` | listen address |
-| `DATA_DIR` | no | `/data` in the image | where `palcon.db` lives |
-| `JWT_SECRET` | yes | — | signs session cookies |
-| `ENCRYPTION_KEY` | yes | — | encrypts stored RCON/REST passwords; exactly 32 bytes, back it up |
-| `ADMIN_USERNAME` | no | `admin` | bootstrap admin username (first run only) |
-| `ADMIN_PASSWORD` | yes on first run | — | bootstrap admin password (first run only) |
-| `DOCKER_HOST` | no | — | scoped socket proxy for power control, e.g. `tcp://docker-proxy:2375`; unset disables it |
-| `PROVISIONER_URL` | no | — | provisioner-mode palagent for one-click server creation; unset keeps the wizard's paste flow |
-| `PROVISIONER_TOKEN` | no | — | bearer token matching the provisioner's `PALAGENT_TOKEN` |
+- **Saves are read-only, structurally.** Read-only mounts and a
+  decompress-only unwrapper — there is no code path that writes a save.
+- **No Docker socket.** Power control goes through a
+  [scoped proxy](https://safwyls.github.io/palcon/docs/power-control.html);
+  the worst case is a bounced game server.
+- **Your data stays home.** One SQLite file, credentials encrypted at rest,
+  no outbound calls except a Discord webhook you configure.
 
-## Local development
+An optional per-server agent, [`palagent`](https://safwyls.github.io/palcon/docs/palagent.html),
+replaces the bind mounts entirely — and in supervisor mode runs the game
+itself, enabling remote hosts and one-click server provisioning. Full design
+in [`docs/sidecar-agent.md`](docs/sidecar-agent.md).
 
-Requires Go 1.22+, Node 24+, and Python 3 with `palworld-save-tools` and
-`pyooz` if you want the save-reading features to work outside Docker.
+## Development
 
-```sh
-# Backend (from repo root)
-cp .env.example .env   # fill in JWT_SECRET, ENCRYPTION_KEY, ADMIN_PASSWORD
-export $(cat .env | xargs)
-go run ./cmd/palcon
-
-# Frontend (separate terminal)
-cd web
-npm install
-npm run dev            # proxies /api to localhost:8080, see vite.config.ts
-```
-
-The frontend dev server has hot reload; the Go server serves the API. For a
-production-style single-binary run, build the frontend first (`npm run build`
-in `web/`) so `web/embed.go` picks up `web/dist`, then `go run ./cmd/palcon`.
+Requires Go 1.22+, Node 24+, and Python 3 with `palworld-save-tools` + `pyooz`
+for the save-reading features.
 
 ```sh
-go test ./...          # save-file parsing tests skip if python deps are absent
+cp .env.example .env && export $(cat .env | xargs)
+go run ./cmd/palcon        # backend on :8080
+cd web && npm install && npm run dev   # frontend with hot reload
+go test ./...
 ```
 
-`docs/go-notes.md` is a Go reference written against this codebase, with each
-section pointing at the real file and line it's drawn from.
-`docs/code-review.md` is a file-by-file review of the original scaffold.
+For a production-style single-binary run, `npm run build` in `web/` first so
+the Go binary embeds the fresh bundle. `docs/go-notes.md` is a Go reference
+written against this codebase.
 
-## Repo layout
+<details>
+<summary>Repo layout</summary>
 
 ```
 cmd/palcon/           dashboard entrypoint
 cmd/palagent/         sidecar agent entrypoint (companion/supervisor/provisioner)
 internal/api/         HTTP handlers, auth, permissions, routing
 internal/agentctl/    palcon's client for palagent sidecars
-internal/agentfiles/  agent-synced save/config cache (effective local paths)
+internal/agentfiles/  agent-synced save/config cache
 internal/backup/      save snapshot schedule + archives
 internal/collector/   background metrics + save-refresh sampling
 internal/config/      env-based config
 internal/crypto/      AES-GCM encryption for stored passwords
 internal/db/          sqlite connection + migrations
-internal/dockerctl/   docker API client (scoped proxy for palcon; create for the provisioner)
+internal/dockerctl/   docker API client (scoped proxy; create for the provisioner)
 internal/notify/      Discord webhooks
 internal/palagent/    the sidecar agent itself (all three modes)
 internal/palconfig/   PalWorldSettings.ini parsing + editing
 internal/palsave/     save file reading (Python extractor + Go runner)
 internal/palworld/    REST + RCON clients, fallback wrapper
 internal/sched/       scheduled restarts
-internal/steamops/    SteamCMD cache clear + update args (shared both binaries)
+internal/steamops/    SteamCMD cache clear + update args
 internal/store/       data access: servers, users, metrics
 internal/watchdog/    crash watchdog for docker-managed servers
 web/                  React frontend, embedded into the Go binary
+site/                 homepage + docs, published to GitHub Pages
 ```
+
+</details>
+
+## Credits & disclaimer
+
+Palcon is an unofficial fan project, not affiliated with or endorsed by
+Pocketpair. Palworld, pal artwork and map imagery are © Pocketpair, Inc.,
+credited on-screen wherever they appear
+([details](docs/vendored-game-data.md)). Save parsing builds on
+[palworld-save-tools](https://github.com/cheahjs/palworld-save-tools) and
+[pyooz](https://pypi.org/project/pyooz/).
+
+If Palcon makes tending your world easier, a ⭐ helps other server admins
+find it — and a [coffee](https://ko-fi.com/safwyl) keeps the maintainer
+breeding Anubis at 2 a.m.
