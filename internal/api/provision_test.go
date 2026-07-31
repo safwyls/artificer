@@ -54,6 +54,8 @@ func TestProvisionServer(t *testing.T) {
 	// The stack carries everything the agent needs, on the beta channel.
 	for _, want := range []string{
 		"ghcr.io/safwyls/palagent:beta",
+		`user: "568:568"`,
+		"HOME: /tmp",
 		"PALAGENT_MODE: supervisor",
 		"PALAGENT_TOKEN: " + res.AgentToken,
 		"PALAGENT_ADMIN_PASSWORD: " + res.AdminPassword,

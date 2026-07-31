@@ -190,7 +190,8 @@ export function ProvisionServerDialog({
 
             <ol className="list-decimal space-y-1 pl-5 text-xs text-ink/60">
               <li>
-                Create the data directory (<code className="font-mono">{form.dataPath}</code>).
+                Create the data directory (<code className="font-mono">{form.dataPath}</code>), owned
+                by <code className="font-mono">568:568</code> (apps) — the stack runs as that user.
               </li>
               <li>Paste as a new TrueNAS custom app (or compose stack) and deploy.</li>
               <li>

@@ -117,7 +117,12 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 services:
   palagent:
     image: ghcr.io/safwyls/palagent:%s
+    # TrueNAS apps-user convention — the data path must be owned (or
+    # writable) by 568:568.
+    user: "568:568"
     environment:
+      # SteamCMD needs a writable home and uid 568 has none in the image.
+      HOME: /tmp
       PALAGENT_MODE: supervisor
       PALAGENT_TOKEN: %s
       PALAGENT_ADMIN_PASSWORD: %s
