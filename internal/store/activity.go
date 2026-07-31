@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -47,6 +49,79 @@ func (s *Store) ListPlayerEvents(ctx context.Context, serverID int64, since time
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// OpenSession is a join with no matching leave — a player the events table
+// still believes is on the server.
+type OpenSession struct {
+	UserID string
+	Name   string
+	Since  time.Time
+}
+
+// OpenSessions returns the players whose most recent event is a join.
+// After a clean run that is exactly who is online; after palcon was killed
+// it also includes everyone whose leave was never observed.
+func (s *Store) OpenSessions(ctx context.Context, serverID int64) ([]OpenSession, error) {
+	// Newest-per-player by id rather than ts: events land in observation
+	// order, and ts alone can't break the tie between a leave and a rejoin
+	// inside the same second.
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT e.user_id, e.name, e.ts FROM player_events e
+		JOIN (
+			SELECT user_id, MAX(id) AS id FROM player_events WHERE server_id = ?
+			GROUP BY user_id
+		) newest ON newest.id = e.id
+		WHERE e.event = 'join'`, serverID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []OpenSession{}
+	for rows.Next() {
+		var (
+			o  OpenSession
+			ts string
+		)
+		if err := rows.Scan(&o.UserID, &o.Name, &ts); err != nil {
+			return nil, err
+		}
+		o.Since, _ = time.Parse(time.RFC3339, ts)
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// TouchWatch records that the collector just observed this server's player
+// list, bounding how much of an open session palcon may later claim to have
+// watched if it dies before writing the matching leave.
+func (s *Store) TouchWatch(ctx context.Context, serverID int64, at time.Time) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO server_watch (server_id, last_seen) VALUES (?, ?)
+		ON CONFLICT(server_id) DO UPDATE SET last_seen = excluded.last_seen`,
+		serverID, at.UTC().Format(time.RFC3339))
+	return err
+}
+
+// LastWatch is when the collector last observed this server. The zero time
+// means never: a fresh database, a server added since the last run, or the
+// first start after the heartbeat existed.
+func (s *Store) LastWatch(ctx context.Context, serverID int64) (time.Time, error) {
+	var ts string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT last_seen FROM server_watch WHERE server_id = ?`, serverID).Scan(&ts)
+	if errors.Is(err, sql.ErrNoRows) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t, nil
 }
 
 func (s *Store) PrunePlayerEvents(ctx context.Context, before time.Time) (int64, error) {

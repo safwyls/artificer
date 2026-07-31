@@ -42,8 +42,10 @@ interface PlayerSummary {
 
 /** Pairs joins with leaves per player (events arrive newest-first) to hang
  * a session duration on each leave, plus per-player playtime totals. A
- * session still open at "now" counts as ongoing. */
-function analyze(events: PlayerEvent[], rangeStart: Date, now: Date) {
+ * session still open at "now" counts as ongoing, but only for a player
+ * `onlineNow` confirms is actually on the server — pass null when the live
+ * player list is unavailable. */
+function analyze(events: PlayerEvent[], rangeStart: Date, now: Date, onlineNow: Set<string> | null) {
   const asc = [...events].reverse();
   const open = new Map<string, number>(); // userId → join time (ms)
   const sessionByEventId = new Map<number, { ms: number; ongoing: boolean }>();
@@ -78,13 +80,17 @@ function analyze(events: PlayerEvent[], rangeStart: Date, now: Date) {
   }
   for (const [userId, start] of open) {
     const s = totals.get(userId);
-    if (s) {
-      const ms = Math.max(0, now.getTime() - start);
-      s.totalMs += ms;
-      s.sessions += 1;
-      s.longestMs = Math.max(s.longestMs, ms);
-      s.online = true;
-    }
+    if (!s) continue;
+    // A join with no leave only means "still playing" if the player is on
+    // the server right now. Otherwise the leave was never observed (palcon
+    // was down when they logged off) and running the session to now would
+    // bill them for every hour since — up to the whole visible range.
+    if (onlineNow && !onlineNow.has(userId)) continue;
+    const ms = Math.max(0, now.getTime() - start);
+    s.totalMs += ms;
+    s.sessions += 1;
+    s.longestMs = Math.max(s.longestMs, ms);
+    s.online = true;
   }
 
   const rows: FeedRow[] = events.map((e) => {
@@ -133,11 +139,24 @@ export function ServerActivity() {
     enabled: isAdmin,
     refetchInterval: 60_000,
   });
+  // Ground truth for "still online", so an unclosed join can't be mistaken
+  // for a running session. Unreachable server → no list → the pairing falls
+  // back to trusting the events alone.
+  const playersQuery = useQuery({
+    queryKey: ["server-players", id],
+    queryFn: () => api.serverPlayers(id),
+    refetchInterval: 60_000,
+    retry: false,
+  });
 
   const now = useMemo(() => new Date(), [activityQuery.dataUpdatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onlineNow = useMemo(
+    () => (playersQuery.data ? new Set(playersQuery.data.map((p) => p.userId)) : null),
+    [playersQuery.data],
+  );
   const { rows, summaries } = useMemo(
-    () => analyze(activityQuery.data?.events ?? [], new Date(now.getTime() - hours * 3_600_000), now),
-    [activityQuery.data, hours, now],
+    () => analyze(activityQuery.data?.events ?? [], new Date(now.getTime() - hours * 3_600_000), now, onlineNow),
+    [activityQuery.data, hours, now, onlineNow],
   );
 
   // Group feed rows (already newest-first) by calendar day.

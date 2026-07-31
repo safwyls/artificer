@@ -73,6 +73,11 @@ func (c *Collector) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			// Detached and bounded: ctx is already cancelled, and closing
+			// out the open play sessions is the point of stopping cleanly.
+			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			c.closeSessions(closeCtx)
+			cancel()
 			return
 		case <-sampleTicker.C:
 			c.sampleAll(ctx)

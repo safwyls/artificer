@@ -34,6 +34,50 @@ func TestPlayerEventsRoundTripAndPrune(t *testing.T) {
 	}
 }
 
+// Open sessions are how a restart finds the joins a previous run never got
+// to close, so "most recent event is a join" has to survive rejoins.
+func TestOpenSessionsAndWatchHeartbeat(t *testing.T) {
+	st, _ := newTestStore(t)
+	ctx := context.Background()
+	serverID := testServerID(t, st)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	insert := func(offset time.Duration, uid, name, event string) {
+		t.Helper()
+		if err := st.InsertPlayerEvent(ctx, serverID, now.Add(offset), uid, name, event); err != nil {
+			t.Fatalf("insert %s: %v", event, err)
+		}
+	}
+	// Kyoshi left and came back: still open, at the *second* join.
+	insert(-4*time.Hour, "steam_1", "Kyoshi", "join")
+	insert(-3*time.Hour, "steam_1", "Kyoshi", "leave")
+	insert(-2*time.Hour, "steam_1", "Kyoshi", "join")
+	// Rushi logged off for good.
+	insert(-3*time.Hour, "steam_2", "Rushi", "join")
+	insert(-time.Hour, "steam_2", "Rushi", "leave")
+
+	open, err := st.OpenSessions(ctx, serverID)
+	if err != nil {
+		t.Fatalf("open sessions: %v", err)
+	}
+	if len(open) != 1 || open[0].UserID != "steam_1" || !open[0].Since.Equal(now.Add(-2*time.Hour)) {
+		t.Fatalf("open = %+v, want only Kyoshi since the rejoin", open)
+	}
+
+	if ts, err := st.LastWatch(ctx, serverID); err != nil || !ts.IsZero() {
+		t.Fatalf("LastWatch before any probe = %v (err %v), want zero", ts, err)
+	}
+	for _, at := range []time.Time{now.Add(-time.Minute), now} {
+		if err := st.TouchWatch(ctx, serverID, at); err != nil {
+			t.Fatalf("touch: %v", err)
+		}
+	}
+	ts, err := st.LastWatch(ctx, serverID)
+	if err != nil || !ts.Equal(now) {
+		t.Fatalf("LastWatch = %v (err %v), want the latest probe %v", ts, err, now)
+	}
+}
+
 func TestAuditSurvivesServerDeletion(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()

@@ -83,7 +83,12 @@ func run(logger *slog.Logger) error {
 
 	// Samples server health in the background so the dashboard charts have
 	// history to draw, rather than only what's happened since page load.
-	go collector.New(st, notifier, logger).Run(ctx)
+	// Shutdown is awaited below: it closes out open play sessions.
+	collectorDone := make(chan struct{})
+	go func() {
+		defer close(collectorDone)
+		collector.New(st, notifier, logger).Run(ctx)
+	}()
 
 	// Resolves each server's save/config to a local path — a bind mount,
 	// or a cache mirrored from its palagent sidecar (phase 2).
@@ -148,7 +153,16 @@ func run(logger *slog.Logger) error {
 		logger.Info("shutting down")
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
-		return httpServer.Shutdown(shutdownCtx)
+		err := httpServer.Shutdown(shutdownCtx)
+		// The collector ends the sessions of whoever is still online on its
+		// way out. Exiting without waiting strands those joins, and an
+		// unclosed join reads as a session that never ended.
+		select {
+		case <-collectorDone:
+		case <-shutdownCtx.Done():
+			logger.Warn("collector did not finish closing open sessions")
+		}
+		return err
 	case err := <-errCh:
 		return err
 	}
