@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/safwyls/palcon/internal/agentctl"
+	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/api"
 	"github.com/safwyls/palcon/internal/backup"
 	"github.com/safwyls/palcon/internal/collector"
@@ -83,9 +85,14 @@ func run(logger *slog.Logger) error {
 	// history to draw, rather than only what's happened since page load.
 	go collector.New(st, notifier, logger).Run(ctx)
 
+	// Resolves each server's save/config to a local path — a bind mount,
+	// or a cache mirrored from its palagent sidecar (phase 2).
+	files := agentfiles.New(cfg.DataDir, logger)
+
 	// Keeps the save-parse cache warm across autosaves (and restarts), so
 	// the pals pages open onto a cache hit instead of a multi-second parse.
-	go collector.NewSaveRefresher(st, palReader, logger).Run(ctx)
+	// For agent-backed servers this same loop drives the save sync.
+	go collector.NewSaveRefresher(st, palReader, files, logger).Run(ctx)
 
 	// Optional: without DOCKER_HOST, power control is simply absent.
 	var docker *dockerctl.Client
@@ -108,11 +115,20 @@ func run(logger *slog.Logger) error {
 
 	// Save backups: zip snapshots of the read-only save mount into the
 	// data dataset, on each server's schedule.
-	backups := backup.New(st, notifier, logger, cfg.DataDir)
+	backups := backup.New(st, notifier, logger, cfg.DataDir, files)
 	go backups.Run(ctx)
 
-	apiServer := api.New(st, cfg.JWTSecret, logger, palReader, docker, notifier, backups)
+	apiServer := api.New(st, cfg.JWTSecret, logger, palReader, docker, notifier, backups, files)
 	apiServer.CookieSecure = cfg.CookieSecure
+	// Optional one-click provisioning (docs/sidecar-agent.md phase 5).
+	if cfg.ProvisionerURL != "" {
+		provisioner, err := agentctl.New(cfg.ProvisionerURL, cfg.ProvisionerToken)
+		if err != nil {
+			return fmt.Errorf("configuring provisioner: %w", err)
+		}
+		apiServer.Provisioner = provisioner
+		logger.Info("provisioner enabled", "endpoint", cfg.ProvisionerURL)
+	}
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           apiServer.Routes(distFS),

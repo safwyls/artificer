@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/palsave"
 	"github.com/safwyls/palcon/internal/store"
 )
@@ -29,15 +30,16 @@ const (
 type SaveRefresher struct {
 	store  *store.Store
 	reader *palsave.Reader
+	files  *agentfiles.Syncer
 	logger *slog.Logger
 
-	// nextAttempt spaces parse attempts per save path; only touched from
+	// nextAttempt spaces parse attempts per server; only touched from
 	// Run's goroutine. Entries for removed servers linger harmlessly.
-	nextAttempt map[string]time.Time
+	nextAttempt map[int64]time.Time
 }
 
-func NewSaveRefresher(st *store.Store, reader *palsave.Reader, logger *slog.Logger) *SaveRefresher {
-	return &SaveRefresher{store: st, reader: reader, logger: logger, nextAttempt: make(map[string]time.Time)}
+func NewSaveRefresher(st *store.Store, reader *palsave.Reader, files *agentfiles.Syncer, logger *slog.Logger) *SaveRefresher {
+	return &SaveRefresher{store: st, reader: reader, files: files, logger: logger, nextAttempt: make(map[int64]time.Time)}
 }
 
 // Run refreshes until ctx is cancelled. Intended to be started in a goroutine.
@@ -65,15 +67,24 @@ func (s *SaveRefresher) refreshAll(ctx context.Context) {
 	// Sequential on purpose: parses are memory-heavy and serialized inside
 	// the reader anyway, and a background warmer has no reason to queue-jump.
 	for _, srv := range servers {
-		if !srv.Enabled || srv.SavePath == "" {
+		if !srv.Enabled || !agentfiles.SaveConfigured(srv) {
 			continue
 		}
-		if time.Now().Before(s.nextAttempt[srv.SavePath]) {
+		if time.Now().Before(s.nextAttempt[srv.ID]) {
 			continue
 		}
-		parsed, err := s.reader.Refresh(ctx, srv.SavePath)
+		// For agent-backed servers this is where the sync happens: a
+		// conditional GET per poll (a 304 when nothing changed), a
+		// bundle download only after the game actually saved.
+		savePath, err := s.files.SavePath(ctx, srv)
+		if err != nil {
+			s.nextAttempt[srv.ID] = time.Now().Add(saveAttemptFloor)
+			s.logger.Warn("save refresh: resolving save", "server", srv.Name, "error", err)
+			continue
+		}
+		parsed, err := s.reader.Refresh(ctx, savePath)
 		if parsed || err != nil {
-			s.nextAttempt[srv.SavePath] = time.Now().Add(saveAttemptFloor)
+			s.nextAttempt[srv.ID] = time.Now().Add(saveAttemptFloor)
 		}
 		if err != nil {
 			s.logger.Warn("save refresh failed", "server", srv.Name, "error", err)

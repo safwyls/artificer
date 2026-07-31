@@ -60,6 +60,9 @@ func New(rawURL, token string) (*Client, error) {
 	}, nil
 }
 
+// BaseURL exposes the configured endpoint (for host inference).
+func (c *Client) BaseURL() string { return c.base }
+
 // do performs one JSON round-trip, decoding a success body into out (when
 // non-nil) and mapping error responses onto the sentinel errors above.
 func (c *Client) do(ctx context.Context, method, path string, body, out any, timeout time.Duration) error {

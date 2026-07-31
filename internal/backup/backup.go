@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/notify"
 	"github.com/safwyls/palcon/internal/store"
 )
@@ -51,6 +52,10 @@ type Runner struct {
 	store    *store.Store
 	notifier *notify.Notifier
 	logger   *slog.Logger
+	// files resolves the save to a local directory: the read-only mount,
+	// or the agent-synced cache — either way the archive walk below stays
+	// a pure local read.
+	files *agentfiles.Syncer
 	// root is DATA_DIR/backups; per-server snapshots live in <root>/<id>/.
 	root string
 
@@ -60,11 +65,12 @@ type Runner struct {
 	failing map[int64]bool
 }
 
-func New(st *store.Store, notifier *notify.Notifier, logger *slog.Logger, dataDir string) *Runner {
+func New(st *store.Store, notifier *notify.Notifier, logger *slog.Logger, dataDir string, files *agentfiles.Syncer) *Runner {
 	return &Runner{
 		store:    st,
 		notifier: notifier,
 		logger:   logger,
+		files:    files,
 		root:     filepath.Join(dataDir, "backups"),
 		running:  make(map[int64]bool),
 		failing:  make(map[int64]bool),
@@ -92,10 +98,10 @@ func (r *Runner) sweep(ctx context.Context) {
 		return
 	}
 	for _, srv := range servers {
-		if !srv.Enabled || srv.SavePath == "" || srv.BackupIntervalHours <= 0 {
+		if !srv.Enabled || !agentfiles.SaveConfigured(srv) || srv.BackupIntervalHours <= 0 {
 			continue
 		}
-		due, err := r.isDue(srv)
+		due, err := r.isDue(ctx, srv)
 		if err != nil {
 			r.logger.Error("backup: checking schedule", "server", srv.ID, "error", err)
 			continue
@@ -125,8 +131,10 @@ func (r *Runner) sweep(ctx context.Context) {
 
 // isDue reports whether the newest snapshot is older than the configured
 // interval AND the save has actually changed since — a server that's been
-// offline for a week doesn't need seven identical archives.
-func (r *Runner) isDue(srv *store.Server) (bool, error) {
+// offline for a week doesn't need seven identical archives. The age check
+// runs first so agent-backed servers only pay for a sync when a snapshot
+// is actually in the window.
+func (r *Runner) isDue(ctx context.Context, srv *store.Server) (bool, error) {
 	snaps, err := r.List(srv.ID)
 	if err != nil {
 		return false, err
@@ -136,7 +144,11 @@ func (r *Runner) isDue(srv *store.Server) (bool, error) {
 		if time.Since(newest) < time.Duration(srv.BackupIntervalHours)*time.Hour {
 			return false, nil
 		}
-		level, err := os.Stat(levelSavPath(srv.SavePath))
+		savePath, err := r.files.SavePath(ctx, srv)
+		if err != nil {
+			return false, nil // save unreachable right now; try next sweep
+		}
+		level, err := os.Stat(levelSavPath(savePath))
 		if err != nil {
 			return false, nil // no readable Level.sav; nothing to back up
 		}
@@ -192,8 +204,8 @@ func verifySavMagic(path string) error {
 // BackupNow snapshots the server's save directory immediately. Safe to call
 // concurrently; a second call while one runs returns ErrBusy.
 func (r *Runner) BackupNow(ctx context.Context, srv *store.Server) (*Snapshot, error) {
-	if srv.SavePath == "" {
-		return nil, errors.New("no save path configured")
+	if !agentfiles.SaveConfigured(srv) {
+		return nil, errors.New("no save path or agent configured")
 	}
 	r.mu.Lock()
 	if r.running[srv.ID] {
@@ -208,7 +220,12 @@ func (r *Runner) BackupNow(ctx context.Context, srv *store.Server) (*Snapshot, e
 		r.mu.Unlock()
 	}()
 
-	saveDir := srv.SavePath
+	// Resolve at snapshot time so an agent-backed backup archives the
+	// freshest synced copy, not whatever the last poll happened to pull.
+	saveDir, err := r.files.SavePath(ctx, srv)
+	if err != nil {
+		return nil, fmt.Errorf("resolving save: %w", err)
+	}
 	if strings.EqualFold(filepath.Base(saveDir), "Level.sav") {
 		saveDir = filepath.Dir(saveDir)
 	}

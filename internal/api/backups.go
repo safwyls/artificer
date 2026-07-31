@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/backup"
 )
 
@@ -36,7 +37,7 @@ func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
 		total += sn.Bytes
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"available":     srv.SavePath != "",
+		"available":     agentfiles.SaveConfigured(srv),
 		"running":       s.backups.Running(srv.ID),
 		"intervalHours": srv.BackupIntervalHours,
 		"keep":          srv.BackupKeep,
@@ -86,8 +87,8 @@ func (s *Server) handleRunBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "backups are not running")
 		return
 	}
-	if srv.SavePath == "" {
-		writeError(w, http.StatusBadRequest, "no save path configured for this server")
+	if !agentfiles.SaveConfigured(srv) {
+		writeError(w, http.StatusBadRequest, "no save path or agent configured for this server")
 		return
 	}
 	if s.backups.Running(srv.ID) {

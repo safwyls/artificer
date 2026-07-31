@@ -100,6 +100,8 @@ export interface Server {
   hasRconPassword: boolean;
   restPort: number;
   hasRestPassword: boolean;
+  /** UDP port players join on — display metadata. */
+  gamePort: number;
   useRest: boolean;
   enabled: boolean;
   savePath: string;
@@ -117,6 +119,7 @@ export interface ServerWriteInput {
   rconPassword?: string;
   restPort: number;
   restPassword?: string;
+  gamePort: number;
   useRest: boolean;
   enabled: boolean;
   savePath: string;
@@ -149,6 +152,63 @@ export interface SteamUpdateStatus {
     installDirOk: boolean;
     diskFreeBytes: number;
   };
+}
+
+export interface ProvisionInput {
+  name: string;
+  host: string;
+  dataPath: string;
+  gamePort: number;
+  restPort: number;
+  rconPort: number;
+  agentPort: number;
+  imageTag: string;
+  /** Blank = generated server-side. */
+  adminPassword?: string;
+  /** In-game ServerName; blank = the palcon display name. */
+  serverName?: string;
+  /** In-game ServerDescription (MOTD). */
+  serverDesc?: string;
+  /** Container user:group; blank = 568:568, "root" = image default. */
+  runAs?: string;
+}
+
+export interface ProvisionResult {
+  server: Server;
+  adminPassword: string;
+  agentToken: string;
+  /** The complete per-server compose stack to paste and deploy. */
+  stack: string;
+  /** True when a provisioner deployed the stack already — no paste needed. */
+  deployed: boolean;
+  /** Set when a provisioner was configured but the deploy failed. */
+  deployError?: string;
+  /** Where the provisioner put the data (provisioner deploys only). */
+  dataDir?: string;
+}
+
+/** What the wizard can prefill from the provisioner's configuration. */
+export interface ProvisionDefaults {
+  available: boolean;
+  host?: string;
+  dataRoot?: string;
+  runAs?: string;
+  imageTag?: string;
+  ports?: { game: number; rest: number; rcon: number; agent: number };
+}
+
+/** A Palworld-shaped container found on the provisioner's host. */
+export interface DiscoveredServer {
+  name: string;
+  image: string;
+  mode: string;
+  running: boolean;
+  gamePort?: number;
+  restPort?: number;
+  rconPort?: number;
+  agentPort?: number;
+  /** Already known to palcon (matched by agent port). */
+  registered: boolean;
 }
 
 export interface ServerInfo {
@@ -448,6 +508,20 @@ export const api = {
   backupDownloadURL: (id: number, name: string) => `/api/servers/${id}/backups/${name}/download`,
 
   listServers: () => request<Server[]>("/servers"),
+  // New-server wizard: registers a fully wired row and returns the
+  // supervisor stack file to deploy (docs/sidecar-agent.md phase 4).
+  provisionServer: (input: ProvisionInput) =>
+    request<ProvisionResult>("/servers/provision", { method: "POST", body: JSON.stringify(input) }),
+  provisionDefaults: () => request<ProvisionDefaults>("/servers/provision/defaults"),
+  provisionDiscover: () =>
+    request<{ available: boolean; servers: DiscoveredServer[] }>("/servers/provision/discover"),
+  // One-click re-registration of a discovered container: the provisioner
+  // recovers the token/password it originally injected.
+  adoptServer: (container: string, host?: string) =>
+    request<{ server: Server }>("/servers/adopt", {
+      method: "POST",
+      body: JSON.stringify({ container, host }),
+    }),
   getServer: (id: number) => request<Server>(`/servers/${id}`),
   createServer: (input: ServerWriteInput) => request<Server>("/servers", { method: "POST", body: JSON.stringify(input) }),
   updateServer: (id: number, input: ServerWriteInput) =>

@@ -9,6 +9,7 @@ import { serverColor, initials } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { ServerSphere } from "./ServerSphere";
 import { ServerFormDialog } from "./ServerFormDialog";
+import { ProvisionServerDialog } from "./ProvisionServerDialog";
 import { DeleteServerDialog } from "./DeleteServerDialog";
 import { ShutdownDialog } from "./ServerActionDialogs";
 
@@ -240,6 +241,7 @@ export function MobileBottomRail({ servers, activeServerId }: { servers: Server[
   const navigate = useNavigate();
   const location = useLocation();
   const [addOpen, setAddOpen] = useState(false);
+  const [provisionOpen, setProvisionOpen] = useState(false);
 
   const goToServer = (id: number) => {
     navigate(location.pathname.endsWith("/map") ? `/servers/${id}/map` : `/servers/${id}`);
@@ -264,7 +266,16 @@ export function MobileBottomRail({ servers, activeServerId }: { servers: Server[
           >
             <Plus className="h-4 w-4" />
           </button>
-          <ServerFormDialog open={addOpen} onOpenChange={setAddOpen} mode="create" />
+          <ServerFormDialog
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            mode="create"
+            onProvision={() => {
+              setAddOpen(false);
+              setProvisionOpen(true);
+            }}
+          />
+          <ProvisionServerDialog open={provisionOpen} onOpenChange={setProvisionOpen} />
         </>
       )}
     </div>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, type Server, type ServerWriteInput } from "../lib/api";
+import { api, type DiscoveredServer, type Server, type ServerWriteInput } from "../lib/api";
+import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { NumberField } from "./ui/number-field";
@@ -16,6 +17,7 @@ const emptyForm: ServerWriteInput = {
   rconPassword: "",
   restPort: 8212,
   restPassword: "",
+  gamePort: 8211,
   useRest: true,
   enabled: true,
   savePath: "",
@@ -35,6 +37,7 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
       rconPassword: "",
       restPort: server.restPort,
       restPassword: "",
+      gamePort: server.gamePort,
       useRest: server.useRest,
       enabled: server.enabled,
       savePath: server.savePath,
@@ -53,19 +56,61 @@ export function ServerFormDialog({
   onOpenChange,
   mode,
   server,
+  onProvision,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   server?: Server;
+  /** Create mode only: switch to the new-server wizard instead. */
+  onProvision?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<ServerWriteInput>(() => formStateFor(mode, server));
+  // How the game runs decides which fields matter; the toggle keeps the
+  // create form from asking companion questions about supervised servers.
+  const [kind, setKind] = useState<"companion" | "supervised">("supervised");
+
+  // Existing installs on the provisioner's host, offered for adoption.
+  const discoverQuery = useQuery({
+    queryKey: ["provision-discover"],
+    queryFn: () => api.provisionDiscover(),
+    enabled: open && mode === "create",
+    staleTime: 30_000,
+  });
+  const defaultsQuery = useQuery({
+    queryKey: ["provision-defaults"],
+    queryFn: () => api.provisionDefaults(),
+    enabled: open && mode === "create",
+    staleTime: 60_000,
+  });
+  const candidates = (discoverQuery.data?.servers ?? []).filter((c) => c.mode === "supervisor");
+
+  // Adoption is one click end to end: the provisioner recovers the
+  // container's own token and password, so there is nothing to type.
+  const adopt = useMutation({
+    mutationFn: (c: DiscoveredServer) => {
+      const browserHost = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+        ? undefined
+        : window.location.hostname;
+      return api.adoptServer(c.name, defaultsQuery.data?.host || browserHost);
+    },
+    onSuccess: ({ server }) => {
+      queryClient.invalidateQueries({ queryKey: ["servers"] });
+      queryClient.invalidateQueries({ queryKey: ["provision-discover"] });
+      toast.success(`Adopted "${server.name}"`);
+      onOpenChange(false);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to adopt server"),
+  });
 
   // Reset to fresh values every time the dialog opens, so stale form state
   // from a previous open (or a different server, in edit mode) doesn't leak in.
   useEffect(() => {
-    if (open) setForm(formStateFor(mode, server));
+    if (open) {
+      setForm(formStateFor(mode, server));
+      setKind("supervised");
+    }
   }, [open, mode, server]);
 
   const save = useMutation({
@@ -97,6 +142,71 @@ export function ServerFormDialog({
             </DialogDescription>
           </DialogHeader>
 
+          {mode === "create" && onProvision && (
+            <button
+              type="button"
+              onClick={onProvision}
+              className="mt-3 w-full rounded-xl border border-dashed border-brand-red/50 px-3 py-2 text-left text-xs text-ink/60 transition hover:border-brand-red hover:bg-brand-red/5"
+            >
+              Starting from scratch? <span className="font-semibold text-brand-red">Provision a new server</span> —
+              palcon generates the whole deployment for you.
+            </button>
+          )}
+
+          {mode === "create" && (
+            <div className="mt-4">
+              <div className="grid grid-cols-2 gap-1 rounded-xl border border-ink/10 bg-ink/5 p-1">
+                {(
+                  [
+                    ["supervised", "Supervised"],
+                    ["companion", "Companion"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setKind(value)}
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-xs font-semibold transition",
+                      kind === value ? "bg-white text-ink shadow-sm" : "text-ink/50 hover:text-ink",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {kind === "companion"
+                  ? "The game runs in its own container (an existing server image); a palagent beside it handles files and updates, and power goes through the docker proxy."
+                  : "The palagent container runs the game itself — power, updates, files and logs all flow through the agent. No container name or path mounts needed."}
+              </p>
+
+              {kind === "supervised" && candidates.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-ink/60">Found on the provisioner's host</p>
+                  {candidates.map((c) => (
+                    <button
+                      key={c.name}
+                      type="button"
+                      disabled={c.registered || adopt.isPending}
+                      onClick={() => adopt.mutate(c)}
+                      className="flex w-full items-center gap-2 rounded-xl border border-ink/10 px-3 py-2 text-left text-xs transition hover:border-ink/30 hover:bg-ink/5 disabled:opacity-50"
+                    >
+                      <span
+                        className={cn("h-2 w-2 shrink-0 rounded-full", c.running ? "bg-pal-green" : "bg-ink/30")}
+                      />
+                      <span className="font-mono">{c.name}</span>
+                      <span className="text-ink/40">agent :{c.agentPort || "?"}</span>
+                      <span className="ml-auto text-ink/40">
+                        {c.registered ? "already added" : adopt.isPending ? "adopting…" : "click to adopt"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Field label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <Field label="Host" value={form.host} onChange={(v) => setForm({ ...form, host: v })} />
@@ -122,8 +232,15 @@ export function ServerFormDialog({
               type="password"
               placeholder={mode === "edit" && server?.hasRconPassword ? "unchanged" : undefined}
             />
+            <div className="space-y-1.5">
+              <Label>Game port (players)</Label>
+              <NumberField value={form.gamePort} onChange={(v) => setForm({ ...form, gamePort: v })} min={1} />
+              <p className="text-xs text-muted-foreground">Shown as the join address on the dashboard.</p>
+            </div>
           </div>
 
+          {(mode === "edit" || kind === "companion") && (
+          <>
           <div className="mt-4 space-y-1.5">
             <Label>Container name (optional)</Label>
             <Input
@@ -146,7 +263,8 @@ export function ServerFormDialog({
             />
             <p className="text-xs text-muted-foreground">
               Container path to the world save folder (holds <code>Level.sav</code>), mounted read-only.
-              Enables the Pal party/palbox viewer.
+              Enables the Pal party/palbox viewer. Not needed with an agent — saves sync from it
+              automatically.
             </p>
           </div>
 
@@ -160,7 +278,7 @@ export function ServerFormDialog({
             <p className="text-xs text-muted-foreground">
               Container path to the folder holding <code>PalWorldSettings.ini</code>, mounted
               <strong> read-write</strong>. Enables the settings editor. Keep this separate from the save
-              mount so save data stays read-only.
+              mount so save data stays read-only. Not needed with an agent.
             </p>
           </div>
 
@@ -174,9 +292,11 @@ export function ServerFormDialog({
             <p className="text-xs text-muted-foreground">
               Container path to the Palworld install root (holds <code>steamapps</code>), mounted
               <strong> read-write</strong>. Enables clearing the SteamCMD cache when a game update
-              corrupts it.
+              corrupts it. Not needed with an agent.
             </p>
           </div>
+          </>
+          )}
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -195,9 +315,9 @@ export function ServerFormDialog({
               placeholder={mode === "edit" && server?.hasAgentToken ? "unchanged" : undefined}
             />
             <p className="col-span-2 text-xs text-muted-foreground">
-              The <code>palagent</code> sidecar deployed next to this game server. Replaces the
-              install-path mount and adds SteamCMD updates from the dashboard. Token must match the
-              agent's <code>PALAGENT_TOKEN</code>.
+              The <code>palagent</code> sidecar deployed next to this game server. Replaces all three
+              path mounts above: SteamCMD repair and updates, the Pal viewer, the settings editor and
+              backups all work through it. Token must match the agent's <code>PALAGENT_TOKEN</code>.
             </p>
           </div>
 

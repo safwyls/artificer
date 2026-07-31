@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useIsFetching, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Check, Gamepad2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { cn } from "../lib/utils";
+import { cn, copyText } from "../lib/utils";
 import { PlayerList } from "../components/PlayerList";
 import { ServerMetrics } from "../components/ServerMetrics";
 import { ServerPower } from "../components/ServerPower";
@@ -31,6 +31,7 @@ export function ServerDashboard() {
   const [shutdownOpen, setShutdownOpen] = useState(false);
   const [moderation, setModeration] = useState<ModerationTarget | null>(null);
   const [quickMsg, setQuickMsg] = useState("");
+  const [joinCopied, setJoinCopied] = useState(false);
 
   const serverQuery = useQuery({ queryKey: ["server", id], queryFn: () => api.getServer(id) });
   const infoQuery = useQuery({ queryKey: ["server-info", id], queryFn: () => api.serverInfo(id), retry: false });
@@ -87,8 +88,22 @@ export function ServerDashboard() {
       <header className="sticky top-0 z-10 hidden items-center justify-between border-b border-ink/10 bg-paper px-8 py-6 lg:flex">
         <div>
           <h1 className="font-display text-2xl font-extrabold">Server dashboard</h1>
-          <p className="mt-0.5 text-sm text-ink/50">
+          <p className="mt-0.5 flex items-center gap-2 text-sm text-ink/50">
             {server.name} · {infoQuery.data?.version ?? (infoQuery.isError ? "unreachable" : "checking...")}
+            <button
+              onClick={async () => {
+                if (await copyText(`${server.host}:${server.gamePort}`)) {
+                  setJoinCopied(true);
+                  setTimeout(() => setJoinCopied(false), 2000);
+                }
+              }}
+              title="Copy the address players join on"
+              className="flex items-center gap-1.5 rounded-lg border border-ink/10 px-2 py-0.5 font-mono text-xs text-ink/50 transition hover:border-ink/25 hover:text-ink"
+            >
+              <Gamepad2 className="h-3.5 w-3.5" />
+              {server.host}:{server.gamePort}
+              {joinCopied && <Check className="h-3 w-3 text-pal-green" />}
+            </button>
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -11,17 +11,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/safwyls/palcon/internal/agentctl"
 	"github.com/safwyls/palcon/internal/dockerctl"
+	"github.com/safwyls/palcon/internal/store"
 )
 
-// containerForRequest resolves the server and its configured container,
+// containerFor resolves the server's configured docker container,
 // reporting the two "not set up" cases distinctly so the UI can explain
 // which half is missing.
-func (s *Server) containerForRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
-	srv, ok := s.loadServer(w, r)
-	if !ok {
-		return "", false
-	}
+func (s *Server) containerFor(w http.ResponseWriter, srv *store.Server) (string, bool) {
 	if s.docker == nil {
 		writeError(w, http.StatusBadRequest, "docker control is not configured on this Palcon instance")
 		return "", false
@@ -31,6 +29,43 @@ func (s *Server) containerForRequest(w http.ResponseWriter, r *http.Request) (st
 		return "", false
 	}
 	return srv.ContainerName, true
+}
+
+// agentSupervisor returns the agent client and its health iff the
+// server's agent reports supervisor mode — the signal that power control
+// belongs to the agent rather than the docker proxy. Any failure (no
+// agent, unreachable, companion mode) collapses to nil so callers fall
+// back to docker.
+func (s *Server) agentSupervisor(ctx context.Context, srv *store.Server) (*agentctl.Client, *agentctl.Health) {
+	client := s.agentFor(srv)
+	if client == nil {
+		return nil, nil
+	}
+	h, err := client.Health(ctx)
+	if err != nil || h.Mode != "supervisor" || h.Game == nil {
+		return nil, nil
+	}
+	return client, h
+}
+
+// gameToContainerState maps the supervised game's status onto the shape
+// the dashboard already renders, so supervisor-mode servers light up the
+// existing power card unchanged.
+func gameToContainerState(health *agentctl.Health) *dockerctl.State {
+	game := health.Game
+	st := &dockerctl.State{
+		Name:    "palagent · supervisor",
+		Status:  game.State,
+		Running: game.State == "running",
+	}
+	if !game.StartedAt.IsZero() {
+		st.StartedAt = game.StartedAt.Format(time.RFC3339)
+	}
+	if game.LastExitCode != nil {
+		st.ExitCode = *game.LastExitCode
+		st.FinishedAt = game.LastExitAt.Format(time.RFC3339)
+	}
+	return st
 }
 
 // prepareForStop saves the world and asks the game to exit on its own,
@@ -86,13 +121,26 @@ var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 // power permission by the router: logs can carry chat and player identities,
 // which is container-management territory, not general viewing.
 func (s *Server) handleContainerLogs(w http.ResponseWriter, r *http.Request) {
-	name, ok := s.containerForRequest(w, r)
+	srv, ok := s.loadServer(w, r)
 	if !ok {
 		return
 	}
 	tail := 300
 	if n, err := strconv.Atoi(r.URL.Query().Get("tail")); err == nil && n > 0 {
 		tail = min(n, 2000)
+	}
+	if agent, _ := s.agentSupervisor(r.Context(), srv); agent != nil {
+		lines, err := agent.GameLogs(r.Context(), tail)
+		if err != nil {
+			writeAgentError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"lines": lines})
+		return
+	}
+	name, ok := s.containerFor(w, srv)
+	if !ok {
+		return
 	}
 	raw, err := s.docker.Logs(r.Context(), name, tail)
 	if err != nil {
@@ -104,7 +152,15 @@ func (s *Server) handleContainerLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleContainerStatus(w http.ResponseWriter, r *http.Request) {
-	name, ok := s.containerForRequest(w, r)
+	srv, ok := s.loadServer(w, r)
+	if !ok {
+		return
+	}
+	if _, health := s.agentSupervisor(r.Context(), srv); health != nil {
+		writeJSON(w, http.StatusOK, gameToContainerState(health))
+		return
+	}
+	name, ok := s.containerFor(w, srv)
 	if !ok {
 		return
 	}
@@ -121,11 +177,15 @@ func (s *Server) handleContainerStatus(w http.ResponseWriter, r *http.Request) {
 // made it — bouncing a server other people are playing on should never be
 // anonymous.
 func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
-	name, ok := s.containerForRequest(w, r)
+	srv, ok := s.loadServer(w, r)
 	if !ok {
 		return
 	}
 	action := chi.URLParam(r, "action")
+	if action != "start" && action != "stop" && action != "restart" {
+		writeError(w, http.StatusBadRequest, "unknown action")
+		return
+	}
 	user, _ := userFromContext(r.Context())
 	actor := "unknown"
 	if user != nil {
@@ -133,10 +193,33 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Detached from the request: closing the tab right after clicking Stop
-	// must not cancel the save → in-game shutdown → docker stop sequence
-	// midway, leaving the world unsaved or the container half-stopped.
-	// Each step still bounds itself with its own timeout.
+	// must not cancel the save → in-game shutdown → stop sequence midway,
+	// leaving the world unsaved or the server half-stopped. Each step
+	// still bounds itself with its own timeout.
 	ctx := context.WithoutCancel(r.Context())
+
+	// Supervisor-mode agents own the game process; the save-then-shutdown
+	// courtesy before stopping is identical either way.
+	if agent, _ := s.agentSupervisor(ctx, srv); agent != nil {
+		if action != "start" {
+			s.prepareForStop(ctx, r, "palagent:"+srv.Name, actor)
+		}
+		game, err := agent.Power(ctx, action)
+		if err != nil {
+			s.logger.Error("agent power action failed", "action", action, "server", srv.Name, "user", actor, "error", err)
+			writeAgentError(w, err)
+			return
+		}
+		s.logger.Info("agent power action", "action", action, "server", srv.Name, "user", actor)
+		s.audit(r, srv.ID, "power-"+action, "palagent")
+		writeJSON(w, http.StatusOK, gameToContainerState(&agentctl.Health{Game: game}))
+		return
+	}
+
+	name, ok := s.containerFor(w, srv)
+	if !ok {
+		return
+	}
 
 	var err error
 	switch action {
@@ -148,9 +231,6 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	case "restart":
 		s.prepareForStop(ctx, r, name, actor)
 		err = s.docker.Restart(ctx, name)
-	default:
-		writeError(w, http.StatusBadRequest, "unknown action")
-		return
 	}
 
 	if err != nil {
