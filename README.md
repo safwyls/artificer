@@ -13,6 +13,7 @@ One Go binary. Your hardware. Your data.
 [![Docker](https://github.com/safwyls/palcon/actions/workflows/docker.yml/badge.svg)](https://github.com/safwyls/palcon/actions/workflows/docker.yml)
 [![Pages](https://github.com/safwyls/palcon/actions/workflows/pages.yml/badge.svg)](https://github.com/safwyls/palcon/actions/workflows/pages.yml)
 
+[**Live demo**](https://safwyls.github.io/palcon/demo/) ·
 [**Homepage**](https://safwyls.github.io/palcon/) ·
 [**Documentation**](https://safwyls.github.io/palcon/docs/) ·
 [Wiki](https://github.com/safwyls/palcon/wiki) ·

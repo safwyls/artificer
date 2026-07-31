@@ -1,11 +1,12 @@
 name: Pages
 
-# Publishes site/ (the promo homepage) to GitHub Pages. Static files only —
-# no build step; screenshots are pre-rendered into site/assets/.
+# Publishes the public site to GitHub Pages: site/ (homepage + docs, static
+# files) plus the interactive demo — the real React frontend built with
+# VITE_DEMO=1, which answers every API call from a bundled fixture.
 on:
   push:
     branches: [main]
-    paths: ["site/**"]
+    paths: ["site/**", "web/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -26,11 +27,29 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build demo
+        working-directory: web
+        run: |
+          npm ci
+          VITE_DEMO=1 npx vite build --base=/palcon/demo/ --outDir dist-demo
+
+      - name: Assemble site + demo
+        run: |
+          mkdir _pages
+          cp -r site/* _pages/
+          cp -r web/dist-demo _pages/demo
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: site
+          path: _pages
 
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -23,13 +23,18 @@ export const MAP_AREAS: Record<MapArea, AreaBounds> = {
   Tree: {
     min: { x: 347351.5, y: -818197.0 },
     max: { x: 689148.5, y: -476400.0 },
-    textureCandidates: ["/palworld-treemap.webp", "/palworld-treemap.png", "/palworld-treemap.jpg"],
+    // BASE_URL-prefixed so subpath deployments (e.g. the static demo) resolve.
+    textureCandidates: ["palworld-treemap.webp", "palworld-treemap.png", "palworld-treemap.jpg"].map(
+      (f) => import.meta.env.BASE_URL + f,
+    ),
     label: "Tree",
   },
   MainMap: {
     min: { x: -1099400, y: -724400 },
     max: { x: 349400, y: 724400 },
-    textureCandidates: ["/palworld-map.webp", "/palworld-map.png", "/palworld-map.jpg"],
+    textureCandidates: ["palworld-map.webp", "palworld-map.png", "palworld-map.jpg"].map(
+      (f) => import.meta.env.BASE_URL + f,
+    ),
     label: "Main map",
   },
 };

@@ -78,7 +78,8 @@ export function palName(characterId: string): string {
 }
 
 export function palIconUrl(characterId: string): string {
-  return `/pal-icons/${palKey(characterId)}.webp`;
+  // BASE_URL-prefixed so subpath deployments (e.g. the static demo) resolve.
+  return `${import.meta.env.BASE_URL}pal-icons/${palKey(characterId)}.webp`;
 }
 
 /** Turns a leftover internal id into something readable, for the rare code

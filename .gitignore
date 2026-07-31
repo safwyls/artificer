@@ -19,12 +19,9 @@ palcon.log
 web/node_modules/
 web/dist/*
 !web/dist/.gitkeep
+# Static demo build (CI builds it fresh for GitHub Pages)
+web/dist-demo/
 *.tsbuildinfo
-
-# Palworld world map textures - copyrighted game assets. Supply your own
-# copies locally; they're never committed. See web/public/README.md.
-web/public/palworld-map.*
-web/public/palworld-treemap.*
 
 # UI screenshots taken while developing (Claude's headless-browser passes
 # land here so they're viewable in the editor). Never committed.

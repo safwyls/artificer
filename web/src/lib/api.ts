@@ -15,6 +15,13 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Demo builds (VITE_DEMO=1, a compile-time constant) answer every call
+  // from the local mock instead of the network; the import and its ~2 MB
+  // fixture are tree-shaken out of normal builds entirely.
+  if (import.meta.env.VITE_DEMO === "1") {
+    const { demoRequest } = await import("./demo");
+    return demoRequest<T>(path, init);
+  }
   const res = await fetch(`/api${path}`, {
     ...init,
     credentials: "include",

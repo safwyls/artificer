@@ -25,9 +25,10 @@ All files live in `web/src/data/`:
 | `palDeck.json` | id → Paldeck label ("94", "94B") | palworld-save-pal `pals.json` (`pal_deck_index`); see `web/public/pal-icons/README.md` for the transform |
 | `mapPois.json` | map POI world coordinates by kind; fast travel + watchtower entries carry their English names (`[x, y, name]`) used as "near X" landmarks for bases | palworld-save-pal `fast_travel_points.json` (split on the `UnlockMapPoint` class) joined with `l10n/en/fast_travel_points.json` by GUID, and `map_objects.json` (dungeons, alpha/predator spawns), rounded to whole units |
 
-Pal icons: `web/public/pal-icons/` — see the README there. Map textures are
-**not** vendored (copyrighted; user-supplied, gitignored — see
-`web/public/README.md` and the memory note about never deleting them).
+Pal icons: `web/public/pal-icons/` — see the README there. Map textures
+(`web/public/palworld-map.webp`, `palworld-treemap.webp`) are vendored the
+same way: © Pocketpair, Inc., credited on-screen in the map view — see
+`web/public/README.md` for the fork/redistribution considerations.
 
 ## Constants that drift with game patches
 

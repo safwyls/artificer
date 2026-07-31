@@ -11,6 +11,7 @@ import { ServerAutomation } from "./pages/ServerAutomation";
 import { ServerActivity } from "./pages/ServerActivity";
 import { PublicStatus } from "./pages/PublicStatus";
 import { AppShell } from "./components/AppShell";
+import { DemoBanner } from "./components/DemoBanner";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 
@@ -51,6 +52,7 @@ export function App() {
   return (
     <TooltipProvider delayDuration={200}>
       <Toaster position="bottom-right" />
+      {import.meta.env.VITE_DEMO === "1" && <DemoBanner />}
       <Routes>
         <Route path="/login" element={<Login />} />
         {/* Public, no session required — the token is the whole gate. */}
