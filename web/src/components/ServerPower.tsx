@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eraser, Play, RotateCw, ScrollText, Square } from "lucide-react";
+import { Eraser, HardDriveDownload, Play, RotateCw, ScrollText, Square } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { ContainerLogsDialog } from "./ContainerLogsDialog";
+import { SteamJobLogDialog } from "./SteamJobLogDialog";
 import {
   Dialog,
   DialogContent,
@@ -39,12 +40,22 @@ const CONFIRM: Record<Action, { title: string; body: string; verb: string }> = {
  * has a container name — power control is optional, and a server without it
  * should look no different from before the feature existed.
  */
-export function ServerPower({ serverId, installPath }: { serverId: number; installPath?: string }) {
+export function ServerPower({
+  serverId,
+  installPath,
+  agentUrl,
+}: {
+  serverId: number;
+  installPath?: string;
+  agentUrl?: string;
+}) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<Action | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
   const [cacheConfirmOpen, setCacheConfirmOpen] = useState(false);
+  const [updateConfirmOpen, setUpdateConfirmOpen] = useState(false);
+  const [jobLogOpen, setJobLogOpen] = useState(false);
 
   const statusQuery = useQuery({
     queryKey: ["container", serverId],
@@ -69,6 +80,46 @@ export function ServerPower({ serverId, installPath }: { serverId: number; insta
     onError: (err) => toast.error(err instanceof Error ? err.message : "Action failed"),
   });
 
+  const allowed = can("power");
+
+  // Polls only while the agent reports a running job; also runs once on
+  // mount, so a reload (or a palcon restart) rediscovers an in-flight
+  // update instead of forgetting it.
+  const updateStatus = useQuery({
+    queryKey: ["steam-update", serverId],
+    queryFn: () => api.steamUpdateStatus(serverId),
+    enabled: !!agentUrl && allowed,
+    retry: false,
+    refetchInterval: (q) => (q.state.data?.job?.state === "running" ? 2000 : false),
+  });
+  const job = updateStatus.data?.job ?? null;
+  const jobRunning = job?.state === "running";
+
+  // Announce the running → settled transition. A ref rather than state:
+  // this is bookkeeping about what was already shown, not render input.
+  const prevJobState = useRef<string | null>(null);
+  useEffect(() => {
+    const state = job?.state ?? null;
+    if (prevJobState.current === "running" && state && state !== "running") {
+      if (state === "done") {
+        toast.success("Server updated — start it back up when ready");
+      } else {
+        toast.error(`Update failed: ${job?.error || "see the agent's job log"}`);
+      }
+    }
+    prevJobState.current = state;
+  }, [job?.state, job?.error]);
+
+  const startUpdate = useMutation({
+    mutationFn: () => api.steamUpdateStart(serverId),
+    onSuccess: () => {
+      toast.success("Update started");
+      setUpdateConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["steam-update", serverId] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to start the update"),
+  });
+
   const clearCache = useMutation({
     mutationFn: () => api.clearSteamCache(serverId),
     onSuccess: ({ removed }) => {
@@ -82,95 +133,149 @@ export function ServerPower({ serverId, installPath }: { serverId: number; insta
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to clear the SteamCMD cache"),
   });
 
-  // Not configured (400) is the normal "feature is off" case, so the card
-  // stays hidden rather than showing an error to every user.
-  if (statusQuery.isError && statusQuery.error instanceof ApiError && statusQuery.error.status === 400) {
+  // Not configured (400) is the normal "docker power is off" case — but an
+  // agent-managed server still has repair tools to show, so only a server
+  // with neither configured hides the card entirely.
+  if (
+    statusQuery.isError &&
+    statusQuery.error instanceof ApiError &&
+    statusQuery.error.status === 400 &&
+    !agentUrl
+  ) {
     return null;
   }
   if (statusQuery.isLoading) return null;
 
   const state = statusQuery.data;
   const running = state?.running ?? false;
-  const allowed = can("power");
+  // Docker power deliberately not configured (400) is a designed state for
+  // agent-managed servers, not an error — the power row hides rather than
+  // rendering four permanently dead buttons. Transient failures (proxy
+  // down) keep the row, disabled, so the feature doesn't vanish.
+  const powerOff =
+    statusQuery.isError && statusQuery.error instanceof ApiError && statusQuery.error.status === 400;
+  const powerAvailable = !statusQuery.isError;
+  const agentAlive = !!updateStatus.data;
 
   return (
     <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink/10 bg-white/70 p-4 lg:p-5">
       <div className="flex items-center gap-3">
         <span
-          className={cn("h-2.5 w-2.5 shrink-0 rounded-full", running ? "bg-pal-green" : "bg-ink/30")}
+          className={cn(
+            "h-2.5 w-2.5 shrink-0 rounded-full",
+            running || (powerOff && agentAlive) ? "bg-pal-green" : "bg-ink/30",
+          )}
           aria-hidden
         />
         <div>
           <p className="font-display text-sm font-bold">
-            Container {running ? "running" : (state?.status ?? "unknown")}
+            {powerOff ? "Agent-managed" : `Container ${running ? "running" : (state?.status ?? "unknown")}`}
           </p>
           <p className="font-mono text-xs text-ink/40">
-            {state?.name}
-            {statusQuery.isError && " · status unavailable"}
+            {powerOff ? (
+              <>
+                {agentAlive ? "palagent connected" : "palagent unreachable"} · docker power control
+                not configured
+              </>
+            ) : (
+              <>
+                {state?.name}
+                {statusQuery.isError && " · status unavailable"}
+              </>
+            )}
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        {!allowed && <span className="text-xs text-ink/40">You don't have power permission</span>}
-        {/* Logs share the power grant — same gate as the endpoint. */}
-        {allowed && (
-          <Button variant="secondary" size="sm" onClick={() => setLogsOpen(true)}>
-            <ScrollText className="h-4 w-4" />
-            Logs
-          </Button>
-        )}
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!allowed || running || act.isPending}
-          onClick={() => setConfirming("start")}
-        >
-          <Play className="h-4 w-4" />
-          Start
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!allowed || !running || act.isPending}
-          onClick={() => setConfirming("restart")}
-        >
-          <RotateCw className="h-4 w-4" />
-          Restart
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          disabled={!allowed || !running || act.isPending}
-          onClick={() => setConfirming("stop")}
-        >
-          <Square className="h-4 w-4" />
-          Stop
-        </Button>
-      </div>
-
-      {/* Maintenance strip: a repair tool, not a routine action, so it sits
-          below the power row rather than crowding it. Hidden entirely when no
-          install path is configured — same principle as the card itself. */}
-      {allowed && installPath && (
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-3">
-          <div>
-            <p className="font-display text-sm font-bold">SteamCMD cache</p>
-            <p className="text-xs text-ink/40">
-              Stuck updating after a Palworld patch? Clear the cache, then restart.
-            </p>
-          </div>
+      {!powerOff && (
+        <div className="flex items-center gap-2">
+          {!allowed && <span className="text-xs text-ink/40">You don't have power permission</span>}
+          {/* Logs share the power grant — same gate as the endpoint. */}
+          {allowed && (
+            <Button variant="secondary" size="sm" disabled={!powerAvailable} onClick={() => setLogsOpen(true)}>
+              <ScrollText className="h-4 w-4" />
+              Logs
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="sm"
-            disabled={clearCache.isPending}
-            onClick={() => setCacheConfirmOpen(true)}
+            disabled={!allowed || !powerAvailable || running || act.isPending}
+            onClick={() => setConfirming("start")}
           >
-            <Eraser className="h-4 w-4" />
-            Clear cache
+            <Play className="h-4 w-4" />
+            Start
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!allowed || !powerAvailable || !running || act.isPending}
+            onClick={() => setConfirming("restart")}
+          >
+            <RotateCw className="h-4 w-4" />
+            Restart
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={!allowed || !powerAvailable || !running || act.isPending}
+            onClick={() => setConfirming("stop")}
+          >
+            <Square className="h-4 w-4" />
+            Stop
           </Button>
         </div>
       )}
+
+      {/* Maintenance strip: repair tools, not routine actions, so they sit
+          below the power row rather than crowding it. Hidden entirely when
+          neither an agent nor an install path is configured — same principle
+          as the card itself. */}
+      {allowed && (agentUrl || installPath) && (
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-3">
+          <div>
+            <p className="font-display text-sm font-bold">SteamCMD</p>
+            <p className="text-xs text-ink/40">
+              {jobRunning
+                ? "Updating the server install — this can take several minutes."
+                : "Stuck after a Palworld patch? Clear the cache or re-run the update."}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {agentUrl && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={jobRunning || running || startUpdate.isPending}
+                title={running ? "Stop the server first" : undefined}
+                onClick={() => setUpdateConfirmOpen(true)}
+              >
+                <HardDriveDownload className={cn("h-4 w-4", jobRunning && "animate-pulse")} />
+                {jobRunning ? "Updating…" : "Update server"}
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={clearCache.isPending || jobRunning}
+              onClick={() => setCacheConfirmOpen(true)}
+            >
+              <Eraser className="h-4 w-4" />
+              Clear cache
+            </Button>
+            {/* The agent keeps the last job's tail, so the log stays
+                readable after completion — not only mid-run. */}
+            {job && (
+              <Button variant="secondary" size="sm" onClick={() => setJobLogOpen(true)}>
+                <ScrollText className="h-4 w-4" />
+                Update log
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <SteamJobLogDialog job={job} open={jobLogOpen} onOpenChange={setJobLogOpen} />
 
       <ContainerLogsDialog
         serverId={serverId}
@@ -178,6 +283,27 @@ export function ServerPower({ serverId, installPath }: { serverId: number; insta
         open={logsOpen}
         onOpenChange={setLogsOpen}
       />
+
+      <Dialog open={updateConfirmOpen} onOpenChange={setUpdateConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update the server install?</DialogTitle>
+            <DialogDescription>
+              The agent runs SteamCMD update with validation against the install directory — the
+              repair for a broken game update. This can take several minutes; keep the server
+              stopped until it finishes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUpdateConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={startUpdate.isPending} onClick={() => startUpdate.mutate()}>
+              {startUpdate.isPending ? "Starting…" : "Update server"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={cacheConfirmOpen} onOpenChange={setCacheConfirmOpen}>
         <DialogContent>

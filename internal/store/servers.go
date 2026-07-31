@@ -36,6 +36,12 @@ type Server struct {
 	// read-write so the SteamCMD cache repair tool can wipe corrupted
 	// manifests. Empty = repair tool off.
 	InstallPath string
+	// AgentURL points at the server's palagent sidecar
+	// (docs/sidecar-agent.md); AgentToken is the bearer token palcon
+	// presents to it, encrypted at rest like the RCON/REST passwords and
+	// only populated when explicitly needed. Empty URL = no agent.
+	AgentURL   string
+	AgentToken string
 	// ContainerName is the Docker container this server runs in, used for
 	// start/stop/restart via the socket proxy. Empty = power control off.
 	ContainerName string
@@ -67,6 +73,8 @@ type serverRow struct {
 	SavePath        string
 	ConfigPath      string
 	InstallPath     string
+	AgentURL        string
+	AgentTokenEnc   string
 	ContainerName   string
 	Watchdog        int
 	PublicToken     string
@@ -83,6 +91,10 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decrypting rest password: %w", err)
 	}
+	agentToken, err := s.box.Decrypt(r.AgentTokenEnc)
+	if err != nil {
+		return nil, fmt.Errorf("decrypting agent token: %w", err)
+	}
 	return &Server{
 		ID:                  r.ID,
 		Name:                r.Name,
@@ -96,6 +108,8 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 		SavePath:            r.SavePath,
 		ConfigPath:          r.ConfigPath,
 		InstallPath:         r.InstallPath,
+		AgentURL:            r.AgentURL,
+		AgentToken:          agentToken,
 		ContainerName:       r.ContainerName,
 		Watchdog:            r.Watchdog != 0,
 		PublicToken:         r.PublicToken,
@@ -104,11 +118,11 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 	}, nil
 }
 
-const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, install_path, container_name, watchdog, public_token, backup_interval_hours, backup_keep`
+const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name, watchdog, public_token, backup_interval_hours, backup_keep`
 
 func scanServerRow(scan func(dest ...any) error) (serverRow, error) {
 	var r serverRow
-	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep)
+	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.AgentURL, &r.AgentTokenEnc, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep)
 	return r, err
 }
 
@@ -157,10 +171,14 @@ func (s *Store) CreateServer(ctx context.Context, srv *Server) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	agentEnc, err := s.box.Encrypt(srv.AgentToken)
+	if err != nil {
+		return 0, err
+	}
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO servers (name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, install_path, container_name)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc, boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath, srv.ContainerName)
+		INSERT INTO servers (name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc, boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath, srv.AgentURL, agentEnc, srv.ContainerName)
 	if err != nil {
 		return 0, err
 	}
@@ -181,6 +199,9 @@ func (s *Store) UpdateServer(ctx context.Context, srv *Server) error {
 	if srv.RESTPassword == "" {
 		srv.RESTPassword = existing.RESTPassword
 	}
+	if srv.AgentToken == "" {
+		srv.AgentToken = existing.AgentToken
+	}
 
 	rconEnc, err := s.box.Encrypt(srv.RCONPassword)
 	if err != nil {
@@ -190,15 +211,21 @@ func (s *Store) UpdateServer(ctx context.Context, srv *Server) error {
 	if err != nil {
 		return err
 	}
+	agentEnc, err := s.box.Encrypt(srv.AgentToken)
+	if err != nil {
+		return err
+	}
 
 	_, err = s.db.ExecContext(ctx, `
 		UPDATE servers
 		SET name = ?, host = ?, rcon_port = ?, rcon_password_enc = ?,
 		    rest_port = ?, rest_password_enc = ?, use_rest = ?, enabled = ?,
-		    save_path = ?, config_path = ?, install_path = ?, container_name = ?
+		    save_path = ?, config_path = ?, install_path = ?,
+		    agent_url = ?, agent_token_enc = ?, container_name = ?
 		WHERE id = ?`,
 		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc,
-		boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath, srv.ContainerName, srv.ID)
+		boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath,
+		srv.AgentURL, agentEnc, srv.ContainerName, srv.ID)
 	return err
 }
 

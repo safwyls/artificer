@@ -136,12 +136,12 @@ export function ServerDashboard() {
         // stopped server is precisely when you need the Start button, and
         // rendering only the unreachable art left no way to bring it back.
         <div className="space-y-4 p-4 lg:space-y-6 lg:p-8">
-          <ServerPower serverId={id} installPath={server.installPath} />
+          <ServerPower serverId={id} installPath={server.installPath} agentUrl={server.agentUrl} />
           <ServerUnreachable />
         </div>
       ) : (
         <div className="space-y-4 p-4 lg:space-y-6 lg:p-8">
-          <ServerPower serverId={id} installPath={server.installPath} />
+          <ServerPower serverId={id} installPath={server.installPath} agentUrl={server.agentUrl} />
 
           <ServerMetrics
             serverId={id}

@@ -53,7 +53,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 /** Human labels for the permission checkboxes, and what each actually allows. */
 export const PERMISSION_LABELS: Record<Permission, { label: string; help: string }> = {
-  power: { label: "Power", help: "Start, stop and restart the server container, and clear its SteamCMD cache" },
+  power: { label: "Power", help: "Start, stop and restart the server container, and repair or update its install" },
   broadcast: { label: "Broadcast", help: "Send in-game messages" },
   save: { label: "Save world", help: "Trigger a world save" },
   moderate: { label: "Moderate", help: "Kick, ban and unban players" },
@@ -105,6 +105,8 @@ export interface Server {
   savePath: string;
   configPath: string;
   installPath: string;
+  agentUrl: string;
+  hasAgentToken: boolean;
   containerName: string;
 }
 
@@ -120,7 +122,33 @@ export interface ServerWriteInput {
   savePath: string;
   configPath: string;
   installPath: string;
+  agentUrl: string;
+  /** Empty keeps the stored token (like password updates). */
+  agentToken?: string;
   containerName: string;
+}
+
+/** One background job on a server's palagent sidecar. */
+export interface SteamJob {
+  id: string;
+  kind: string;
+  state: "running" | "done" | "failed";
+  startedAt: string;
+  finishedAt?: string;
+  error?: string;
+  log?: string[];
+}
+
+export interface SteamUpdateStatus {
+  /** Running job, else the last finished one, else null. */
+  job: SteamJob | null;
+  agent: {
+    version: string;
+    apiVersion: number;
+    mode: string;
+    installDirOk: boolean;
+    diskFreeBytes: number;
+  };
 }
 
 export interface ServerInfo {
@@ -389,6 +417,16 @@ export const api = {
   // power permission and a configured install path.
   clearSteamCache: (id: number) =>
     request<{ removed: number }>(`/servers/${id}/steam-cache/clear`, { method: "POST" }),
+  // SteamCMD update via the server's palagent sidecar. POST starts a job
+  // on the agent (409 while the container runs or a job is in flight);
+  // GET reports the running/last job so the UI can poll — and rediscover
+  // an in-flight update after a reload.
+  steamUpdateStart: (id: number) =>
+    request<{ job: SteamJob }>(`/servers/${id}/steam/update`, {
+      method: "POST",
+      body: JSON.stringify({ validate: true }),
+    }),
+  steamUpdateStatus: (id: number) => request<SteamUpdateStatus>(`/servers/${id}/steam/update`),
   setWatchdog: (id: number, enabled: boolean) =>
     request<{ enabled: boolean }>(`/servers/${id}/watchdog`, { method: "PUT", body: JSON.stringify({ enabled }) }),
   setPublicStatus: (id: number, enabled: boolean) =>
