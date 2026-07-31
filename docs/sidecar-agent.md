@@ -100,7 +100,14 @@ services:
     # ... existing game config unchanged ...
   palagent:
     image: ghcr.io/safwyls/palagent:latest
-    volumes: ["./palworld:/palworld"]
+    volumes:
+      - ./palworld:/palworld
+      # Save data stays kernel-enforced read-only inside the agent: the
+      # agent's verbs never write under SaveGames/, and this nested :ro
+      # bind makes that a mount guarantee rather than a code promise —
+      # the same stance palcon's own save mounts always had. Remove this
+      # line only if/when a deliberate restore-backup verb ships.
+      - ./palworld/Pal/Saved/SaveGames:/palworld/Pal/Saved/SaveGames:ro
     environment:
       - PALAGENT_TOKEN=${PALAGENT_TOKEN}   # generated in the palcon UI
     networks: [palcon-net]
@@ -146,13 +153,29 @@ is deferred; the verb surface doesn't change if it's added.
 - Palcon-side safety that the agent can't provide in companion mode lives
   in palcon: SteamCMD update is refused while the container reports running.
 
-## Provisioning
+## Provisioning ("new server from the dashboard")
 
 Palcon never gains docker create/mount rights (see the proxy comment in
-`docker-compose.yml` for why). Instead palcon generates the per-server
-stack file for the human to apply; in supervisor mode the agent installs
-the game on first boot, so "new server" is: paste stack, `docker compose
-up -d`, server appears in the dashboard fully manageable.
+`docker-compose.yml` for why: create with arbitrary bind mounts is
+root-equivalent, and no socket proxy can validate payloads). The goal —
+spinning up a new Palworld server from the dashboard — lands in two steps:
+
+- **Phase 4, one-paste**: a "New server" wizard in palcon (name, ports,
+  world settings, generated token) emits a complete per-server stack file.
+  The human pastes it and deploys; the supervisor agent installs the game
+  via SteamCMD on first boot (visible as a job in the dashboard), writes
+  the config the wizard chose, and the server appears fully manageable.
+  Everything is dashboard-driven except the single paste.
+- **Phase 5 (optional), one-click**: a dedicated *provisioner* container
+  holds the docker create rights palcon must never have, exposing one
+  fixed verb — "stamp out a palworld stack with these parameters" — with
+  the compose template locked inside it and volumes confined to a
+  configured dataset root. Same fixed-verb trust model as palagent, one
+  level up: a compromised palcon could create more Palworld servers, not
+  arbitrary containers. On TrueNAS, driving the middleware apps API is a
+  possible alternative transport for the same idea. This is a real (if
+  bounded) privilege expansion, so it stays opt-in and separate from the
+  dashboard container.
 
 ## Phases
 
