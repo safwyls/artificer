@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/safwyls/palcon/internal/agentctl"
 	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/api"
 	"github.com/safwyls/palcon/internal/backup"
@@ -119,6 +120,15 @@ func run(logger *slog.Logger) error {
 
 	apiServer := api.New(st, cfg.JWTSecret, logger, palReader, docker, notifier, backups, files)
 	apiServer.CookieSecure = cfg.CookieSecure
+	// Optional one-click provisioning (docs/sidecar-agent.md phase 5).
+	if cfg.ProvisionerURL != "" {
+		provisioner, err := agentctl.New(cfg.ProvisionerURL, cfg.ProvisionerToken)
+		if err != nil {
+			return fmt.Errorf("configuring provisioner: %w", err)
+		}
+		apiServer.Provisioner = provisioner
+		logger.Info("provisioner enabled", "endpoint", cfg.ProvisionerURL)
+	}
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           apiServer.Routes(distFS),

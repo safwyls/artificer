@@ -37,3 +37,21 @@ func (c *Client) GameLogs(ctx context.Context, tail int) ([]string, error) {
 	}
 	return res.Lines, nil
 }
+
+// ProvisionResult reports what a provisioner-mode agent created.
+type ProvisionResult struct {
+	Container string `json:"container"`
+	ID        string `json:"id"`
+	DataDir   string `json:"dataDir"`
+}
+
+// Provision asks a provisioner-mode agent to instantiate the Palworld
+// supervisor template. The generous timeout covers the image pull a first
+// provision performs.
+func (c *Client) Provision(ctx context.Context, req palagent.ProvisionRequest) (*ProvisionResult, error) {
+	var res ProvisionResult
+	if err := c.do(ctx, http.MethodPost, "/v1/provision", req, &res, 10*time.Minute); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Download } from "lucide-react";
+import { Check, Copy, Download, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { api, type ProvisionInput, type ProvisionResult } from "../lib/api";
+import { copyText } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -19,6 +21,9 @@ const emptyForm: ProvisionInput = {
   agentPort: 8811,
   imageTag: "latest",
   adminPassword: "",
+  serverName: "",
+  serverDesc: "",
+  runAs: "568:568",
 };
 
 /**
@@ -35,6 +40,7 @@ export function ProvisionServerDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [form, setForm] = useState<ProvisionInput>(emptyForm);
   const [result, setResult] = useState<ProvisionResult | null>(null);
   const [copied, setCopied] = useState(false);
@@ -57,9 +63,12 @@ export function ProvisionServerDialog({
   });
 
   const copyStack = async () => {
-    await navigator.clipboard.writeText(result?.stack ?? "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (await copyText(result?.stack ?? "")) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast.error("Copy failed — select the text and copy manually");
+    }
   };
 
   const downloadStack = () => {
@@ -133,8 +142,36 @@ export function ProvisionServerDialog({
 
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
+                <Label>In-game name</Label>
+                <Input
+                  value={form.serverName ?? ""}
+                  placeholder={form.name || "same as display name"}
+                  onChange={(e) => setForm({ ...form, serverName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Description / MOTD</Label>
+                <Input
+                  value={form.serverDesc ?? ""}
+                  placeholder="shown in the server browser"
+                  onChange={(e) => setForm({ ...form, serverDesc: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
                 <Label>Image tag</Label>
                 <Input value={form.imageTag} onChange={(e) => setForm({ ...form, imageTag: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Run as</Label>
+                <Input
+                  value={form.runAs ?? ""}
+                  placeholder="568:568"
+                  onChange={(e) => setForm({ ...form, runAs: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">uid:gid, or "root".</p>
               </div>
               <div className="space-y-1.5">
                 <Label>Admin password</Label>
@@ -156,6 +193,42 @@ export function ProvisionServerDialog({
               </Button>
             </DialogFooter>
           </form>
+        ) : result.deployed ? (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Rocket className="h-5 w-5 text-pal-green" />
+                "{result.server.name}" is deploying
+              </DialogTitle>
+              <DialogDescription>
+                The provisioner created and started the stack — nothing to paste. The agent is
+                installing Palworld right now; first install takes a few minutes.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1 rounded-xl border border-ink/10 bg-ink/5 p-3 font-mono text-xs text-ink/60">
+              <p>container&nbsp;&nbsp;palagent-{result.server.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}</p>
+              {result.dataDir && <p>data&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{result.dataDir}</p>}
+              <p>admin pw&nbsp;&nbsp;{result.adminPassword}</p>
+            </div>
+            <p className="text-xs text-ink/50">
+              Install progress shows on the server's card (Update log has the SteamCMD output).
+              REST/RCON connect on their own once the game is up.
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Done
+              </Button>
+              <Button
+                className="clip-notch"
+                onClick={() => {
+                  onOpenChange(false);
+                  navigate(`/servers/${result.server.id}`);
+                }}
+              >
+                Go to server
+              </Button>
+            </DialogFooter>
+          </>
         ) : (
           <>
             <DialogHeader>
@@ -165,6 +238,12 @@ export function ProvisionServerDialog({
                 should live.
               </DialogDescription>
             </DialogHeader>
+
+            {result.deployError && (
+              <p className="rounded-lg bg-brand-red/10 px-3 py-2 text-xs text-brand-red">
+                One-click deploy failed ({result.deployError}) — deploy manually below.
+              </p>
+            )}
 
             <div className="flex items-center gap-2">
               <button
@@ -190,8 +269,14 @@ export function ProvisionServerDialog({
 
             <ol className="list-decimal space-y-1 pl-5 text-xs text-ink/60">
               <li>
-                Create the data directory (<code className="font-mono">{form.dataPath}</code>), owned
-                by <code className="font-mono">568:568</code> (apps) — the stack runs as that user.
+                Create the data directory (<code className="font-mono">{form.dataPath}</code>)
+                {form.runAs && form.runAs !== "root" && (
+                  <>
+                    , owned by <code className="font-mono">{form.runAs}</code> — the stack runs as that
+                    user
+                  </>
+                )}
+                .
               </li>
               <li>Paste as a new TrueNAS custom app (or compose stack) and deploy.</li>
               <li>

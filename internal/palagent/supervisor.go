@@ -57,6 +57,8 @@ type supervisor struct {
 	command       string
 	args          []string
 	adminPassword string
+	serverName    string
+	serverDesc    string
 	grace         time.Duration
 	// backoffFloor is the first crash-restart delay (doubles per failure);
 	// tests shrink it.
@@ -107,6 +109,8 @@ func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
 		command:       command,
 		args:          args,
 		adminPassword: cfg.AdminPassword,
+		serverName:    cfg.ServerName,
+		serverDesc:    cfg.ServerDesc,
 		grace:         grace,
 		backoffFloor: backoff,
 		logger:       cfg.Logger,
@@ -368,6 +372,20 @@ func (s *supervisor) prepareRuntime() {
 			if os.MkdirAll(iniDir, 0o755) == nil {
 				if os.WriteFile(ini, data, 0o644) == nil {
 					s.logger.Info("seeded PalWorldSettings.ini from defaults")
+					// Identity seeds exactly once, here: the operator's
+					// later settings-editor edits must stick.
+					identity := map[string]string{}
+					if s.serverName != "" {
+						identity["ServerName"] = s.serverName
+					}
+					if s.serverDesc != "" {
+						identity["ServerDescription"] = s.serverDesc
+					}
+					if len(identity) > 0 {
+						if err := palconfig.Write(ini, identity); err != nil {
+							s.logger.Warn("could not seed server name/description", "error", err)
+						}
+					}
 				}
 			}
 		}

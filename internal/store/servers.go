@@ -20,6 +20,9 @@ type Server struct {
 	RCONPassword string
 	RESTPort     int
 	RESTPassword string
+	// GamePort is the UDP port players join on — display/provisioning
+	// metadata only; palcon never speaks the game protocol.
+	GamePort int
 	UseREST      bool
 	Enabled      bool
 	// SavePath is an optional container-local path to the directory holding
@@ -68,6 +71,7 @@ type serverRow struct {
 	RCONPasswordEnc string
 	RESTPort        int
 	RESTPasswordEnc string
+	GamePort        int
 	UseREST         int
 	Enabled         int
 	SavePath        string
@@ -103,6 +107,7 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 		RCONPassword:        rconPass,
 		RESTPort:            r.RESTPort,
 		RESTPassword:        restPass,
+		GamePort:            r.GamePort,
 		UseREST:             r.UseREST != 0,
 		Enabled:             r.Enabled != 0,
 		SavePath:            r.SavePath,
@@ -118,11 +123,11 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 	}, nil
 }
 
-const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name, watchdog, public_token, backup_interval_hours, backup_keep`
+const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name, watchdog, public_token, backup_interval_hours, backup_keep`
 
 func scanServerRow(scan func(dest ...any) error) (serverRow, error) {
 	var r serverRow
-	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.AgentURL, &r.AgentTokenEnc, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep)
+	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.GamePort, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.AgentURL, &r.AgentTokenEnc, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep)
 	return r, err
 }
 
@@ -176,9 +181,9 @@ func (s *Store) CreateServer(ctx context.Context, srv *Server) (int64, error) {
 		return 0, err
 	}
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO servers (name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc, boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath, srv.AgentURL, agentEnc, srv.ContainerName)
+		INSERT INTO servers (name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc, normalizeGamePort(srv.GamePort), boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath, srv.AgentURL, agentEnc, srv.ContainerName)
 	if err != nil {
 		return 0, err
 	}
@@ -219,12 +224,12 @@ func (s *Store) UpdateServer(ctx context.Context, srv *Server) error {
 	_, err = s.db.ExecContext(ctx, `
 		UPDATE servers
 		SET name = ?, host = ?, rcon_port = ?, rcon_password_enc = ?,
-		    rest_port = ?, rest_password_enc = ?, use_rest = ?, enabled = ?,
+		    rest_port = ?, rest_password_enc = ?, game_port = ?, use_rest = ?, enabled = ?,
 		    save_path = ?, config_path = ?, install_path = ?,
 		    agent_url = ?, agent_token_enc = ?, container_name = ?
 		WHERE id = ?`,
 		srv.Name, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc,
-		boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath,
+		normalizeGamePort(srv.GamePort), boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath,
 		srv.AgentURL, agentEnc, srv.ContainerName, srv.ID)
 	return err
 }
@@ -292,6 +297,15 @@ func (s *Store) SetBackupSettings(ctx context.Context, id int64, intervalHours, 
 func (s *Store) DeleteServer(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM servers WHERE id = ?`, id)
 	return err
+}
+
+// normalizeGamePort keeps a zero from an old client meaning "default"
+// rather than storing an unjoinable port.
+func normalizeGamePort(p int) int {
+	if p < 1 || p > 65535 {
+		return 8211
+	}
+	return p
 }
 
 func boolToInt(b bool) int {

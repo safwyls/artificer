@@ -100,6 +100,8 @@ export interface Server {
   hasRconPassword: boolean;
   restPort: number;
   hasRestPassword: boolean;
+  /** UDP port players join on — display metadata. */
+  gamePort: number;
   useRest: boolean;
   enabled: boolean;
   savePath: string;
@@ -117,6 +119,7 @@ export interface ServerWriteInput {
   rconPassword?: string;
   restPort: number;
   restPassword?: string;
+  gamePort: number;
   useRest: boolean;
   enabled: boolean;
   savePath: string;
@@ -162,6 +165,12 @@ export interface ProvisionInput {
   imageTag: string;
   /** Blank = generated server-side. */
   adminPassword?: string;
+  /** In-game ServerName; blank = the palcon display name. */
+  serverName?: string;
+  /** In-game ServerDescription (MOTD). */
+  serverDesc?: string;
+  /** Container user:group; blank = 568:568, "root" = image default. */
+  runAs?: string;
 }
 
 export interface ProvisionResult {
@@ -170,6 +179,12 @@ export interface ProvisionResult {
   agentToken: string;
   /** The complete per-server compose stack to paste and deploy. */
   stack: string;
+  /** True when a provisioner deployed the stack already — no paste needed. */
+  deployed: boolean;
+  /** Set when a provisioner was configured but the deploy failed. */
+  deployError?: string;
+  /** Where the provisioner put the data (provisioner deploys only). */
+  dataDir?: string;
 }
 
 export interface ServerInfo {

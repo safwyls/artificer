@@ -27,6 +27,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/safwyls/palcon/internal/dockerctl"
 	"github.com/safwyls/palcon/internal/steamops"
 )
 
@@ -72,6 +73,11 @@ type Config struct {
 	// Authoritative: an ini edit to these three keys is re-applied from
 	// here on the next start. Supervisor mode only.
 	AdminPassword string
+	// ServerName/ServerDesc seed the in-game ServerName and
+	// ServerDescription (MOTD) — applied only when the ini is first
+	// created, so later settings-editor edits stick. Supervisor mode only.
+	ServerName string
+	ServerDesc string
 	// Autostart starts the game on agent boot when no persisted desired
 	// state exists yet (a fresh provision). Defaults true in supervisor
 	// mode; a persisted "stopped" always wins.
@@ -79,6 +85,11 @@ type Config struct {
 	// RestartBackoffFloor is the first crash-restart delay (doubling per
 	// consecutive failure); defaults to 5s. Tests shrink it.
 	RestartBackoffFloor time.Duration
+	// DockerHost and DataRoot configure provisioner mode: the docker
+	// endpoint holding create rights, and the directory per-server data
+	// dirs are created under. Provisioner mode only.
+	DockerHost string
+	DataRoot   string
 	// Version is the agent build version, reported in /v1/health.
 	Version string
 	Logger  *slog.Logger
@@ -89,6 +100,8 @@ type Agent struct {
 	jobs *jobRunner
 	// game is non-nil only in supervisor mode.
 	game *supervisor
+	// docker is non-nil only in provisioner mode.
+	docker *dockerctl.Client
 }
 
 // New validates the config and builds the agent. It does not listen;
@@ -110,8 +123,8 @@ func New(cfg Config) (*Agent, error) {
 	if cfg.Mode == "" {
 		cfg.Mode = "companion"
 	}
-	if cfg.Mode != "companion" && cfg.Mode != "supervisor" {
-		return nil, fmt.Errorf("unknown mode %q: use companion or supervisor", cfg.Mode)
+	if cfg.Mode != "companion" && cfg.Mode != "supervisor" && cfg.Mode != "provisioner" {
+		return nil, fmt.Errorf("unknown mode %q: use companion, supervisor or provisioner", cfg.Mode)
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -122,6 +135,13 @@ func New(cfg Config) (*Agent, error) {
 			cur := a.jobs.current()
 			return cur != nil && cur.State == "running"
 		})
+	}
+	if cfg.Mode == "provisioner" {
+		docker, err := validateProvisionerConfig(&a.cfg)
+		if err != nil {
+			return nil, fmt.Errorf("provisioner mode: %w", err)
+		}
+		a.docker = docker
 	}
 	return a, nil
 }
@@ -191,6 +211,8 @@ func (a *Agent) Handler() http.Handler {
 		// answer 400 so palcon falls back to the docker proxy.
 		r.Post("/power/{action}", a.handlePower)
 		r.Get("/power/logs", a.handleGameLogs)
+		// Phase 5 — provisioner mode's single verb.
+		r.Post("/provision", a.handleProvision)
 	})
 	return r
 }

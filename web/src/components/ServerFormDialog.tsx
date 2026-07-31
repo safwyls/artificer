@@ -16,6 +16,7 @@ const emptyForm: ServerWriteInput = {
   rconPassword: "",
   restPort: 8212,
   restPassword: "",
+  gamePort: 8211,
   useRest: true,
   enabled: true,
   savePath: "",
@@ -35,6 +36,7 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
       rconPassword: "",
       restPort: server.restPort,
       restPassword: "",
+      gamePort: server.gamePort,
       useRest: server.useRest,
       enabled: server.enabled,
       savePath: server.savePath,
@@ -136,6 +138,11 @@ export function ServerFormDialog({
               type="password"
               placeholder={mode === "edit" && server?.hasRconPassword ? "unchanged" : undefined}
             />
+            <div className="space-y-1.5">
+              <Label>Game port (players)</Label>
+              <NumberField value={form.gamePort} onChange={(v) => setForm({ ...form, gamePort: v })} min={1} />
+              <p className="text-xs text-muted-foreground">Shown as the join address on the dashboard.</p>
+            </div>
           </div>
 
           <div className="mt-4 space-y-1.5">

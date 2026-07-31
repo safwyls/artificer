@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/safwyls/palcon/internal/agentctl"
 	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/backup"
 	"github.com/safwyls/palcon/internal/dockerctl"
@@ -37,7 +38,11 @@ type Server struct {
 	backups *backup.Runner
 	// files resolves save/config to a local path — a bind mount, or the
 	// agent-synced cache (docs/sidecar-agent.md phase 2).
-	files        *agentfiles.Syncer
+	files *agentfiles.Syncer
+	// Provisioner, when set (like CookieSecure, assigned after New), lets
+	// the new-server wizard deploy stacks itself via a provisioner-mode
+	// palagent instead of handing the operator a file.
+	Provisioner  *agentctl.Client
 	loginLimiter *loginLimiter
 }
 

@@ -2,10 +2,16 @@ package api_test
 
 import (
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/safwyls/palcon/internal/agentctl"
+	"github.com/safwyls/palcon/internal/palagent"
 	"github.com/safwyls/palcon/internal/store"
 )
 
@@ -65,6 +71,72 @@ func TestProvisionServer(t *testing.T) {
 		if !strings.Contains(res.Stack, want) {
 			t.Errorf("stack missing %q:\n%s", want, res.Stack)
 		}
+	}
+}
+
+// One-click: with a provisioner configured, provisioning also deploys.
+// The provisioner here is a real provisioner-mode palagent over a fake
+// docker API — the full palcon → provisioner → docker chain.
+func TestProvisionOneClickDeploy(t *testing.T) {
+	app, admin := newTestAppWithAdmin(t)
+
+	var dockerCalls []string
+	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dockerCalls = append(dockerCalls, r.URL.Path)
+		switch {
+		case r.URL.Path == "/images/create":
+			w.Write([]byte(`{"status":"done"}` + "\n"))
+		case r.URL.Path == "/containers/create":
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"Id":"cafe"}`))
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	t.Cleanup(dockerSrv.Close)
+
+	dataRoot := t.TempDir()
+	provAgent, err := palagent.New(palagent.Config{
+		Token: agentToken, InstallDir: t.TempDir(), Version: "test",
+		Mode: "provisioner", DockerHost: dockerSrv.URL, DataRoot: dataRoot,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provSrv := httptest.NewServer(provAgent.Handler())
+	t.Cleanup(provSrv.Close)
+	app.api.Provisioner, err = agentctl.New(provSrv.URL, agentToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
+		"name": "One Click", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/oneclick",
+		"serverDesc": "motd here",
+	}, admin)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("provision: %d (body %s)", rec.Code, rec.Body)
+	}
+	var res struct {
+		Deployed bool   `json:"deployed"`
+		DataDir  string `json:"dataDir"`
+		Server   struct {
+			GamePort int `json:"gamePort"`
+		} `json:"server"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if !res.Deployed || res.DataDir != filepath.Join(dataRoot, "one-click") {
+		t.Errorf("result = %+v, want deployed into one-click", res)
+	}
+	if res.Server.GamePort != 8211 {
+		t.Errorf("gamePort = %d, want default 8211", res.Server.GamePort)
+	}
+	joined := strings.Join(dockerCalls, " ")
+	if !strings.Contains(joined, "/containers/create") || !strings.Contains(joined, "/start") {
+		t.Errorf("docker never created/started: %v", dockerCalls)
 	}
 }
 

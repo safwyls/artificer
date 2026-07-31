@@ -211,16 +211,45 @@ spinning up a new Palworld server from the dashboard — lands in two steps:
   already connected, because PALAGENT_ADMIN_PASSWORD enforces the
   management interfaces. Everything is dashboard-driven except the single
   paste (`POST /servers/provision`, admin-only).
-- **Phase 5 (optional), one-click**: a dedicated *provisioner* container
-  holds the docker create rights palcon must never have, exposing one
-  fixed verb — "stamp out a palworld stack with these parameters" — with
-  the compose template locked inside it and volumes confined to a
-  configured dataset root. Same fixed-verb trust model as palagent, one
-  level up: a compromised palcon could create more Palworld servers, not
-  arbitrary containers. On TrueNAS, driving the middleware apps API is a
-  possible alternative transport for the same idea. This is a real (if
-  bounded) privilege expansion, so it stays opt-in and separate from the
-  dashboard container.
+- **Phase 5 (optional), one-click — SHIPPED 2026-07**: a provisioner-mode
+  palagent (`PALAGENT_MODE=provisioner`) holds the docker create rights
+  palcon must never have, exposing one fixed verb — `/v1/provision`,
+  instantiate the locked Palworld supervisor template. The template lives
+  in code (internal/palagent/provisioner.go): no arbitrary images, mounts
+  or privileges are expressible; data dirs are always `<data root>/<slug>`
+  with the slug pattern forbidding traversal. A compromised palcon (or
+  leaked provisioner token) can stamp out more Palworld servers, and
+  nothing else. When palcon has `PROVISIONER_URL`/`PROVISIONER_TOKEN`
+  set, the wizard deploys the stack itself — the operator clicks Generate
+  and watches the install on the server's card. Deploy failures fall back
+  to the paste flow with the error shown.
+
+  Provisioner stack (deliberately privileged — the ONE component that
+  touches the docker socket; run as root, no `user:` line, since it
+  chowns data dirs and drives docker):
+
+  ```yaml
+  services:
+    palprovisioner:
+      image: ghcr.io/safwyls/palagent:latest
+      environment:
+        - PALAGENT_MODE=provisioner
+        - PALAGENT_TOKEN=${PROVISIONER_TOKEN}
+        - PALAGENT_DATA_ROOT=/mnt/pool/apps/palworld-servers
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+        # MUST be mounted at the identical path: the provisioner mkdirs
+        # inside this mount and hands docker the same string as a host
+        # bind for the new container.
+        - /mnt/pool/apps/palworld-servers:/mnt/pool/apps/palworld-servers
+      ports: ["8810:8811"]
+      restart: unless-stopped
+  # palcon env: PROVISIONER_URL=http://<host>:8810  PROVISIONER_TOKEN=<same token>
+  ```
+
+  Caveat: one-click containers are plain docker containers — on TrueNAS
+  they show as external/discovered, not as apps. Use the paste flow when
+  you want them managed as TrueNAS custom apps.
 
 ## Phases
 

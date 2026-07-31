@@ -157,25 +157,43 @@ export function ServerPower({
   const powerAvailable = !statusQuery.isError;
   const agentAlive = !!updateStatus.data;
 
+  // A SteamCMD job with the game down is the deploy/repair window — the
+  // moment a provisioned server is installing itself.
+  const settingUp = jobRunning && !running;
+  // Agent configured but unreachable: either the stack is still coming up
+  // (deploying) or it's down — indeterminate, shown as a pulse, not an
+  // error.
+  const agentPending = !!agentUrl && !agentAlive && updateStatus.isError;
+
   return (
     <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink/10 bg-white/70 p-4 lg:p-5">
       <div className="flex items-center gap-3">
         <span
           className={cn(
             "h-2.5 w-2.5 shrink-0 rounded-full",
-            running || (powerOff && agentAlive) ? "bg-pal-green" : "bg-ink/30",
+            settingUp
+              ? "animate-pulse bg-brand-amber"
+              : running || (powerOff && agentAlive)
+                ? "bg-pal-green"
+                : agentPending
+                  ? "animate-pulse bg-ink/30"
+                  : "bg-ink/30",
           )}
           aria-hidden
         />
         <div>
           <p className="font-display text-sm font-bold">
-            {powerOff ? "Agent-managed" : `Container ${running ? "running" : (state?.status ?? "unknown")}`}
+            {settingUp
+              ? "Setting up — SteamCMD working"
+              : powerOff
+                ? "Agent-managed"
+                : `Container ${running ? "running" : (state?.status ?? "unknown")}`}
           </p>
           <p className="font-mono text-xs text-ink/40">
             {powerOff ? (
               <>
-                {agentAlive ? "palagent connected" : "palagent unreachable"} · docker power control
-                not configured
+                {agentAlive ? "palagent connected" : "palagent unreachable — deploying, or the stack is down"} ·
+                docker power control not configured
               </>
             ) : (
               <>

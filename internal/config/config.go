@@ -34,6 +34,12 @@ type Config struct {
 	// Palcon should never require access to a docker socket to run.
 	DockerHost string
 
+	// ProvisionerURL/Token point at a provisioner-mode palagent — the one
+	// component allowed to create containers. Empty means the new-server
+	// wizard hands the operator a stack file to paste instead.
+	ProvisionerURL   string
+	ProvisionerToken string
+
 	// CookieSecure marks the session cookie Secure for deployments behind
 	// TLS. Off by default so plain-HTTP LAN setups keep working.
 	CookieSecure bool
@@ -53,6 +59,11 @@ func Load() (*Config, error) {
 		AdminUsername: getEnv("ADMIN_USERNAME", "admin"),
 		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
 		DockerHost:    os.Getenv("DOCKER_HOST"),
+		// The phase 5 provisioner (docs/sidecar-agent.md): when set, the
+		// new-server wizard deploys stacks itself instead of handing the
+		// operator a file to paste.
+		ProvisionerURL:   os.Getenv("PROVISIONER_URL"),
+		ProvisionerToken: os.Getenv("PROVISIONER_TOKEN"),
 	}
 
 	cfg.CookieSecure = os.Getenv("COOKIE_SECURE") == "true" || os.Getenv("COOKIE_SECURE") == "1"
