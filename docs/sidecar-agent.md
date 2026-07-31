@@ -199,16 +199,21 @@ All `/v1/*` routes require `Authorization: Bearer <token>` (constant-time
 compare; agent refuses to start with a token under 16 chars). Bare
 `GET /healthz` (204, no body) exists for container healthchecks only.
 
-| Verb | Route | Notes |
-|---|---|---|
-| GET | `/v1/health` | agent version, API version, mode, install dir status, disk free, current/last job |
-| POST | `/v1/steam/clear-cache` | empties `steamapps/*` and `steam/packages/*`; returns `{removed}` |
-| POST | `/v1/steam/update` | starts a SteamCMD `app_update` job (`{"validate": bool}`); 202 + `{job}`; 409 if a job is already running |
-| GET | `/v1/jobs/{id}` | job status: state, timestamps, exit ok, capped log tail |
+| Verb | Route | Mode | Notes |
+|---|---|---|---|
+| GET | `/v1/health` | all | version, API version, mode, install/save/config status, disk free, current/last job, game state (supervisor), provision defaults (provisioner) |
+| POST | `/v1/steam/clear-cache` | companion/supervisor | empties `steamapps/*` and `steam/packages/*`; returns `{removed}` |
+| POST | `/v1/steam/update` | companion/supervisor | SteamCMD `app_update` job (`{"validate": bool}`); 202 + `{job}`; 409 while busy or (supervisor) while the game runs |
+| GET | `/v1/jobs/{id}` | all | job status: state, timestamps, error, capped log tail |
+| GET | `/v1/files/save` | companion/supervisor | world save dir as a tar bundle, ETag/304 |
+| GET/PUT | `/v1/files/config` | companion/supervisor | `PalWorldSettings.ini`; PUT writes atomically, refuses to create |
+| POST | `/v1/power/{start,stop,restart}` | supervisor | game process control; returns post-action status |
+| GET | `/v1/power/logs` | supervisor | game stdout ring buffer |
+| POST | `/v1/provision` | provisioner | instantiate the locked supervisor template |
+| GET | `/v1/discover` | provisioner | list palagent containers (name, mode, ports, state — never env) |
+| POST | `/v1/adopt` | provisioner | recover a palagent container's registration data, **secrets included** — the deliberate exception to the env rule, bounded to palagent containers, because the provisioner injected those secrets itself and returning them to the token-authenticated control plane recreates a lost server row in one click |
 
-Phase 2 adds the file verbs (save serving, config, backups, logs); phase 3
-adds `/v1/power/*` for supervisor mode. Never a generic exec or arbitrary
-path parameter.
+Never a generic exec or arbitrary path parameter, in any mode.
 
 ## Auth
 

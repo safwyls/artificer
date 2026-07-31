@@ -16,6 +16,23 @@ TrueNAS Scale.
   gameplay settings up front, every key searchable below), written back
   atomically over a read-write config mount that's kept separate from the
   read-only save mount so save data can never be touched.
+- **SteamCMD repair & updates** — clear a corrupted update cache and re-run
+  `app_update` with validation from the dashboard, with the SteamCMD
+  transcript streaming live into a log viewer. Fixes the classic
+  post-patch "container can't update itself" failure without touching a
+  shell.
+- **palagent sidecar** — an optional per-server agent
+  (`ghcr.io/safwyls/palagent`) that replaces every bind mount: saves,
+  settings and backups flow through it, and in **supervisor mode** it runs
+  the game itself — install on first boot, crash auto-restart with backoff,
+  real exit codes, game logs — no game image or docker proxy needed. See
+  `docs/sidecar-agent.md` for the full design.
+- **Server provisioning** — a "New server" wizard that registers a fully
+  wired server and generates its ready-to-deploy stack file; with the
+  optional provisioner (the one component allowed to create containers,
+  behind a single locked verb) it becomes one click, and existing agent
+  containers on the host can be discovered and re-adopted — secrets
+  recovered automatically.
 - **Performance charts** — server FPS, frame time and player count sampled
   every 30s and kept for 7 days.
 - **Live map** — players plotted on the real world map with pan/zoom and
@@ -41,9 +58,10 @@ TrueNAS Scale.
   unguessable link: online/offline, player count, next scheduled restart.
   Served entirely from Palcon's own data, so visitors never touch the game
   server; no player names or addresses.
-- **Power control** — start/stop/restart the game server's container through a
-  scoped Docker socket proxy, with a container log viewer (tail, auto-refresh,
-  download) beside the buttons.
+- **Power control** — start/stop/restart through a scoped Docker socket
+  proxy (or natively through a supervisor-mode agent), with a log viewer
+  (tail, auto-refresh, download) beside the buttons and a copyable join
+  address in the header.
 - **Crash watchdog** — optionally revives a container that exits with an
   error, with a cooldown and a three-strikes stand-down so a crash loop gets a
   human instead of a fourth restart. Clean stops are never revived.
@@ -90,6 +108,13 @@ user (uid/gid `568`), which owns app datasets by default — that's what
 
 Both are optional; skip either and the corresponding feature simply doesn't
 appear.
+
+> **Prefer no mounts at all?** Deploy a `palagent` next to the game server
+> instead — it serves saves, settings, backups and SteamCMD repair over an
+> authenticated API, and palcon needs only its `/data` volume. Supervisor
+> mode goes further and replaces the game container entirely. Compose
+> examples, the provisioner for one-click server creation, and the security
+> model are all in [`docs/sidecar-agent.md`](docs/sidecar-agent.md).
 
 ### 3. Add a Custom App
 
@@ -222,7 +247,7 @@ of:
 
 | Permission | Allows |
 |---|---|
-| Power | Start, stop and restart the server container |
+| Power | Start, stop and restart the server, and repair/update its install |
 | Broadcast | Send in-game messages |
 | Save world | Trigger a world save |
 | Moderate | Kick, ban and unban players |
@@ -319,7 +344,15 @@ Or `docker compose up` using the bundled `docker-compose.yml`, which already
 includes the socket proxy and annotated volume mounts.
 
 Tags published: `latest` (tip of `main`), `main`, `sha-<short-sha>` for every
-commit, and `X.Y.Z`/`X.Y` when a `vX.Y.Z` git tag is pushed.
+commit, and `X.Y.Z`/`X.Y` when a `vX.Y.Z` git tag is pushed. A `beta` branch
+publishes `:beta` for both images as a test channel.
+
+Nothing beyond the compose examples is TrueNAS-specific: any Linux box with
+docker works identically (use your own `uid:gid` in place of `568:568`), and
+Windows works through Docker Desktop/WSL2 with the usual caveats — keep the
+data volume inside the Linux filesystem, and expect UDP game traffic through
+Docker Desktop's port forwarding to be fine for friends, less so for a large
+public server.
 
 ## Environment variables
 
@@ -332,6 +365,8 @@ commit, and `X.Y.Z`/`X.Y` when a `vX.Y.Z` git tag is pushed.
 | `ADMIN_USERNAME` | no | `admin` | bootstrap admin username (first run only) |
 | `ADMIN_PASSWORD` | yes on first run | — | bootstrap admin password (first run only) |
 | `DOCKER_HOST` | no | — | scoped socket proxy for power control, e.g. `tcp://docker-proxy:2375`; unset disables it |
+| `PROVISIONER_URL` | no | — | provisioner-mode palagent for one-click server creation; unset keeps the wizard's paste flow |
+| `PROVISIONER_TOKEN` | no | — | bearer token matching the provisioner's `PALAGENT_TOKEN` |
 
 ## Local development
 
@@ -365,15 +400,25 @@ section pointing at the real file and line it's drawn from.
 ## Repo layout
 
 ```
-cmd/palcon/           entrypoint
+cmd/palcon/           dashboard entrypoint
+cmd/palagent/         sidecar agent entrypoint (companion/supervisor/provisioner)
 internal/api/         HTTP handlers, auth, permissions, routing
-internal/collector/   background metrics sampling for the charts
+internal/agentctl/    palcon's client for palagent sidecars
+internal/agentfiles/  agent-synced save/config cache (effective local paths)
+internal/backup/      save snapshot schedule + archives
+internal/collector/   background metrics + save-refresh sampling
 internal/config/      env-based config
 internal/crypto/      AES-GCM encryption for stored passwords
 internal/db/          sqlite connection + migrations
-internal/dockerctl/   container start/stop/restart via the socket proxy
+internal/dockerctl/   docker API client (scoped proxy for palcon; create for the provisioner)
+internal/notify/      Discord webhooks
+internal/palagent/    the sidecar agent itself (all three modes)
+internal/palconfig/   PalWorldSettings.ini parsing + editing
 internal/palsave/     save file reading (Python extractor + Go runner)
 internal/palworld/    REST + RCON clients, fallback wrapper
+internal/sched/       scheduled restarts
+internal/steamops/    SteamCMD cache clear + update args (shared both binaries)
 internal/store/       data access: servers, users, metrics
+internal/watchdog/    crash watchdog for docker-managed servers
 web/                  React frontend, embedded into the Go binary
 ```

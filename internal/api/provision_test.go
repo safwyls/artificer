@@ -159,7 +159,7 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 			   "Ports":[{"PrivatePort":8811,"PublicPort":9911,"Type":"tcp"}]}
 			]`))
 		case r.URL.Path == "/containers/c1/json", r.URL.Path == "/containers/c2/json":
-			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=supervisor"]}}`))
+			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=supervisor","PALAGENT_TOKEN=adopted-token-0123456789abcdef","PALAGENT_ADMIN_PASSWORD=adopted-pw","PALAGENT_SERVER_NAME=Orphaned World"]}}`))
 		default:
 			w.WriteHeader(http.StatusNoContent)
 		}
@@ -208,10 +208,12 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 	if !defs.Available || defs.Host != "10.99.0.5" || defs.RunAs != "568:568" {
 		t.Errorf("defaults = %+v, want declared host + run-as", defs)
 	}
-	used := map[int]bool{8211: true, 8212: true, 25575: true, 9811: true}
+	// Rows AND containers hold ports — the ghost container on 9911 has no
+	// row, and the proposal must still avoid it.
+	used := map[int]bool{8211: true, 8212: true, 25575: true, 9811: true, 9212: true, 9911: true}
 	for _, p := range defs.Ports {
 		if used[p] {
-			t.Errorf("proposed ports collide with tracked ones: %v", defs.Ports)
+			t.Errorf("proposed ports collide with tracked/container ones: %v", defs.Ports)
 		}
 	}
 
@@ -234,6 +236,32 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 	}
 	if !byName["palagent-adopted"] || byName["palagent-orphan"] {
 		t.Errorf("registered flags wrong: %v", disc.Servers)
+	}
+
+	// Adopt the orphan: one call recreates a fully wired row with the
+	// container's own secrets and the declared host.
+	rec = app.do(t, "POST", "/api/servers/adopt", map[string]string{"container": "palagent-orphan"}, admin)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("adopt: %d (body %s)", rec.Code, rec.Body)
+	}
+	var adopted struct {
+		Server struct {
+			ID       int64  `json:"id"`
+			Name     string `json:"name"`
+			Host     string `json:"host"`
+			AgentURL string `json:"agentUrl"`
+		} `json:"server"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &adopted); err != nil {
+		t.Fatal(err)
+	}
+	if adopted.Server.Name != "Orphaned World" || adopted.Server.Host != "10.99.0.5" ||
+		adopted.Server.AgentURL != "http://10.99.0.5:9911" {
+		t.Errorf("adopted row = %+v", adopted.Server)
+	}
+	row, err := app.store.GetServer(t.Context(), adopted.Server.ID)
+	if err != nil || row.AgentToken != "adopted-token-0123456789abcdef" || row.RESTPassword != "adopted-pw" {
+		t.Errorf("adopted credentials wrong (err %v)", err)
 	}
 }
 

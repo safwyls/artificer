@@ -68,9 +68,14 @@ export function ProvisionServerDialog({
   // nothing user-typed gets clobbered).
   useEffect(() => {
     if (open && defaults?.available) {
+      // The address the browser reaches palcon on is usually the box's
+      // LAN IP — the right join/REST host when nothing is declared.
+      const browserHost = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+        ? ""
+        : window.location.hostname;
       setForm((f) => ({
         ...f,
-        host: defaults.host || f.host,
+        host: defaults.host || browserHost || f.host,
         imageTag: defaults.imageTag || f.imageTag,
         runAs: defaults.runAs || f.runAs,
         gamePort: defaults.ports?.game ?? f.gamePort,
@@ -330,6 +335,9 @@ export function ProvisionServerDialog({
             </ol>
 
             <DialogFooter>
+              <Button variant="outline" onClick={() => setResult(null)}>
+                Back to edit
+              </Button>
               <Button className="clip-notch" onClick={() => onOpenChange(false)}>
                 Done
               </Button>

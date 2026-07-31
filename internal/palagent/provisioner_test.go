@@ -40,7 +40,7 @@ func (f *fakeDockerAPI) handler() http.Handler {
 			  {"Id":"c3","Names":["/nginx"],"Image":"nginx:latest","State":"running","Ports":[]}
 			]`))
 		case r.URL.Path == "/containers/c1/json":
-			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=supervisor","PALAGENT_TOKEN=secret-must-not-leak"]}}`))
+			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=supervisor","PALAGENT_TOKEN=secret-must-not-leak","PALAGENT_ADMIN_PASSWORD=recovered-pw","PALAGENT_SERVER_NAME=Main World"]}}`))
 		case r.URL.Path == "/containers/c2/json":
 			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=provisioner"]}}`))
 		default:
@@ -140,6 +140,35 @@ func TestProvisionerHealthDefaultsAndDiscover(t *testing.T) {
 	}
 	if strings.Contains(fmt.Sprint(m), "secret-must-not-leak") {
 		t.Fatal("discovery leaked container env")
+	}
+}
+
+// Adoption is the one deliberate secret-return path: the provisioner
+// injected these values, so handing them back to the authenticated
+// control plane recovers a lost registration. Restricted to palagent
+// containers.
+func TestProvisionerAdopt(t *testing.T) {
+	srv, _, _ := newProvisioner(t)
+
+	resp, m := do(t, srv, "POST", "/v1/adopt", testToken, map[string]string{"container": "palagent-main"})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("adopt: %d %v", resp.StatusCode, m)
+	}
+	if m["token"] != "secret-must-not-leak" || m["adminPassword"] != "recovered-pw" ||
+		m["serverName"] != "Main World" || m["mode"] != "supervisor" || m["agentPort"] != float64(9811) {
+		t.Errorf("adopt result = %v", m)
+	}
+
+	// Not-a-palagent and unknown containers refuse.
+	if resp, _ := do(t, srv, "POST", "/v1/adopt", testToken, map[string]string{"container": "nginx"}); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("nginx adopt: %d, want 400", resp.StatusCode)
+	}
+	if resp, _ := do(t, srv, "POST", "/v1/adopt", testToken, map[string]string{"container": "ghost"}); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("ghost adopt: %d, want 404", resp.StatusCode)
+	}
+	// The provisioner itself is not adoptable.
+	if resp, _ := do(t, srv, "POST", "/v1/adopt", testToken, map[string]string{"container": "palprovisioner"}); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("provisioner adopt: %d, want 400", resp.StatusCode)
 	}
 }
 

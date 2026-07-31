@@ -515,6 +515,13 @@ export const api = {
   provisionDefaults: () => request<ProvisionDefaults>("/servers/provision/defaults"),
   provisionDiscover: () =>
     request<{ available: boolean; servers: DiscoveredServer[] }>("/servers/provision/discover"),
+  // One-click re-registration of a discovered container: the provisioner
+  // recovers the token/password it originally injected.
+  adoptServer: (container: string, host?: string) =>
+    request<{ server: Server }>("/servers/adopt", {
+      method: "POST",
+      body: JSON.stringify({ container, host }),
+    }),
   getServer: (id: number) => request<Server>(`/servers/${id}`),
   createServer: (input: ServerWriteInput) => request<Server>("/servers", { method: "POST", body: JSON.stringify(input) }),
   updateServer: (id: number, input: ServerWriteInput) =>

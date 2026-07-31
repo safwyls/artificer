@@ -69,7 +69,7 @@ export function ServerFormDialog({
   const [form, setForm] = useState<ServerWriteInput>(() => formStateFor(mode, server));
   // How the game runs decides which fields matter; the toggle keeps the
   // create form from asking companion questions about supervised servers.
-  const [kind, setKind] = useState<"companion" | "supervised">("companion");
+  const [kind, setKind] = useState<"companion" | "supervised">("supervised");
 
   // Existing installs on the provisioner's host, offered for adoption.
   const discoverQuery = useQuery({
@@ -86,26 +86,30 @@ export function ServerFormDialog({
   });
   const candidates = (discoverQuery.data?.servers ?? []).filter((c) => c.mode === "supervisor");
 
-  const adopt = (c: DiscoveredServer) => {
-    const host = defaultsQuery.data?.host || form.host;
-    setForm({
-      ...form,
-      name: form.name || c.name.replace(/^palagent-/, "").replace(/-/g, " "),
-      host,
-      gamePort: c.gamePort || form.gamePort,
-      restPort: c.restPort || form.restPort,
-      rconPort: c.rconPort || form.rconPort,
-      agentUrl: c.agentPort && host ? `http://${host}:${c.agentPort}` : form.agentUrl,
-      useRest: true,
-    });
-  };
+  // Adoption is one click end to end: the provisioner recovers the
+  // container's own token and password, so there is nothing to type.
+  const adopt = useMutation({
+    mutationFn: (c: DiscoveredServer) => {
+      const browserHost = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+        ? undefined
+        : window.location.hostname;
+      return api.adoptServer(c.name, defaultsQuery.data?.host || browserHost);
+    },
+    onSuccess: ({ server }) => {
+      queryClient.invalidateQueries({ queryKey: ["servers"] });
+      queryClient.invalidateQueries({ queryKey: ["provision-discover"] });
+      toast.success(`Adopted "${server.name}"`);
+      onOpenChange(false);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to adopt server"),
+  });
 
   // Reset to fresh values every time the dialog opens, so stale form state
   // from a previous open (or a different server, in edit mode) doesn't leak in.
   useEffect(() => {
     if (open) {
       setForm(formStateFor(mode, server));
-      setKind("companion");
+      setKind("supervised");
     }
   }, [open, mode, server]);
 
@@ -142,9 +146,9 @@ export function ServerFormDialog({
             <button
               type="button"
               onClick={onProvision}
-              className="mt-3 w-full rounded-xl border border-dashed border-ink/20 px-3 py-2 text-left text-xs text-ink/60 transition hover:border-ink/40 hover:bg-ink/5"
+              className="mt-3 w-full rounded-xl border border-dashed border-brand-red/50 px-3 py-2 text-left text-xs text-ink/60 transition hover:border-brand-red hover:bg-brand-red/5"
             >
-              Starting from scratch? <span className="font-semibold text-ink">Provision a new server</span> —
+              Starting from scratch? <span className="font-semibold text-brand-red">Provision a new server</span> —
               palcon generates the whole deployment for you.
             </button>
           )}
@@ -154,8 +158,8 @@ export function ServerFormDialog({
               <div className="grid grid-cols-2 gap-1 rounded-xl border border-ink/10 bg-ink/5 p-1">
                 {(
                   [
-                    ["companion", "Companion"],
                     ["supervised", "Supervised"],
+                    ["companion", "Companion"],
                   ] as const
                 ).map(([value, label]) => (
                   <button
@@ -184,8 +188,8 @@ export function ServerFormDialog({
                     <button
                       key={c.name}
                       type="button"
-                      disabled={c.registered}
-                      onClick={() => adopt(c)}
+                      disabled={c.registered || adopt.isPending}
+                      onClick={() => adopt.mutate(c)}
                       className="flex w-full items-center gap-2 rounded-xl border border-ink/10 px-3 py-2 text-left text-xs transition hover:border-ink/30 hover:bg-ink/5 disabled:opacity-50"
                     >
                       <span
@@ -194,7 +198,7 @@ export function ServerFormDialog({
                       <span className="font-mono">{c.name}</span>
                       <span className="text-ink/40">agent :{c.agentPort || "?"}</span>
                       <span className="ml-auto text-ink/40">
-                        {c.registered ? "already added" : "click to prefill"}
+                        {c.registered ? "already added" : adopt.isPending ? "adopting…" : "click to adopt"}
                       </span>
                     </button>
                   ))}

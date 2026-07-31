@@ -236,6 +236,90 @@ func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"servers": out})
 }
 
+// AdoptResult carries everything palcon needs to re-register an existing
+// palagent container — including its secrets. Deliberately: the
+// provisioner created these containers and injected those secrets in the
+// first place, so returning them to the (token-authenticated) control
+// plane stays within the same trust boundary. It is still restricted to
+// palagent containers — never arbitrary ones.
+type AdoptResult struct {
+	Name          string `json:"name"`
+	Mode          string `json:"mode"`
+	ServerName    string `json:"serverName,omitempty"`
+	Token         string `json:"token"`
+	AdminPassword string `json:"adminPassword"`
+	GamePort      int    `json:"gamePort,omitempty"`
+	RESTPort      int    `json:"restPort,omitempty"`
+	RCONPort      int    `json:"rconPort,omitempty"`
+	AgentPort     int    `json:"agentPort,omitempty"`
+}
+
+// handleAdopt recovers a discovered container's registration data —
+// the answer to "I deleted the server row; its container is still
+// running and I no longer have the token".
+func (a *Agent) handleAdopt(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.Mode != "provisioner" {
+		writeError(w, http.StatusBadRequest, "agent is not a provisioner")
+		return
+	}
+	var req struct {
+		Container string `json:"container"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Container == "" {
+		writeError(w, http.StatusBadRequest, "container name is required")
+		return
+	}
+	containers, err := a.docker.ContainerList(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	for _, c := range containers {
+		if c.Name != req.Container {
+			continue
+		}
+		if !strings.Contains(c.Image, "palagent") && c.Labels["palcon.provisioned"] != "true" {
+			writeError(w, http.StatusBadRequest, "not a palagent container")
+			return
+		}
+		env, err := a.docker.InspectEnv(r.Context(), c.ID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		res := AdoptResult{
+			Name:      c.Name,
+			Mode:      "companion",
+			GamePort:  c.Ports["8211/udp"],
+			RESTPort:  c.Ports["8212/tcp"],
+			RCONPort:  c.Ports["25575/tcp"],
+			AgentPort: c.Ports["8811/tcp"],
+		}
+		for _, e := range env {
+			if v, ok := strings.CutPrefix(e, "PALAGENT_MODE="); ok {
+				res.Mode = v
+			}
+			if v, ok := strings.CutPrefix(e, "PALAGENT_TOKEN="); ok {
+				res.Token = v
+			}
+			if v, ok := strings.CutPrefix(e, "PALAGENT_ADMIN_PASSWORD="); ok {
+				res.AdminPassword = v
+			}
+			if v, ok := strings.CutPrefix(e, "PALAGENT_SERVER_NAME="); ok {
+				res.ServerName = v
+			}
+		}
+		if res.Mode == "provisioner" {
+			writeError(w, http.StatusBadRequest, "that container is a provisioner, not a game server")
+			return
+		}
+		a.cfg.Logger.Info("adoption data served", "container", c.Name)
+		writeJSON(w, http.StatusOK, res)
+		return
+	}
+	writeError(w, http.StatusNotFound, "no container with that name")
+}
+
 // validateProvisionerConfig is called from New for mode=provisioner.
 func validateProvisionerConfig(cfg *Config) (*dockerctl.Client, error) {
 	if cfg.DataRoot == "" {

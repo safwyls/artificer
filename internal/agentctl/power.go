@@ -69,3 +69,16 @@ func (c *Client) Discover(ctx context.Context) ([]DiscoveredServer, error) {
 	}
 	return res.Servers, nil
 }
+
+// AdoptResult mirrors the provisioner's wire type.
+type AdoptResult = palagent.AdoptResult
+
+// Adopt recovers a palagent container's registration data (secrets
+// included) so palcon can re-register a server whose row was lost.
+func (c *Client) Adopt(ctx context.Context, container string) (*AdoptResult, error) {
+	var res AdoptResult
+	if err := c.do(ctx, http.MethodPost, "/v1/adopt", map[string]string{"container": container}, &res, 30*time.Second); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}

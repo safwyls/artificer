@@ -98,6 +98,7 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 			r.With(s.requireAdmin).Post("/servers/provision", s.handleProvisionServer)
 			r.With(s.requireAdmin).Get("/servers/provision/defaults", s.handleProvisionDefaults)
 			r.With(s.requireAdmin).Get("/servers/provision/discover", s.handleProvisionDiscover)
+			r.With(s.requireAdmin).Post("/servers/adopt", s.handleAdoptServer)
 			r.Route("/servers/{serverID}", func(r chi.Router) {
 				r.Get("/", s.handleGetServer)
 				r.With(s.requireAdmin).Put("/", s.handleUpdateServer)

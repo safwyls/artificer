@@ -262,13 +262,23 @@ func (s *Server) handleProvisionDefaults(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Containers hold ports too — including ones whose palcon row was
+	// deleted. The provisioner sees them; a proposal that ignored them
+	// would suggest ports that fail at deploy time.
+	var containerPorts []int
+	if found, err := s.Provisioner.Discover(r.Context()); err == nil {
+		for _, f := range found {
+			containerPorts = append(containerPorts, f.GamePort, f.RESTPort, f.RCONPort, f.AgentPort)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"available": true,
 		"host":      s.inferHost(health.Provision.PublicHost, servers),
 		"dataRoot":  health.Provision.DataRoot,
 		"runAs":     health.Provision.RunAs,
 		"imageTag":  health.Provision.ImageTag,
-		"ports":     proposePorts(servers),
+		"ports":     proposePorts(servers, containerPorts),
 	})
 }
 
@@ -289,6 +299,9 @@ func (s *Server) inferHost(declared string, servers []*store.Server) string {
 	counts := map[string]int{}
 	best := ""
 	for _, srv := range servers {
+		if srv.Host == "" {
+			continue
+		}
 		counts[srv.Host]++
 		if best == "" || counts[srv.Host] > counts[best] {
 			best = srv.Host
@@ -298,8 +311,9 @@ func (s *Server) inferHost(declared string, servers []*store.Server) string {
 }
 
 // proposePorts finds the first offset where none of the four default
-// ports collide with any port palcon already tracks.
-func proposePorts(servers []*store.Server) map[string]int {
+// ports collide with any port palcon tracks or the host's containers
+// hold.
+func proposePorts(servers []*store.Server, containerPorts []int) map[string]int {
 	used := map[int]bool{}
 	for _, srv := range servers {
 		used[srv.GamePort] = true
@@ -309,6 +323,11 @@ func proposePorts(servers []*store.Server) map[string]int {
 			if p, err := strconv.Atoi(u.Port()); err == nil {
 				used[p] = true
 			}
+		}
+	}
+	for _, p := range containerPorts {
+		if p != 0 {
+			used[p] = true
 		}
 	}
 	for offset := 0; offset < 1000; offset++ {
@@ -355,6 +374,80 @@ func (s *Server) handleProvisionDiscover(w http.ResponseWriter, r *http.Request)
 		out = append(out, candidate{f, f.AgentPort != 0 && registeredAgentPorts[f.AgentPort]})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"available": true, "servers": out})
+}
+
+// handleAdoptServer re-registers a discovered palagent container as a
+// server row — the recovery path for "the row was deleted but the
+// container lives on". The provisioner returns the container's own
+// registration data (secrets included, since it injected them), so
+// nothing has to be dug out of the host by hand.
+func (s *Server) handleAdoptServer(w http.ResponseWriter, r *http.Request) {
+	if s.Provisioner == nil {
+		writeError(w, http.StatusBadRequest, "no provisioner configured")
+		return
+	}
+	var req struct {
+		Container string `json:"container"`
+		// Host optionally overrides the inferred address.
+		Host string `json:"host"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Container) == "" {
+		writeError(w, http.StatusBadRequest, "container name is required")
+		return
+	}
+
+	adopted, err := s.Provisioner.Adopt(r.Context(), strings.TrimSpace(req.Container))
+	if err != nil {
+		writeAgentError(w, err)
+		return
+	}
+	if adopted.Token == "" || adopted.AgentPort == 0 {
+		writeError(w, http.StatusBadRequest, "that container has no agent token or published agent port — add it manually")
+		return
+	}
+
+	servers, err := s.store.ListServers(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list servers")
+		return
+	}
+	host := strings.TrimSpace(req.Host)
+	if host == "" {
+		health, err := s.Provisioner.Health(r.Context())
+		declared := ""
+		if err == nil && health.Provision != nil {
+			declared = health.Provision.PublicHost
+		}
+		host = s.inferHost(declared, servers)
+	}
+	if host == "" {
+		writeError(w, http.StatusBadRequest,
+			"could not infer the host address — set PALAGENT_PUBLIC_HOST on the provisioner or pass one")
+		return
+	}
+
+	name := adopted.ServerName
+	if name == "" {
+		name = strings.ReplaceAll(strings.TrimPrefix(adopted.Name, "palagent-"), "-", " ")
+	}
+	srv := &store.Server{
+		Name: name, Host: host,
+		RCONPort: adopted.RCONPort, RCONPassword: adopted.AdminPassword,
+		RESTPort: adopted.RESTPort, RESTPassword: adopted.AdminPassword,
+		GamePort: adopted.GamePort,
+		UseREST:  true, Enabled: true,
+		AgentURL:   fmt.Sprintf("http://%s:%d", host, adopted.AgentPort),
+		AgentToken: adopted.Token,
+	}
+	id, err := s.store.CreateServer(r.Context(), srv)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create server")
+		return
+	}
+	srv.ID = id
+	s.audit(r, id, "server-adopt", adopted.Name)
+	s.logger.Info("adopted server", "container", adopted.Name, "server", name)
+	writeJSON(w, http.StatusCreated, map[string]any{"server": toDTO(srv)})
 }
 
 // slugify reduces a display name to a container/directory-safe slug.

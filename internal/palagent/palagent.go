@@ -217,10 +217,12 @@ func (a *Agent) Handler() http.Handler {
 		// answer 400 so palcon falls back to the docker proxy.
 		r.Post("/power/{action}", a.handlePower)
 		r.Get("/power/logs", a.handleGameLogs)
-		// Phase 5 — provisioner mode: the create verb and read-only
-		// discovery of existing installs.
+		// Phase 5 — provisioner mode: the create verb, read-only
+		// discovery, and adoption (secret recovery for palagent
+		// containers the control plane lost track of).
 		r.Post("/provision", a.handleProvision)
 		r.Get("/discover", a.handleDiscover)
+		r.Post("/adopt", a.handleAdopt)
 	})
 	return r
 }
