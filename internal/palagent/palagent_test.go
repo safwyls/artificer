@@ -179,6 +179,17 @@ func TestAgentUpdateFailures(t *testing.T) {
 	}
 }
 
+func TestAgentJobLogCapped(t *testing.T) {
+	// 500 lines of output; the job must retain only the newest 400.
+	srv, _ := newTestAgent(t, `i=1; while [ $i -le 500 ]; do echo "line $i"; i=$((i+1)); done`)
+	_, m := do(t, srv, "POST", "/v1/steam/update", testToken, nil)
+	job := waitForJob(t, srv, m["job"].(map[string]any)["id"].(string))
+	log := job["log"].([]any)
+	if len(log) != 400 || log[len(log)-1] != "line 500" || log[0] != "line 101" {
+		t.Errorf("log len=%d first=%v last=%v, want 400 lines ending at 500", len(log), log[0], log[len(log)-1])
+	}
+}
+
 func TestAgentOneJobAtATime(t *testing.T) {
 	srv, _ := newTestAgent(t, "sleep 2")
 

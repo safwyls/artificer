@@ -21,10 +21,11 @@ var errJobRunning = errors.New("a job is already running")
 // a backstop, not an expectation.
 const jobTimeout = 45 * time.Minute
 
-// logTail caps how many output lines a job retains. Enough to diagnose
-// any SteamCMD failure (the useful error is always in the last few lines)
-// without holding a full validate transcript in memory forever.
-const logTail = 100
+// logTail caps how many output lines a job retains. The dashboard renders
+// this tail live while a job runs, so it's sized for reading a validate's
+// progress (~40KB worst case per poll on a LAN), not just for grabbing the
+// final error line.
+const logTail = 400
 
 // Job is the API view of one unit of background work. Fields are value
 // copies — handlers never hand out a pointer into the runner's mutable

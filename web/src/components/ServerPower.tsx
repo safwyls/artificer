@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { ContainerLogsDialog } from "./ContainerLogsDialog";
+import { SteamJobLogDialog } from "./SteamJobLogDialog";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,7 @@ export function ServerPower({
   const [logsOpen, setLogsOpen] = useState(false);
   const [cacheConfirmOpen, setCacheConfirmOpen] = useState(false);
   const [updateConfirmOpen, setUpdateConfirmOpen] = useState(false);
+  const [jobLogOpen, setJobLogOpen] = useState(false);
 
   const statusQuery = useQuery({
     queryKey: ["container", serverId],
@@ -261,9 +263,19 @@ export function ServerPower({
               <Eraser className="h-4 w-4" />
               Clear cache
             </Button>
+            {/* The agent keeps the last job's tail, so the log stays
+                readable after completion — not only mid-run. */}
+            {job && (
+              <Button variant="secondary" size="sm" onClick={() => setJobLogOpen(true)}>
+                <ScrollText className="h-4 w-4" />
+                Update log
+              </Button>
+            )}
           </div>
         </div>
       )}
+
+      <SteamJobLogDialog job={job} open={jobLogOpen} onOpenChange={setJobLogOpen} />
 
       <ContainerLogsDialog
         serverId={serverId}
