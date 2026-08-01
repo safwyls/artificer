@@ -31,6 +31,10 @@ type serverDTO struct {
 	AgentURL        string `json:"agentUrl"`
 	HasAgentToken   bool   `json:"hasAgentToken"`
 	ContainerName   string `json:"containerName"`
+	// Views an admin has switched off for this server. Sent to every signed-in
+	// user because the nav has to know what to leave out; it names the hidden
+	// views, never their contents. Admins still get the data behind them.
+	HiddenFeatures []string `json:"hiddenFeatures"`
 }
 
 func toDTO(srv *store.Server) serverDTO {
@@ -52,6 +56,7 @@ func toDTO(srv *store.Server) serverDTO {
 		AgentURL:        srv.AgentURL,
 		HasAgentToken:   srv.AgentToken != "",
 		ContainerName:   srv.ContainerName,
+		HiddenFeatures:  srv.HiddenFeatures,
 	}
 }
 

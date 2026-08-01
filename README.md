@@ -30,11 +30,14 @@ One Go binary. Your hardware. Your data.
 
 - **Watch** — live dashboard and performance charts, a world map with guild
   bases and point-of-interest layers, every player's pals with IVs and
-  passives straight from the save file, paldex completion and server records,
-  and a playtime activity board.
+  passives straight from the save file, their bags laid out slot by slot the
+  way the game draws them, paldex completion and server records, and a
+  playtime activity board.
 - **Manage** — start/stop/restart, a `PalWorldSettings.ini` editor, SteamCMD
   repair and updates with a live transcript, scheduled save backups, and
-  per-user permissions with an admin audit trail.
+  per-user permissions with an admin audit trail, and per-server visibility
+  switches so a view — or one player's pals, bags or position — can be kept
+  private.
 - **Automate** — scheduled restarts with in-game warnings, a crash watchdog,
   Discord notifications, and an opt-in public status page.
 - **Plan** — breeding calculators that know what's actually in your boxes:

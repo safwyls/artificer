@@ -119,6 +119,37 @@ export interface Server {
   agentUrl: string;
   hasAgentToken: boolean;
   containerName: string;
+  /** Views an admin has switched off for this server, so the nav knows what to
+   * leave out. Names the hidden views only — admins still get their data. */
+  hiddenFeatures: string[];
+}
+
+/** Views that can be switched off per server. The keys are also the route
+ * segments, so one string drives the nav link and the API's refusal. */
+export const FEATURES = ["map", "pals", "inventory", "paldex", "guilds", "calculators"] as const;
+export type Feature = (typeof FEATURES)[number];
+
+/** Kinds of data a single player can be withheld from. Coarser than the view
+ * list on purpose: Player pals, Paldex and Calculators all read one payload,
+ * so they share one switch. */
+export const STREAMS = ["pals", "inventory", "map"] as const;
+export type Stream = (typeof STREAMS)[number];
+
+export interface VisibilityResult {
+  hiddenFeatures: string[];
+  /** player uid -> streams that player is withheld from. */
+  players: Record<string, string[]>;
+  roster: { uid: string; nickname: string; level: number }[];
+  /** True when the roster is empty because the save couldn't be read, rather
+   * than because nobody has played. */
+  rosterUnavailable: boolean;
+  allFeatures: string[];
+  allStreams: string[];
+}
+
+export interface VisibilityInput {
+  hiddenFeatures: string[];
+  players: Record<string, string[]>;
 }
 
 export interface ServerWriteInput {
@@ -310,6 +341,65 @@ export interface Pal {
   baseId: string;
 }
 
+/** One occupied slot of a player's bag. `slot` is its real position in the
+ * container's grid — the save keeps it, so gaps in a bag are real gaps. */
+export interface ItemSlot {
+  slot: number;
+  itemId: string;
+  count: number;
+  /** Present only on items that carry per-instance state: gear has
+   * durability (guns a round count), eggs name the species inside. */
+  durability?: number;
+  ammo?: number;
+  eggSpecies?: string;
+  passives?: string[];
+}
+
+/** One of a player's bags. `size` is its capacity, so an unfilled slot reads
+ * differently from one the player hasn't unlocked. */
+export interface ItemContainer {
+  size: number;
+  slots: ItemSlot[];
+}
+
+/** A player's containers keyed by role: common (backpack), essential (key
+ * items), weapons, equipment, food, drop. */
+export type Inventory = Record<string, ItemContainer>;
+
+/**
+ * The player's own save entry. Carries no derived totals on purpose: the
+ * Health/Attack/Defense/Work Speed figures the game's character screen shows
+ * are computed at runtime from base values, level and gear, and the save
+ * records none of them. `hp` and `shield` are current values for the same
+ * reason — their maxima never reach the file.
+ */
+export interface Character {
+  exp: number;
+  hp: number;
+  shield: number;
+  /** A real percentage, unlike a pal's species-dependent stomach. */
+  stomach: number;
+  unusedStatusPoints: number;
+  /** Points spent on level-up, and the scarcer "Ex" pool, by stat name. */
+  statusPoints: Record<string, number>;
+  exStatusPoints: Record<string, number>;
+  /** The food buff running when the save was written, and its time left. */
+  foodBuff: string;
+  foodBuffSeconds: number;
+}
+
+export interface PlayerInventory {
+  uid: string;
+  nickname: string;
+  level: number;
+  inventory: Inventory;
+  /** Absent for a uid that owns bags but has no player entry in the save. */
+  character?: Character;
+  /** Unix seconds; 0 when the save recorded none. */
+  lastOnline: number;
+  platform: string;
+}
+
 export interface PlayerPals {
   uid: string;
   nickname: string;
@@ -319,6 +409,13 @@ export interface PlayerPals {
   base: Pal[];
   /** Dimensional Pal Storage, plus this player's share of the global storage. */
   storage: Pal[];
+  /** Present only in the bundled demo fixture, which is a whole-save capture.
+   * The live /pals and /guilds endpoints deliberately omit these two: three
+   * views read that payload, and shipping bags and character sheets there
+   * would route around the Inventory view's own visibility switches. Read them
+   * from /inventory, which honours them. */
+  inventory?: Inventory;
+  character?: Character;
   /** Unix seconds; 0 when the save recorded none. */
   lastOnline: number;
   /** Where they logged off, in the same world space the map plots. */
@@ -462,6 +559,12 @@ export interface PalsResult {
   saveModTime: string;
 }
 
+export interface InventoryResult {
+  players: PlayerInventory[];
+  parsedAt: string;
+  saveModTime: string;
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<{ username: string }>("/login", { method: "POST", body: JSON.stringify({ username, password }) }),
@@ -568,6 +671,10 @@ export const api = {
   // no save path configured.
   serverPals: (id: number) => request<PalsResult>(`/servers/${id}/pals`),
   serverGuilds: (id: number) => request<GuildsResult>(`/servers/${id}/guilds`),
+  serverInventory: (id: number) => request<InventoryResult>(`/servers/${id}/inventory`),
+  serverVisibility: (id: number) => request<VisibilityResult>(`/servers/${id}/visibility`),
+  updateServerVisibility: (id: number, input: VisibilityInput) =>
+    request<void>(`/servers/${id}/visibility`, { method: "PUT", body: JSON.stringify(input) }),
 
   // Activity: join/leave history for anyone signed in; the audit trail of
   // management actions is admin-only.

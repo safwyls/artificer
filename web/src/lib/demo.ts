@@ -9,7 +9,7 @@
  * container state) is synthesized, and mutations mutate module state so the
  * demo feels alive without a server. Nothing persists across reloads.
  */
-import { ApiError } from "./api";
+import { ApiError, FEATURES, STREAMS } from "./api";
 import type {
   ActivityResult,
   AppUser,
@@ -19,7 +19,10 @@ import type {
   ConfigResult,
   ConfigSetting,
   ContainerState,
+  InventoryResult,
   Me,
+  VisibilityInput,
+  VisibilityResult,
   Metrics,
   MetricsHistory,
   MetricPoint,
@@ -105,6 +108,9 @@ const state = {
   ] as AppUser[],
   nextUserId: 5,
   config: null as ConfigSetting[] | null,
+  // Mutated by the visibility PUT so the demo's switches actually do something
+  // for the rest of the session.
+  playerVisibility: {} as Record<string, string[]>,
 };
 
 // ---------------------------------------------------------------------------
@@ -128,10 +134,49 @@ const SERVER: Server = {
   agentUrl: "",
   hasAgentToken: false,
   containerName: "palworld-main",
+  // Everything on: the demo is a shop window, and the point of the visibility
+  // switches is better shown by letting a visitor flip them than by shipping
+  // one already flipped.
+  hiddenFeatures: [],
 };
 
 function unreachable(): never {
   throw new ApiError(502, "server unreachable: the demo container is stopped — start it from the dashboard");
+}
+
+/** Who can see what. The roster comes from the same captured world, so the
+ * per-player table has real names to switch off. */
+async function visibility(): Promise<VisibilityResult> {
+  const fx = await world();
+  return {
+    hiddenFeatures: SERVER.hiddenFeatures,
+    players: state.playerVisibility,
+    roster: fx.players.map((p) => ({ uid: p.uid, nickname: p.nickname, level: p.level })),
+    rosterUnavailable: false,
+    allFeatures: [...FEATURES],
+    allStreams: [...STREAMS],
+  };
+}
+
+/** The /inventory projection, taken from the same captured world the pal and
+ * guild views read, so one fixture backs every save-derived page. */
+async function inventory(): Promise<InventoryResult> {
+  const fx = await world();
+  return {
+    players: fx.players
+      .filter((p) => p.inventory && Object.keys(p.inventory).length > 0)
+      .map((p) => ({
+        uid: p.uid,
+        nickname: p.nickname,
+        level: p.level,
+        inventory: p.inventory!,
+        character: p.character,
+        lastOnline: p.lastOnline,
+        platform: p.platform,
+      })),
+    parsedAt: fx.parsedAt,
+    saveModTime: fx.saveModTime,
+  };
 }
 
 async function playersOnline(): Promise<Player[]> {
@@ -424,6 +469,14 @@ async function route_(route: string, method: string, q: URLSearchParams, body: a
 
   // --- save-file data ---
   if (route === "/servers/1/pals" || route === "/servers/1/guilds") return world();
+  if (route === "/servers/1/inventory") return inventory();
+  if (route === "/servers/1/visibility" && method === "GET") return visibility();
+  if (route === "/servers/1/visibility" && method === "PUT") {
+    const input = body as VisibilityInput;
+    SERVER.hiddenFeatures = input.hiddenFeatures ?? [];
+    state.playerVisibility = input.players ?? {};
+    return undefined;
+  }
 
   // --- activity + audit ---
   if (route === "/servers/1/activity") return activity(+(q.get("hours") ?? 24));

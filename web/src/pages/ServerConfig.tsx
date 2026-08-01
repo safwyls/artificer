@@ -5,6 +5,7 @@ import { ChevronDown, Eye, EyeOff, Lock, Search } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError, type ConfigResult, type ConfigSetting } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { VisibilityPanel } from "../components/VisibilityPanel";
 import { cn } from "../lib/utils";
 import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
@@ -81,7 +82,7 @@ export function ServerConfig() {
   const { serverID } = useParams();
   const id = Number(serverID);
   const queryClient = useQueryClient();
-  const { can } = useAuth();
+  const { can, isAdmin } = useAuth();
 
   const serverQuery = useQuery({ queryKey: ["server", id], queryFn: () => api.getServer(id) });
   const configQuery = useQuery({
@@ -180,6 +181,11 @@ export function ServerConfig() {
       </header>
 
       <div className="space-y-4 p-4 lg:space-y-6 lg:p-8">
+        {/* Above the ini editor on purpose: this is the setting most likely to
+            be changed on someone else's behalf, and it works without a config
+            path, which the editor below doesn't. */}
+        {isAdmin && <VisibilityPanel serverId={id} />}
+
         {configQuery.isLoading && <p className="text-sm text-muted-foreground">Reading settings…</p>}
         {notConfigured && <ConfigPathSetup />}
         {forbidden && (

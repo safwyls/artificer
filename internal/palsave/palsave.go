@@ -62,6 +62,61 @@ type Pal struct {
 	BaseID string `json:"baseId"`
 }
 
+// ItemSlot is one occupied slot of a player's inventory. Slot is the slot's
+// position in the container's grid, which the save preserves — gaps in a bag
+// are real gaps, so the viewer can lay a container out the way the game does.
+type ItemSlot struct {
+	Slot   int    `json:"slot"`
+	ItemID string `json:"itemId"`
+	Count  int    `json:"count"`
+
+	// Per-instance state, present only for the "dynamic" items that carry
+	// any: gear has durability (and guns a round count), eggs name the
+	// species inside. Zero means the item has no such state, not that it's
+	// broken or empty.
+	Durability float64  `json:"durability,omitempty"`
+	Ammo       int      `json:"ammo,omitempty"`
+	EggSpecies string   `json:"eggSpecies,omitempty"`
+	Passives   []string `json:"passives,omitempty"`
+}
+
+// ItemContainer is one of a player's bags. Size is its capacity in slots, so
+// an empty slot can be told apart from a slot the player hasn't unlocked.
+type ItemContainer struct {
+	Size  int        `json:"size"`
+	Slots []ItemSlot `json:"slots"`
+}
+
+// Character is the player's own save entry: level progress, current
+// condition, and how they spent their stat points.
+//
+// Deliberately carries no derived totals. The Health/Attack/Defense/Work Speed
+// figures the game's character screen shows are computed at runtime from base
+// values, level and equipment; the save records none of them, so neither do
+// we. HP and Shield are current values for the same reason — their maxima
+// never touch the file.
+type Character struct {
+	Exp    int `json:"exp"`
+	HP     int `json:"hp"`
+	Shield int `json:"shield"`
+	// Stomach is a real percentage, unlike a pal's species-dependent one.
+	Stomach            float64 `json:"stomach"`
+	UnusedStatusPoints int     `json:"unusedStatusPoints"`
+	// The two pools the game tracks separately: points spent on level-up,
+	// and the scarcer "Ex" ones. Keyed by English stat name.
+	StatusPoints   map[string]int `json:"statusPoints"`
+	ExStatusPoints map[string]int `json:"exStatusPoints"`
+	// The food buff currently running, and its seconds remaining.
+	FoodBuff        string `json:"foodBuff"`
+	FoodBuffSeconds int    `json:"foodBuffSeconds"`
+}
+
+// Inventory holds a player's item containers, keyed by role: "common" (the
+// backpack), "essential" (key items), "weapons", "equipment", "food" and
+// "drop" (what a death would leave behind). Empty for a player whose save
+// predates the layout the extractor reads.
+type Inventory map[string]ItemContainer
+
 type PlayerPals struct {
 	UID      string `json:"uid"`
 	Nickname string `json:"nickname"`
@@ -72,6 +127,13 @@ type PlayerPals struct {
 	// Dimensional Pal Storage (Players/<uid>_dps.sav) plus this player's
 	// share of the guild-wide GlobalPalStorage.sav.
 	Storage []Pal `json:"storage"`
+
+	// The player's item containers, from Level.sav's ItemContainerSaveData.
+	Inventory Inventory `json:"inventory,omitempty"`
+
+	// The player's own character entry. Nil for a uid that owns pals or bags
+	// but has no player entry in this save.
+	Character *Character `json:"character,omitempty"`
 
 	// From Players/<uid>.sav. LastOnline is unix seconds, 0 when the save
 	// didn't record one; LastX/LastY are world coordinates in the same

@@ -24,8 +24,10 @@ All files live in `web/src/data/`:
 | `breeding.json` | breeding combination table | palworld-save-pal |
 | `palDeck.json` | id → Paldeck label ("94", "94B") | palworld-save-pal `pals.json` (`pal_deck_index`); see `web/public/pal-icons/README.md` for the transform |
 | `mapPois.json` | map POI world coordinates by kind; fast travel + watchtower entries carry their English names (`[x, y, name]`) used as "near X" landmarks for bases | palworld-save-pal `fast_travel_points.json` (split on the `UnlockMapPoint` class) joined with `l10n/en/fast_travel_points.json` by GUID, and `map_objects.json` (dungeons, alpha/predator spawns), rounded to whole units |
+| `items.json` | item id → name, category, rarity, weight, icon, description, and the gear figures the inventory view shows (max durability, magazine size, attack, defense, built-in passives) | palworld-save-pal `items.json` joined with `l10n/en/items.json`; see `web/public/item-icons/README.md` |
 
-Pal icons: `web/public/pal-icons/` — see the README there. Map textures
+Pal icons: `web/public/pal-icons/` — see the README there. Item icons:
+`web/public/item-icons/`, same arrangement and its own README. Map textures
 (`web/public/palworld-map.webp`, `palworld-treemap.webp`) are vendored the
 same way: © Pocketpair, Inc., credited on-screen in the map view — see
 `web/public/README.md` for the fork/redistribution considerations.
@@ -78,7 +80,8 @@ version whenever the caps change:
 3. Spot-check in the UI with a real save: a newly-added pal should show
    name, icon, elements, and effective stats.
 4. Re-verify the constants above against patch notes.
-5. Update the attribution footer in `ServerPlayers.tsx` if sources change.
+5. Update the attribution footers in `ServerPlayers.tsx` and
+   `ServerInventory.tsx` if sources change.
 
 ## Related upstream watch
 

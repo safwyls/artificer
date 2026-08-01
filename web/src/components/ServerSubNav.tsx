@@ -1,11 +1,23 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
-import { api, type Server } from "../lib/api";
+import { EyeOff, Pencil, Trash2 } from "lucide-react";
+import { api, type Feature, type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { formatUptime } from "../lib/palette";
+import { FEATURE_LABELS, canSeeFeature, featureOff } from "../lib/visibility";
 import { cn } from "../lib/utils";
+
+/** The switchable views, in nav order. The route segment differs from the
+ * feature key for pals — the page has always lived at /players. */
+const SAVE_VIEWS: { feature: Feature; path: string }[] = [
+  { feature: "map", path: "map" },
+  { feature: "pals", path: "players" },
+  { feature: "inventory", path: "inventory" },
+  { feature: "paldex", path: "paldex" },
+  { feature: "guilds", path: "guilds" },
+  { feature: "calculators", path: "calculators" },
+];
 import { Badge } from "./ui/badge";
 import { ServerFormDialog } from "./ServerFormDialog";
 import { DeleteServerDialog } from "./DeleteServerDialog";
@@ -96,21 +108,19 @@ export function ServerSubNav({ server }: { server: Server }) {
         <NavLink to={`/servers/${server.id}`} end className={navLinkClass}>
           Dashboard
         </NavLink>
-        <NavLink to={`/servers/${server.id}/map`} className={navLinkClass}>
-          Live map
-        </NavLink>
-        <NavLink to={`/servers/${server.id}/players`} className={navLinkClass}>
-          Player pals
-        </NavLink>
-        <NavLink to={`/servers/${server.id}/paldex`} className={navLinkClass}>
-          Paldex
-        </NavLink>
-        <NavLink to={`/servers/${server.id}/guilds`} className={navLinkClass}>
-          Guilds
-        </NavLink>
-        <NavLink to={`/servers/${server.id}/calculators`} className={navLinkClass}>
-          Calculators
-        </NavLink>
+        {SAVE_VIEWS.map(({ feature, path }) =>
+          canSeeFeature(server, feature, isAdmin) ? (
+            <NavLink key={feature} to={`/servers/${server.id}/${path}`} className={navLinkClass}>
+              {FEATURE_LABELS[feature]}
+              {/* Admins keep the link and get told it's off for everyone
+                  else — otherwise the only sign would be its absence from a
+                  menu they can still use. */}
+              {featureOff(server, feature) && (
+                <EyeOff className="ml-auto h-3.5 w-3.5 shrink-0 text-paper/30" aria-label="Hidden from everyone else" />
+              )}
+            </NavLink>
+          ) : null,
+        )}
         <NavLink to={`/servers/${server.id}/activity`} className={navLinkClass}>
           Activity
         </NavLink>

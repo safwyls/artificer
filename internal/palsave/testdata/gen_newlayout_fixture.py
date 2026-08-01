@@ -39,6 +39,19 @@ BASE_CONTAINER = "cccccccc-0000-0000-0000-000000000001"
 CAMP_ID = "eeeeeeee-0000-0000-0000-000000000001"
 GUILD_ID = "ffffffff-0000-0000-0000-000000000001"
 
+# Item containers. Each player has a backpack, a key-item container and a
+# weapon rack; CHEST_CONTAINER belongs to nobody and must be walked past.
+KYOSHI_BAG = "aaaaaaaa-1111-0000-0000-000000000011"
+KYOSHI_KEYS = "aaaaaaaa-1111-0000-0000-000000000012"
+KYOSHI_ARMS = "aaaaaaaa-1111-0000-0000-000000000013"
+REN_BAG = "bbbbbbbb-2222-0000-0000-000000000011"
+CHEST_CONTAINER = "dddddddd-0000-0000-0000-000000000011"
+
+# Dynamic-item ids, joining a slot to its per-instance state.
+BOW_ITEM = "aaaaaaaa-1111-0000-0000-000000000021"
+EGG_ITEM = "aaaaaaaa-1111-0000-0000-000000000022"
+SWORD_ITEM = "bbbbbbbb-2222-0000-0000-000000000021"
+
 
 def sp(struct_type, value):
     return {"struct_type": struct_type, "struct_id": ZERO, "id": None, "value": value, "type": "StructProperty"}
@@ -148,6 +161,77 @@ def base_camp_entry(camp_id, guild_id, container_id, x, y):
     }
 
 
+def item_slot_raw(index, count, item_id, dynamic_id=ZERO):
+    """One packed item slot, as current saves write them: index, stack count,
+    item id, then the dynamic-item guid pair. The trailing bytes are padding
+    the reader is expected to ignore — real saves have grown them between
+    versions."""
+    w = FArchiveWriter()
+    w.i32(index)
+    w.i32(count)
+    w.fstring(item_id)
+    w.guid(ZERO)  # created world id
+    w.guid(dynamic_id)
+    w.write(b"\x00" * 20)
+    return list(w.bytes())
+
+
+def dynamic_item_raw(dynamic_id, item_id, durability=None, ammo=0, passives=(), egg_species=None):
+    """One DynamicItemSaveData blob: the per-instance state of a piece of gear
+    or an egg. Both shapes start with a zero i32 that current saves added
+    ahead of the payload."""
+    w = FArchiveWriter()
+    w.guid(ZERO)  # created world id
+    w.guid(dynamic_id)
+    w.fstring(item_id)
+    w.u32(0)
+    if egg_species:
+        w.fstring(egg_species)
+        w.fstring("None")  # the unhatched pal's (empty) property bag
+        w.write(b"\x00" * 20)
+    else:
+        w.float(durability)
+        w.i32(ammo)
+        w.u32(len(passives))
+        for p in passives:
+            w.fstring(p)
+        w.fstring("None")
+        w.write(b"\x00\x00\x00\x00")
+    return list(w.bytes())
+
+
+def item_container_entry(container_id, slot_num, slots):
+    """One ItemContainerSaveData entry. Slots carry their data packed into
+    RawData rather than as properties, which is the layout that matters."""
+    return {
+        "key": {"ID": guid(container_id)},
+        "value": {
+            "BelongInfo": sp("PalItemContainerBelongInfo", {"GroupId": guid(ZERO)}),
+            "SlotNum": i(slot_num),
+            "Slots": {
+                "array_type": "StructProperty",
+                "id": None,
+                "value": {
+                    "prop_name": "Slots",
+                    "prop_type": "StructProperty",
+                    "values": [{"RawData": bytearray_prop(raw)} for raw in slots],
+                    "type_name": "PalItemSlotSaveData",
+                    "id": ZERO,
+                },
+                "type": "ArrayProperty",
+            },
+        },
+    }
+
+
+def inventory_info(common, essential=None, weapons=None):
+    return sp("PalPlayerDataInventoryInfo", {
+        "CommonContainerId": containerid(common),
+        **({"EssentialContainerId": containerid(essential)} if essential else {}),
+        **({"WeaponLoadOutContainerId": containerid(weapons)} if weapons else {}),
+    })
+
+
 def namemap(value_type, pairs):
     """MapProperty keyed by pal CharacterID — the shape RecordData uses for
     PaldeckUnlockFlag (bool) and PalCaptureCount (int)."""
@@ -181,12 +265,35 @@ def entry(player_uid, instance_id, save_parameter):
     }
 
 
-def player(uid, nickname, level, instance_id):
+def statuspoints(prop_name, pairs):
+    """A GotStatusPointList / GotExStatusPointList. The stat names really are
+    Japanese in every save regardless of server language."""
+    return {
+        "array_type": "StructProperty",
+        "id": None,
+        "value": {
+            "prop_name": prop_name,
+            "prop_type": "StructProperty",
+            "values": [{"StatusName": name(k), "StatusPoint": i(p)} for k, p in pairs],
+            "type_name": "PalGotStatusPoint",
+            "id": ZERO,
+        },
+        "type": "ArrayProperty",
+    }
+
+
+def fixed64(value):
+    """Hp and ShieldHP are FixedPoint64 — the real value scaled by 1000."""
+    return sp("FixedPoint64", {"Value": {"id": None, "value": value, "type": "Int64Property"}})
+
+
+def player(uid, nickname, level, instance_id, character=None):
     # Deliberately carries no container ids — those live in Players/ now.
     return entry(uid, instance_id, {
         "IsPlayer": b(True),
         "NickName": s(nickname),
         "Level": byte(level),
+        **(character or {}),
     })
 
 
@@ -291,8 +398,34 @@ def main():
     outdir = sys.argv[1] if len(sys.argv) > 1 else "newlayout"
     os.makedirs(os.path.join(outdir, "Players"), exist_ok=True)
 
+    # Kyoshi has a full character record — both point pools, a running food
+    # buff, a dented shield. Ren's entry carries none of it, covering a save
+    # where the player has never spent a point.
+    kyoshi_character = {
+        "Exp": i(1234567),
+        "Hp": fixed64(6820000),
+        "ShieldHP": fixed64(1045000),
+        "FullStomach": {"id": None, "value": 89.5, "type": "FloatProperty"},
+        "UnusedStatusPoint": i(2),
+        "GotStatusPointList": statuspoints("GotStatusPointList", [
+            ("最大HP", 17),
+            ("最大SP", 18),
+            ("攻撃力", 18),
+            ("所持重量", 18),
+            ("捕獲率", 7),
+            ("作業速度", 0),   # a zero must not survive into the payload
+            ("移動速度アップ", 15),
+        ]),
+        "GotExStatusPointList": statuspoints("GotExStatusPointList", [
+            ("最大HP", 9),
+            ("攻撃力", 7),
+        ]),
+        "FoodWithStatusEffect": name("Minestrone"),
+        "Tiemr_FoodWithStatusEffect": i(367),
+    }
+
     entries = [
-        player(KYOSHI, "Kyoshi", 42, "10000000-0000-0000-0000-000000000001"),
+        player(KYOSHI, "Kyoshi", 42, "10000000-0000-0000-0000-000000000001", kyoshi_character),
         player(REN, "Ren", 37, "20000000-0000-0000-0000-000000000001"),
         # Kyoshi: 2 party, 2 palbox, 1 at a base
         pal(KYOSHI, "10000000-0000-0000-0000-000000000101", "SheepBall", KYOSHI_PARTY, 0, 12,
@@ -335,6 +468,55 @@ def main():
                     "value": [base_camp_entry(CAMP_ID, GUILD_ID, BASE_CONTAINER, 123400.0, -56700.0)],
                     "type": "MapProperty",
                 },
+                # Player item containers, plus a world chest owned by nobody
+                # that the targeted walk has to skip rather than attribute.
+                "ItemContainerSaveData": {
+                    "key_type": "StructProperty",
+                    "value_type": "StructProperty",
+                    "key_struct_type": "PalContainerId",
+                    "value_struct_type": "PalItemContainerSaveData",
+                    "id": None,
+                    "value": [
+                        item_container_entry(KYOSHI_BAG, 6, [
+                            item_slot_raw(0, 1200, "Money"),
+                            item_slot_raw(1, 42, "PalSphere_Mega"),
+                            # Slot 2 is skipped on purpose: a gap in a bag is
+                            # real, and an empty slot writes a zero count.
+                            item_slot_raw(3, 0, "None"),
+                            item_slot_raw(4, 1, "PalEgg_Fire_01", EGG_ITEM),
+                        ]),
+                        item_container_entry(KYOSHI_KEYS, 230, [
+                            item_slot_raw(0, 1, "TreasureBoxKey01"),
+                        ]),
+                        item_container_entry(KYOSHI_ARMS, 4, [
+                            item_slot_raw(0, 1, "SkyBow_2", BOW_ITEM),
+                        ]),
+                        item_container_entry(CHEST_CONTAINER, 30, [
+                            item_slot_raw(0, 999, "Wood"),
+                        ]),
+                        item_container_entry(REN_BAG, 6, [
+                            item_slot_raw(0, 1, "Katana_2", SWORD_ITEM),
+                        ]),
+                    ],
+                    "type": "MapProperty",
+                },
+                "DynamicItemSaveData": {
+                    "array_type": "StructProperty",
+                    "id": None,
+                    "value": {
+                        "prop_name": "DynamicItemSaveData",
+                        "prop_type": "StructProperty",
+                        "values": [
+                            {"RawData": bytearray_prop(dynamic_item_raw(BOW_ITEM, "SkyBow_2", durability=2857.0, ammo=1))},
+                            {"RawData": bytearray_prop(dynamic_item_raw(EGG_ITEM, "PalEgg_Fire_01", egg_species="Kitsunebi"))},
+                            # A dropped weapon that rolled its own passive.
+                            {"RawData": bytearray_prop(dynamic_item_raw(SWORD_ITEM, "Katana_2", durability=688.0, passives=["Legend"]))},
+                        ],
+                        "type_name": "PalDynamicItemSaveData",
+                        "id": ZERO,
+                    },
+                    "type": "ArrayProperty",
+                },
             }),
         },
         "trailer": "AAAAAA==",
@@ -356,8 +538,13 @@ def main():
         ]),
     })
     for uid, party, box, extra in (
-        (KYOSHI, KYOSHI_PARTY, KYOSHI_BOX, {"RecordData": kyoshi_record}),
-        (REN, REN_PARTY, REN_BOX, {}),
+        (KYOSHI, KYOSHI_PARTY, KYOSHI_BOX, {
+            "RecordData": kyoshi_record,
+            "InventoryInfo": inventory_info(KYOSHI_BAG, KYOSHI_KEYS, KYOSHI_ARMS),
+        }),
+        # Ren carries only a backpack — a player save can omit any of the
+        # container fields, and the missing ones must not fail the read.
+        (REN, REN_PARTY, REN_BOX, {"InventoryInfo": inventory_info(REN_BAG)}),
     ):
         write_sav({
             "header": {**HEADER, "save_game_class_name": "/Script/Pal.PalWorldPlayerSaveGame"},

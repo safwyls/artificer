@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/safwyls/palcon/internal/palworld"
 	"github.com/safwyls/palcon/internal/store"
@@ -84,7 +85,7 @@ func (s *Server) handleServerInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleServerPlayers(w http.ResponseWriter, r *http.Request) {
-	client, _, err := s.clientForServerID(r)
+	client, srv, err := s.clientForServerID(r)
 	if err != nil {
 		writeServerLoadError(w, err)
 		return
@@ -94,7 +95,33 @@ func (s *Server) handleServerPlayers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	// Not gated on the map feature: the dashboard's online list reads this
+	// too, and a name and level aren't the private part. The coordinates are,
+	// so those go when the map is off or the player has opted out of it.
+	if !canSee(r, srv, store.FeatureMap) {
+		for i := range players {
+			players[i].LocationX, players[i].LocationY = 0, 0
+		}
+	} else if hidden, err := s.hiddenPlayers(r, srv.ID); err == nil && len(hidden) > 0 {
+		for i := range players {
+			if hidden.HiddenFor(normalizeUID(players[i].PlayerUID), store.StreamMap) {
+				players[i].LocationX, players[i].LocationY = 0, 0
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, players)
+}
+
+// normalizeUID renders a live player id in the dashed form the save files use.
+// RCON and REST report it undashed (and RCON in a different case), so a raw
+// comparison against a save uid would silently never match — which for a
+// visibility check means failing open.
+func normalizeUID(uid string) string {
+	h := strings.ToLower(strings.ReplaceAll(uid, "-", ""))
+	if len(h) != 32 {
+		return strings.ToLower(uid)
+	}
+	return h[0:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32]
 }
 
 func (s *Server) handleServerBroadcast(w http.ResponseWriter, r *http.Request) {

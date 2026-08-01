@@ -11,8 +11,12 @@ Prints JSON to stdout:
         "party":   [<pal>...],  # pals in the player's party container
         "palbox":  [<pal>...],  # pals in the player's palbox container
         "base":    [<pal>...],  # owned pals working at a base (neither container)
-        "storage": [<pal>...]   # Dimensional Pal Storage (Players/<uid>_dps.sav)
+        "storage": [<pal>...],  # Dimensional Pal Storage (Players/<uid>_dps.sav)
                                 # plus the player's share of GlobalPalStorage.sav
+        "inventory": {          # the player's item containers, keyed by role
+          "common": {"size": 42, "slots": [<slot>...]}, ...
+        },
+        "character": {...}      # level progress, condition, stat-point spend
       }
     ]
   }
@@ -29,9 +33,10 @@ to a default rather than failing the whole extraction.
 import contextlib
 import json
 import os
+import struct
 import sys
 
-from palworld_save_tools.archive import FArchiveReader
+from palworld_save_tools.archive import UUID, FArchiveReader
 from palworld_save_tools.gvas import GvasFile, GvasHeader
 from palworld_save_tools.palsav import decompress_sav_to_gvas
 from palworld_save_tools.paltypes import PALWORLD_TYPE_HINTS
@@ -163,7 +168,9 @@ def container_id(node, *path):
 
 
 # Soul/condenser stat names come back as Japanese labels regardless of the
-# server's language, so they're mapped here rather than shown raw.
+# server's language, so they're mapped here rather than shown raw. The first
+# block is what a pal's souls and a player's core stats share; the rest are
+# the player-only "adventure" stats.
 STATUS_NAMES = {
     "最大HP": "Max HP",
     "最大SP": "Max SP",
@@ -172,6 +179,17 @@ STATUS_NAMES = {
     "所持重量": "Carry Weight",
     "捕獲率": "Capture Rate",
     "作業速度": "Work Speed",
+    "移動速度アップ": "Movement Speed",
+    "空腹率低減": "Hunger Reduction",
+    "泳ぎ速度": "Swim Speed",
+    "ジャンプ力": "Jump Power",
+    "食料腐敗低減": "Food Spoilage Reduction",
+    "滑空速度": "Glide Speed",
+    "経験値ボーナス": "EXP Bonus",
+    "崖登り速度": "Climb Speed",
+    "状態異常耐性": "Ailment Resistance",
+    "パルスフィアホーミング": "Sphere Homing",
+    "虹パッシブ率": "Rainbow Passive Rate",
 }
 
 
@@ -206,6 +224,35 @@ def soul_ranks(param):
         if d:
             out["Defense"] = d
     return out or status_points(param, "GotExStatusPointList")
+
+
+def parse_player_character(param):
+    """The player's own character entry: level progress, condition and how they
+    spent their stat points.
+
+    Deliberately no derived totals. The Health/Attack/Defense/Work Speed
+    numbers the game's character screen shows are computed at runtime from
+    base values, level and equipment, and the save stores none of them — so
+    what's reported here is what was actually written down.
+    """
+    return {
+        "exp": num(param, "Exp"),
+        # Hp and ShieldHP are FixedPoint64, scaled by 1000. Current values:
+        # the maximum is a runtime figure the save never records.
+        "hp": round(num(param, "Hp", "Value") / 1000),
+        "shield": round(num(param, "ShieldHP", "Value") / 1000),
+        # Genuinely a percentage, unlike a pal's species-dependent stomach.
+        "stomach": round(num(param, "FullStomach", default=0.0), 1),
+        "unusedStatusPoints": num(param, "UnusedStatusPoint"),
+        # The two point pools the game tracks separately: the ones spent on
+        # level-up, and the scarcer "Ex" ones.
+        "statusPoints": status_points(param, "GotStatusPointList"),
+        "exStatusPoints": status_points(param, "GotExStatusPointList"),
+        # The food buff currently running, and its seconds remaining. The
+        # field name really is misspelled in the save format.
+        "foodBuff": text(param, "FoodWithStatusEffect"),
+        "foodBuffSeconds": num(param, "Tiemr_FoodWithStatusEffect"),
+    }
 
 
 def parse_pal(param, instance_id, slot_index=None):
@@ -266,7 +313,7 @@ def skip_property(reader, type_name, size):
         reader.fstring()  # struct type
         reader.guid()
         reader.optional_guid()
-    elif type_name == "ArrayProperty":
+    elif type_name in ("ArrayProperty", "SetProperty"):
         reader.fstring()  # element type
         reader.optional_guid()
     elif type_name == "MapProperty":
@@ -285,7 +332,7 @@ def skip_property(reader, type_name, size):
     reader.skip(size)
 
 
-def read_sections(gvas_data, wanted):
+def read_sections(gvas_data, wanted, handlers=None):
     """Pull just the named worldSaveData sections, skipping everything else.
 
     A world save holds ~22 sections, and the ones we never look at —
@@ -295,7 +342,12 @@ def read_sections(gvas_data, wanted):
     purely to be discarded. Properties are length-prefixed, so we walk the
     top level, seek past anything unwanted, and stop as soon as everything
     asked for has been read.
+
+    `handlers` maps a section name to a reader that consumes the property
+    itself, for sections where parsing the whole thing is exactly what we're
+    trying to avoid (see read_item_containers).
     """
+    handlers = handlers or {}
     found = {}
     with FArchiveReader(
         gvas_data, PALWORLD_TYPE_HINTS, CUSTOM_PROPERTIES, allow_nan=True
@@ -321,13 +373,16 @@ def read_sections(gvas_data, wanted):
                     break
                 inner_type = reader.fstring()
                 inner_size = reader.u64()
-                if inner in wanted:
+                if inner in handlers:
+                    found[inner] = handlers[inner](reader, inner_type, inner_size)
+                elif inner in wanted:
                     prop = reader.property(inner_type, inner_size, f".worldSaveData.{inner}")
                     found[inner] = prop.get("value", [])
-                    if len(found) == len(wanted):
-                        return found
+                else:
+                    skip_property(reader, inner_type, inner_size)
                     continue
-                skip_property(reader, inner_type, inner_size)
+                if len(found) == len(wanted):
+                    return found
             break
     return found
 
@@ -452,11 +507,12 @@ def player_containers_from_dir(players_dir):
     per-player files, and dropped OwnerPlayerUId from pals entirely — so
     a pal's owner is now established by which container holds it.
 
-    Returns ({container_guid: (player_uid, bucket)}, {uid: player metadata}).
+    Returns ({container_guid: (player_uid, bucket)}, {uid: player metadata},
+    {container_guid: (player_uid, inventory role)}).
     """
-    index, meta = {}, {}
+    index, meta, inventory = {}, {}, {}
     if not os.path.isdir(players_dir):
-        return index, meta
+        return index, meta, inventory
     for name in sorted(os.listdir(players_dir)):
         # _dps.sav sidecars are pal storage, handled separately in main().
         if not name.lower().endswith(".sav") or name.lower().endswith("_dps.sav"):
@@ -485,7 +541,11 @@ def player_containers_from_dir(players_dir):
             cid = container_id(save_data, key)
             if cid:
                 index[cid] = (uid, bucket)
-    return index, meta
+        for key, role in INVENTORY_CONTAINERS.items():
+            cid = container_id(save_data, "InventoryInfo", key)
+            if cid:
+                inventory[cid] = (uid, role)
+    return index, meta, inventory
 
 
 def paldeck_records(save_data):
@@ -544,6 +604,207 @@ def storage_slots(path):
         yield param, iid, index
 
 
+# ---------------------------------------------------------------------------
+# Player inventories.
+#
+# A player's items live in six containers in Level.sav's ItemContainerSaveData,
+# referenced by guid from InventoryInfo in Players/<uid>.sav. The keys below are
+# those InventoryInfo fields; the values are the names the API serves.
+# ---------------------------------------------------------------------------
+
+INVENTORY_CONTAINERS = {
+    "CommonContainerId": "common",              # the backpack
+    "EssentialContainerId": "essential",        # key items
+    "WeaponLoadOutContainerId": "weapons",      # the four weapon slots
+    "PlayerEquipArmorContainerId": "equipment", # head, body, accessories, glider
+    "FoodEquipContainerId": "food",             # food pouch
+    "DropSlotContainerId": "drop",              # what a death would drop
+}
+
+ICSD_PATH = ".worldSaveData.ItemContainerSaveData"
+
+
+def decode_item_slot(raw):
+    """Decode one packed item slot.
+
+    Current saves pack the slot into its RawData bytes rather than writing
+    the properties out:
+
+        i32   slot index          (its position in the container's grid)
+        i32   stack count         (0 for an empty slot)
+        str   item id             ("PalSphere_Mega")
+        guid  created world id  }  zero unless the item is a "dynamic" one
+        guid  local id          }  (gear, eggs) with per-instance state
+
+    Anything after that is left alone — the trailing bytes have grown between
+    game versions, and nothing we show comes out of them.
+    """
+    if len(raw) < 12:
+        return None
+    slot_index, count, name_len = struct.unpack_from("<iiI", raw, 0)
+    off = 12
+    # A slot's own length prefix is the only bound-check that matters here;
+    # a nonsense one means the layout moved and the rest is not ours to read.
+    if name_len < 1 or off + name_len > len(raw):
+        return None
+    item_id = raw[off : off + name_len - 1].decode("utf-8", "replace")
+    off += name_len
+    dynamic_id = ""
+    if off + 32 <= len(raw):
+        local = str(UUID(raw[off + 16 : off + 32]))
+        if local != ZERO_GUID:
+            dynamic_id = local
+    if not item_id or item_id == "None" or count <= 0:
+        return None
+    return {"slot": slot_index, "itemId": item_id, "count": count, "dynamicId": dynamic_id}
+
+
+def decode_dynamic_item(raw):
+    """Decode one DynamicItemSaveData entry — the per-instance state of a
+    piece of gear or an egg, joined to a slot by its local id.
+
+    Layout after the two guids and the item id is version-dependent, so it's
+    identified rather than assumed: current saves write a zero i32 first, and
+    older ones start straight at the payload.
+
+        gear: f32 durability, i32 rounds left, then the passive list
+        egg:  str the species that will hatch
+
+    Eggs also carry the unhatched pal's full parameters, which we skip.
+    """
+    if len(raw) < 36:
+        return None
+    name_len = struct.unpack_from("<I", raw, 32)[0]
+    if name_len < 1 or 36 + name_len > len(raw):
+        return None
+    item_id = raw[36 : 36 + name_len - 1].decode("utf-8", "replace")
+    local = str(UUID(raw[16:32]))
+    rest = raw[36 + name_len :]
+    # A leading zero i32 marks the current layout; without it the payload
+    # starts immediately, as it did before the field was added.
+    off = 4 if len(rest) >= 4 and struct.unpack_from("<I", rest, 0)[0] == 0 else 0
+    out = {"dynamicId": local, "itemId": item_id}
+
+    if item_id.startswith("PalEgg"):
+        if off + 4 <= len(rest):
+            species_len = struct.unpack_from("<I", rest, off)[0]
+            if 1 <= species_len <= 64 and off + 4 + species_len <= len(rest):
+                species = rest[off + 4 : off + 4 + species_len - 1].decode("utf-8", "replace")
+                if species and species != "None":
+                    out["eggSpecies"] = species
+        return out
+
+    if off + 4 <= len(rest):
+        durability = struct.unpack_from("<f", rest, off)[0]
+        # NaN and negatives mean we're reading the wrong bytes, not a broken
+        # sword; the UI would rather show nothing than a nonsense number.
+        if durability == durability and durability >= 0:
+            out["durability"] = round(durability, 1)
+    if off + 8 <= len(rest):
+        rounds = struct.unpack_from("<i", rest, off + 4)[0]
+        if rounds > 0:
+            out["ammo"] = rounds
+    if off + 12 <= len(rest):
+        passives = read_item_passives(rest, off + 8)
+        if passives:
+            out["passives"] = passives
+    return out
+
+
+def read_item_passives(rest, off):
+    """The passive list a dropped weapon rolled, as a length-prefixed array of
+    strings. Empty on everything crafted, so a misread here costs nothing and
+    a wrong guess would invent skills — hence the bail-outs."""
+    count = struct.unpack_from("<I", rest, off)[0]
+    if not 0 < count <= 8:
+        return []
+    out, cursor = [], off + 4
+    for _ in range(count):
+        if cursor + 4 > len(rest):
+            return []
+        size = struct.unpack_from("<I", rest, cursor)[0]
+        cursor += 4
+        if size < 1 or cursor + size > len(rest):
+            return []
+        out.append(rest[cursor : cursor + size - 1].decode("utf-8", "replace"))
+        cursor += size
+    return out
+
+
+def read_item_containers(reader, type_name, size, wanted):
+    """Read the item containers named in `wanted`, walking past the rest.
+
+    ItemContainerSaveData holds every container in the world — each chest,
+    each base, each pal's own bag — which on an established world is thousands
+    of containers and hundreds of thousands of slots. Fully parsing it takes
+    minutes; the couple of dozen containers belonging to players take a tenth
+    of a second. The map's entries aren't individually length-prefixed, so
+    every entry is still walked, but only wanted ones are parsed.
+    """
+    if type_name != "MapProperty":
+        raise Exception(f"expected MapProperty, got {type_name}")
+    reader.fstring()  # key type
+    reader.fstring()  # value type
+    reader.optional_guid()
+    reader.u32()
+    count = reader.u32()
+
+    found = {}
+    for _ in range(count):
+        key = reader.properties_until_end(f"{ICSD_PATH}.Key")
+        container_id = str(unwrap(v(key, "ID", default="")) or "")
+        keep = container_id in wanted
+        entry = {"size": 0, "slots": []} if keep else None
+        while True:
+            name = reader.fstring()
+            if name == "None":
+                break
+            prop_type = reader.fstring()
+            prop_size = reader.u64()
+            if keep and name == "Slots":
+                prop = reader.property(prop_type, prop_size, f"{ICSD_PATH}.Value.Slots")
+                for slot in v(prop, "value", "values", default=None) or []:
+                    raw = v(slot, "RawData", "values", default=None)
+                    decoded = decode_item_slot(bytes(raw)) if raw else None
+                    if decoded:
+                        entry["slots"].append(decoded)
+            elif keep and name == "SlotNum":
+                # The container's real capacity, so the UI can draw the empty
+                # slots too rather than implying a full bag.
+                entry["size"] = num(reader.property(prop_type, prop_size, f"{ICSD_PATH}.Value.SlotNum"))
+            else:
+                skip_property(reader, prop_type, prop_size)
+        if entry is not None:
+            found[container_id] = entry
+    return found
+
+
+def build_inventories(containers, dynamic_entries, index):
+    """Assemble {player uid: {role: container}} from the parsed containers,
+    folding each dynamic item's state into the slot that references it."""
+    dynamic = {}
+    for entry in dynamic_entries or []:
+        raw = v(entry, "RawData", "values", default=None)
+        decoded = decode_dynamic_item(bytes(raw)) if raw else None
+        if decoded:
+            dynamic[decoded.pop("dynamicId")] = decoded
+
+    out = {}
+    for container_id, container in containers.items():
+        uid, role = index[container_id]
+        slots = []
+        for slot in sorted(container["slots"], key=lambda s: s["slot"]):
+            state = dynamic.get(slot.pop("dynamicId"))
+            if state:
+                # itemId is already on the slot and agrees; the rest is the
+                # per-instance state the slot itself doesn't carry.
+                slots.append({**slot, **{k: x for k, x in state.items() if k != "itemId"}})
+            else:
+                slots.append(slot)
+        out.setdefault(uid, {})[role] = {"size": container["size"], "slots": slots}
+    return out
+
+
 def main():
     if len(sys.argv) != 2:
         print("usage: extract_pals.py <Level.sav>", file=sys.stderr)
@@ -553,22 +814,39 @@ def main():
     if os.path.isdir(level_path):
         level_path = os.path.join(level_path, "Level.sav")
 
-    # container guid -> (player uid, "party" | "palbox")
-    containers, player_meta = player_containers_from_dir(
+    # container guid -> (player uid, "party" | "palbox"), and the same for the
+    # player's six item containers
+    containers, player_meta, item_containers = player_containers_from_dir(
         os.path.join(os.path.dirname(level_path), "Players")
     )
 
     with open(level_path, "rb") as f:
         gvas_data = decompress_sav(f.read())
     guilds = []
-    guild_entries, camps = None, {}
+    guild_entries, camps, inventories = None, {}, {}
     try:
         with contextlib.redirect_stdout(sys.stderr):
             sections = read_sections(
                 gvas_data,
-                {"CharacterSaveParameterMap", "BaseCampSaveData", "GroupSaveDataMap"},
+                {
+                    "CharacterSaveParameterMap",
+                    "BaseCampSaveData",
+                    "GroupSaveDataMap",
+                    "ItemContainerSaveData",
+                    "DynamicItemSaveData",
+                },
+                handlers={
+                    "ItemContainerSaveData": lambda r, t, s: read_item_containers(
+                        r, t, s, set(item_containers)
+                    )
+                },
             )
         char_map = sections.get("CharacterSaveParameterMap", [])
+        inventories = build_inventories(
+            sections.get("ItemContainerSaveData") or {},
+            v(sections.get("DynamicItemSaveData"), "values", default=None),
+            item_containers,
+        )
         with contextlib.redirect_stdout(sys.stderr), FArchiveReader(
             b"", PALWORLD_TYPE_HINTS, {}, allow_nan=True
         ) as helper:
@@ -590,7 +868,8 @@ def main():
     def record_for(uid):
         return players.setdefault(
             uid,
-            {"uid": uid, "nickname": "", "level": 1, "party": [], "palbox": [], "base": [], "storage": []},
+            {"uid": uid, "nickname": "", "level": 1, "party": [], "palbox": [],
+             "base": [], "storage": [], "inventory": {}, "character": None},
         )
 
     for entry in char_map:
@@ -605,6 +884,7 @@ def main():
             rec = record_for(uid)
             rec["nickname"] = text(param, "NickName")
             rec["level"] = num(param, "Level", default=1) or 1
+            rec["character"] = parse_player_character(param)
             # Older saves keep the player's containers on the character entry
             # itself; newer ones only in Players/<uid>.sav (already indexed).
             for prop, bucket in (
@@ -683,8 +963,14 @@ def main():
         except Exception as exc:
             print(f"warning: skipping GlobalPalStorage.sav: {exc}", file=sys.stderr)
 
+    # A player who has items but no character entry (never spawned in) still
+    # gets a record, so their bags aren't silently dropped.
+    for uid in inventories:
+        record_for(uid)
+
     for uid, rec in players.items():
         rec.update(player_meta.get(uid, {}))
+        rec["inventory"] = inventories.get(uid, {})
         rec.setdefault("lastOnline", 0)
         rec.setdefault("lastX", None)
         rec.setdefault("lastY", None)

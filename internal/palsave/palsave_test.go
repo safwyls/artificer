@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -209,6 +210,111 @@ func TestRefresh(t *testing.T) {
 	}
 }
 
+// assertInventory checks the item containers the newlayout fixture carries.
+// Slot data is packed into each slot's RawData, and gear/egg state lives in a
+// separate section joined by a dynamic-item guid, so a silent misread here
+// would surface as plausible-looking wrong numbers rather than an error.
+func assertInventory(t *testing.T, kyoshi, ren PlayerPals) {
+	t.Helper()
+
+	bag, ok := kyoshi.Inventory["common"]
+	if !ok {
+		t.Fatalf("kyoshi has no backpack: %+v", kyoshi.Inventory)
+	}
+	if bag.Size != 6 {
+		t.Fatalf("backpack size = %d, want 6", bag.Size)
+	}
+	// Three occupied slots out of five written: the zero-count one is empty
+	// and dropped, and slot 2 was never written at all. Slot numbers are the
+	// point — the viewer draws the bag by them.
+	want := []ItemSlot{
+		{Slot: 0, ItemID: "Money", Count: 1200},
+		{Slot: 1, ItemID: "PalSphere_Mega", Count: 42},
+		{Slot: 4, ItemID: "PalEgg_Fire_01", Count: 1, EggSpecies: "Kitsunebi"},
+	}
+	if !reflect.DeepEqual(bag.Slots, want) {
+		t.Fatalf("kyoshi backpack = %+v, want %+v", bag.Slots, want)
+	}
+
+	// Gear state comes from DynamicItemSaveData, keyed by the guid on the slot.
+	arms := kyoshi.Inventory["weapons"]
+	if len(arms.Slots) != 1 || arms.Slots[0].Durability != 2857 || arms.Slots[0].Ammo != 1 {
+		t.Fatalf("kyoshi weapons = %+v, want one bow at 2857 durability with 1 round", arms.Slots)
+	}
+	if keys := kyoshi.Inventory["essential"]; keys.Size != 230 || len(keys.Slots) != 1 {
+		t.Fatalf("kyoshi key items = %+v, want 1 of 230 slots", keys)
+	}
+
+	// A weapon that rolled its own passive, on a player whose save declares
+	// only a backpack — the other container fields are absent entirely.
+	sword := ren.Inventory["common"]
+	if len(sword.Slots) != 1 || !reflect.DeepEqual(sword.Slots[0].Passives, []string{"Legend"}) {
+		t.Fatalf("ren backpack = %+v, want one katana with a Legend passive", sword.Slots)
+	}
+	for _, role := range []string{"essential", "weapons", "equipment"} {
+		if _, ok := ren.Inventory[role]; ok {
+			t.Fatalf("ren should have no %q container: %+v", role, ren.Inventory)
+		}
+	}
+
+	assertCharacter(t, kyoshi, ren)
+
+	// The fixture's world chest belongs to nobody and must not be attributed.
+	for _, p := range []PlayerPals{kyoshi, ren} {
+		for role, c := range p.Inventory {
+			for _, s := range c.Slots {
+				if s.ItemID == "Wood" {
+					t.Fatalf("%s picked up the unowned chest's contents in %q", p.Nickname, role)
+				}
+			}
+		}
+	}
+}
+
+// assertCharacter checks the player's own save entry: level progress,
+// condition and stat-point spend. The point lists arrive with Japanese stat
+// names whatever language the server runs in, so a missed mapping would show
+// up as an untranslated label rather than an error.
+func assertCharacter(t *testing.T, kyoshi, ren PlayerPals) {
+	t.Helper()
+
+	c := kyoshi.Character
+	if c == nil {
+		t.Fatal("kyoshi has no character record")
+	}
+	// Hp and ShieldHP are FixedPoint64 — stored ×1000.
+	if c.Exp != 1234567 || c.HP != 6820 || c.Shield != 1045 || c.Stomach != 89.5 {
+		t.Fatalf("kyoshi condition = %+v, want exp 1234567, hp 6820, shield 1045, stomach 89.5", c)
+	}
+	if c.UnusedStatusPoints != 2 {
+		t.Fatalf("kyoshi unused points = %d, want 2", c.UnusedStatusPoints)
+	}
+	// Stats the player put nothing into are dropped, so a build reads as what
+	// was actually invested rather than a list padded with zeroes.
+	wantPoints := map[string]int{
+		"Max HP": 17, "Max SP": 18, "Attack": 18, "Carry Weight": 18,
+		"Capture Rate": 7, "Movement Speed": 15,
+	}
+	if !reflect.DeepEqual(c.StatusPoints, wantPoints) {
+		t.Fatalf("kyoshi status points = %v, want %v", c.StatusPoints, wantPoints)
+	}
+	if !reflect.DeepEqual(c.ExStatusPoints, map[string]int{"Max HP": 9, "Attack": 7}) {
+		t.Fatalf("kyoshi ex status points = %v", c.ExStatusPoints)
+	}
+	if c.FoodBuff != "Minestrone" || c.FoodBuffSeconds != 367 {
+		t.Fatalf("kyoshi food buff = %q/%ds, want Minestrone/367s", c.FoodBuff, c.FoodBuffSeconds)
+	}
+
+	// Ren's entry carries none of it — a player who has never spent a point
+	// must read as an empty build, not a missing record.
+	if ren.Character == nil {
+		t.Fatal("ren should still have a character record")
+	}
+	if len(ren.Character.StatusPoints) != 0 || ren.Character.Exp != 0 || ren.Character.FoodBuff != "" {
+		t.Fatalf("ren character should be empty: %+v", ren.Character)
+	}
+}
+
 // The fixtures are synthetic — see testdata/README.md — so they exercise the
 // real decompress/GVAS-parse/extract path with no copyrighted game data.
 func TestRead(t *testing.T) {
@@ -306,6 +412,7 @@ func TestRead(t *testing.T) {
 				if kyoshi.Party[0].BaseID != "" {
 					t.Fatalf("party pal BaseID = %q, want empty", kyoshi.Party[0].BaseID)
 				}
+				assertInventory(t, kyoshi, ren)
 			} else if len(kyoshi.Storage) != 0 || len(ren.Storage) != 0 {
 				t.Fatalf("unexpected storage pals: %+v %+v", kyoshi.Storage, ren.Storage)
 			}

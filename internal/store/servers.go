@@ -67,6 +67,10 @@ type Server struct {
 	// SetBackupSettings, outside UpdateServer like the other automations.
 	BackupIntervalHours int
 	BackupKeep          int
+	// HiddenFeatures names the views an admin has switched off for this
+	// server (store.AllFeatures). Empty = everything visible; admins see
+	// hidden views anyway, so this gates what everyone else is served.
+	HiddenFeatures []string
 }
 
 type serverRow struct {
@@ -91,6 +95,7 @@ type serverRow struct {
 	PublicToken     string
 	BackupInterval  int
 	BackupKeep      int
+	HiddenFeatures  string
 }
 
 func (s *Store) decryptServer(r serverRow) (*Server, error) {
@@ -128,14 +133,15 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 		PublicToken:         r.PublicToken,
 		BackupIntervalHours: r.BackupInterval,
 		BackupKeep:          r.BackupKeep,
+		HiddenFeatures:      decodeKeys(r.HiddenFeatures),
 	}, nil
 }
 
-const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, join_address, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name, watchdog, public_token, backup_interval_hours, backup_keep`
+const serverColumns = `id, name, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, join_address, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name, watchdog, public_token, backup_interval_hours, backup_keep, hidden_features`
 
 func scanServerRow(scan func(dest ...any) error) (serverRow, error) {
 	var r serverRow
-	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.GamePort, &r.JoinAddress, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.AgentURL, &r.AgentTokenEnc, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep)
+	err := scan(&r.ID, &r.Name, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.GamePort, &r.JoinAddress, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.AgentURL, &r.AgentTokenEnc, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep, &r.HiddenFeatures)
 	return r, err
 }
 

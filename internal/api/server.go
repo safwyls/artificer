@@ -163,6 +163,13 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.Get("/metrics/history", s.handleServerMetricsHistory)
 				r.Get("/pals", s.handleServerPals)
 				r.Get("/guilds", s.handleServerGuilds)
+				r.Get("/inventory", s.handleServerInventory)
+
+				// Who can see what. Admin-only in both directions: the list of
+				// players who asked to be hidden is itself the sort of thing
+				// the hiding is meant to keep quiet.
+				r.With(s.requireAdmin).Get("/visibility", s.handleServerVisibility)
+				r.With(s.requireAdmin).Put("/visibility", s.handleUpdateServerVisibility)
 			})
 		})
 	})

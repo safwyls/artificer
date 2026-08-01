@@ -3,9 +3,10 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Gamepad2, LogOut, MoreVertical, Pencil, Plus, Power, RefreshCw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { api, errorDetail, type Server } from "../lib/api";
+import { api, errorDetail, type Feature, type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { serverColor, initials } from "../lib/palette";
+import { canSeeFeature } from "../lib/visibility";
 import { cn, copyText, joinAddressFor } from "../lib/utils";
 import { ServerSphere } from "./ServerSphere";
 import { ServerFormDialog } from "./ServerFormDialog";
@@ -21,6 +22,18 @@ const segmentClass = ({ isActive }: { isActive: boolean }) =>
     "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-sm font-semibold transition",
     isActive ? "bg-brand-red text-paper" : "text-paper/60",
   );
+
+/** The switchable views, in pill order. Labels are shortened for the scroller;
+ * the route segment differs from the feature key for pals, whose page has
+ * always lived at /players. */
+const SAVE_VIEWS: { feature: Feature; path: string; label: string }[] = [
+  { feature: "map", path: "map", label: "Live map" },
+  { feature: "pals", path: "players", label: "Pals" },
+  { feature: "inventory", path: "inventory", label: "Inventory" },
+  { feature: "paldex", path: "paldex", label: "Paldex" },
+  { feature: "guilds", path: "guilds", label: "Guilds" },
+  { feature: "calculators", path: "calculators", label: "Calculators" },
+];
 
 /** Mobile top bar: active server identity, Dashboard/Live map segmented control,
  * and an overflow menu carrying the actions that have no other mobile home. */
@@ -120,6 +133,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                           "container",
                           "server-pals",
                           "server-guilds",
+                          "server-inventory",
                         ]) {
                           queryClient.invalidateQueries({ queryKey: [key, server.id] });
                         }
@@ -206,21 +220,13 @@ export function MobileTopBar({ server }: { server: Server | null }) {
           <NavLink to={`/servers/${server.id}`} end className={segmentClass}>
             Dashboard
           </NavLink>
-          <NavLink to={`/servers/${server.id}/map`} className={segmentClass}>
-            Live map
-          </NavLink>
-          <NavLink to={`/servers/${server.id}/players`} className={segmentClass}>
-            Pals
-          </NavLink>
-          <NavLink to={`/servers/${server.id}/paldex`} className={segmentClass}>
-            Paldex
-          </NavLink>
-          <NavLink to={`/servers/${server.id}/guilds`} className={segmentClass}>
-            Guilds
-          </NavLink>
-          <NavLink to={`/servers/${server.id}/calculators`} className={segmentClass}>
-            Calculators
-          </NavLink>
+          {SAVE_VIEWS.map(({ feature, path, label }) =>
+            canSeeFeature(server, feature, isAdmin) ? (
+              <NavLink key={feature} to={`/servers/${server.id}/${path}`} className={segmentClass}>
+                {label}
+              </NavLink>
+            ) : null,
+          )}
           <NavLink to={`/servers/${server.id}/activity`} className={segmentClass}>
             Activity
           </NavLink>

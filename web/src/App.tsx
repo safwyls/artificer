@@ -11,6 +11,7 @@ import { ServerAutomation } from "./pages/ServerAutomation";
 import { ServerActivity } from "./pages/ServerActivity";
 import { PublicStatus } from "./pages/PublicStatus";
 import { AppShell } from "./components/AppShell";
+import { FeatureGate } from "./components/FeatureGate";
 import { DemoBanner } from "./components/DemoBanner";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -32,6 +33,11 @@ const ServerCalculators = lazy(() =>
 // Split out with the other pal-catalog pages: it walks the full Paldeck
 // with icons and names, which only pal-viewer users ever need.
 const ServerPaldex = lazy(() => import("./pages/ServerPaldex").then((m) => ({ default: m.ServerPaldex })));
+// Split out: pulls in the item catalog (~550 KB of names and descriptions),
+// which no other route touches.
+const ServerInventory = lazy(() =>
+  import("./pages/ServerInventory").then((m) => ({ default: m.ServerInventory })),
+);
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { username, loading } = useAuth();
@@ -74,40 +80,65 @@ export function App() {
             }
           />
           <Route path="/servers/:serverID" element={<ServerDashboard />} />
-          <Route path="/servers/:serverID/map" element={<ServerMap />} />
+          <Route
+            path="/servers/:serverID/map"
+            element={
+              <FeatureGate feature="map">
+                <ServerMap />
+              </FeatureGate>
+            }
+          />
           <Route path="/servers/:serverID/settings" element={<ServerConfig />} />
           <Route path="/servers/:serverID/automation" element={<ServerAutomation />} />
           <Route path="/servers/:serverID/activity" element={<ServerActivity />} />
           <Route
             path="/servers/:serverID/paldex"
             element={
-              <Suspense fallback={<p className="p-6 text-muted-foreground">Loading...</p>}>
-                <ServerPaldex />
-              </Suspense>
+              <FeatureGate feature="paldex">
+                <Suspense fallback={<p className="p-6 text-muted-foreground">Loading...</p>}>
+                  <ServerPaldex />
+                </Suspense>
+              </FeatureGate>
             }
           />
           <Route
             path="/servers/:serverID/guilds"
             element={
-              <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
-                <ServerGuilds />
-              </Suspense>
+              <FeatureGate feature="guilds">
+                <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
+                  <ServerGuilds />
+                </Suspense>
+              </FeatureGate>
             }
           />
           <Route
             path="/servers/:serverID/players"
             element={
-              <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
-                <ServerPlayers />
-              </Suspense>
+              <FeatureGate feature="pals">
+                <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
+                  <ServerPlayers />
+                </Suspense>
+              </FeatureGate>
+            }
+          />
+          <Route
+            path="/servers/:serverID/inventory"
+            element={
+              <FeatureGate feature="inventory">
+                <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
+                  <ServerInventory />
+                </Suspense>
+              </FeatureGate>
             }
           />
           <Route
             path="/servers/:serverID/calculators"
             element={
-              <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
-                <ServerCalculators />
-              </Suspense>
+              <FeatureGate feature="calculators">
+                <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
+                  <ServerCalculators />
+                </Suspense>
+              </FeatureGate>
             }
           />
         </Route>
