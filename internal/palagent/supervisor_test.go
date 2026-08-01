@@ -144,6 +144,81 @@ while true; do sleep 0.05; done`)
 	waitGameState(t, srv, "stopped")
 }
 
+// A stop must not signal a game that is already shutting itself down.
+// Palcon asks the game to exit over REST before calling the agent, and a
+// SIGTERM landing on top of that in-flight exit is what turns a clean
+// shutdown into "Exiting abnormally (error code: 143)" — 128+SIGTERM —
+// with whatever the shutdown was still writing lost.
+func TestSupervisorWaitsForSelfExit(t *testing.T) {
+	srv, _, _ := newSupervisorAgent(t, `trap 'echo "signalled"; exit 143' TERM
+echo "Palworld server booting"
+sleep 2
+echo "saved and exiting on my own"
+exit 0`)
+
+	do(t, srv, "POST", "/v1/power/start", testToken, nil)
+	waitGameState(t, srv, "running")
+	// The echo follows the trap line, so it proves the handler is armed.
+	waitGameLog(t, srv, "booting")
+
+	resp, m := do(t, srv, "POST", "/v1/power/stop?graceful=6s", testToken, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("stop: %d %v", resp.StatusCode, m)
+	}
+	game, _ := m["game"].(map[string]any)
+	if game == nil {
+		t.Fatalf("stop response has no game block: %v", m)
+	}
+	if game["state"] != "stopped" {
+		t.Errorf("state = %v, want stopped", game["state"])
+	}
+	if code, ok := game["lastExitCode"].(float64); !ok || code != 0 {
+		t.Errorf("lastExitCode = %v, want 0 — the game was cut off mid-shutdown", game["lastExitCode"])
+	}
+	_, logs := do(t, srv, "GET", "/v1/power/logs?tail=100", testToken, nil)
+	lines, _ := logs["lines"].([]any)
+	for _, l := range lines {
+		if strings.Contains(l.(string), "signalled") {
+			t.Fatalf("game was signalled inside the self-exit window: %v", lines)
+		}
+	}
+}
+
+// The self-exit window is a courtesy, not a promise: a game that stays up
+// through it still gets signalled, and the intentional stop is recorded as
+// a stop rather than a crash whatever exit code the signal produces.
+func TestSupervisorSignalsAfterSelfExitWindow(t *testing.T) {
+	srv, _, _ := newSupervisorAgent(t, `trap 'echo "signalled"; exit 143' TERM
+echo "Palworld server booting"
+while true; do sleep 0.05; done`)
+
+	do(t, srv, "POST", "/v1/power/start", testToken, nil)
+	waitGameState(t, srv, "running")
+	waitGameLog(t, srv, "booting")
+
+	start := time.Now()
+	resp, m := do(t, srv, "POST", "/v1/power/stop?graceful=300ms", testToken, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("stop: %d %v", resp.StatusCode, m)
+	}
+	if took := time.Since(start); took < 300*time.Millisecond {
+		t.Errorf("stop returned in %v — self-exit window skipped?", took)
+	}
+	game, _ := m["game"].(map[string]any)
+	if game["state"] != "stopped" {
+		t.Errorf("state = %v, want stopped (an operator stop is not a crash)", game["state"])
+	}
+	if code, ok := game["lastExitCode"].(float64); !ok || code != 143 {
+		t.Errorf("lastExitCode = %v, want the signalled 143", game["lastExitCode"])
+	}
+	// Deliberately stopping must not leave a crash on the record for the
+	// next start's restart backoff to inherit.
+	time.Sleep(150 * time.Millisecond)
+	if g := gameState(t, srv); g["state"] != "stopped" {
+		t.Errorf("settled state = %v, want stopped", g["state"])
+	}
+}
+
 func TestSupervisorCrashRestart(t *testing.T) {
 	// Crashes on the first run (sentinel), then runs steadily: the
 	// supervisor must restart it and count the attempt.

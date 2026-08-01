@@ -16,11 +16,20 @@ type GameStatus = palagent.GameStatus
 // Power performs start/stop/restart on a supervisor-mode agent's game and
 // returns the post-action status. Stop legitimately waits out the game's
 // grace period, so the timeout mirrors dockerctl's stop margin.
-func (c *Client) Power(ctx context.Context, action string) (*GameStatus, error) {
+//
+// graceful (stop/restart only) tells the agent the game has already been
+// asked to shut itself down in-game and that exit should be given that
+// long to finish before the process is signalled; the agent waits it out,
+// so it extends this call's budget too. Zero means signal immediately.
+func (c *Client) Power(ctx context.Context, action string, graceful time.Duration) (*GameStatus, error) {
 	var res struct {
 		Game *GameStatus `json:"game"`
 	}
-	if err := c.do(ctx, http.MethodPost, "/v1/power/"+action, nil, &res, 90*time.Second); err != nil {
+	path := "/v1/power/" + action
+	if graceful > 0 {
+		path += "?graceful=" + graceful.String()
+	}
+	if err := c.do(ctx, http.MethodPost, path, nil, &res, 90*time.Second+graceful); err != nil {
 		return nil, fmt.Errorf("agent %s: %w", action, err)
 	}
 	return res.Game, nil

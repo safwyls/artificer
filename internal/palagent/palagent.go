@@ -362,6 +362,20 @@ func (a *Agent) handleGetJob(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"job": job})
 }
 
+// maxGracefulWait caps how long a caller may ask the supervisor to wait
+// for the game to exit on its own, so a bad value can't wedge a stop.
+const maxGracefulWait = 2 * time.Minute
+
+// parseGraceful reads the ?graceful= duration, collapsing anything absent,
+// malformed, or negative to "don't wait".
+func parseGraceful(v string) time.Duration {
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return min(d, maxGracefulWait)
+}
+
 // handlePower starts/stops/restarts the supervised game. The response is
 // the post-action status, so palcon needs no follow-up read.
 func (a *Agent) handlePower(w http.ResponseWriter, r *http.Request) {
@@ -369,14 +383,19 @@ func (a *Agent) handlePower(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "agent is in companion mode — the game runs in its own container")
 		return
 	}
+	// graceful is how long an in-game shutdown the caller already requested
+	// gets to finish before the supervisor signals the process. Palcon sets
+	// it after its REST /shutdown courtesy is accepted; absent, stops
+	// escalate immediately as before.
+	graceful := parseGraceful(r.URL.Query().Get("graceful"))
 	var err error
 	switch action := chi.URLParam(r, "action"); action {
 	case "start":
 		err = a.game.Start()
 	case "stop":
-		err = a.game.Stop()
+		err = a.game.Stop(graceful)
 	case "restart":
-		err = a.game.Restart()
+		err = a.game.Restart(graceful)
 	default:
 		writeError(w, http.StatusBadRequest, "unknown action")
 		return

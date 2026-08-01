@@ -86,11 +86,13 @@ func gameToContainerState(health *agentctl.Health) *dockerctl.State {
 //
 // Every step is best-effort: a server that's already unresponsive can't
 // save or shut itself down, and neither must block stopping the container,
-// which is often exactly why someone reached for the button.
-func (s *Server) prepareForStop(ctx context.Context, r *http.Request, container, actor string) {
+// which is often exactly why someone reached for the button. The return
+// reports whether the game accepted the shutdown — i.e. whether an exit is
+// now in flight that the caller should let finish.
+func (s *Server) prepareForStop(ctx context.Context, r *http.Request, container, actor string) bool {
 	client, _, err := s.clientForServerID(r)
 	if err != nil {
-		return
+		return false
 	}
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
@@ -108,10 +110,18 @@ func (s *Server) prepareForStop(ctx context.Context, r *http.Request, container,
 	if err := client.Shutdown(ctx, 1, "Server stopping"); err != nil {
 		s.logger.Warn("could not ask the game to shut down; falling back to stopping the container",
 			"container", container, "user", actor, "error", err)
-		return
+		return false
 	}
 	s.logger.Info("asked the game to shut down", "container", container, "user", actor)
+	return true
 }
+
+// gameSelfExitWindow is how long a supervised game that accepted an
+// in-game shutdown gets to finish exiting before the agent signals it.
+// Generous on purpose: the countdown, the final save and the engine's
+// teardown all happen inside it, and overrunning it only costs the SIGTERM
+// that used to be sent immediately.
+const gameSelfExitWindow = 20 * time.Second
 
 // ansiEscape strips terminal color codes some server images write into
 // their logs; the viewer renders plain text.
@@ -201,10 +211,16 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	// Supervisor-mode agents own the game process; the save-then-shutdown
 	// courtesy before stopping is identical either way.
 	if agent, _ := s.agentSupervisor(ctx, srv); agent != nil {
-		if action != "start" {
-			s.prepareForStop(ctx, r, "palagent:"+srv.Name, actor)
+		// Unlike `docker stop` — which signals PID 1, an entrypoint script
+		// that typically swallows SIGTERM — the agent signals the game's
+		// whole process group, so a SIGTERM sent on top of an accepted
+		// in-game shutdown lands on the engine mid-save and ends it at 143
+		// instead of 0. Let that exit finish first.
+		graceful := time.Duration(0)
+		if action != "start" && s.prepareForStop(ctx, r, "palagent:"+srv.Name, actor) {
+			graceful = gameSelfExitWindow
 		}
-		game, err := agent.Power(ctx, action)
+		game, err := agent.Power(ctx, action, graceful)
 		if err != nil {
 			s.logger.Error("agent power action failed", "action", action, "server", srv.Name, "user", actor, "error", err)
 			writeAgentError(w, err)

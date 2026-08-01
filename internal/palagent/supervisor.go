@@ -225,7 +225,6 @@ func (s *supervisor) pump(r interface{ Read([]byte) (int, error) }) {
 func (s *supervisor) wait(cmd *exec.Cmd, stdout interface{ Read([]byte) (int, error) }, done chan struct{}) {
 	s.pump(stdout)
 	err := cmd.Wait()
-	close(done)
 
 	code := 0
 	if err != nil {
@@ -239,7 +238,12 @@ func (s *supervisor) wait(cmd *exec.Cmd, stdout interface{ Read([]byte) (int, er
 	s.mu.Lock()
 	uptime := time.Since(s.startedAt)
 	s.lastExit = &exitInfo{code: code, at: time.Now().UTC()}
-	clean := code == 0
+	stopping, desired := s.stopping, s.desired
+	// An operator-initiated stop is never a crash, whatever the exit code.
+	// A game signalled while it was already shutting itself down exits 143
+	// (128+SIGTERM) — calling that a crash mislabels the dashboard and
+	// poisons the restart backoff for the next real failure.
+	clean := code == 0 || stopping
 	if clean {
 		s.state = "stopped"
 		s.failures = 0
@@ -250,10 +254,15 @@ func (s *supervisor) wait(cmd *exec.Cmd, stdout interface{ Read([]byte) (int, er
 		}
 		s.failures++
 	}
-	stopping, desired := s.stopping, s.desired
 	failures := s.failures
 	s.cmd = nil
 	s.mu.Unlock()
+
+	// Only now: Stop waits on done, and must observe the settled status
+	// rather than race this goroutine for the lock. It also means a
+	// Restart's Start sees cmd == nil and cannot be clobbered by the
+	// outgoing generation's bookkeeping.
+	close(done)
 
 	s.logger.Info("game exited", "code", code, "uptime", uptime.Round(time.Second), "desired", desired)
 	if stopping || desired != "running" {
@@ -282,11 +291,22 @@ func (s *supervisor) wait(cmd *exec.Cmd, stdout interface{ Read([]byte) (int, er
 	}
 }
 
-// Stop asks the game to exit (SIGTERM to the process group — PalServer.sh
-// wraps the real binary, so signaling only the script leaves the game
-// running) and kills it after the grace period. Persists desired=stopped
-// first so a concurrent crash-restart can't resurrect it.
-func (s *supervisor) Stop() error {
+// Stop brings the game down and waits for it. Persists desired=stopped
+// first, so neither a concurrent crash-restart nor an in-flight self-exit
+// can resurrect it.
+//
+// selfExit is how long a shutdown the game has *already* accepted gets to
+// finish before the supervisor escalates. Palcon asks the game to shut
+// itself down over REST before calling this, and signalling a server
+// that's mid-save turns what would have been exit 0 into 143
+// (128+SIGTERM) — the engine logs "Exiting abnormally (error code: 143)"
+// and whatever the shutdown was still writing is lost. Zero (a direct
+// agent API stop, or a game that refused the courtesy) escalates at once.
+//
+// Escalation is SIGTERM to the process *group* — PalServer.sh wraps the
+// real binary, so signalling only the script leaves the game running —
+// then SIGKILL once the grace period expires.
+func (s *supervisor) Stop(selfExit time.Duration) error {
 	s.mu.Lock()
 	s.persistDesired("stopped")
 	if s.state != "running" || s.cmd == nil {
@@ -299,12 +319,23 @@ func (s *supervisor) Stop() error {
 	done := s.done
 	s.mu.Unlock()
 
+	// wait closes done only after recording the exit, so the status is
+	// already settled on every path out of here; this just clears the flag.
 	defer func() {
 		s.mu.Lock()
 		s.stopping = false
-		s.state = "stopped"
 		s.mu.Unlock()
 	}()
+
+	if selfExit > 0 {
+		select {
+		case <-done:
+			s.logger.Info("game shut itself down")
+			return nil
+		case <-time.After(selfExit):
+			s.logger.Info("game did not exit on its own; signalling", "waited", selfExit)
+		}
+	}
 
 	signalGroup(pid, false)
 	select {
@@ -324,8 +355,8 @@ func (s *supervisor) Stop() error {
 	}
 }
 
-func (s *supervisor) Restart() error {
-	if err := s.Stop(); err != nil {
+func (s *supervisor) Restart(selfExit time.Duration) error {
+	if err := s.Stop(selfExit); err != nil {
 		return err
 	}
 	return s.Start()

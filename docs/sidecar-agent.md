@@ -150,6 +150,21 @@ never move. Expect one restart's worth of downtime.
   orphans nothing — the same `context.WithoutCancel` philosophy as the
   power-stop sequence, one level up.
 - **Companion mode has zero lifecycle coupling anywhere.**
+- **Stopping is asked before it is imposed, in both modes** — but the two
+  differ in what "imposed" reaches. Palcon always saves the world and asks
+  the game to shut itself down over REST first. In companion mode
+  `docker stop` then signals PID 1, an entrypoint script that typically
+  swallows SIGTERM, so the graceful exit completes untouched and the
+  container records exit 0. The supervisor signals the game's whole
+  *process group* (PalServer.sh is a wrapper; signalling only the script
+  leaves the game running), which lands on the engine directly — sent on
+  top of an in-flight shutdown it cuts the final save short and the exit
+  becomes 143 (`128+SIGTERM`, logged as `Exiting abnormally (error code:
+  143)`). So palcon passes `?graceful=` when its in-game shutdown was
+  accepted, and the supervisor waits that out before escalating to
+  SIGTERM → grace period → SIGKILL. An operator-initiated stop is recorded
+  as a stop regardless of exit code: never a crash, and never counted
+  toward the restart backoff.
 - **Supervisor mode couples the game to the *agent image* only**: updating
   the agent restarts the game (it's the parent process; containers can't
   re-exec across image updates). Mitigation: keep the agent tiny and boring
@@ -207,7 +222,7 @@ compare; agent refuses to start with a token under 16 chars). Bare
 | GET | `/v1/jobs/{id}` | all | job status: state, timestamps, error, capped log tail |
 | GET | `/v1/files/save` | companion/supervisor | world save dir as a tar bundle, ETag/304 |
 | GET/PUT | `/v1/files/config` | companion/supervisor | `PalWorldSettings.ini`; PUT writes atomically, refuses to create |
-| POST | `/v1/power/{start,stop,restart}` | supervisor | game process control; returns post-action status |
+| POST | `/v1/power/{start,stop,restart}` | supervisor | game process control; returns post-action status. `?graceful=20s` on stop/restart means "the game has already accepted an in-game shutdown — let that exit finish before signalling it" (see below) |
 | GET | `/v1/power/logs` | supervisor | game stdout ring buffer |
 | POST | `/v1/provision` | provisioner | instantiate the locked supervisor template |
 | GET | `/v1/discover` | provisioner | list palagent containers (name, mode, ports, state — never env) |
