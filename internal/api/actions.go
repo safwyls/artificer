@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/safwyls/palcon/internal/palworld"
 	"github.com/safwyls/palcon/internal/store"
@@ -113,16 +112,10 @@ func (s *Server) handleServerPlayers(w http.ResponseWriter, r *http.Request) {
 }
 
 // normalizeUID renders a live player id in the dashed form the save files use.
-// RCON and REST report it undashed (and RCON in a different case), so a raw
+// RCON and REST report it undashed (and in different bases), so a raw
 // comparison against a save uid would silently never match — which for a
 // visibility check means failing open.
-func normalizeUID(uid string) string {
-	h := strings.ToLower(strings.ReplaceAll(uid, "-", ""))
-	if len(h) != 32 {
-		return strings.ToLower(uid)
-	}
-	return h[0:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32]
-}
+func normalizeUID(uid string) string { return palworld.CanonicalUID(uid) }
 
 func (s *Server) handleServerBroadcast(w http.ResponseWriter, r *http.Request) {
 	var req struct {

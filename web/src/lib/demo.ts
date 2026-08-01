@@ -54,7 +54,12 @@ async function world(): Promise<Fixture> {
     // logged off recently rather than at the capture's real date.
     const offsets: Record<string, number> = { Aster: 300, Juniper: 300, Bramble: 3 * 3600, Fenwick: 26 * 3600 };
     for (const p of fx.players) {
-      p.lastOnline = Math.floor(now / 1000) - (offsets[p.nickname] ?? 8 * 3600);
+      p.lastSeen = Math.floor(now / 1000) - (offsets[p.nickname] ?? 8 * 3600);
+      // A real save's stamp is the login that *started* that session, never
+      // its end, so the demo keeps the two a session apart — otherwise the
+      // views' "seen" and "joined" labels would look interchangeable here in
+      // a way they never are on a live server.
+      p.lastOnline = p.lastSeen - 2 * 3600;
     }
     return fx;
   });
@@ -172,6 +177,7 @@ async function inventory(): Promise<InventoryResult> {
         inventory: p.inventory!,
         character: p.character,
         lastOnline: p.lastOnline,
+        lastSeen: p.lastSeen,
         platform: p.platform,
       })),
     parsedAt: fx.parsedAt,

@@ -17,6 +17,8 @@ import { PalPortrait } from "../components/PalPortrait";
 import { TalentTriplet } from "../components/TalentTriplet";
 import { TIER_LOOKS, TierTile, type TierLook } from "../components/TierTile";
 import { SavePathSetup } from "../components/SavePathSetup";
+import { SaveReadProgress } from "../components/SaveReadProgress";
+import { SaveUpdatingBanner } from "../components/SaveUpdatingBanner";
 import { ServerUnreachable } from "../components/ServerUnreachable";
 
 /** All of a player's pals, wherever they live. */
@@ -333,6 +335,7 @@ export function ServerPaldex() {
   if (serverQuery.isError || !serverQuery.data) return <p className="p-6 text-destructive">Server not found.</p>;
 
   const notConfigured = palsQuery.isError && palsQuery.error instanceof ApiError && palsQuery.error.status === 400;
+  const hasData = palsQuery.data !== undefined;
   const baseTotal = BASE_ENTRIES.length;
   const pct = baseTotal ? Math.round((serverCaughtBase / baseTotal) * 100) : 0;
 
@@ -346,13 +349,22 @@ export function ServerPaldex() {
       </header>
 
       <div className="mx-auto max-w-5xl space-y-4 p-4 lg:space-y-6 lg:p-8">
-        {notConfigured && <SavePathSetup />}
-        {palsQuery.isError && !notConfigured && (infoQuery.isError ? <ServerUnreachable /> : (
-          <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-ink/70">
-            The save could not be read. Refresh to try again.
-          </p>
-        ))}
-        {palsQuery.isLoading && <p className="p-2 text-muted-foreground">Reading the save…</p>}
+        {!hasData && palsQuery.isFetching && <SaveReadProgress />}
+
+        {notConfigured && !hasData && <SavePathSetup />}
+
+        {!hasData &&
+          palsQuery.isError &&
+          !notConfigured &&
+          (infoQuery.isError ? (
+            <ServerUnreachable />
+          ) : (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-ink/70">
+              The save could not be read. Refresh to try again.
+            </p>
+          ))}
+
+        {hasData && palsQuery.isFetching && <SaveUpdatingBanner />}
 
         {palsQuery.data && (
           <>

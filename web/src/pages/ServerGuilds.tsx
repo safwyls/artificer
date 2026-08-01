@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Home, Users } from "lucide-react";
 import { api, ApiError, type Guild, type Pal, type PlayerPals } from "../lib/api";
 import { initials, playerColor } from "../lib/palette";
-import { lastSeenLabel } from "../lib/time";
+import { seenPhrase } from "../lib/time";
 import { mapOf, MAP_AREAS } from "../lib/map";
 import { nearestLandmark } from "../lib/pois";
 import { DECK_BASE_ENTRIES, palDeckNo, palName } from "../lib/paldex";
@@ -131,7 +131,7 @@ function GuildCard({ guild, players, serverId }: { guild: Guild; players: Player
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {guild.members.map((m) => {
               const player = resolve(m.uid, m.name);
-              const seen = player ? lastSeenLabel(player.lastOnline) : "";
+              const seen = player ? seenPhrase(player) : "";
               const color = playerColor(player?.uid ?? m.uid);
               return (
                 <div key={m.uid} className="flex items-center gap-2.5 rounded-xl border border-ink/10 bg-white/60 p-2.5">
@@ -145,7 +145,7 @@ function GuildCard({ guild, players, serverId }: { guild: Guild; players: Player
                     <p className="truncate text-sm font-semibold text-foreground">{m.name || "Unknown"}</p>
                     <p className="font-mono text-[11px] text-ink/40">
                       {player ? `Lv.${player.level}` : "—"}
-                      {seen && ` · seen ${seen}`}
+                      {seen && ` · ${seen}`}
                     </p>
                     {player && (
                       <p className="truncate font-mono text-[11px] text-ink/40">

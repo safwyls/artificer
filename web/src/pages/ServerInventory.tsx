@@ -15,7 +15,7 @@ import {
   rarityColor,
   stackWeight,
 } from "../lib/items";
-import { agoLabel, lastSeenLabel } from "../lib/time";
+import { agoLabel, seenPhrase } from "../lib/time";
 import { cn } from "../lib/utils";
 import { ItemDetailDialog } from "../components/ItemDetailDialog";
 import { SavePathSetup } from "../components/SavePathSetup";
@@ -619,10 +619,8 @@ function PlayerSection({
             </div>
           )}
         </div>
-        {player.lastOnline > 0 && (
-          <span className="hidden shrink-0 font-mono text-xs text-ink/35 sm:inline">
-            seen {lastSeenLabel(player.lastOnline)}
-          </span>
+        {seenPhrase(player) && (
+          <span className="hidden shrink-0 font-mono text-xs text-ink/35 sm:inline">{seenPhrase(player)}</span>
         )}
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-ink/40 transition-transform", open && "rotate-180")} />
       </button>

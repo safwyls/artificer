@@ -168,7 +168,7 @@ func TestResumeWithoutHeartbeatCreditsNothing(t *testing.T) {
 	c, st, srv := newTestCollector(t)
 
 	joinedAt := time.Now().Add(-30 * time.Hour).UTC().Truncate(time.Second)
-	if err := st.InsertPlayerEvent(ctx, srv.ID, joinedAt, "steam_Kyoshi", "Kyoshi", "join"); err != nil {
+	if err := st.InsertPlayerEvent(ctx, srv.ID, joinedAt, "steam_Kyoshi", "", "Kyoshi", "join"); err != nil {
 		t.Fatalf("seed join: %v", err)
 	}
 

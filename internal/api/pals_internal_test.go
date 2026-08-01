@@ -19,7 +19,7 @@ func TestPalsPayloadFields(t *testing.T) {
 	allowed := map[string]bool{
 		"uid": true, "nickname": true, "level": true,
 		"party": true, "palbox": true, "base": true, "storage": true,
-		"lastOnline": true, "lastX": true, "lastY": true,
+		"lastOnline": true, "lastSeen": true, "lastX": true, "lastY": true,
 		"platform": true, "technologyPoints": true,
 		"paldeck": true, "captures": true,
 	}

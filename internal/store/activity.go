@@ -18,10 +18,14 @@ type PlayerEvent struct {
 	Event    string    `json:"event"`
 }
 
-func (s *Store) InsertPlayerEvent(ctx context.Context, serverID int64, at time.Time, userID, name, event string) error {
+// InsertPlayerEvent records one observed transition. playerUID is the in-game
+// uid in the dashed form save files use (palworld.CanonicalUID), and may be
+// empty — sessions closed on behalf of a previous run only know who the
+// events table remembered.
+func (s *Store) InsertPlayerEvent(ctx context.Context, serverID int64, at time.Time, userID, playerUID, name, event string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO player_events (server_id, ts, user_id, name, event) VALUES (?, ?, ?, ?, ?)`,
-		serverID, at.UTC().Format(time.RFC3339), userID, name, event)
+		`INSERT INTO player_events (server_id, ts, user_id, player_uid, name, event) VALUES (?, ?, ?, ?, ?, ?)`,
+		serverID, at.UTC().Format(time.RFC3339), userID, playerUID, name, event)
 	return err
 }
 
@@ -54,9 +58,10 @@ func (s *Store) ListPlayerEvents(ctx context.Context, serverID int64, since time
 // OpenSession is a join with no matching leave — a player the events table
 // still believes is on the server.
 type OpenSession struct {
-	UserID string
-	Name   string
-	Since  time.Time
+	UserID    string
+	PlayerUID string
+	Name      string
+	Since     time.Time
 }
 
 // OpenSessions returns the players whose most recent event is a join.
@@ -67,7 +72,7 @@ func (s *Store) OpenSessions(ctx context.Context, serverID int64) ([]OpenSession
 	// order, and ts alone can't break the tie between a leave and a rejoin
 	// inside the same second.
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.user_id, e.name, e.ts FROM player_events e
+		SELECT e.user_id, e.player_uid, e.name, e.ts FROM player_events e
 		JOIN (
 			SELECT user_id, MAX(id) AS id FROM player_events WHERE server_id = ?
 			GROUP BY user_id
@@ -84,11 +89,70 @@ func (s *Store) OpenSessions(ctx context.Context, serverID int64) ([]OpenSession
 			o  OpenSession
 			ts string
 		)
-		if err := rows.Scan(&o.UserID, &o.Name, &ts); err != nil {
+		if err := rows.Scan(&o.UserID, &o.PlayerUID, &o.Name, &ts); err != nil {
 			return nil, err
 		}
 		o.Since, _ = time.Parse(time.RFC3339, ts)
 		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// LastSeen is when the collector last watched each player, keyed by in-game
+// player uid in the dashed form save files use.
+//
+// This exists because the saves cannot answer it. A player save's
+// LastOnlineDateTime is written at login and never updated, so reading it as
+// "last seen" reports when someone arrived, short by however long they then
+// stayed. Palcon's own observations are the only record of when a player
+// actually went away.
+//
+// A player whose newest event is a join is still on the server as far as the
+// events table knows, so their last-seen is the collector's own heartbeat —
+// the last moment palcon can honestly claim to have watched them, which after
+// a crash stops advancing instead of drifting into the present.
+//
+// Rows predating the player_uid column carry no uid and are skipped: their
+// player cannot be identified, and guessing by name would credit a rename or
+// a shared display name to the wrong person.
+func (s *Store) LastSeen(ctx context.Context, serverID int64) (map[string]time.Time, error) {
+	watch, err := s.LastWatch(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	// Newest-per-player by id, matching OpenSessions: events land in
+	// observation order, and ts alone can't break the tie between a leave
+	// and a rejoin inside the same second.
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT e.player_uid, e.ts, e.event FROM player_events e
+		JOIN (
+			SELECT player_uid, MAX(id) AS id FROM player_events
+			WHERE server_id = ? AND player_uid <> ''
+			GROUP BY player_uid
+		) newest ON newest.id = e.id`, serverID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]time.Time{}
+	for rows.Next() {
+		var uid, ts, event string
+		if err := rows.Scan(&uid, &ts, &event); err != nil {
+			return nil, err
+		}
+		at, err := time.Parse(time.RFC3339, ts)
+		if err != nil {
+			continue
+		}
+		if event == "join" {
+			// Never claim to have seen them before they arrived: a heartbeat
+			// older than the join means palcon has not looked since.
+			if at.Before(watch) {
+				at = watch
+			}
+		}
+		out[uid] = at
 	}
 	return out, rows.Err()
 }

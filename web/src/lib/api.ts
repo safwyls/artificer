@@ -395,8 +395,11 @@ export interface PlayerInventory {
   inventory: Inventory;
   /** Absent for a uid that owns bags but has no player entry in the save. */
   character?: Character;
-  /** Unix seconds; 0 when the save recorded none. */
+  /** Unix seconds; 0 when the save recorded none. A *login* stamp — see
+   * PlayerPals.lastOnline. */
   lastOnline: number;
+  /** Unix seconds; 0 when palcon never watched this player leave. */
+  lastSeen: number;
   platform: string;
 }
 
@@ -416,8 +419,15 @@ export interface PlayerPals {
    * from /inventory, which honours them. */
   inventory?: Inventory;
   character?: Character;
-  /** Unix seconds; 0 when the save recorded none. */
+  /** Unix seconds; 0 when the save recorded none. This is the save's own
+   * LastOnlineDateTime, which Palworld writes when a player *connects* and
+   * never updates — so for anyone offline it says when they arrived, not when
+   * they left. Use lastSeen for "last seen"; this is only its fallback. */
   lastOnline: number;
+  /** Unix seconds; palcon's own observation of this player leaving, and 0
+   * when it has none (a server it hasn't collected for, or history predating
+   * the record). Unlike lastOnline this really is a last-seen time. */
+  lastSeen: number;
   /** Where they logged off, in the same world space the map plots. */
   lastX: number | null;
   lastY: number | null;

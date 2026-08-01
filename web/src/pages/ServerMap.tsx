@@ -17,7 +17,7 @@ import { playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { PlayerMap, mapMarkerId, type MapMarker } from "../components/PlayerMap";
 import { MapAreaToggle } from "../components/MapAreaToggle";
-import { lastSeenLabel } from "../lib/time";
+import { seenLabel, seenSentence } from "../lib/time";
 
 /** Ticks once a second so the "updated Xs ago" chip stays honest. */
 function UpdatedAgo({ timestamp }: { timestamp: number }) {
@@ -45,6 +45,9 @@ interface OfflinePlayer {
   uid: string;
   name: string;
   level: number;
+  /** See seenLabel: lastSeen is when palcon watched them leave, lastOnline
+   * the save's login stamp it falls back to. */
+  lastSeen: number;
   lastOnline: number;
   x: number;
   y: number;
@@ -215,7 +218,7 @@ function MapSidePanel({
                   key={`off-${p.uid}`}
                   name={p.name}
                   color="#8A8079"
-                  detail={p.lastOnline ? `Lv.${p.level} · ${lastSeenLabel(p.lastOnline)}` : `Lv.${p.level}`}
+                  detail={seenLabel(p) ? `Lv.${p.level} · ${seenLabel(p)}` : `Lv.${p.level}`}
                   areaNote={mapOf(p.x, p.y) !== area ? MAP_AREAS[mapOf(p.x, p.y)].label : undefined}
                   selected={selectedId === `offline-${p.uid}`}
                   onClick={() => onFocus({ domId: mapMarkerId(`offline-${p.uid}`), x: p.x, y: p.y, name: p.name, playerId: `offline-${p.uid}` })}
@@ -312,8 +315,18 @@ export function ServerMap() {
           !onlineUids.has(p.uid.toLowerCase().replace(/-/g, "")) &&
           !onlineNames.has(p.nickname.toLowerCase()),
       )
-      .map((p) => ({ uid: p.uid, name: p.nickname || "Unknown", level: p.level, lastOnline: p.lastOnline, x: p.lastX!, y: p.lastY! }))
-      .sort((a, b) => b.lastOnline - a.lastOnline);
+      .map((p) => ({
+        uid: p.uid,
+        name: p.nickname || "Unknown",
+        level: p.level,
+        lastSeen: p.lastSeen,
+        lastOnline: p.lastOnline,
+        x: p.lastX!,
+        y: p.lastY!,
+      }))
+      // Most recently here first, by whichever stamp actually dates them —
+      // sorting on lastOnline alone ordered the list by who joined last.
+      .sort((a, b) => (b.lastSeen || b.lastOnline) - (a.lastSeen || a.lastOnline));
   }, [saveQuery.data, onlineUids, onlineNames]);
 
   const guildBases = useMemo<GuildBases[]>(() => {
@@ -346,7 +359,7 @@ export function ServerMap() {
       out.push({
         id: `offline-${p.uid}`,
         label: p.name,
-        sublabel: p.lastOnline ? `Last seen ${lastSeenLabel(p.lastOnline)}` : "Offline",
+        sublabel: seenSentence(p),
         x: p.x,
         y: p.y,
         kind: "offline",

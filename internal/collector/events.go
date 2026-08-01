@@ -25,8 +25,16 @@ type serverState struct {
 	// downSince timestamps the failure that began the outage, for the
 	// "back online after X" message.
 	downSince time.Time
-	// players maps UserID → display name as of the last successful probe.
-	players map[string]string
+	// players maps UserID → who they were as of the last successful probe.
+	players map[string]watched
+}
+
+// watched is what the collector remembers about a player between ticks: the
+// display name for the event log, and the in-game uid that lets a later
+// reader join an observed leave to that player in the save.
+type watched struct {
+	uid  string
+	name string
 }
 
 // watch probes the server's player list each tick and turns changes into
@@ -53,8 +61,8 @@ func (c *Collector) watch(ctx context.Context, srv *store.Server, client palworl
 			disconnected := st.players
 			st.players = nil
 			c.mu.Unlock()
-			for uid, name := range disconnected {
-				c.recordEvent(ctx, srv.ID, st.downSince, uid, name, "leave")
+			for userID, w := range disconnected {
+				c.recordEvent(ctx, srv.ID, st.downSince, userID, w.uid, w.name, "leave")
 			}
 			if c.notifier != nil {
 				c.notifier.ServerDown(ctx, srv)
@@ -70,11 +78,13 @@ func (c *Collector) watch(ctx context.Context, srv *store.Server, client palworl
 	st.fails = 0
 	st.down = false
 
-	current := make(map[string]string, len(players))
+	current := make(map[string]watched, len(players))
 	for _, p := range players {
 		// UserID is the stable identity (PlayerUID changes format across
-		// transports); names are display-only.
-		current[p.UserID] = p.Name
+		// transports); names are display-only. The uid is canonicalised on
+		// the way in so what lands in the events table can be compared with
+		// a save's PlayerUId without every reader redoing the spelling.
+		current[p.UserID] = watched{uid: palworld.CanonicalUID(p.PlayerUID), name: p.Name}
 	}
 	prev := st.players
 	primed := st.primed
@@ -106,22 +116,22 @@ func (c *Collector) watch(ctx context.Context, srv *store.Server, client palworl
 		return
 	}
 
-	for uid, name := range current {
-		if _, ok := prev[uid]; !ok {
-			c.recordEvent(ctx, srv.ID, now, uid, name, "join")
+	for userID, w := range current {
+		if _, ok := prev[userID]; !ok {
+			c.recordEvent(ctx, srv.ID, now, userID, w.uid, w.name, "join")
 			// After downtime the whole list reads as joins — real ones,
 			// since their sessions were closed when the server went down —
 			// but Discord shouldn't announce a restart as player churn.
 			if c.notifier != nil && !wasDown {
-				c.notifier.PlayerJoined(ctx, srv, name, len(current))
+				c.notifier.PlayerJoined(ctx, srv, w.name, len(current))
 			}
 		}
 	}
-	for uid, name := range prev {
-		if _, ok := current[uid]; !ok {
-			c.recordEvent(ctx, srv.ID, now, uid, name, "leave")
+	for userID, w := range prev {
+		if _, ok := current[userID]; !ok {
+			c.recordEvent(ctx, srv.ID, now, userID, w.uid, w.name, "leave")
 			if c.notifier != nil && !wasDown {
-				c.notifier.PlayerLeft(ctx, srv, name, len(current))
+				c.notifier.PlayerLeft(ctx, srv, w.name, len(current))
 			}
 		}
 	}
@@ -136,7 +146,7 @@ func (c *Collector) watch(ctx context.Context, srv *store.Server, client palworl
 // the last instant palcon was actually watching, then open a fresh session
 // for whoever is on the server now. Time palcon did not observe belongs to
 // nobody, which is the same rule a server outage already follows.
-func (c *Collector) resume(ctx context.Context, srv *store.Server, current map[string]string, lastSeen, now time.Time) {
+func (c *Collector) resume(ctx context.Context, srv *store.Server, current map[string]watched, lastSeen, now time.Time) {
 	open, err := c.store.OpenSessions(ctx, srv.ID)
 	if err != nil {
 		c.logger.Error("collector: reading open sessions", "server", srv.ID, "error", err)
@@ -153,7 +163,7 @@ func (c *Collector) resume(ctx context.Context, srv *store.Server, current map[s
 		if at.After(now) {
 			at = now
 		}
-		c.recordEvent(ctx, srv.ID, at, s.UserID, s.Name, "leave")
+		c.recordEvent(ctx, srv.ID, at, s.UserID, s.PlayerUID, s.Name, "leave")
 	}
 	if len(open) > 0 {
 		c.logger.Info("collector: closed sessions left open by a previous run",
@@ -161,8 +171,8 @@ func (c *Collector) resume(ctx context.Context, srv *store.Server, current map[s
 	}
 	// Deliberately silent on Discord: palcon starting up is not player
 	// churn, exactly as a server coming back up isn't.
-	for uid, name := range current {
-		c.recordEvent(ctx, srv.ID, now, uid, name, "join")
+	for userID, w := range current {
+		c.recordEvent(ctx, srv.ID, now, userID, w.uid, w.name, "join")
 	}
 }
 
@@ -179,14 +189,14 @@ func (c *Collector) closeSessions(ctx context.Context) {
 	for id, st := range state {
 		// A server already declared down had its sessions closed at the
 		// outage; st.players is nil there, so this writes nothing twice.
-		for uid, name := range st.players {
-			c.recordEvent(ctx, id, now, uid, name, "leave")
+		for userID, w := range st.players {
+			c.recordEvent(ctx, id, now, userID, w.uid, w.name, "leave")
 		}
 	}
 }
 
-func (c *Collector) recordEvent(ctx context.Context, serverID int64, at time.Time, userID, name, event string) {
-	if err := c.store.InsertPlayerEvent(ctx, serverID, at, userID, name, event); err != nil {
+func (c *Collector) recordEvent(ctx context.Context, serverID int64, at time.Time, userID, playerUID, name, event string) {
+	if err := c.store.InsertPlayerEvent(ctx, serverID, at, userID, playerUID, name, event); err != nil {
 		c.logger.Error("collector: recording player event", "server", serverID, "event", event, "error", err)
 	}
 }

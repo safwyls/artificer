@@ -3,9 +3,11 @@ package api
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/palsave"
+	"github.com/safwyls/palcon/internal/palworld"
 	"github.com/safwyls/palcon/internal/store"
 )
 
@@ -66,11 +68,36 @@ func (s *Server) handleServerPals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"players":     toPalsPlayers(visiblePlayers(result.Players, hidden, store.StreamPals)),
+		"players":     toPalsPlayers(visiblePlayers(result.Players, hidden, store.StreamPals), s.lastSeen(r, srv.ID)),
 		"guilds":      result.Guilds,
 		"parsedAt":    result.ParsedAt,
 		"saveModTime": result.SaveModTime,
 	})
+}
+
+// lastSeen is when the collector last watched each of this server's players,
+// keyed by save uid. Nil on failure rather than an error: it decorates a
+// payload that is worth serving without it, and the views fall back to the
+// save's own login stamp.
+func (s *Server) lastSeen(r *http.Request, serverID int64) map[string]time.Time {
+	seen, err := s.store.LastSeen(r.Context(), serverID)
+	if err != nil {
+		s.logger.Error("reading last-seen history", "server", serverID, "error", err)
+		return nil
+	}
+	return seen
+}
+
+// lastSeenUnix reads a player's observed last-seen out of the map, in the unix
+// seconds the save's own timestamps use. Zero means palcon never watched this
+// player leave — a server it has not collected for yet, or history predating
+// the uid column — and the views treat zero as "fall back to the save".
+func lastSeenUnix(seen map[string]time.Time, uid string) int64 {
+	at, ok := seen[palworld.CanonicalUID(uid)]
+	if !ok || at.IsZero() {
+		return 0
+	}
+	return at.Unix()
 }
 
 // visiblePlayers drops the players withheld from this stream. Returns the
@@ -100,6 +127,13 @@ func visiblePlayers(players []palsave.PlayerPals, hidden store.PlayerVisibility,
 //
 // json:"-" wouldn't have worked: the same struct is unmarshalled *from* the
 // extractor, so hiding a field from the response hides it from the parse too.
+//
+// LastOnline and LastSeen are not two spellings of one thing. LastOnline is
+// the save's own LastOnlineDateTime, which Palworld writes when a player
+// *connects* and never updates — so for anyone offline it says when they
+// arrived, not when they left. LastSeen is palcon's own observation of them
+// leaving, and is 0 when it has none. Views wanting "last seen" want LastSeen
+// with LastOnline only as a labelled fallback.
 type palsPlayer struct {
 	UID              string         `json:"uid"`
 	Nickname         string         `json:"nickname"`
@@ -109,6 +143,7 @@ type palsPlayer struct {
 	Base             []palsave.Pal  `json:"base"`
 	Storage          []palsave.Pal  `json:"storage"`
 	LastOnline       int64          `json:"lastOnline"`
+	LastSeen         int64          `json:"lastSeen"`
 	LastX            *float64       `json:"lastX"`
 	LastY            *float64       `json:"lastY"`
 	Platform         string         `json:"platform"`
@@ -117,7 +152,7 @@ type palsPlayer struct {
 	Captures         map[string]int `json:"captures"`
 }
 
-func toPalsPlayers(players []palsave.PlayerPals) []palsPlayer {
+func toPalsPlayers(players []palsave.PlayerPals, seen map[string]time.Time) []palsPlayer {
 	out := make([]palsPlayer, 0, len(players))
 	for _, p := range players {
 		out = append(out, palsPlayer{
@@ -129,6 +164,7 @@ func toPalsPlayers(players []palsave.PlayerPals) []palsPlayer {
 			Base:             p.Base,
 			Storage:          p.Storage,
 			LastOnline:       p.LastOnline,
+			LastSeen:         lastSeenUnix(seen, p.UID),
 			LastX:            p.LastX,
 			LastY:            p.LastY,
 			Platform:         p.Platform,
@@ -149,9 +185,11 @@ type inventoryPlayer struct {
 	Level     int                `json:"level"`
 	Inventory palsave.Inventory  `json:"inventory"`
 	Character *palsave.Character `json:"character,omitempty"`
-	// Unix seconds; 0 when the save recorded none. Enough to caption the
-	// sheet with how stale a look at this player is.
+	// Unix seconds, both, and 0 when unknown. Enough to caption the sheet
+	// with how stale a look at this player is — see palsPlayer for why the
+	// save's own stamp is a login time and not a last-seen one.
 	LastOnline int64  `json:"lastOnline"`
+	LastSeen   int64  `json:"lastSeen"`
 	Platform   string `json:"platform"`
 }
 
@@ -168,6 +206,7 @@ func (s *Server) handleServerInventory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	seen := s.lastSeen(r, srv.ID)
 	players := make([]inventoryPlayer, 0, len(result.Players))
 	for _, p := range visiblePlayers(result.Players, hidden, store.StreamInventory) {
 		// A player with no containers at all has nothing to show; skipping
@@ -183,6 +222,7 @@ func (s *Server) handleServerInventory(w http.ResponseWriter, r *http.Request) {
 			Inventory:  p.Inventory,
 			Character:  p.Character,
 			LastOnline: p.LastOnline,
+			LastSeen:   lastSeenUnix(seen, p.UID),
 			Platform:   p.Platform,
 		})
 	}
@@ -216,7 +256,7 @@ func (s *Server) handleServerGuilds(w http.ResponseWriter, r *http.Request) {
 	players := withoutPositions(visiblePlayers(result.Players, hidden, store.StreamPals), hidden)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"guilds":      result.Guilds,
-		"players":     toPalsPlayers(players),
+		"players":     toPalsPlayers(players, s.lastSeen(r, srv.ID)),
 		"parsedAt":    result.ParsedAt,
 		"saveModTime": result.SaveModTime,
 	})
