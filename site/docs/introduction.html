@@ -114,11 +114,13 @@ server. TrueNAS Scale is the first-class target, but any Linux box with Docker w
 <ul>
   <li><b>Watch</b> — a live dashboard with metrics and players online, performance charts (FPS,
     frame time, player count over 7 days), a live world map with guild bases and point-of-interest
-    layers, every player's pals with IVs and passives, paldex completion and server records, and a
-    join/leave activity board with playtime rankings.</li>
+    layers, every player's pals with IVs and passives, their inventories drawn slot by slot,
+    paldex completion and server records, and a join/leave activity board with playtime
+    rankings.</li>
   <li><b>Manage</b> — start/stop/restart, a <code>PalWorldSettings.ini</code> editor, SteamCMD
     cache repair and updates with a live transcript, scheduled zip backups of the save, in-game
-    broadcasts, and per-user permissions with an admin audit trail.</li>
+    broadcasts, per-user permissions with an admin audit trail, and per-server visibility
+    switches so a view — or one player's pals, bags or position — can be kept private.</li>
   <li><b>Automate</b> — scheduled restarts with in-game warnings, a crash watchdog with a
     three-strikes stand-down, Discord notifications, and an opt-in public status page.</li>
   <li><b>Plan</b> — breeding calculators that know what's actually in your server's boxes:
@@ -131,8 +133,8 @@ falls back to Source RCON (port <code>25575</code>) automatically. Metrics, the 
 and the performance charts are REST-only — Palworld's RCON command set has no equivalent — so
 <a href="deploy-truenas.html#reach-the-game-server">enabling REST</a> is worth the one-line
 config change.</p>
-<p>Everything beyond commands — player pals, guilds, paldex, map positions while the server is
-offline — comes from reading the world save file directly. See
+<p>Everything beyond commands — player pals, inventories, guilds, paldex, map positions while the
+server is offline — comes from reading the world save file directly. See
 <a href="save-files.html">Reading save files</a> for how that works and why it can never write.</p>
 
 <h2 id="design-rules">Three rules the design never breaks</h2>

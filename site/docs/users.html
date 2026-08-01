@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Users & permissions — Palcon docs</title>
-<meta name="description" content="Everyone can look; grants control who can act. Revocations apply immediately.">
+<meta name="description" content="Grants control who can act, visibility switches control who can look. Both apply immediately.">
 <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Users & permissions — Palcon docs">
-<meta property="og:description" content="Everyone can look; grants control who can act. Revocations apply immediately.">
+<meta property="og:description" content="Grants control who can act, visibility switches control who can look. Both apply immediately.">
 <meta property="og:url" content="https://safwyls.github.io/palcon/docs/users.html">
 <meta property="og:image" content="https://safwyls.github.io/palcon/assets/og.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -117,12 +117,14 @@ granted a subset of permissions.</p>
   <tr><td>Save world</td><td>Trigger a world save</td></tr>
   <tr><td>Moderate</td><td>Kick, ban and unban players</td></tr>
   <tr><td>In-game shutdown</td><td>Shut the server down with a countdown</td></tr>
+  <tr><td>Settings</td><td>Read and edit <code>PalWorldSettings.ini</code></td></tr>
 </table>
 
-<p>Anyone signed in can <i>view</i> everything — dashboard, map, pals, guilds. The permissions
-above gate only actions that change something. Admins hold all of them implicitly, plus server
-and user administration, and an audit trail records every management action taken through
-Palcon.</p>
+<p>The permissions above gate only actions that change something; by default anyone signed in can
+<i>view</i> the dashboard, map, pals, inventories and guilds. What's visible is a separate
+setting — see <a href="#visibility">Who can see what</a> below. Admins hold every permission
+implicitly, plus server and user administration, and an audit trail records every management
+action taken through Palcon.</p>
 
 <div class="callout note"><p><b>In-game shutdown is deliberately separate from Power</b>, so
 someone trusted to restart the container isn't automatically able to boot everyone
@@ -131,6 +133,50 @@ mid-session.</p></div>
 <p>Grants are re-read from the database on every request rather than baked into the session
 token, so revoking a permission or disabling an account takes effect immediately — not whenever a
 week-long session expires.</p>
+
+<h2 id="visibility">Who can see what</h2>
+
+<p class="lead">Palcon shows a lot about the people on a server: every pal they own with its IVs,
+what's in their bags, where they logged off. Some communities are fine with that and some aren't,
+so it's switchable — per server and per player, under <b>Settings → Who can see what</b>
+(admins only).</p>
+
+<figure class="doc-shot">
+  <img src="../assets/visibility.webp" loading="lazy" width="1600" height="1000"
+    alt="Settings panel: six view toggles above a per-player table of pals, inventory and map switches">
+  <figcaption>Six views to switch off for the whole server, and a per-player row beneath
+    for anyone who'd rather keep their pals, bags or position to themselves.</figcaption>
+</figure>
+
+<h3 id="two-switches">Two switches</h3>
+<ul>
+  <li><b>A view</b> can be turned off for the whole server — Live map, Player pals, Inventory,
+    Paldex, Guilds or Calculators. Its nav link goes, and the endpoints behind it refuse.</li>
+  <li><b>A player</b> can be withheld from one kind of data — their pals, their inventory or
+    their map position — while the view stays on for everyone else.</li>
+</ul>
+
+<p>Both are enforced by the API, not just hidden in the menu, so switching a view off actually
+stops the data being served rather than only removing the link to it.</p>
+
+<h3 id="admin-bypass">Admins keep their own view</h3>
+<p>A hidden view still appears in an admin's nav, marked with a struck-through eye, and still
+serves them data; a hidden player is still listed for them. That's deliberate: the point is
+letting an owner honour a privacy request without also blinding themselves for moderation, and
+an admin is the only person who can switch a view back on — one that hid itself from them would
+be a trap. If you want the strict version, turn the view off and leave it off; nobody else can
+reach it.</p>
+
+<h3 id="streams">Why player switches are coarser than views</h3>
+<p>Player pals, Paldex and Calculators all read the same underlying payload, so there is one
+per-player <b>pals</b> switch covering all three — hiding someone from one page while another
+served the same bytes would be a checkbox that changes what a page draws but not what a browser
+can fetch. Hiding a player's pals also removes them from their guild's pal and paldex totals,
+which is the honest consequence of not counting them.</p>
+
+<div class="callout note"><p>Adding a view to the list is a five-step change, documented in
+<code>docs/visibility.md</code> in the repository — the fifth step is the one that actually makes
+it private, so it's called out there.</p></div>
 
 <nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="save-files.html"><small>← Previous</small><b>Reading save files</b></a><a class="pager-card next" href="automation.html"><small>Next →</small><b>Automation & alerts</b></a></nav>
   </main>

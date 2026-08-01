@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Palcon — self-hosted Palworld server dashboard</title>
-<meta name="description" content="Palcon is a self-hosted web console for Palworld dedicated servers: live map, player pals, paldex records, breeding calculators, backups and one-click repair. One Go binary on your own hardware.">
+<meta name="description" content="Palcon is a self-hosted web console for Palworld dedicated servers: live map, player pals and inventories, paldex records, breeding calculators, backups and one-click repair. One Go binary on your own hardware.">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
 <link rel="apple-touch-icon" href="assets/favicon-192.png">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Palcon — self-hosted Palworld server dashboard">
-<meta property="og:description" content="Live map, player pals, breeding math, backups and one-click repair for your Palworld dedicated server. One Go binary. Your hardware. Your data.">
+<meta property="og:description" content="Live map, player pals and inventories, breeding math, backups and one-click repair for your Palworld dedicated server. One Go binary. Your hardware. Your data.">
 <meta property="og:url" content="https://safwyls.github.io/palcon/">
 <meta property="og:image" content="https://safwyls.github.io/palcon/assets/og.jpg">
 <meta name="twitter:card" content="summary_large_image">
@@ -227,7 +227,7 @@
   .trust { padding: 4.5rem 0; }
   .trust-head { max-width: 46rem; margin-bottom: 2.6rem; }
   .trust-head p { color: rgba(245, 237, 225, .7); }
-  .trust-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.2rem; }
+  .trust-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; }
   .trust-card {
     border: 1px solid rgba(245, 237, 225, .13); border-left: 3px solid var(--meadow);
     border-radius: 12px; padding: 1.4rem 1.5rem;
@@ -384,8 +384,8 @@
         </div>
         <h1>The dashboard your Palworld server <span class="accent">deserves</span>.</h1>
         <p class="sub">Palcon is a self-hosted console for Palworld dedicated servers — live map, player
-          pals, paldex records, breeding math, backups and one-click repair. One Go binary.
-          Your hardware. Your data.</p>
+          pals and inventories, paldex records, breeding math, backups and one-click repair.
+          One Go binary. Your hardware. Your data.</p>
         <div class="cta-row">
           <a class="btn btn-primary" href="demo/">Try the live demo</a>
           <a class="btn btn-ghost" href="#get-started">Deploy in five minutes</a>
@@ -452,7 +452,27 @@
           alt="Player pals view: a player's party and palbox with levels, IVs and passive skills"></div>
       </div>
 
-      <div class="feature reveal" style="--f-color: var(--amber)">
+      <div class="feature reveal" style="--f-color: var(--vermilion)">
+        <div class="f-text">
+          <div class="eyebrow">
+            <span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>
+            Inventory
+          </div>
+          <h3>Their bags, slot for slot.</h3>
+          <p>The save keeps where every item sits, so Palcon draws the bag the way the game does —
+            gaps and all. A backpack reading <span style="font-family:var(--mono);font-size:.85em;white-space:nowrap">45 / 45</span>
+            is the difference between carrying a lot and not being able to pick anything up.</p>
+          <ul>
+            <li>Weapons, gear, accessories and food racked by slot, with durability</li>
+            <li>How each player spent their stat points — the build behind the level</li>
+            <li>Search highlights matches in place, so you see <em>where</em> in the bag they are</li>
+          </ul>
+        </div>
+        <div class="f-shot"><img src="assets/inventory.webp" loading="lazy" width="1600" height="1000"
+          alt="Inventory view: a player's equipment racks, stat-point build and a full 45-slot backpack"></div>
+      </div>
+
+      <div class="feature flip reveal" style="--f-color: var(--amber)">
         <div class="f-text">
           <div class="eyebrow">
             <span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>
@@ -471,7 +491,7 @@
           alt="Paldex view: 95% server completion bar and per-player completion list"></div>
       </div>
 
-      <div class="feature flip reveal" style="--f-color: var(--legendary)">
+      <div class="feature reveal" style="--f-color: var(--legendary)">
         <div class="f-text">
           <div class="eyebrow">
             <span class="sphere" style="--ring-color: var(--legendary)"><span class="ring"><span class="core"></span></span></span>
@@ -490,10 +510,10 @@
           alt="Reverse breeding lookup: 236 parent pairs that breed into Anubis"></div>
       </div>
 
-      <div class="feature reveal" style="--f-color: var(--vermilion)">
+      <div class="feature flip reveal" style="--f-color: var(--meadow)">
         <div class="f-text">
           <div class="eyebrow">
-            <span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>
+            <span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>
             Anywhere
           </div>
           <h3>Pocket-sized server care.</h3>
@@ -555,6 +575,14 @@
           <p>Power control goes through a scoped proxy that allows exactly
             <code>inspect · start · stop · restart</code> — no creating containers, no mounts, no
             exec. A compromised Palcon can bounce your game server, and that's all.</p>
+        </div>
+        <div class="trust-card">
+          <h3>Private by the switch, not the menu.</h3>
+          <p>Any view — map, pals, inventory, paldex, guilds, calculators — can be turned off for a
+            server, and any single player can be withheld from the pals, inventory or map data while
+            everyone else stays visible. The API refuses it too, so hiding a page actually hides the
+            data behind it. Admins keep their own view, so honouring a request doesn't cost you
+            moderation.</p>
         </div>
         <div class="trust-card">
           <h3>Your data stays home.</h3>

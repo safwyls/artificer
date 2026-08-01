@@ -48,9 +48,13 @@ from a phone as from a desk.
 
 <br clear="right"/>
 
-| Player pals | Paldex & records | Breeding calculators |
-|---|---|---|
-| ![Party and palbox with IVs and passives](site/assets/players.webp) | ![Server paldex completion and record book](site/assets/paldex.webp) | ![Reverse breeding lookup](site/assets/breeding.webp) |
+| Player pals | Inventory |
+|---|---|
+| ![Party and palbox with IVs and passives](site/assets/players.webp) | ![Equipment racked by slot, a stat-point build, and a full 45-slot backpack](site/assets/inventory.webp) |
+
+| Paldex & records | Breeding calculators |
+|---|---|
+| ![Server paldex completion and record book](site/assets/paldex.webp) | ![Reverse breeding lookup](site/assets/breeding.webp) |
 
 ## Quick start
 

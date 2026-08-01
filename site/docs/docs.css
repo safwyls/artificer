@@ -189,6 +189,25 @@ header.nav {
 .doc tr:last-child td { border-bottom: none; }
 
 /* callouts */
+/* Screenshot figures. Captured from the demo build, so the players in them
+   are the sample world's, never a real server's. */
+.doc-shot {
+  margin: 1.2rem 0 1.4rem;
+}
+.doc-shot img {
+  border-radius: 12px;
+  border: 1px solid rgba(43, 36, 32, .14);
+  box-shadow: 0 14px 34px -14px rgba(43, 36, 32, .38);
+}
+/* For figures that are already a component-sized crop rather than a full page. */
+.doc-shot.narrow img { max-width: 420px; }
+
+.doc-shot figcaption {
+  margin-top: .55rem;
+  font-size: .86rem;
+  color: rgba(43, 36, 32, .58);
+}
+
 .callout {
   border: 1px solid rgba(43, 36, 32, .12); border-left-width: 3px; border-radius: 10px;
   padding: .85rem 1.1rem; margin: 1rem 0 1.2rem;

@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reading save files — Palcon docs</title>
-<meta name="description" content="How Player pals, Guilds and Paldex work — and why Palcon can never write a save.">
+<meta name="description" content="How Player pals, Inventory, Guilds and Paldex work — and why Palcon can never write a save.">
 <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Reading save files — Palcon docs">
-<meta property="og:description" content="How Player pals, Guilds and Paldex work — and why Palcon can never write a save.">
+<meta property="og:description" content="How Player pals, Inventory, Guilds and Paldex work — and why Palcon can never write a save.">
 <meta property="og:url" content="https://safwyls.github.io/palcon/docs/save-files.html">
 <meta property="og:image" content="https://safwyls.github.io/palcon/assets/og.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -106,9 +106,43 @@
     <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Configuration <span>/</span> Reading save files</p>
     <h1>Reading save files</h1>
 
-<p class="lead">Party composition, palbox contents, per-pal stats and guilds aren't exposed by
-REST or RCON at all, so those views read <code>Level.sav</code> (Unreal's GVAS format) directly.
-Read-only, as a hard rule — the save is only ever opened for reading.</p>
+<p class="lead">Party composition, palbox contents, per-pal stats, player inventories and guilds
+aren't exposed by REST or RCON at all, so those views read <code>Level.sav</code> (Unreal's GVAS
+format) directly. Read-only, as a hard rule — the save is only ever opened for reading.</p>
+
+<h2 id="what-you-get">What the save gives you</h2>
+<p>One parse feeds every save-derived view: <b>Player pals</b>, <b>Inventory</b>, <b>Paldex</b>,
+<b>Guilds</b>, the <b>Calculators</b>' pal picker, and the offline positions on the
+<b>Live map</b>. Opening several of them costs one read, not several.</p>
+
+<figure class="doc-shot">
+  <img src="../assets/inventory.webp" loading="lazy" width="1600" height="1000"
+    alt="Inventory view: equipment racked by slot, a stat-point build, and a 45-of-45 backpack drawn as a grid">
+  <figcaption>The Inventory view. Slot positions come from the save, so the bag is drawn
+    the way the game arranges it — gaps included.</figcaption>
+</figure>
+
+<h3 id="inventory">Inventory</h3>
+<ul>
+  <li><b>Bags are drawn by slot.</b> The save records which slot every stack sits in, so a gap in
+    the grid is a real gap and <code>45 / 45 slots</code> means a genuinely full backpack.</li>
+  <li><b>Equipment is racked by socket</b> — head, body, shield, glider, sphere module,
+    accessories, four weapon slots and the food pouch — with a durability bar under anything that
+    wears down, and remaining rounds for guns.</li>
+  <li><b>Eggs name what's inside them</b>, and gear shows the passives it grants.</li>
+  <li><b>The character sheet</b> shows HP, shield, hunger, the running food buff, and how the
+    player spent their stat points. Those are <i>points invested</i>, not the totals on the
+    player's own stat screen — the game computes those at runtime from level and equipment, and
+    the save doesn't record them, so Palcon doesn't invent them.</li>
+</ul>
+
+<figure class="doc-shot narrow">
+  <img src="../assets/inventory-item.webp" loading="lazy" width="760" height="650"
+    alt="Item detail: Mechanical Bow, condition 2,857 of 3,000, attack, loaded rounds, weight and description">
+  <figcaption>Clicking a slot opens what the save and the item catalog know about that
+    exact item — condition is the instance's own wear, not the type's.</figcaption>
+</figure>
+
 
 <h2 id="setup">Setup</h2>
 <p>Mount the world save directory into Palcon's container read-only (the
@@ -135,8 +169,14 @@ the save bundle over its API and Palcon caches it locally.</p>
     rather than fixed offsets, so a game update is unlikely to break it outright.</li>
 </ul>
 
-<div class="callout note"><p>Pal artwork, names and map imagery are © Pocketpair, Inc., and are
-credited on-screen wherever they appear.</p></div>
+<h2 id="privacy">Keeping it private</h2>
+<p>These views show a lot about the people on your server — every pal they own, what's in their
+bags, where they logged off. All of it is switchable per server, and per player, under
+<b>Settings → Who can see what</b>. See
+<a href="users.html#visibility">Users &amp; permissions</a> for how the switches work.</p>
+
+<div class="callout note"><p>Pal artwork, item artwork, names and map imagery are © Pocketpair,
+Inc., and are credited on-screen wherever they appear.</p></div>
 
 <nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="power-control.html"><small>← Previous</small><b>Power control</b></a><a class="pager-card next" href="users.html"><small>Next →</small><b>Users & permissions</b></a></nav>
   </main>
