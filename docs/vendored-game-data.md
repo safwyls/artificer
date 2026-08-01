@@ -32,6 +32,20 @@ Pal icons: `web/public/pal-icons/` — see the README there. Item icons:
 same way: © Pocketpair, Inc., credited on-screen in the map view — see
 `web/public/README.md` for the fork/redistribution considerations.
 
+Not in `web/src/data/`, but vendored the same way: **`STATUS_NAMES` in
+`internal/palsave/extract_pals.py`** maps the Japanese stat names every save
+uses — whatever language the server runs in — to English. Taken from
+palworld-save-pal's `STATUS_NAME_MAP` (`psp-core/src/domain/player.rs`), which
+is the full 18-entry set; the relic-granted "adventure" stats arrived with
+Palworld 1.0, so a patch that adds another will show up in the UI as an
+untranslated Japanese label until this table is refreshed. Collecting the list
+from a sample save is how one got missed before — a stat nobody had spent a
+point on simply wasn't there to notice.
+
+The frontend's display order for those stats lives in `ADVENTURE_STATS`
+(`web/src/pages/ServerInventory.tsx`) and mirrors the same source, so every
+player's build panel reads in one order.
+
 ## Constants that drift with game patches
 
 These are hand-maintained and must be re-verified against the current game

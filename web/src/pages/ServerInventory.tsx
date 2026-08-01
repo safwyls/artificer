@@ -311,20 +311,33 @@ const CORE_STATS: [string, string][] = [
 
 const CORE_KEYS = new Set(CORE_STATS.map(([key]) => key));
 
-/** Shortened for the chip row, where the full names wrap badly. */
-const ADVENTURE_LABELS: Record<string, string> = {
-  "Movement Speed": "Move",
-  "Hunger Reduction": "Hunger",
-  "Swim Speed": "Swim",
-  "Jump Power": "Jump",
-  "Food Spoilage Reduction": "Spoilage",
-  "Glide Speed": "Glide",
-  "EXP Bonus": "EXP",
-  "Climb Speed": "Climb",
-  "Ailment Resistance": "Ailments",
-  "Sphere Homing": "Homing",
-  "Rainbow Passive Rate": "Rainbow",
-};
+/**
+ * The relic-granted stats, in a fixed order with short labels.
+ *
+ * Order is the list's, not the values': sorting by size gave every player a
+ * different arrangement, so two sections couldn't be read against each other —
+ * which is the only reason to show a dozen small numbers at all. The order
+ * matches the extractor's, which is palworld-save-pal's.
+ *
+ * "Stamina cost" rather than "Stamina": the core panel above already uses that
+ * word for the pool, and this one is about how fast it drains.
+ */
+const ADVENTURE_STATS: [string, string][] = [
+  ["Movement Speed", "Move"],
+  ["Stamina Cost Reduction", "Stamina cost"],
+  ["Jump Power", "Jump"],
+  ["Climb Speed", "Climb"],
+  ["Swim Speed", "Swim"],
+  ["Glide Speed", "Glide"],
+  ["Hunger Reduction", "Hunger"],
+  ["Food Spoilage Reduction", "Spoilage"],
+  ["Ailment Resistance", "Ailments"],
+  ["Sphere Homing", "Homing"],
+  ["EXP Bonus", "EXP"],
+  ["Rainbow Passive Rate", "Rainbow"],
+];
+
+const ADVENTURE_KEYS = new Set(ADVENTURE_STATS.map(([key]) => key));
 
 /** Lifetime EXP runs to eight digits, which would dominate the header line;
  * "25.8M" carries the same meaning at a glance. */
@@ -387,9 +400,20 @@ function StatBar({
 }
 
 function BuildPanel({ character, scale }: { character: Character; scale: number }) {
-  const adventure = Object.entries(character.statusPoints)
-    .filter(([key, value]) => !CORE_KEYS.has(key) && value > 0)
-    .sort((a, b) => b[1] - a[1]);
+  // Every stat, every player, same order — a row that's present for one player
+  // and missing for the next can't be compared at a glance. Zeroes are shown
+  // greyed rather than dropped for the same reason.
+  const adventure = ADVENTURE_STATS.map(
+    ([key, label]) => [label, character.statusPoints[key] ?? 0] as const,
+  );
+  const hasAdventure = adventure.some(([, value]) => value > 0);
+
+  // Anything the extractor reported that this list doesn't know about — a stat
+  // added by a game update. Shown rather than swallowed, so a missing mapping
+  // surfaces as a visible oddity instead of silently vanishing.
+  const unknown = Object.entries(character.statusPoints).filter(
+    ([key, value]) => !CORE_KEYS.has(key) && !ADVENTURE_KEYS.has(key) && value > 0,
+  );
 
   return (
     // A stat list is a ranking, and a ranking reads down one column. Capped
@@ -417,18 +441,26 @@ function BuildPanel({ character, scale }: { character: Character; scale: number 
         ))}
       </div>
 
-      {adventure.length > 0 && (
-        // Two columns, label left and figure right. Filled top-to-bottom then
-        // across — these are sorted by size, and a row-major grid would make
-        // the ranking zigzag between the columns instead of running down one.
+      {(hasAdventure || unknown.length > 0) && (
+        // Two columns, label left and figure right, filled top-to-bottom then
+        // across so each column is a contiguous run of the fixed order rather
+        // than every other entry.
         <div
           className="mt-3 grid grid-flow-col gap-x-6 gap-y-1 border-t border-ink/10 pt-2.5"
-          style={{ gridTemplateRows: `repeat(${Math.ceil(adventure.length / 2)}, minmax(0, auto))` }}
+          style={{ gridTemplateRows: `repeat(${Math.ceil((adventure.length + unknown.length) / 2)}, minmax(0, auto))` }}
         >
-          {adventure.map(([key, value]) => (
-            <div key={key} className="flex items-baseline justify-between gap-2">
-              <span className="truncate text-xs text-ink/45">{ADVENTURE_LABELS[key] ?? key}</span>
-              <span className="shrink-0 font-mono text-xs text-ink/70">{value}</span>
+          {adventure.map(([label, value]) => (
+            <div key={label} className="flex items-baseline justify-between gap-2">
+              <span className={cn("truncate text-xs", value > 0 ? "text-ink/45" : "text-ink/25")}>{label}</span>
+              <span className={cn("shrink-0 font-mono text-xs", value > 0 ? "text-ink/70" : "text-ink/25")}>
+                {value}
+              </span>
+            </div>
+          ))}
+          {unknown.map(([key, value]) => (
+            <div key={key} className="flex items-baseline justify-between gap-2" title="Stat added by a game update">
+              <span className="truncate text-xs text-brand-amber">{key}</span>
+              <span className="shrink-0 font-mono text-xs text-brand-amber">{value}</span>
             </div>
           ))}
         </div>

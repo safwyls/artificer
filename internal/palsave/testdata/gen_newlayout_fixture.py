@@ -415,6 +415,9 @@ def main():
             ("捕獲率", 7),
             ("作業速度", 0),   # a zero must not survive into the payload
             ("移動速度アップ", 15),
+            # The stat an earlier hand-collected mapping missed, because no
+            # player in the sample save had spent a point on it.
+            ("スタミナ消費軽減", 20),
         ]),
         "GotExStatusPointList": statuspoints("GotExStatusPointList", [
             ("最大HP", 9),

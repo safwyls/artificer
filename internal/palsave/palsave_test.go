@@ -293,7 +293,7 @@ func assertCharacter(t *testing.T, kyoshi, ren PlayerPals) {
 	// was actually invested rather than a list padded with zeroes.
 	wantPoints := map[string]int{
 		"Max HP": 17, "Max SP": 18, "Attack": 18, "Carry Weight": 18,
-		"Capture Rate": 7, "Movement Speed": 15,
+		"Capture Rate": 7, "Movement Speed": 15, "Stamina Cost Reduction": 20,
 	}
 	if !reflect.DeepEqual(c.StatusPoints, wantPoints) {
 		t.Fatalf("kyoshi status points = %v, want %v", c.StatusPoints, wantPoints)

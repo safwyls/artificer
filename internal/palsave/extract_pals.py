@@ -167,29 +167,40 @@ def container_id(node, *path):
     return str(raw) if raw is not None else None
 
 
-# Soul/condenser stat names come back as Japanese labels regardless of the
-# server's language, so they're mapped here rather than shown raw. The first
-# block is what a pal's souls and a player's core stats share; the rest are
-# the player-only "adventure" stats.
+# Soul/condenser and player stat names come back as Japanese labels regardless
+# of the server's language, so they're mapped here rather than shown raw.
+#
+# The full set is vendored from palworld-save-pal's STATUS_NAME_MAP
+# (psp-core/src/domain/player.rs) rather than collected from whatever a sample
+# save happened to contain — an earlier list built that way was missing
+# スタミナ消費軽減 simply because nobody in the sample had spent a point on it,
+# and it reached the UI untranslated. Refresh alongside the other vendored
+# catalogs (see docs/vendored-game-data.md).
+#
+# 防御力 is ours rather than theirs: it's a pal soul stat, and this table is
+# shared with soul_ranks.
 STATUS_NAMES = {
+    # The six the game's own stat panel shows.
     "最大HP": "Max HP",
     "最大SP": "Max SP",
     "攻撃力": "Attack",
-    "防御力": "Defense",
     "所持重量": "Carry Weight",
     "捕獲率": "Capture Rate",
     "作業速度": "Work Speed",
-    "移動速度アップ": "Movement Speed",
+    "防御力": "Defense",
+    # The relic-granted "adventure" stats, in the order upstream lists them.
     "空腹率低減": "Hunger Reduction",
     "泳ぎ速度": "Swim Speed",
-    "ジャンプ力": "Jump Power",
     "食料腐敗低減": "Food Spoilage Reduction",
+    "ジャンプ力": "Jump Power",
     "滑空速度": "Glide Speed",
-    "経験値ボーナス": "EXP Bonus",
     "崖登り速度": "Climb Speed",
     "状態異常耐性": "Ailment Resistance",
-    "パルスフィアホーミング": "Sphere Homing",
+    "経験値ボーナス": "EXP Bonus",
     "虹パッシブ率": "Rainbow Passive Rate",
+    "移動速度アップ": "Movement Speed",
+    "パルスフィアホーミング": "Sphere Homing",
+    "スタミナ消費軽減": "Stamina Cost Reduction",
 }
 
 
