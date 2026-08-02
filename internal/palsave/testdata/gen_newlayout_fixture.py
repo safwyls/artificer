@@ -624,9 +624,10 @@ def main():
         "trailer": "AAAAAA==",
     }, os.path.join(outdir, "Level.sav"))
 
-    # Kyoshi's save carries Paldex records (deck registrations + capture
-    # counts); Ren's deliberately has no RecordData at all, covering older
-    # or fresh player files where the whole struct is absent.
+    # Kyoshi's save carries the completion records (Paldex registrations and
+    # capture counts, plus what they've beaten); Ren's deliberately has no
+    # RecordData at all, covering older or fresh player files where the whole
+    # struct is absent.
     kyoshi_record = sp("PalLoggedinPlayerSaveDataRecordData", {
         "PaldeckUnlockFlag": namemap("BoolProperty", [
             ("SheepBall", True),
@@ -638,10 +639,82 @@ def main():
             ("SheepBall", 4),
             ("PinkCat", 1),
         ]),
+        # Two towers down and one only visited: a false flag is "fought and
+        # lost", which must not read as cleared.
+        # One map, three kinds of thing: region towers, the World Tree gate
+        # bosses that unlock the last of them, and a one-off fight that
+        # belongs to no run at all. The views split them; the save doesn't.
+        "TowerBossDefeatFlag": namemap("BoolProperty", [
+            ("BOSS_BATTLE_NAME_GrassBoss", True),
+            ("BOSS_BATTLE_NAME_ForestBoss", True),
+            ("BOSS_BATTLE_NAME_DesertBoss", False),
+            ("BOSS_BATTLE_NAME_WorldTreeMiddleBoss1", True),
+            ("BOSS_BATTLE_NAME_KingWhaleBoss", True),
+        ]),
+        # Keyed by difficulty, unlike the flag map — the same tower appears
+        # once per difficulty and the view has to add them up.
+        "TowerBossDefeatCount": namemap("IntProperty", [
+            ("GrassBoss_Normal", 2),
+            ("GrassBoss_Hard", 1),
+            ("ForestBoss_Normal", 1),
+        ]),
+        "RaidBossDefeatCount": namemap("IntProperty", [
+            ("PalSummon_NightLady", 3),
+            ("PalSummon_KingBahamut_Dragon", 0),  # zero means never, not tracked
+        ]),
+        # Both flavours of field boss key in one map: named human bounty
+        # targets and opaque region spawner ids.
+        "NormalBossDefeatFlag": namemap("BoolProperty", [
+            ("BOSS_Hunter_Rifle", True),
+            ("BOSS_Male_Soldier02", True),
+            ("81_1_grass_FBOSS_20", True),
+            ("81_1_grass_FBOSS_FlameBuffalo", True),
+            ("BOSS_Believer_CrossBow", False),  # not beaten
+        ]),
+        "NPCAchivementRewardFlag": namemap("BoolProperty", [
+            ("PalDex_1", True),
+            ("BossDefeat_1", True),
+        ]),
+        "FastTravelPointUnlockFlag": namemap("BoolProperty", [
+            ("6E03F8464BAD9E458B843AA30BE1CC8F", True),
+            ("DDBBFFAF43D9219AE68DF98744DF0831", True),
+        ]),
+        "FindAreaFlagMap": namemap("BoolProperty", [("Grass_001", True)]),
+        "RelicObtainForInstanceFlag": namemap("BoolProperty", [
+            ("A360858E448AF927AF914D8E9D74E416", True),
+        ]),
+        "NoteObtainForInstanceFlag": namemap("BoolProperty", [("Day2", True)]),
+        "CampConqueredCount": i(3),
+        "NormalDungeonClearCount": i(7),
+        "FixedDungeonClearCount": i(2),
+        "FoundTreasureCount": i(1),
+        "TribeCaptureCount": i(41),
+        "MutationCount": i(5),
+        # A ladder, not a tally: the rank held is the highest one cleared,
+        # and the rungs are not in alphabetical order.
+        "ArenaSoloClearCount": namemap("IntProperty", [
+            ("Bronze", 1),
+            ("Silver", 2),
+            ("Gold", 1),
+        ]),
+        "PredatorDefeatCount": i(6),
+        "OilrigClearCount": i(4),
+        "AwakeningCount": i(2),
+        "bIsGameCleared": b(True),
     })
+    # The quest list lives beside RecordData, not inside it, and mixes main,
+    # side and hidden quests — the view only counts the main line.
+    kyoshi_quests = namearray([
+        "Main_TutorialStart",
+        "Sub_DeliveryWood_Fine",
+        "Main_DefeatForestBoss",
+        "Hidden_ChangeWeaponBulletTutorialTrigger",
+    ])
     for uid, party, box, extra in (
         (KYOSHI, KYOSHI_PARTY, KYOSHI_BOX, {
             "RecordData": kyoshi_record,
+            "CompletedQuestArray_FullRelease": kyoshi_quests,
+            "bossTechnologyPoint": i(12),
             "InventoryInfo": inventory_info(KYOSHI_BAG, KYOSHI_KEYS, KYOSHI_ARMS),
         }),
         # Ren carries only a backpack — a player save can omit any of the

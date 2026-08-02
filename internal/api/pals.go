@@ -233,6 +233,58 @@ func (s *Server) handleServerInventory(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// achievementsPlayer is the /achievements projection: who a player is, plus
+// what they've beaten. Its own projection rather than a field on palsPlayer
+// because the pals payload carries every pal on the server and runs to tens of
+// MB, and this page needs a few KB of it.
+type achievementsPlayer struct {
+	UID      string          `json:"uid"`
+	Nickname string          `json:"nickname"`
+	Level    int             `json:"level"`
+	Records  palsave.Records `json:"records"`
+	// Enough to caption how stale a player's record is — see palsPlayer for
+	// why the save's own stamp is a login time and not a last-seen one.
+	LastOnline int64 `json:"lastOnline"`
+	LastSeen   int64 `json:"lastSeen"`
+}
+
+// handleServerAchievements serves the completion view: per-player tower, raid,
+// boss and quest records from the save's Players/*.sav files. Backed by the
+// same cached save read as /pals and /inventory, so opening any of them costs
+// one parse.
+//
+// Gated on the pals stream, not one of its own: the records live in the same
+// player files the pals view reads, so a player hidden from that payload has
+// asked not to be enumerated from it.
+func (s *Server) handleServerAchievements(w http.ResponseWriter, r *http.Request) {
+	result, srv, ok := s.readSaveForRequest(w, r, store.FeatureAchievements)
+	if !ok {
+		return
+	}
+	hidden, err := s.hiddenPlayers(r, srv.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	seen := s.lastSeen(r, srv.ID)
+	players := make([]achievementsPlayer, 0, len(result.Players))
+	for _, p := range visiblePlayers(result.Players, hidden, store.StreamPals) {
+		players = append(players, achievementsPlayer{
+			UID:        p.UID,
+			Nickname:   p.Nickname,
+			Level:      p.Level,
+			Records:    p.Records,
+			LastOnline: p.LastOnline,
+			LastSeen:   lastSeenUnix(seen, p.UID),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"players":     players,
+		"parsedAt":    result.ParsedAt,
+		"saveModTime": result.SaveModTime,
+	})
+}
+
 // storageBase is a base camp the storage view groups containers under. Named
 // by its guild because a camp's own name in the save is an internal
 // placeholder — see parse_base_camps in the extractor.

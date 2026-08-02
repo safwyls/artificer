@@ -11,6 +11,7 @@
  */
 import { ApiError, FEATURES, STREAMS } from "./api";
 import type {
+  AchievementsResult,
   ActivityResult,
   AppUser,
   AuditEntry,
@@ -28,6 +29,8 @@ import type {
   MetricPoint,
   PalsResult,
   Player,
+  PlayerPals,
+  PlayerRecords,
   PublicStatus,
   RestartSchedule,
   Server,
@@ -43,9 +46,14 @@ import type {
 // The captured world. Loaded once, timestamps freshened so "parsed 2m ago"
 // style labels stay plausible years after the capture.
 
-/** The capture carries the storage array too, which PalsResult itself doesn't
- * — /pals has no use for it, but one fixture backs every save-derived page. */
-type Fixture = PalsResult & { storage?: StorageContainer[] };
+/** The capture carries the world's storage containers and each player's
+ * completion records too, neither of which PalsResult holds — /pals has no use
+ * for them, but one fixture backs every save-derived page. */
+type FixturePlayer = PlayerPals & { records: PlayerRecords };
+type Fixture = Omit<PalsResult, "players"> & {
+  players: FixturePlayer[];
+  storage?: StorageContainer[];
+};
 let fixturePromise: Promise<Fixture> | null = null;
 
 async function world(): Promise<Fixture> {
@@ -187,6 +195,25 @@ async function storage(includesWorld: boolean): Promise<StorageResult> {
     guilds: fx.guilds.map((g) => ({ id: g.id, name: g.name })),
     includesWorld,
     includesPrivate,
+    parsedAt: fx.parsedAt,
+    saveModTime: fx.saveModTime,
+  };
+}
+
+/** The /achievements projection. The capture carries each player's completion
+ * records for the same reason it carries their bags: one fixture backs every
+ * save-derived page. */
+async function achievements(): Promise<AchievementsResult> {
+  const fx = await world();
+  return {
+    players: fx.players.map((p) => ({
+      uid: p.uid,
+      nickname: p.nickname,
+      level: p.level,
+      records: p.records,
+      lastOnline: p.lastOnline,
+      lastSeen: p.lastSeen,
+    })),
     parsedAt: fx.parsedAt,
     saveModTime: fx.saveModTime,
   };
@@ -505,6 +532,7 @@ async function route_(route: string, method: string, q: URLSearchParams, body: a
   // --- save-file data ---
   if (route === "/servers/1/pals" || route === "/servers/1/guilds") return world();
   if (route === "/servers/1/inventory") return inventory();
+  if (route === "/servers/1/achievements") return achievements();
   if (route === "/servers/1/storage") return storage(q.get("world") === "1");
   if (route === "/servers/1/visibility" && method === "GET") return visibility();
   if (route === "/servers/1/visibility" && method === "PUT") {

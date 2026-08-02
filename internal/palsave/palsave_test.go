@@ -305,6 +305,67 @@ func assertWorldStorage(t *testing.T, result *Result) {
 	}
 }
 
+// assertRecords covers the completion records the achievements view reads.
+// The distinctions asserted here are the ones a naive read gets wrong: a false
+// flag is "fought and lost" rather than cleared, a zero count is "never" rather
+// than tracked, the tower count map is keyed by difficulty while the flag map
+// isn't, and one field-boss map holds both named human bounty targets and
+// opaque region spawner ids.
+func assertRecords(t *testing.T, kyoshi, ren PlayerPals) {
+	t.Helper()
+	r := kyoshi.Records
+	// Four flagged true across all three kinds the map mixes — two region
+	// towers, a World Tree gate boss and Panthalus. The extractor hands the
+	// whole map over and lets the view sort them out.
+	if len(r.Towers) != 4 {
+		t.Fatalf("kyoshi towers = %v, want the 4 flagged true", r.Towers)
+	}
+	// Same tower, two difficulties, two rows — the view has to sum them.
+	if r.TowerCounts["GrassBoss_Normal"] != 2 || r.TowerCounts["GrassBoss_Hard"] != 1 {
+		t.Fatalf("kyoshi tower counts = %v", r.TowerCounts)
+	}
+	if len(r.Raids) != 1 || r.Raids["PalSummon_NightLady"] != 3 {
+		t.Fatalf("kyoshi raids = %v, want only the non-zero one", r.Raids)
+	}
+	if len(r.FieldBosses) != 4 {
+		t.Fatalf("kyoshi field bosses = %v, want the 4 flagged true", r.FieldBosses)
+	}
+	if len(r.NpcRewards) != 2 {
+		t.Fatalf("kyoshi npc rewards = %v", r.NpcRewards)
+	}
+	// The whole completed array, main and side and hidden — the split into
+	// main-line quests is the view's job, not the extractor's.
+	if len(r.Quests) != 4 {
+		t.Fatalf("kyoshi quests = %v, want all 4 completed", r.Quests)
+	}
+	if r.FastTravel != 2 || r.Areas != 1 || r.Relics != 1 || r.Notes != 1 {
+		t.Fatalf("kyoshi exploration counts wrong: %+v", r)
+	}
+	if r.CampsConquered != 3 || r.DungeonsCleared != 7 || r.FixedDungeonsCleared != 2 {
+		t.Fatalf("kyoshi clear counts wrong: %+v", r)
+	}
+	if r.TreasuresFound != 1 || r.TribesCaptured != 41 || r.Mutations != 5 || r.BossTechPoints != 12 {
+		t.Fatalf("kyoshi misc counts wrong: %+v", r)
+	}
+	if r.PredatorsDefeated != 6 || r.OilrigsCleared != 4 || r.Awakenings != 2 || !r.GameCleared {
+		t.Fatalf("kyoshi late-game counts wrong: %+v", r)
+	}
+	// The arena rungs are handed over as they come; "highest cleared" is a
+	// ladder order the view owns, and Gold beats Silver despite sorting after
+	// it in neither alphabetical nor insertion order.
+	if len(r.ArenaRanks) != 3 || r.ArenaRanks["Silver"] != 2 || r.ArenaRanks["Gold"] != 1 {
+		t.Fatalf("kyoshi arena ranks = %v", r.ArenaRanks)
+	}
+	if ren.Records.GameCleared || len(ren.Records.ArenaRanks) != 0 {
+		t.Fatalf("ren should have no late-game record: %+v", ren.Records)
+	}
+	// Ren's save has no RecordData and no quest array at all, which must read
+	// as an empty record rather than failing the parse.
+	if len(ren.Records.Towers) != 0 || len(ren.Records.Raids) != 0 || len(ren.Records.Quests) != 0 {
+		t.Fatalf("ren records should be empty: %+v", ren.Records)
+	}
+}
+
 func assertInventory(t *testing.T, kyoshi, ren PlayerPals) {
 	t.Helper()
 
@@ -495,6 +556,7 @@ func TestRead(t *testing.T) {
 				if len(ren.Paldeck) != 0 || len(ren.Captures) != 0 {
 					t.Fatalf("ren paldex should be empty: deck=%v captures=%v", ren.Paldeck, ren.Captures)
 				}
+				assertRecords(t, kyoshi, ren)
 				// The base pal ties to its camp via the WorkerDirector's
 				// container id; party/palbox pals carry no base.
 				if kyoshi.Base[0].BaseID != "eeeeeeee-0000-0000-0000-000000000001" {

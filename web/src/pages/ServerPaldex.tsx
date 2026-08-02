@@ -7,7 +7,6 @@ import {
   DECK_BASE_ENTRIES,
   DECK_UNCATCHABLE_ENTRIES,
   DECK_VARIANT_ENTRIES,
-  elementColor,
   palDeckNo,
   palDeckSortValue,
   palEntry,
@@ -18,6 +17,7 @@ import {
 import { initials, playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { palEffectiveStats, powerScore } from "../lib/stats";
+import { ElementTag } from "../components/ElementIcon";
 import { PalPortrait } from "../components/PalPortrait";
 import { PassiveTierTile } from "../components/PassiveBadge";
 import { StatTriplet } from "../components/StatTriplet";
@@ -325,12 +325,7 @@ function BountyPoster({ entry }: { entry: DeckEntry }) {
         <span className="block truncate font-display text-sm font-bold">{palName(entry.characterId)}</span>
         <span className="mt-0.5 flex flex-wrap items-center justify-center gap-x-1.5 text-[11px] text-ink/45">
           <span className="font-mono">#{entry.label}</span>
-          {element && (
-            <span className="inline-flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: elementColor(element) }} />
-              {element}
-            </span>
-          )}
+          {element && <ElementTag element={element} />}
         </span>
       </figcaption>
     </figure>

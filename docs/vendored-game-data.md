@@ -26,6 +26,7 @@ All files live in `web/src/data/`:
 | `mapPois.json` | map POI world coordinates by kind; fast travel + watchtower entries carry their English names (`[x, y, name]`) used as "near X" landmarks for bases | palworld-save-pal `fast_travel_points.json` (split on the `UnlockMapPoint` class) joined with `l10n/en/fast_travel_points.json` by GUID, and `map_objects.json` (dungeons, alpha/predator spawns), rounded to whole units |
 | `items.json` | item id → name, category, rarity, weight, icon, description, and the gear figures the inventory view shows (max durability, magazine size, attack, defense, built-in passives) | palworld-save-pal `items.json` joined with `l10n/en/items.json`; see `web/public/item-icons/README.md` |
 | `structures.json` | building id → build-menu name (`n`), category (`c`, upstream's `type_b`) and icon name (`i`), for the Storage view's container labels, its storage/farm/station grouping and its row icons | palworld-save-pal `buildings.json` joined with `l10n/en/buildings.json` by key; 489 entries trimmed to those three fields |
+| `bossFights.json` | boss record key → the fight's in-game title, where it happens, and `[level, HP]` per difficulty, for the Achievements view's fight dialog | [paldb.cc/en/Tower](https://paldb.cc/en/Tower) and [paldb.cc/en/Raid](https://paldb.cc/en/Raid), both datamined — see the note below on why not the guide sites |
 
 Pal icons: `web/public/pal-icons/` — see the README there. Item icons:
 `web/public/item-icons/`, and structure icons `web/public/structure-icons/`,
@@ -47,6 +48,91 @@ point on simply wasn't there to notice.
 The frontend's display order for those stats lives in `ADVENTURE_STATS`
 (`web/src/pages/ServerInventory.tsx`) and mirrors the same source, so every
 player's build panel reads in one order.
+
+Also not in `web/src/data/`: the roster tables in **`web/src/lib/achievements.ts`**.
+No names are vendored there — `palDex.json` already carries them all, under
+keys the record data doesn't use. What's hand-maintained is only the *join*:
+
+| Table | Maps | Refresh trigger |
+|---|---|---|
+| `PALPAGOS_TOWERS` | the eight `BOSS_BATTLE_NAME_<region>Boss` towers → a `gym_*` catalog id | A game update adds a faction tower |
+| `PANTHALUS` | the one fight between the towers and the World Tree | — |
+| `WORLD_TREE_RUN` | the three `WorldTreeMiddleBoss<n>` dungeon bosses, beatable in any order | A game update adds another gated set |
+| `ASTRALYM` | the last fight, gated on all three above | — |
+| `RAID_ROSTER` | `PalSummon_<pal>` → a `raid_*` catalog id | A game update adds a summonable raid boss |
+
+`TowerBossDefeatFlag` is one map holding a whole progression, which is why
+there are four tables rather than one — the tiers are what the hero draws:
+
+```
+Palpagos Islands towers  →  Panthalus  →  World Tree run (any order)  →  Astralym
+```
+
+The save backs the split rather than just the labels: every tower carries a
+`Tower_<region>` area flag, where Panthalus gets its own `BOSS_KingWhale` one.
+`BOSS_CHAIN` flattens all four back into progression order for counting and for
+picking the next fight the group can close out.
+
+The Forbidden Laboratory has no catalog portrait — it's a place, and a gauntlet
+of modified pals rather than one boss. It borrows Cattiva's outline, flattened
+to black under a red rim, the way the game presents those fights. Cattiva and
+not Lamball because at portrait size a silhouetted Lamball is a featureless
+blob; the ears have to survive. If you swap the stand-in, check the silhouette
+at 44px before trusting it.
+
+`BOUNTY_ROSTER` needs no maintenance — the 34 human bounty targets are derived
+from every `boss_*` key in the catalog at module load, so refreshing
+`palDex.json` refreshes the roster and its denominator together.
+
+Both tables render keys they don't recognise rather than dropping them: an
+unknown tower is listed under the run, an unknown raid boss gets its own row.
+That's the signal to add a line here.
+
+Every key in all four tables is read off a real save record. What is **not**
+read off a save is which `WorldTreeMiddleBoss<n>` is Silvance, which is
+Dandilord and which is the Laboratory: the catalog has no `worldtreemiddleboss`
+entry, so nothing vendored can say. Those three names are the only unverified
+labels on the page, and a save can never settle them — only the game can.
+
+### Why bossFights.json comes from paldb and nowhere else
+
+The guide sites disagree with each other about tower boss levels, and some of
+them are simply wrong: one popular list has Lyleen at 25, Orserk at 40 and
+Faleris at 45, where the datamined values are 20, 30 and 40. Another prints an
+element column that contradicts our own `palDex.json` — Orserk as Ice, Saya &
+Selyne as Electric, Auri & Shaolong as Dark — and its own comment section
+disputes the last one. [paldb.cc](https://paldb.cc/en/Tower) is datamined
+rather than written up, and it agreed exactly with the one guide that published
+HP figures, so it is the only source used here. Prefer it on the next refresh.
+
+`bossFights.json` deliberately carries **no elements and no weaknesses**:
+
+- Elements are already in `palDex.json` for every boss form, and they match
+  paldb — including the awkward ones, like Saya & Selyne's Dark/Normal and
+  Astralym having none at all.
+- Weaknesses are computed by `elementCounters` in `web/src/lib/paldex.ts` from
+  the element chart. A chart is a rule; copying it into thirteen rows is
+  thirteen chances to get it wrong, and it would have to be re-checked every
+  time a boss is added.
+
+The element glyphs in `web/src/components/ElementIcon.tsx` are **not** vendored
+either. Eight are lucide icons — the icon language the rest of palcon already
+speaks — and Dragon is drawn to match, because lucide has no dragon. Nothing of
+Pocketpair's is redistributed for them, and they take the element's colour, so
+a glyph tints and scales where a lifted PNG would not.
+
+The Laboratory is the one entry whose element the dialog refuses to state. It
+borrows Grizzbolt's portrait because the first wave really is a Highly Modified
+Grizzbolt, but the fight is eight different pals — so it prints its waves
+instead of a matchup that would be wrong about seven of them.
+
+Two joins are deliberately *not* attempted. The bare field-alpha spawner ids
+(`81_1_grass_FBOSS_20` — about two thirds of them) name no species anywhere in
+the save, so they're counted rather than named; only the ones that carry a
+species in the id (`..._FBOSS_FlameBuffalo`) resolve. And
+`FastTravelPointUnlockFlag` is a count, never a percentage: it runs higher than
+the 141 fast-travel points in `mapPois.json`, so it evidently covers other map
+points too, and a denominator would be invented.
 
 ### Why structures.json is worth the refresh
 

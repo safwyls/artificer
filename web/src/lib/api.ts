@@ -126,7 +126,16 @@ export interface Server {
 
 /** Views that can be switched off per server. The keys are also the route
  * segments, so one string drives the nav link and the API's refusal. */
-export const FEATURES = ["map", "pals", "inventory", "storage", "paldex", "guilds", "calculators"] as const;
+export const FEATURES = [
+  "map",
+  "pals",
+  "inventory",
+  "storage",
+  "paldex",
+  "achievements",
+  "guilds",
+  "calculators",
+] as const;
 export type Feature = (typeof FEATURES)[number];
 
 /** Kinds of data a single player can be withheld from. Coarser than the view
@@ -579,6 +588,66 @@ export interface InventoryResult {
 }
 
 /**
+ * One player's completion record, from RecordData in their save file.
+ *
+ * The three flavours here are not comparable and must not be totalled
+ * together: towers and quests are permanent, raids and the counters only
+ * climb, and fieldBosses is respawn state the game periodically clears — so
+ * it means "beaten since the last reset", not a lifetime tally.
+ */
+export interface PlayerRecords {
+  /** BOSS_BATTLE_NAME_<x> keys — the faction leaders this player has beaten. */
+  towers: string[];
+  /** Keyed <x>_Normal / <x>_Hard, so one tower appears once per difficulty. */
+  towerCounts: Record<string, number>;
+  /** PalSummon_<pal id> → summons defeated. */
+  raids: Record<string, number>;
+  /** Field alphas and human bounty targets in one map; only some keys
+   * resolve to a name, the rest are opaque spawner ids. */
+  fieldBosses: string[];
+  /** The game's own achievement tiers: PalDex_1..10, BossDefeat_1..3 etc. */
+  npcRewards: string[];
+  quests: string[];
+  /** Raw totals with no known denominator — fastTravel counts more map
+   * points than there are statues, so none of these are percentages. */
+  fastTravel: number;
+  areas: number;
+  relics: number;
+  notes: number;
+  campsConquered: number;
+  dungeonsCleared: number;
+  fixedDungeonsCleared: number;
+  treasuresFound: number;
+  tribesCaptured: number;
+  mutations: number;
+  bossTechPoints: number;
+  /** The solo arena ladder, keyed Bronze..Master; the highest present is the
+   * rank this player holds. */
+  arenaRanks: Record<string, number>;
+  predatorsDefeated: number;
+  oilrigsCleared: number;
+  awakenings: number;
+  /** The game's own story-finished flag. False in saves from before it
+   * existed, which reads the same as not finished. */
+  gameCleared: boolean;
+}
+
+export interface AchievementsPlayer {
+  uid: string;
+  nickname: string;
+  level: number;
+  records: PlayerRecords;
+  lastOnline: number;
+  lastSeen: number;
+}
+
+export interface AchievementsResult {
+  players: AchievementsPlayer[];
+  parsedAt: string;
+  saveModTime: string;
+}
+
+/**
  * One searchable container in the world — a base's chest, a furnace's hopper,
  * a treasure box on a hillside. Player bags aren't here; they're /inventory.
  *
@@ -744,6 +813,8 @@ export const api = {
   serverPals: (id: number) => request<PalsResult>(`/servers/${id}/pals`),
   serverGuilds: (id: number) => request<GuildsResult>(`/servers/${id}/guilds`),
   serverInventory: (id: number) => request<InventoryResult>(`/servers/${id}/inventory`),
+
+  serverAchievements: (id: number) => request<AchievementsResult>(`/servers/${id}/achievements`),
   // World loot is asked for explicitly: it's most of the payload, and most of
   // it is the location of chests nobody has opened yet.
   serverStorage: (id: number, world = false) =>

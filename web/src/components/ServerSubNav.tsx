@@ -16,6 +16,7 @@ const SAVE_VIEWS: { feature: Feature; path: string }[] = [
   { feature: "inventory", path: "inventory" },
   { feature: "storage", path: "storage" },
   { feature: "paldex", path: "paldex" },
+  { feature: "achievements", path: "achievements" },
   { feature: "guilds", path: "guilds" },
   { feature: "calculators", path: "calculators" },
 ];

@@ -230,3 +230,31 @@ export const ELEMENT_COLORS: Record<string, string> = {
 export function elementColor(element: string): string {
   return ELEMENT_COLORS[element] ?? "#9C9186";
 }
+
+/** What beats what. Palworld's element chart is a plain cycle plus two
+ * strays — Ice loses to Fire rather than to its own predecessor, and Normal
+ * only loses to Dark — so a boss's counters are derivable from its elements
+ * and don't need vendoring per fight. Keyed by the *defender*. */
+const BEATEN_BY: Record<string, string> = {
+  Normal: "Dark",
+  Fire: "Water",
+  Water: "Electricity",
+  Electricity: "Earth",
+  Leaf: "Fire",
+  Earth: "Leaf",
+  Ice: "Fire",
+  Dragon: "Ice",
+  Dark: "Dragon",
+};
+
+/** The elements that hit these ones hardest, deduplicated and in the order
+ * given. Empty for a typeless pal, which is the honest answer: nothing
+ * counters Astralym. */
+export function elementCounters(elements: string[]): string[] {
+  const out: string[] = [];
+  for (const el of elements) {
+    const beats = BEATEN_BY[el];
+    if (beats && !out.includes(beats)) out.push(beats);
+  }
+  return out;
+}

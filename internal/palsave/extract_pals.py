@@ -570,28 +570,93 @@ def player_containers_from_dir(players_dir):
     return index, meta, inventory
 
 
+def record_flags(record, key):
+    """The set-true keys of a RecordData NameProperty→BoolProperty map."""
+    return [
+        str(pair["key"])
+        for pair in (v(record, key, default=None) or [])
+        if isinstance(pair, dict) and pair.get("value") and pair.get("key")
+    ]
+
+
+def record_counts(record, key):
+    """The non-zero entries of a RecordData map→IntProperty, as {key: count}.
+
+    Zeroes are dropped rather than kept: the game writes a 0 row the moment
+    something becomes *trackable* (every relic type is listed the first time
+    you pick one up), so a 0 means "never done", identical to absent.
+    """
+    out = {}
+    for pair in v(record, key, default=None) or []:
+        if not isinstance(pair, dict):
+            continue
+        k, count = pair.get("key"), pair.get("value")
+        if k is not None and isinstance(count, int) and count > 0:
+            out[str(k)] = count
+    return out
+
+
 def paldeck_records(save_data):
-    """Per-player Paldex progress, from the player save's RecordData.
+    """Per-player progress records, from the player save's RecordData.
 
     PaldeckUnlockFlag is the dex itself — species register on first
     acquisition however it happened (capture, hatch, trade), and stay
     registered after the pal is gone, which is what "completion" means.
     PalCaptureCount only counts sphere captures, but it's the number the
     game shows per species, so it rides along for the records views.
+
+    The rest is the achievements view's raw material. All of it is per
+    player, never per server — the save has no world-level notion of "this
+    boss is dead", only "this player has beaten it".
+
+    Note what each flavour of key means, because they are not equivalent:
+    tower and quest completion is permanent, raid and dungeon counts only
+    ever climb, but NormalBossDefeatFlag (field alphas and the human
+    bounty targets) is respawn state the game periodically clears — there
+    is a bFieldBossDefeatFlagResetDone flag next to it for exactly that.
+    So field bosses are reported as "beaten since the last reset", not as
+    a lifetime achievement.
     """
     record = v(save_data, "RecordData", default=None) or {}
-    deck = []
-    for pair in v(record, "PaldeckUnlockFlag", default=None) or []:
-        if isinstance(pair, dict) and pair.get("value") and pair.get("key"):
-            deck.append(str(pair["key"]))
-    captures = {}
-    for pair in v(record, "PalCaptureCount", default=None) or []:
-        if not isinstance(pair, dict):
-            continue
-        key, count = pair.get("key"), pair.get("value")
-        if key and isinstance(count, int) and count > 0:
-            captures[str(key)] = count
-    return {"paldeck": deck, "captures": captures}
+    return {
+        "paldeck": record_flags(record, "PaldeckUnlockFlag"),
+        "captures": record_counts(record, "PalCaptureCount"),
+        "records": {
+            # Faction leaders. The flag map is keyed BOSS_BATTLE_NAME_<x>,
+            # the count map <x>_Normal / _Hard — same tower, two difficulties.
+            "towers": record_flags(record, "TowerBossDefeatFlag"),
+            "towerCounts": record_counts(record, "TowerBossDefeatCount"),
+            # Summoned raid bosses, keyed PalSummon_<pal id>.
+            "raids": record_counts(record, "RaidBossDefeatCount"),
+            # Field alphas and human bounty targets, mixed in one map.
+            "fieldBosses": record_flags(record, "NormalBossDefeatFlag"),
+            # The game's own achievement rewards: PalDex_1..10 etc.
+            "npcRewards": record_flags(record, "NPCAchivementRewardFlag"),
+            "quests": [
+                str(q) for q in (v(save_data, "CompletedQuestArray_FullRelease", "values", default=None) or [])
+            ],
+            "fastTravel": len(record_flags(record, "FastTravelPointUnlockFlag")),
+            "areas": len(record_flags(record, "FindAreaFlagMap")),
+            "relics": len(record_flags(record, "RelicObtainForInstanceFlag")),
+            "notes": len(record_flags(record, "NoteObtainForInstanceFlag")),
+            "campsConquered": num(record, "CampConqueredCount"),
+            "dungeonsCleared": num(record, "NormalDungeonClearCount"),
+            "fixedDungeonsCleared": num(record, "FixedDungeonClearCount"),
+            "treasuresFound": num(record, "FoundTreasureCount"),
+            "tribesCaptured": num(record, "TribeCaptureCount"),
+            "mutations": num(record, "MutationCount"),
+            "bossTechPoints": num(save_data, "bossTechnologyPoint"),
+            # Arena ranks are a ladder, keyed Bronze..Master, so the highest
+            # one cleared is the rank a player holds.
+            "arenaRanks": record_counts(record, "ArenaSoloClearCount"),
+            "predatorsDefeated": num(record, "PredatorDefeatCount"),
+            "oilrigsCleared": num(record, "OilrigClearCount"),
+            "awakenings": num(record, "AwakeningCount"),
+            # The game's own "you finished the story" flag. Absent in saves
+            # from before it existed, which reads the same as not finished.
+            "gameCleared": bool(unwrap(v(record, "bIsGameCleared", default=False))),
+        },
+    }
 
 
 def dashed_guid(hex32):
@@ -1207,6 +1272,7 @@ def main():
         rec.setdefault("platform", "")
         rec.setdefault("paldeck", [])
         rec.setdefault("captures", {})
+        rec.setdefault("records", {})
 
     player_names = {uid: rec["nickname"] for uid, rec in players.items() if rec["nickname"]}
     if guild_entries:

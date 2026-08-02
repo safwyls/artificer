@@ -10,18 +10,20 @@ import (
 // route names, so a disabled feature hides its nav link and refuses its data
 // with the same string.
 const (
-	FeatureMap         = "map"
-	FeaturePals        = "pals"
-	FeatureInventory   = "inventory"
-	FeatureStorage     = "storage"
-	FeaturePaldex      = "paldex"
-	FeatureGuilds      = "guilds"
-	FeatureCalculators = "calculators"
+	FeatureMap          = "map"
+	FeaturePals         = "pals"
+	FeatureInventory    = "inventory"
+	FeatureStorage      = "storage"
+	FeaturePaldex       = "paldex"
+	FeatureAchievements = "achievements"
+	FeatureGuilds       = "guilds"
+	FeatureCalculators  = "calculators"
 )
 
 // AllFeatures is the menu the settings UI offers, in nav order.
 var AllFeatures = []string{
-	FeatureMap, FeaturePals, FeatureInventory, FeatureStorage, FeaturePaldex, FeatureGuilds, FeatureCalculators,
+	FeatureMap, FeaturePals, FeatureInventory, FeatureStorage, FeaturePaldex,
+	FeatureAchievements, FeatureGuilds, FeatureCalculators,
 }
 
 // Streams a single player can be withheld from. Deliberately coarser than the

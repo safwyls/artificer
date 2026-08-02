@@ -149,6 +149,60 @@ type PlayerPals struct {
 	// per-species sphere-capture counts the game itself displays.
 	Paldeck  []string       `json:"paldeck"`
 	Captures map[string]int `json:"captures"`
+
+	// The rest of RecordData — what this player has beaten. Zero value for a
+	// save whose Players/ folder wasn't readable.
+	Records Records `json:"records"`
+}
+
+// Records is one player's completion record, read from RecordData in
+// Players/<uid>.sav. Everything here is per player: the save has no
+// world-level "this boss is dead", only "this player has beaten it".
+//
+// The three flavours don't mean the same thing and shouldn't be totalled
+// together. Towers and Quests are permanent. Raids and the counters only
+// climb. FieldBosses is respawn state the game periodically clears (there's a
+// bFieldBossDefeatFlagResetDone flag beside it), so it's "beaten since the
+// last reset", not a lifetime tally.
+type Records struct {
+	// Towers holds BOSS_BATTLE_NAME_<x> keys; TowerCounts is keyed
+	// <x>_Normal / <x>_Hard, so the same tower appears once per difficulty.
+	Towers      []string       `json:"towers"`
+	TowerCounts map[string]int `json:"towerCounts"`
+	// Raids is keyed PalSummon_<pal id>, counting summons defeated.
+	Raids map[string]int `json:"raids"`
+	// FieldBosses mixes field alphas with the human bounty targets; only
+	// some keys resolve to a name, the rest are opaque spawner ids.
+	FieldBosses []string `json:"fieldBosses"`
+	// NpcRewards is the game's own achievement tiers: PalDex_1..10 etc.
+	NpcRewards []string `json:"npcRewards"`
+	Quests     []string `json:"quests"`
+
+	// Exploration counters. These are raw totals with no known denominator —
+	// FastTravel counts more map points than there are fast-travel statues,
+	// so don't render any of them as a percentage.
+	FastTravel int `json:"fastTravel"`
+	Areas      int `json:"areas"`
+	Relics     int `json:"relics"`
+	Notes      int `json:"notes"`
+
+	CampsConquered       int `json:"campsConquered"`
+	DungeonsCleared      int `json:"dungeonsCleared"`
+	FixedDungeonsCleared int `json:"fixedDungeonsCleared"`
+	TreasuresFound       int `json:"treasuresFound"`
+	TribesCaptured       int `json:"tribesCaptured"`
+	Mutations            int `json:"mutations"`
+	BossTechPoints       int `json:"bossTechPoints"`
+
+	// ArenaRanks is the solo arena ladder, keyed Bronze..Master; the highest
+	// present is the rank a player holds.
+	ArenaRanks        map[string]int `json:"arenaRanks"`
+	PredatorsDefeated int            `json:"predatorsDefeated"`
+	OilrigsCleared    int            `json:"oilrigsCleared"`
+	Awakenings        int            `json:"awakenings"`
+	// GameCleared is the game's own story-finished flag. False in saves from
+	// before it existed, which reads the same as not finished.
+	GameCleared bool `json:"gameCleared"`
 }
 
 type GuildMember struct {

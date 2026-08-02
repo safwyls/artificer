@@ -27,6 +27,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   inventory: "Inventory",
   storage: "Storage",
   paldex: "Paldex",
+  achievements: "Achievements",
   guilds: "Guilds",
   calculators: "Calculators",
 };
@@ -39,6 +40,7 @@ export const FEATURE_BLURBS: Record<Feature, string> = {
   inventory: "What each player is carrying, wearing and hoarding",
   storage: "What's in every chest and box at the guild's bases",
   paldex: "Paldex completion and capture counts per player",
+  achievements: "Which towers, raids and bosses each player has beaten",
   guilds: "Guild rosters, bases and shared pal totals",
   calculators: "Breeding tools that read the pals in your boxes",
 };

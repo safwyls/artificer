@@ -39,6 +39,11 @@ const ServerInventory = lazy(() =>
   import("./pages/ServerInventory").then((m) => ({ default: m.ServerInventory })),
 );
 const ServerStorage = lazy(() => import("./pages/ServerStorage").then((m) => ({ default: m.ServerStorage })));
+// Split out with the other pal-catalog pages: the tower and raid rosters draw
+// boss portraits out of the pal dex, which no other non-pal route needs.
+const ServerAchievements = lazy(() =>
+  import("./pages/ServerAchievements").then((m) => ({ default: m.ServerAchievements })),
+);
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { username, loading } = useAuth();
@@ -98,6 +103,16 @@ export function App() {
               <FeatureGate feature="paldex">
                 <Suspense fallback={<p className="p-6 text-muted-foreground">Loading...</p>}>
                   <ServerPaldex />
+                </Suspense>
+              </FeatureGate>
+            }
+          />
+          <Route
+            path="/servers/:serverID/achievements"
+            element={
+              <FeatureGate feature="achievements">
+                <Suspense fallback={<p className="p-6 text-muted-foreground">Loading…</p>}>
+                  <ServerAchievements />
                 </Suspense>
               </FeatureGate>
             }
