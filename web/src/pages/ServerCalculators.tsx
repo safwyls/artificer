@@ -3,13 +3,14 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Sparkles, X } from "lucide-react";
 import { api, ApiError } from "../lib/api";
-import { palEntry, palName, passiveName, elementColor } from "../lib/paldex";
+import { palEntry, palName, passiveName, passiveTier, elementColor } from "../lib/paldex";
 import { breedChild, parentPairsFor, isBreedable } from "../lib/breeding";
 import { eggsForConfidence, expectedEggs, passiveOdds } from "../lib/inheritance";
 import { planRoutes, type BreedStep, type StepParent } from "../lib/breeding-path";
 import { computeStats, talentRating, hasCombatStats, passiveStatEffect, friendshipRank, talentTone } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
+import { PassiveBadge, PassiveTierTile } from "../components/PassiveBadge";
 import { TalentTriplet } from "../components/TalentTriplet";
 import { PalDetailDialog } from "../components/PalDetailDialog";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
@@ -304,7 +305,14 @@ function BreedingCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; sa
  * Rates are the community-derived model — see lib/inheritance.ts.
  */
 function PassiveOddsPanel({ a, b }: { a: SavePal; b: SavePal }) {
-  const pool = useMemo(() => [...new Set([...a.passives, ...b.passives])], [a, b]);
+  // Ranked by the game's tier, so the ones worth chasing sit first.
+  const pool = useMemo(
+    () =>
+      [...new Set([...a.passives, ...b.passives])].sort(
+        (x, y) => passiveTier(y) - passiveTier(x) || passiveName(x).localeCompare(passiveName(y)),
+      ),
+    [a, b],
+  );
   const [wanted, setWanted] = useState<string[]>([]);
   // Reset the selection when the parents change — the old set may not
   // even exist in the new pool.
@@ -335,7 +343,7 @@ function PassiveOddsPanel({ a, b }: { a: SavePal; b: SavePal }) {
               type="button"
               aria-pressed={on}
               className={cn(
-                "rounded-full px-2.5 py-1 text-xs transition-colors",
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors",
                 on
                   ? "bg-brand-amber/25 text-ink ring-1 ring-brand-amber"
                   : "border border-ink/15 text-ink/50 hover:border-ink/30 hover:text-ink",
@@ -344,6 +352,7 @@ function PassiveOddsPanel({ a, b }: { a: SavePal; b: SavePal }) {
                 setWanted((prev) => (prev.includes(code) ? prev.filter((x) => x !== code) : [...prev, code]))
               }
             >
+              <PassiveTierTile code={code} />
               {passiveName(code)}
             </button>
           );
@@ -421,10 +430,22 @@ function ParentSlot({
         </p>
       </button>
       {pick.save ? (
-        <p className="mt-1 font-mono text-[11px] text-ink/40">
-          Lv.{pick.save.level} ·{" "}
-          <TalentTriplet hp={pick.save.ivHp} attack={pick.save.ivAttack} defense={pick.save.ivDefense} />
-        </p>
+        <>
+          <p className="mt-1 font-mono text-[11px] text-ink/40">
+            Lv.{pick.save.level} ·{" "}
+            <TalentTriplet hp={pick.save.ivHp} attack={pick.save.ivAttack} defense={pick.save.ivDefense} />
+          </p>
+          {/* What this parent brings to the egg, in the game's tier chips. */}
+          {pick.save.passives.length > 0 ? (
+            <div className="mt-2 flex flex-wrap justify-center gap-1">
+              {pick.save.passives.map((code, i) => (
+                <PassiveBadge key={`${code}-${i}`} code={code} />
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-[10px] text-ink/30">No passives</p>
+          )}
+        </>
       ) : (
         <ElementChips characterId={pick.characterId} />
       )}
@@ -778,7 +799,7 @@ function ParentRow({ parent, onOpen }: { parent: StepParent<SavePal>; onOpen?: (
         type="button"
         onClick={() => onOpen?.(p)}
         title="View details"
-        className="-m-1 flex min-w-0 max-w-full items-center gap-2 rounded-lg p-1 text-left transition-colors hover:bg-ink/5"
+        className="-m-1 flex min-w-0 max-w-full items-start gap-2 rounded-lg p-1 text-left transition-colors hover:bg-ink/5"
       >
         <PalPortrait characterId={p.characterId} size="sm" />
         <div className="min-w-0">
@@ -797,6 +818,13 @@ function ParentRow({ parent, onOpen }: { parent: StepParent<SavePal>; onOpen?: (
             Lv.{p.level} · <TalentTriplet hp={p.ivHp} attack={p.ivAttack} defense={p.ivDefense} /> ·{" "}
             {p.playerName}
           </p>
+          {p.passives.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {p.passives.map((code, i) => (
+                <PassiveBadge key={`${code}-${i}`} code={code} />
+              ))}
+            </div>
+          )}
         </div>
       </button>
     );
@@ -973,13 +1001,14 @@ function StatCalculator({ savePals, saveStatus }: { savePals?: SavePal[]; saveSt
                   <span
                     key={code}
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                      "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
                       eff ? "bg-brand-red/10 text-brand-red" : "bg-ink/5 text-ink/40",
                     )}
                     title={eff ? label : "No effect on the displayed stats"}
                   >
+                    <PassiveTierTile code={code} />
                     {passiveName(code)}
-                    {eff && <span className="ml-1 font-mono">{label}</span>}
+                    {eff && <span className="font-mono">{label}</span>}
                   </span>
                 );
               })}

@@ -74,9 +74,10 @@ export function PassiveBadge({ code }: { code: string }) {
 }
 
 /** Detail-view rank tile: the chevrons on their own small slate square, like
- * the game's standalone tier icons, for placing beside text on light rows. */
-export function PassiveTierTile({ code }: { code: string }) {
-  const tier = passiveTier(code);
+ * the game's standalone tier icons, for placing beside text on light rows.
+ * Takes a code, or a tier directly for callers that only know a passive by
+ * its display name (the filter menu groups codes by name). */
+export function PassiveTierTile({ code, tier = passiveTier(code ?? "") }: { code?: string; tier?: number }) {
   if (tier === 0) return null;
   const look = tierLook(tier);
   return (

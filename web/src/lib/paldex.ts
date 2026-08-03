@@ -110,6 +110,27 @@ export function passiveTier(code: string): number {
   return tiers[code] ?? 0;
 }
 
+/** Display name -> the tier that name ranks at, built once from the tier
+ * catalog. Filters key their options by display name (so two codes that
+ * both read "Brave" collapse into one row), and still need a tier to sort
+ * and badge by; where duplicate names disagree, the better tier wins. */
+const tiersByName = new Map<string, number>();
+function tierNameIndex(): Map<string, number> {
+  if (tiersByName.size === 0)
+    for (const code of Object.keys(tiers)) {
+      const name = passiveName(code);
+      const tier = tiers[code];
+      if (tier > (tiersByName.get(name) ?? -Infinity)) tiersByName.set(name, tier);
+    }
+  return tiersByName;
+}
+
+/** The tier a passive ranks at, looked up by its display name. 0 when the
+ * catalog doesn't cover it — see {@link passiveTier}. */
+export function passiveTierByName(name: string): number {
+  return tierNameIndex().get(name) ?? 0;
+}
+
 /** Description, or "" when the catalog just repeats the name (many do). */
 export function passiveDescription(code: string): string {
   const entry = passives[code];
