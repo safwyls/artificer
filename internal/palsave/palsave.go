@@ -184,7 +184,10 @@ type Records struct {
 	FastTravel int `json:"fastTravel"`
 	Areas      int `json:"areas"`
 	Relics     int `json:"relics"`
-	Notes      int `json:"notes"`
+	// EffigyTypes counts picked-up effigies per kind, keyed CapturePower and
+	// friends. Relics is their sum.
+	EffigyTypes map[string]int `json:"effigyTypes"`
+	Notes       int            `json:"notes"`
 
 	CampsConquered       int `json:"campsConquered"`
 	DungeonsCleared      int `json:"dungeonsCleared"`
@@ -196,7 +199,11 @@ type Records struct {
 
 	// ArenaRanks is the solo arena ladder, keyed Bronze..Master; the highest
 	// present is the rank a player holds.
-	ArenaRanks        map[string]int `json:"arenaRanks"`
+	ArenaRanks map[string]int `json:"arenaRanks"`
+	// RelicRanks is the effigy rank per bonus, keyed CapturePower and
+	// friends. The movement/utility bonuses duplicate what the inventory
+	// view shows as adventure stats; capture power is unique to this map.
+	RelicRanks        map[string]int `json:"relicRanks"`
 	PredatorsDefeated int            `json:"predatorsDefeated"`
 	OilrigsCleared    int            `json:"oilrigsCleared"`
 	Awakenings        int            `json:"awakenings"`

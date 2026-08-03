@@ -596,6 +596,41 @@ def record_counts(record, key):
     return out
 
 
+def relic_by_type(record):
+    """Effigies picked up, counted per kind.
+
+    RelicObtainForInstanceFlagByType is an array of
+    {Type: EPalRelicType::X, Flags: {guid: bool}} — one entry per effigy kind,
+    each holding the statues of that kind this player has taken. The enum
+    prefix is stripped; it says nothing the name doesn't.
+    """
+    entries = v(record, "RelicObtainForInstanceFlagByType", "values", default=None) or []
+    out = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        kind = str(unwrap(v(entry, "Type", default="")) or "").split("::")[-1]
+        flags = [pair for pair in (v(entry, "Flags", default=None) or []) if isinstance(pair, dict) and pair.get("value")]
+        if kind and flags:
+            out[kind] = len(flags)
+    return out
+
+
+def relic_total(record):
+    """Every effigy picked up, of every kind.
+
+    Not RelicObtainForInstanceFlag: that map predates effigies having kinds
+    and holds only the Lifmunk (capture power) ones, which is a quarter to a
+    half of the real figure on a played save — it matched the CapturePower
+    bucket exactly on every player checked. It stays the fallback for saves
+    old enough to have no per-kind map at all.
+    """
+    by_type = relic_by_type(record)
+    if by_type:
+        return sum(by_type.values())
+    return len(record_flags(record, "RelicObtainForInstanceFlag"))
+
+
 def paldeck_records(save_data):
     """Per-player progress records, from the player save's RecordData.
 
@@ -637,7 +672,8 @@ def paldeck_records(save_data):
             ],
             "fastTravel": len(record_flags(record, "FastTravelPointUnlockFlag")),
             "areas": len(record_flags(record, "FindAreaFlagMap")),
-            "relics": len(record_flags(record, "RelicObtainForInstanceFlag")),
+            "relics": relic_total(record),
+            "effigyTypes": relic_by_type(record),
             "notes": len(record_flags(record, "NoteObtainForInstanceFlag")),
             "campsConquered": num(record, "CampConqueredCount"),
             "dungeonsCleared": num(record, "NormalDungeonClearCount"),
@@ -649,6 +685,14 @@ def paldeck_records(save_data):
             # Arena ranks are a ladder, keyed Bronze..Master, so the highest
             # one cleared is the rank a player holds.
             "arenaRanks": record_counts(record, "ArenaSoloClearCount"),
+            # Effigy ranks per bonus, keyed EPalRelicType::CapturePower and
+            # friends — the enum prefix is stripped, it says nothing the key
+            # doesn't. The 12 movement/utility bonuses here are the same
+            # figures the inventory view already shows as adventure stats;
+            # capture power is the one this map has and that view doesn't.
+            "relicRanks": {
+                k.split("::")[-1]: v for k, v in record_counts(record, "RelicPossessNumMap").items()
+            },
             "predatorsDefeated": num(record, "PredatorDefeatCount"),
             "oilrigsCleared": num(record, "OilrigClearCount"),
             "awakenings": num(record, "AwakeningCount"),

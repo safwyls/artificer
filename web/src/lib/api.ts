@@ -612,7 +612,10 @@ export interface PlayerRecords {
    * points than there are statues, so none of these are percentages. */
   fastTravel: number;
   areas: number;
+  /** Every effigy picked up, of every kind. */
   relics: number;
+  /** Effigies per kind, keyed CapturePower and friends; sums to relics. */
+  effigyTypes: Record<string, number>;
   notes: number;
   campsConquered: number;
   dungeonsCleared: number;
@@ -624,6 +627,10 @@ export interface PlayerRecords {
   /** The solo arena ladder, keyed Bronze..Master; the highest present is the
    * rank this player holds. */
   arenaRanks: Record<string, number>;
+  /** Effigy rank per bonus, keyed CapturePower and friends. The
+   * movement/utility ones are the same figures the inventory view shows as
+   * adventure stats; capture power is unique to this map. */
+  relicRanks: Record<string, number>;
   predatorsDefeated: number;
   oilrigsCleared: number;
   awakenings: number;

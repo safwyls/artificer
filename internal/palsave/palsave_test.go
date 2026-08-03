@@ -338,8 +338,13 @@ func assertRecords(t *testing.T, kyoshi, ren PlayerPals) {
 	if len(r.Quests) != 4 {
 		t.Fatalf("kyoshi quests = %v, want all 4 completed", r.Quests)
 	}
-	if r.FastTravel != 2 || r.Areas != 1 || r.Relics != 1 || r.Notes != 1 {
+	// Relics sums the per-kind map (2 + 1), not the legacy Lifmunk-only flag,
+	// which the fixture deliberately leaves disagreeing at 1.
+	if r.FastTravel != 2 || r.Areas != 1 || r.Relics != 3 || r.Notes != 1 {
 		t.Fatalf("kyoshi exploration counts wrong: %+v", r)
+	}
+	if len(r.EffigyTypes) != 2 || r.EffigyTypes["CapturePower"] != 2 || r.EffigyTypes["JumpPower"] != 1 {
+		t.Fatalf("kyoshi effigy kinds = %v", r.EffigyTypes)
 	}
 	if r.CampsConquered != 3 || r.DungeonsCleared != 7 || r.FixedDungeonsCleared != 2 {
 		t.Fatalf("kyoshi clear counts wrong: %+v", r)
@@ -355,6 +360,10 @@ func assertRecords(t *testing.T, kyoshi, ren PlayerPals) {
 	// it in neither alphabetical nor insertion order.
 	if len(r.ArenaRanks) != 3 || r.ArenaRanks["Silver"] != 2 || r.ArenaRanks["Gold"] != 1 {
 		t.Fatalf("kyoshi arena ranks = %v", r.ArenaRanks)
+	}
+	// The EPalRelicType:: prefix is stripped and the zero rank dropped.
+	if len(r.RelicRanks) != 2 || r.RelicRanks["CapturePower"] != 7 || r.RelicRanks["MoveSpeed"] != 3 {
+		t.Fatalf("kyoshi relic ranks = %v", r.RelicRanks)
 	}
 	if ren.Records.GameCleared || len(ren.Records.ArenaRanks) != 0 {
 		t.Fatalf("ren should have no late-game record: %+v", ren.Records)

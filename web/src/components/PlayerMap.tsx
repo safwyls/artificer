@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import {
   TransformWrapper,
   TransformComponent,
@@ -7,10 +7,13 @@ import {
   useTransformEffect,
   useTransformInit,
 } from "react-zoom-pan-pinch";
-import { Home, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { DoorOpen, Eye, Home, MapPin, Maximize, Skull, ZoomIn, ZoomOut } from "lucide-react";
+import type { LucideProps } from "lucide-react";
 import type { Player } from "../lib/api";
 import { MAP_AREAS, mapOf, worldToMapPercent, type MapArea } from "../lib/map";
 import { POI_META, POI_POINTS, type PoiKind } from "../lib/pois";
+import { FIELD_BOSS_POINTS, type FieldBossPin, fieldBossIconUrl } from "../lib/fieldBosses";
+import { FieldBossDialog } from "./FieldBossDialog";
 import { playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -78,14 +81,27 @@ export function mapMarkerId(id: string) {
   return `map-marker-${id}`;
 }
 
-/** Per-kind pin shape, via clip-path — color alone doesn't survive being
- * 9px tall over busy terrain, so each layer gets a distinct silhouette. */
-const POI_CLIP: Record<PoiKind, string | undefined> = {
-  fastTravel: undefined, // circle, via border-radius
-  watchtower: "polygon(50% 0, 100% 100%, 0 100%)",
-  dungeon: "polygon(50% 0, 100% 50%, 50% 100%, 0 50%)",
-  alpha: "polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%)",
-  predator: undefined, // ring, via border
+/**
+ * Per-kind pin glyph. Clip-path silhouettes came first — a triangle for a
+ * tower, a diamond for a dungeon — but a 9px shape in the layer's colour still
+ * had to compete with snow, lava and jungle underneath it, and lost. A glyph
+ * on a paper chip wins that fight twice over: the chip is a constant light
+ * ground whatever the terrain does, and the shape says what the thing is
+ * rather than requiring the legend to be memorised.
+ *
+ * The chip is light and the glyph carries the layer's colour, not the other
+ * way round. Reversed, the watchtower ink (#2B2420) would vanish into its own
+ * pin. Field bosses keep a dark chip because a portrait needs one.
+ */
+export const POI_ICONS: Record<PoiKind, ComponentType<LucideProps>> = {
+  fastTravel: MapPin,
+  // An eye, not a tower: TowerControl and Castle both collapse into noise at
+  // this size — checked by rendering the candidates at 15/18/20px rather than
+  // guessing. A lookout is what a watchtower is for, and an eye survives.
+  watchtower: Eye,
+  dungeon: DoorOpen,
+  alpha: MapPin, // unused — field bosses draw their own portrait
+  predator: Skull,
 };
 
 /**
@@ -100,10 +116,12 @@ function PoiLayer({
   area,
   layers,
   onPoiSelect,
+  onFieldBossSelect,
 }: {
   area: MapArea;
   layers: Set<PoiKind>;
   onPoiSelect?: (name: string, x: number, y: number) => void;
+  onFieldBossSelect?: (boss: FieldBossPin) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const context = useTransformContext();
@@ -119,37 +137,94 @@ function PoiLayer({
       style={{ "--poi-inv": String(1 / (context.state.scale || 1)) } as React.CSSProperties}
     >
       {[...layers].map((kind) =>
-        POI_POINTS[kind]
+        (kind === "alpha" ? [] : POI_POINTS[kind])
           .filter(([x, y]) => mapOf(x, y) === area)
           .map(([x, y, name], i) => {
             const { xPct, yPct } = worldToMapPercent(x, y, area);
-            const clip = POI_CLIP[kind];
+            const Glyph = POI_ICONS[kind];
             const style: React.CSSProperties = {
               left: `${xPct}%`,
               top: `${yPct}%`,
-              width: 9,
-              height: 9,
+              width: 18,
+              height: 18,
               transform: "translate(-50%,-50%) scale(var(--poi-inv))",
-              clipPath: clip,
-              borderRadius: clip ? undefined : "50%",
-              backgroundColor: kind === "predator" ? "transparent" : POI_META[kind].color,
-              border: kind === "predator" ? `2.5px solid ${POI_META[kind].color}` : undefined,
-              boxShadow: clip ? undefined : "0 0 0 1px rgba(245,237,225,0.75)",
             };
+            const chip = (
+              <Glyph
+                className="h-full w-full p-[2.5px]"
+                style={{ color: POI_META[kind].color }}
+                strokeWidth={2.25}
+                aria-hidden
+              />
+            );
+            const chipClass =
+              "absolute rounded-full border border-ink/25 bg-paper shadow-[0_1px_2px_rgba(0,0,0,0.35)]";
             if (!name) {
-              return <span key={`${kind}-${i}`} className="absolute" style={style} />;
+              return (
+                <span key={`${kind}-${i}`} className={chipClass} style={style}>
+                  {chip}
+                </span>
+              );
             }
             return (
               <button
                 key={`${kind}-${i}`}
-                className="pointer-events-auto absolute cursor-pointer after:absolute after:-inset-1.5 after:content-['']"
+                type="button"
+                className={cn(
+                  chipClass,
+                  "pointer-events-auto cursor-pointer after:absolute after:-inset-1.5 after:content-['']",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-amber",
+                )}
                 style={style}
                 title={name}
                 onClick={() => onPoiSelect?.(name, x, y)}
-              />
+              >
+                {chip}
+              </button>
             );
           }),
       )}
+
+      {/* Field bosses draw as the pal that stands there rather than as a
+          shape, because for this one layer we know: every spawn point has
+          exactly one occupant, and the vendored table names all of them. A
+          portrait answers "what is that" without a hover, which no amount of
+          silhouette-and-colour can. They're bigger than the 9px pins for the
+          same reason — a 9px face is a smudge — and there are only ninety. */}
+      {layers.has("alpha") &&
+        FIELD_BOSS_POINTS.filter(({ x, y }) => mapOf(x, y) === area).map((boss) => {
+          const { xPct, yPct } = worldToMapPercent(boss.x, boss.y, area);
+          return (
+            // A button wrapping the portrait, not a bare <img>. The pan/zoom
+            // library ships `.transform-component-... img { pointer-events:
+            // none }` so image-dragging can't fight panning, and that beats a
+            // utility class on specificity — an <img> here can never take a
+            // click. Wrapping sidesteps it, and brings keyboard focus with it.
+            <button
+              key={`alpha-${boss.x}-${boss.y}`}
+              type="button"
+              title={boss.level ? `${boss.name} · Lv ${boss.level}` : boss.name}
+              aria-label={`Field boss: ${boss.name}`}
+              onClick={() => onFieldBossSelect?.(boss)}
+              className="pointer-events-auto absolute cursor-pointer rounded-full border border-paper/80 bg-ink/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-amber"
+              style={{
+                left: `${xPct}%`,
+                top: `${yPct}%`,
+                width: 20,
+                height: 20,
+                transform: "translate(-50%,-50%) scale(var(--poi-inv))",
+                boxShadow: `0 0 0 1.5px ${POI_META.alpha.color}`,
+              }}
+            >
+              <img
+                src={fieldBossIconUrl(boss.palId)}
+                alt=""
+                loading="lazy"
+                className="h-full w-full rounded-full object-contain"
+              />
+            </button>
+          );
+        })}
     </div>
   );
 }
@@ -298,6 +373,9 @@ export function PlayerMap({
   className?: string;
 }) {
   const [texState, setTexState] = useState<"loading" | "ready" | "missing">("loading");
+  // Which field boss pin is open. Local to the map: nothing above it needs to
+  // know, and the dialog reads everything it shows off the pin itself.
+  const [fieldBoss, setFieldBoss] = useState<FieldBossPin | null>(null);
   const [settleSignal, setSettleSignal] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -413,7 +491,12 @@ export function PlayerMap({
                 />
 
                 {poiLayers && poiLayers.size > 0 && (
-                  <PoiLayer area={area} layers={poiLayers} onPoiSelect={onPoiSelect} />
+                  <PoiLayer
+                    area={area}
+                    layers={poiLayers}
+                    onPoiSelect={onPoiSelect}
+                    onFieldBossSelect={setFieldBoss}
+                  />
                 )}
 
                 {markers
@@ -493,6 +576,8 @@ export function PlayerMap({
           No players on this map right now.
         </p>
       )}
+
+      <FieldBossDialog boss={fieldBoss} onClose={() => setFieldBoss(null)} />
     </div>
   );
 }

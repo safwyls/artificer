@@ -1,4 +1,5 @@
 import mapPois from "../data/mapPois.json";
+import { FIELD_BOSS_POINTS } from "./fieldBosses";
 
 /** Static map points of interest, vendored from palworld-save-pal (see
  * docs/vendored-game-data.md). Coordinates are world units — the same space
@@ -12,6 +13,14 @@ export const POI_KINDS: PoiKind[] = ["fastTravel", "watchtower", "dungeon", "alp
 export type PoiPoint = [number, number] | [number, number, string];
 
 export const POI_POINTS = mapPois as unknown as Record<PoiKind, PoiPoint[]>;
+
+/** How many pins a layer draws. Field bosses come from their own table — it
+ * names and levels each one, where this file only ever had anonymous
+ * coordinates for them — so its count has to come from there too, or the
+ * legend and the map disagree. */
+export function poiCount(kind: PoiKind): number {
+  return kind === "alpha" ? FIELD_BOSS_POINTS.length : POI_POINTS[kind].length;
+}
 
 // Statues and watchtowers double as the map's named landmarks — each is
 // named for its locality, which makes "near X" a better answer to "where
@@ -41,7 +50,7 @@ export const POI_META: Record<PoiKind, { label: string; color: string }> = {
   fastTravel: { label: "Fast travel", color: "#5B9BD5" }, // pal-blue
   watchtower: { label: "Watchtowers", color: "#2B2420" }, // ink
   dungeon: { label: "Dungeons", color: "#8B3A9E" }, // legendary violet
-  alpha: { label: "Alpha pals", color: "#E8491D" }, // brand-red
+  alpha: { label: "Field bosses", color: "#E8491D" }, // brand-red
   predator: { label: "Predators", color: "#9E2B21" }, // deeper alarm red
 };
 

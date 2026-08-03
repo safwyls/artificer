@@ -7,7 +7,7 @@ import { DEFAULT_MAP_AREA, MAP_AREAS, mapOf, type MapArea } from "../lib/map";
 import {
   POI_KINDS,
   POI_META,
-  POI_POINTS,
+  poiCount,
   loadPoiLayers,
   nearestLandmark,
   savePoiLayers,
@@ -15,7 +15,8 @@ import {
 } from "../lib/pois";
 import { playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
-import { PlayerMap, mapMarkerId, type MapMarker } from "../components/PlayerMap";
+import type { LucideProps } from "lucide-react";
+import { POI_ICONS, PlayerMap, mapMarkerId, type MapMarker } from "../components/PlayerMap";
 import { MapAreaToggle } from "../components/MapAreaToggle";
 import { seenLabel, seenSentence } from "../lib/time";
 
@@ -103,6 +104,12 @@ function PersonRow({
 
 /** The layer legend: one chip per POI kind, showing its pin glyph and how
  * many points the layer holds — the chip is both the toggle and the key. */
+/** The map's own glyph for a layer, for the legend to reuse. */
+function PoiGlyph({ kind, ...props }: { kind: PoiKind } & LucideProps) {
+  const Glyph = POI_ICONS[kind];
+  return <Glyph aria-hidden {...props} />;
+}
+
 function PoiLegend({ layers, onToggle }: { layers: Set<PoiKind>; onToggle: (kind: PoiKind) => void }) {
   return (
     <div className="inline-flex flex-wrap justify-center gap-1 rounded-xl border border-ink/15 bg-paper p-1 shadow-lg">
@@ -113,19 +120,31 @@ function PoiLegend({ layers, onToggle }: { layers: Set<PoiKind>; onToggle: (kind
             key={kind}
             onClick={() => onToggle(kind)}
             aria-pressed={active}
-            title={`${POI_META[kind].label} · ${POI_POINTS[kind].length} on the map`}
+            title={`${POI_META[kind].label} · ${poiCount(kind)} on the map`}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors",
               active ? "bg-ink/90 text-paper" : "text-ink/45 hover:bg-ink/5",
             )}
           >
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: POI_META[kind].color, opacity: active ? 1 : 0.4 }}
-            />
+            {/* The same glyph the map draws, so the legend teaches the
+                mapping instead of leaving a bare colour to be memorised.
+                Field bosses are portraits out there, so they keep a dot. */}
+            {kind === "alpha" ? (
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: POI_META[kind].color, opacity: active ? 1 : 0.4 }}
+              />
+            ) : (
+              <PoiGlyph
+                kind={kind}
+                className="h-3.5 w-3.5 shrink-0"
+                style={{ color: POI_META[kind].color, opacity: active ? 1 : 0.4 }}
+                strokeWidth={2.25}
+              />
+            )}
             <span className="hidden sm:inline">{POI_META[kind].label}</span>
             <span className={cn("font-mono text-[10px]", active ? "text-paper/60" : "text-ink/30")}>
-              {POI_POINTS[kind].length}
+              {poiCount(kind)}
             </span>
           </button>
         );

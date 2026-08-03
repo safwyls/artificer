@@ -680,9 +680,33 @@ def main():
             ("DDBBFFAF43D9219AE68DF98744DF0831", True),
         ]),
         "FindAreaFlagMap": namemap("BoolProperty", [("Grass_001", True)]),
+        # The legacy map: Lifmunk only. The per-kind map below supersedes it,
+        # and the extractor must prefer the latter — these deliberately
+        # disagree, the way they do on a real save.
         "RelicObtainForInstanceFlag": namemap("BoolProperty", [
             ("A360858E448AF927AF914D8E9D74E416", True),
         ]),
+        "RelicObtainForInstanceFlagByType": {
+            "array_type": "StructProperty",
+            "id": None,
+            "value": {
+                "prop_name": "RelicObtainForInstanceFlagByType",
+                "prop_type": "StructProperty",
+                "values": [
+                    {
+                        "Type": enum("EPalRelicType", "EPalRelicType::CapturePower"),
+                        "Flags": namemap("BoolProperty", [("AAA1", True), ("AAA2", True)]),
+                    },
+                    {
+                        "Type": enum("EPalRelicType", "EPalRelicType::JumpPower"),
+                        "Flags": namemap("BoolProperty", [("BBB1", True)]),
+                    },
+                ],
+                "type_name": "PalRelicObtainInfo",
+                "id": ZERO,
+            },
+            "type": "ArrayProperty",
+        },
         "NoteObtainForInstanceFlag": namemap("BoolProperty", [("Day2", True)]),
         "CampConqueredCount": i(3),
         "NormalDungeonClearCount": i(7),
@@ -696,6 +720,13 @@ def main():
             ("Bronze", 1),
             ("Silver", 2),
             ("Gold", 1),
+        ]),
+        # Enum-prefixed keys the extractor strips, and a zero rank that must
+        # drop out like every other zero count.
+        "RelicPossessNumMap": namemap("IntProperty", [
+            ("EPalRelicType::CapturePower", 7),
+            ("EPalRelicType::MoveSpeed", 3),
+            ("EPalRelicType::JumpPower", 0),
         ]),
         "PredatorDefeatCount": i(6),
         "OilrigClearCount": i(4),

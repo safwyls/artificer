@@ -26,6 +26,7 @@ All files live in `web/src/data/`:
 | `mapPois.json` | map POI world coordinates by kind; fast travel + watchtower entries carry their English names (`[x, y, name]`) used as "near X" landmarks for bases | palworld-save-pal `fast_travel_points.json` (split on the `UnlockMapPoint` class) joined with `l10n/en/fast_travel_points.json` by GUID, and `map_objects.json` (dungeons, alpha/predator spawns), rounded to whole units |
 | `items.json` | item id → name, category, rarity, weight, icon, description, and the gear figures the inventory view shows (max durability, magazine size, attack, defense, built-in passives) | palworld-save-pal `items.json` joined with `l10n/en/items.json`; see `web/public/item-icons/README.md` |
 | `structures.json` | building id → build-menu name (`n`), category (`c`, upstream's `type_b`) and icon name (`i`), for the Storage view's container labels, its storage/farm/station grouping and its row icons | palworld-save-pal `buildings.json` joined with `l10n/en/buildings.json` by key; 489 entries trimmed to those three fields |
+| `fieldBosses.json` | `spawns`: field boss flag key (`81_1_grass_FBOSS_20`) → the pal there, so the Achievements view can name them. `points`: where to draw each one on the live map, with its level | Two sources that agree: names from [PalworldSaveTools](https://github.com/deafdudecomputers/PalworldSaveTools) (MIT) `resources/game_data/boss_mapping.json`; positions and levels from palworld-save-pal `data/json/bosses.json` |
 | `bossFights.json` | boss record key → the fight's in-game title, where it happens, and `[level, HP]` per difficulty, for the Achievements view's fight dialog | [paldb.cc/en/Tower](https://paldb.cc/en/Tower) and [paldb.cc/en/Raid](https://paldb.cc/en/Raid), both datamined — see the note below on why not the guide sites |
 
 Pal icons: `web/public/pal-icons/` — see the README there. Item icons:
@@ -74,11 +75,12 @@ The save backs the split rather than just the labels: every tower carries a
 picking the next fight the group can close out.
 
 The Forbidden Laboratory has no catalog portrait — it's a place, and a gauntlet
-of modified pals rather than one boss. It borrows Cattiva's outline, flattened
-to black under a red rim, the way the game presents those fights. Cattiva and
-not Lamball because at portrait size a silhouetted Lamball is a featureless
-blob; the ears have to survive. If you swap the stand-in, check the silhouette
-at 44px before trusting it.
+of eight modified pals rather than one boss. It borrows Grizzbolt's outline,
+flattened to black under a red rim, the way the game presents those fights.
+That isn't a stand-in: the first wave *is* a Highly Modified Grizzbolt, which
+paldb catalogues under exactly that name. If you ever swap it, check the
+silhouette at 44px first — a rounder pal flattens to a featureless blob, and
+the horns are what make it read as a creature at all.
 
 `BOUNTY_ROSTER` needs no maintenance — the 34 human bounty targets are derived
 from every `boss_*` key in the catalog at module load, so refreshing
@@ -88,11 +90,69 @@ Both tables render keys they don't recognise rather than dropping them: an
 unknown tower is listed under the run, an unknown raid boss gets its own row.
 That's the signal to add a line here.
 
-Every key in all four tables is read off a real save record. What is **not**
-read off a save is which `WorldTreeMiddleBoss<n>` is Silvance, which is
-Dandilord and which is the Laboratory: the catalog has no `worldtreemiddleboss`
-entry, so nothing vendored can say. Those three names are the only unverified
-labels on the page, and a save can never settle them — only the game can.
+Every key in all four tables is read off a real save record. The three
+`WorldTreeMiddleBoss<n>` labels are the one thing no catalog carries — there is
+no `worldtreemiddleboss` entry anywhere — so they were derived from the saves
+using two order-preserving facts: a flag map records keys in the order they
+were first set, and each of those bosses drops a distinctly named item into the
+next free inventory slot. Four players with three different clear orders all
+imply the same assignment (1 = Dandilord, 2 = Silvance, 3 = the Laboratory),
+which is six-ways-to-be-wrong agreeing four times. See `WORLD_TREE_RUN` in
+`web/src/lib/achievements.ts` for the working. Still inference rather than a
+lookup: if a future save disagrees, redo it there.
+
+The Forbidden Laboratory's roster, by contrast, *is* confirmed from game data —
+PalworldSaveTools' `characters.json` carries eight `BOSS_<pal>_BossRush`
+entries (Grizzbolt, Lyleen, Orserk, Faleris, Shadowbeak, Selyne, Shaolong,
+Bastigor), matching what the fight dialog lists. Only their pairing into four
+waves comes from a guide.
+
+### fieldBosses.json — the join the save doesn't have
+
+The save names a field boss *spawn point*, never its occupant, and neither the
+item catalog nor the map POI data connects the two. PalworldSaveTools carries
+the join, and uses it for the same reason we do: its bounty token counts come
+from `NormalBossDefeatFlag` through this table, because the tokens themselves
+get spent and so can't be counted from anyone's inventory.
+
+Regenerate from two upstream files, merged:
+
+- PalworldSaveTools `resources/game_data/boss_mapping.json` — keyed
+  `BossDefeatReward_<Pal>` → one spawn key or a list. Invert it for `spawns`.
+  This has the widest coverage: 98 keys.
+- palworld-save-pal `data/json/bosses.json` — 159 entries of
+  `{spawner_id, character_id, level, x, y, z}`, of which 90 name a pal (the
+  other 69 are human bosses, `character_id: "None"`). This is where `points`
+  and the levels come from.
+
+**The two agree completely** — 89 overlapping keys, zero disagreements — which
+is the strongest check available on either. Pal names are baked into the JSON
+so `web/src/lib/fieldBosses.ts` needs no catalog: the live map draws these, and
+reaching into `achievements.ts` for them pulled `palDex.json` into the main
+bundle and cost 230 KB on first paint.
+
+The two lists are separate because they don't line up one-to-one. `spawns` has
+98, eight of which are dungeon interiors with no overworld position. `points`
+has 90: `remainsIsland_1_GrassGolem_FBOSS` covers **two** Dualith spawns at
+different places and levels, so keying pins by flag key drops one.
+
+Three things checked when it was first vendored, worth repeating on refresh:
+
+- **Coverage.** Every non-human key in a real four-player save resolved — 55,
+  64, 46 and 33 respectively — with the leftovers being exactly the `BOSS_*`
+  human bounty targets, which are a separate roster. A key the table doesn't
+  know is counted but not named, and the view says how many those are.
+- **Agreement.** A handful of spawn keys name their own species, which is a
+  free correctness test: Arsox, Dinossom Lux, Lyleen, Lyleen Noct and Celesdir
+  all match. The one disagreement is `1_10_plain_F_Boss_FairyDragon`, which the
+  table calls Chillet — a plains spawn whose contents changed without the level
+  object being renamed is the likely story, and the table comes from game data
+  where the key text is only a label, so the table wins.
+- **Icons.** All 98 pal ids resolve to a file in `web/public/pal-icons/`.
+
+Upstream has one collision: `worldtree_9_55_WorldTreeAura` is claimed by both
+`HerculesBeetle` and `LazyDragon_Electric`, so one of them loses. It appears in
+no save read so far. If it ever renders wrong, that is why.
 
 ### Why bossFights.json comes from paldb and nowhere else
 
@@ -114,6 +174,25 @@ HP figures, so it is the only source used here. Prefer it on the next refresh.
   the element chart. A chart is a rule; copying it into thirteen rows is
   thirteen chances to get it wrong, and it would have to be re-checked every
   time a boss is added.
+
+`EFFIGY_KINDS` in `web/src/lib/achievements.ts` is the other hand-maintained
+join. The save counts effigies by the bonus they feed
+(`EPalRelicType::JumpPower`) while players know them by the pal on the statue
+("Rooby Effigy"), and nothing vendored connects the two. The thirteen pairings
+come from [paldb.cc/en/Pal_Effigy](https://paldb.cc/en/Pal_Effigy); the sets
+line up exactly — thirteen effigy items, thirteen enum values, no leftovers on
+either side — which is the check that the mapping is right. Refresh it if a
+game update adds an effigy.
+
+Two things the effigy code deliberately does not do. It doesn't read
+`RelicObtainForInstanceFlag`, which predates effigies having kinds and holds
+only the Lifmunk ones — on a played save that is a quarter to a half of the
+real figure, and it matched the CapturePower bucket exactly on every player
+checked; the per-kind map is summed instead, with the legacy flag kept only as
+the fallback for saves too old to have one. And it doesn't import `items.json`
+for the icons: the icon name is the item id lowercased (`Relic_04` →
+`relic_04`), and importing the catalog would pull 532 KB into a route that
+needs thirteen strings.
 
 The element glyphs in `web/src/components/ElementIcon.tsx` are **not** vendored
 either. Eight are lucide icons — the icon language the rest of palcon already

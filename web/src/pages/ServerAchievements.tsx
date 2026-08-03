@@ -14,6 +14,9 @@ import {
   arenaRank,
   bossLabel,
   bossesCleared,
+  capturePower,
+  effigyCounts,
+  effigyIconUrl,
   extraTowerKeys,
   isLaboratory,
   mainQuests,
@@ -26,6 +29,7 @@ import {
   towerFight,
   type Boss,
 } from "../lib/achievements";
+import { FIELD_BOSS_ROSTER, beatenFieldBossPals, unknownFieldBossCount } from "../lib/fieldBosses";
 import { palIconUrl } from "../lib/paldex";
 import { playerColor } from "../lib/palette";
 import { seenSentence } from "../lib/time";
@@ -408,10 +412,13 @@ function RaidRoster({ players, onOpen }: { players: AchievementsPlayer[]; onOpen
 }
 
 /** One number and what it counts, for the grid inside an expanded player. */
-function Stat({ label, value, hint }: { label: string; value: number; hint?: string }) {
+function Stat({ label, value, of, hint }: { label: string; value: number; of?: number; hint?: string }) {
   return (
     <div title={hint}>
-      <p className="font-mono text-lg font-semibold tabular-nums">{value.toLocaleString()}</p>
+      <p className="font-mono text-lg font-semibold tabular-nums">
+        {value.toLocaleString()}
+        {of !== undefined && <span className="text-base text-ink/35">/{of.toLocaleString()}</span>}
+      </p>
       <p className="text-[11px] leading-tight text-ink/45">{label}</p>
     </div>
   );
@@ -433,7 +440,7 @@ function Detail({ label, note, children }: { label: string; note?: string; child
 
 /**
  * A portrait chip: what something is, with its face on it. Used for the things
- * the icon set actually covers — towers, raid bosses, the field alphas whose
+ * the icon set actually covers — towers and raid bosses, whose
  * spawner id names a species.
  *
  * `dim` sepias the portrait for something outstanding rather than done, which
@@ -455,6 +462,12 @@ function BossChip({
   dim?: boolean;
 }) {
   const lab = boss ? isLaboratory(boss) : false;
+  // Dimmed, the Laboratory cools off like everything else rather than glowing:
+  // the red rim is what makes it look live, so an outstanding one takes an
+  // ash rim on a neutral ground and drops its opacity — the silhouette's
+  // version of the sepia the portraits use. Same rule as BossPortrait's cold
+  // state, so a chip and a chain tile can't disagree about the same fight.
+  const cold = Boolean(lab && dim);
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white py-1 pl-1 pr-3">
       {/* Ring and ground on the wrapper, filter on the image — see
@@ -462,7 +475,7 @@ function BossChip({
       <span
         className={cn(
           "flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-ink/10",
-          lab ? "bg-[#1b0f0c]" : "bg-paper",
+          lab && !cold ? "bg-[#1b0f0c]" : "bg-paper",
         )}
       >
         <img
@@ -472,8 +485,12 @@ function BossChip({
           className={cn(
             "h-full w-full object-contain",
             !lab && dim && "[filter:grayscale(1)_sepia(0.5)_brightness(0.97)_contrast(1.1)]",
+            lab && "scale-[0.72]",
             lab &&
-              "scale-[0.72] [filter:brightness(0)_drop-shadow(1px_0_0_#E8491D)_drop-shadow(-1px_0_0_#E8491D)_drop-shadow(0_1px_0_#E8491D)_drop-shadow(0_-1px_0_#E8491D)]",
+              !cold &&
+              "[filter:brightness(0)_drop-shadow(1px_0_0_#E8491D)_drop-shadow(-1px_0_0_#E8491D)_drop-shadow(0_1px_0_#E8491D)_drop-shadow(0_-1px_0_#E8491D)]",
+            cold &&
+              "opacity-50 [filter:brightness(0)_drop-shadow(1px_0_0_#8A7F76)_drop-shadow(-1px_0_0_#8A7F76)_drop-shadow(0_1px_0_#8A7F76)_drop-shadow(0_-1px_0_#8A7F76)]",
           )}
         />
       </span>
@@ -515,6 +532,18 @@ function PlayerRow({ player }: { player: AchievementsPlayer }) {
   const bossesLeft = BOSS_CHAIN.filter((b) => !new Set(r.towers).has(b.key));
   const bountiesDown = new Set(field.bounties);
   const quests = mainQuests(r.quests);
+  const effigies = useMemo(() => effigyCounts(r.effigyTypes), [r.effigyTypes]);
+  const beatenBosses = useMemo(() => beatenFieldBossPals(field.fieldBosses), [field.fieldBosses]);
+  // The roster arrives alphabetical, so a stable sort on beaten-ness alone
+  // groups it without disturbing the order inside either group.
+  const fieldBossRows = useMemo(
+    () =>
+      [...FIELD_BOSS_ROSTER].sort(
+        (a, b) => Number(beatenBosses.has(b.palId)) - Number(beatenBosses.has(a.palId)),
+      ),
+    [beatenBosses],
+  );
+  const unknownBosses = unknownFieldBossCount(field.fieldBosses);
   const repeatBosses = BOSS_CHAIN.map((b) => {
     const c = towerClears(r, b.key);
     return { ...b, times: c.normal + c.hard };
@@ -584,9 +613,9 @@ function PlayerRow({ player }: { player: AchievementsPlayer }) {
             <Stat label="bosses beaten" value={bosses} />
             <Stat label="bounties down" value={bountiesDown.size} />
             <Stat
-              label="field alphas"
-              value={field.alphaCount}
-              hint="Since the game last reset field boss respawns — not a lifetime total."
+              label="field bosses"
+              value={field.fieldBosses.length}
+              hint="Each field boss has one spawn and drops one bounty token, so the token catalog is the census. Beaten since the game last reset respawns — not a lifetime total."
             />
             <Stat
               label="raid clears"
@@ -598,7 +627,16 @@ function PlayerRow({ player }: { player: AchievementsPlayer }) {
             <Stat label="main quests" value={quests.length} />
             <Stat label="areas found" value={r.areas} />
             <Stat label="map points" value={r.fastTravel} hint="Fast travel statues, dungeon mouths and other unlocked map points." />
-            <Stat label="effigies" value={r.relics} />
+            <Stat
+              label="effigies found"
+              value={r.relics}
+              hint="Every effigy picked up, of all thirteen kinds. No denominator: nothing in the save or the catalogs is a census of where the statues are."
+            />
+            <Stat
+              label="capture power"
+              value={capturePower(r.relicRanks)}
+              hint="Effigies spent on capture power. The other twelve bonuses are movement and utility stats, shown on the Inventory page as adventure stats."
+            />
             <Stat label="notes read" value={r.notes} />
             <Stat label="species caught" value={r.tribesCaptured} />
             <Stat label="predators" value={r.predatorsDefeated} />
@@ -645,14 +683,49 @@ function PlayerRow({ player }: { player: AchievementsPlayer }) {
             </Detail>
           )}
 
-          {field.alphasNamed.length > 0 && (
-            <Detail
-              label="Field alphas beaten"
-              note={`(${field.alphasNamed.length} of ${field.alphaCount} name themselves in the save)`}
-            >
-              <div className="flex flex-wrap gap-2">
-                {field.alphasNamed.map((a) => (
-                  <BossChip key={a.key} palId={a.palId} label={a.name} />
+          <Detail
+            label="Field bosses"
+            note={`(${beatenBosses.size} of ${FIELD_BOSS_ROSTER.length} beaten since the last respawn reset)`}
+          >
+            {/* The whole roster, not just the kills: every field boss has one
+                spawn point and the vendored table covers all of them, so what
+                is missing is knowable — and on a page about what's left, the
+                sepia ones are the answer.
+
+                Beaten first, then outstanding, alphabetical within each. Mixed
+                together, forty sepia chips scattered through fifty-five colour
+                ones made "what have I still got" a hunt; grouped, the boundary
+                is the answer and you read the tail. */}
+            <div className="flex flex-wrap gap-2">
+              {fieldBossRows.map((b) => (
+                <BossChip key={b.palId} palId={b.palId} label={b.name} dim={!beatenBosses.has(b.palId)} />
+              ))}
+            </div>
+            {unknownBosses > 0 && (
+              <p className="mt-2 text-xs text-ink/45">
+                Plus {unknownBosses} at spawn points palcon can't name yet — a game update has added some.
+              </p>
+            )}
+          </Detail>
+
+          {effigies.length > 0 && (
+            <Detail label="Effigies found" note={`(${r.relics} across ${effigies.length} kinds)`}>
+              <div className="flex flex-wrap gap-1.5">
+                {effigies.map((e) => (
+                  <span
+                    key={e.item}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-white py-1 pl-1 pr-2.5 text-sm"
+                    title={`${e.pal} Effigy — ${e.count} found`}
+                  >
+                    <img
+                      src={effigyIconUrl(e.item)}
+                      alt=""
+                      loading="lazy"
+                      className="h-6 w-6 shrink-0 rounded-full border border-ink/10 bg-paper object-contain"
+                    />
+                    {e.pal}
+                    <span className="font-mono text-xs font-semibold tabular-nums text-ink/55">{e.count}</span>
+                  </span>
                 ))}
               </div>
             </Detail>
@@ -761,7 +834,7 @@ export function ServerAchievements() {
               <div className="border-b border-ink/5 px-5 py-4">
                 <h2 className="font-display text-base font-bold">By player</h2>
                 <p className="mt-0.5 text-xs text-ink/45">
-                  Field alphas respawn, so that count is what each player has beaten since the game last reset
+                  Field bosses respawn, so that count is what each player has beaten since the game last reset
                   them — everything else is permanent.
                 </p>
               </div>

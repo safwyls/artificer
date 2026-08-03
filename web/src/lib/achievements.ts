@@ -92,15 +92,27 @@ export const PANTHALUS: Boss = {
  * The World Tree run — three dungeon bosses in any order, all of which have to
  * fall before the Astralym fight opens.
  *
- * The keys are read off a save; the names are not, and can't be. The catalog
- * has no `worldtreemiddleboss` entry, so nothing vendored can say which of
- * MiddleBoss1/2/3 is which, and since the three can be done in any order the
- * save's numbering doesn't imply one either. These three labels are the only
- * unverified thing on the page.
+ * No catalog names these: there is no `worldtreemiddleboss` entry anywhere, and
+ * because the three can be taken in any order the save's numbering implies
+ * nothing on its own. They were pinned from the saves instead, using two
+ * order-preserving facts — a flag map records keys in the order they were first
+ * set, and each of these bosses drops a distinctly named item that lands in the
+ * next free inventory slot:
+ *
+ *     Gigi     flags MB1,MB3,MB2   drops Dandilord 44, Lab 45, Silvance 47
+ *     Bobachu  flags MB1,MB3,MB2   drops Dandilord 41, Lab 42, Silvance 43
+ *     AzarA    flags MB2,MB3,MB1   drops Silvance 36, Lab 37, Dandilord 38
+ *     safwyl   flags MB2,MB1,MB3   drops Silvance 53, Dandilord 54, Lab 55
+ *
+ * Four players, three different orders, one consistent assignment: 1 is
+ * Dandilord, 2 is Silvance, 3 is the Laboratory. There are six ways to pair
+ * these up and four independent readings agree on one, so this is inference
+ * rather than a lookup — but it is not a guess. The drop names are the anchor
+ * (`BossDefeatReward_Mothman` is "Silvance's Plume").
  */
 export const WORLD_TREE_RUN: Boss[] = [
-  { key: "BOSS_BATTLE_NAME_WorldTreeMiddleBoss1", palId: "mothman", name: "Silvance" },
-  { key: "BOSS_BATTLE_NAME_WorldTreeMiddleBoss2", palId: "flowerprince", name: "Dandilord" },
+  { key: "BOSS_BATTLE_NAME_WorldTreeMiddleBoss1", palId: "flowerprince", name: "Dandilord" },
+  { key: "BOSS_BATTLE_NAME_WorldTreeMiddleBoss2", palId: "mothman", name: "Silvance" },
   // Not one boss but eight modified tower boss pals over four waves, so no
   // single catalog portrait fits. It draws Grizzbolt blacked out under a red
   // rim — which is not a stand-in: the first wave *is* a Highly Modified
@@ -160,12 +172,82 @@ const fights = bossFights as unknown as {
   raids: Record<string, FightStats>;
 };
 
+
 export function towerFight(key: string): FightStats | undefined {
   return fights.towers[key];
 }
 
 export function raidFight(key: string): FightStats | undefined {
   return fights.raids[key];
+}
+
+/**
+ * The thirteen effigy kinds, in the order the game numbers their items.
+ *
+ * The save counts effigies by the bonus they feed (`EPalRelicType::JumpPower`)
+ * while players know them by the pal on the statue ("Rooby Effigy"), so this
+ * is the join between the two. Every pairing is from paldb's effigy list, and
+ * the sets line up exactly — thirteen kinds, thirteen enum values, no leftovers
+ * on either side, which is the check that the mapping is right.
+ *
+ * `item` is the catalog id, so the view can draw the effigy's own icon rather
+ * than the pal's portrait — a Rooby Effigy is a statue, not a Rooby.
+ */
+export const EFFIGY_KINDS: { type: string; item: string; pal: string }[] = [
+  { type: "CapturePower", item: "Relic", pal: "Lifmunk" },
+  { type: "HungerReduction", item: "Relic_01", pal: "Lamball" },
+  { type: "SwimSpeed", item: "Relic_02", pal: "Pengullet" },
+  { type: "FoodDecayReduction", item: "Relic_03", pal: "Munchill" },
+  { type: "JumpPower", item: "Relic_04", pal: "Rooby" },
+  { type: "GliderSpeed", item: "Relic_05", pal: "Herbil" },
+  { type: "ClimbSpeed", item: "Relic_06", pal: "Tanzee" },
+  { type: "StatusAilmentResist", item: "Relic_07", pal: "Depresso" },
+  { type: "StaminaReduction", item: "Relic_08", pal: "Cattiva" },
+  { type: "SphereHoming", item: "Relic_09", pal: "Lunaris" },
+  { type: "ExpBonus", item: "Relic_10", pal: "Relaxaurus" },
+  { type: "RainbowPassiveRate", item: "Relic_11", pal: "Yakumo" },
+  { type: "MoveSpeed", item: "Relic_12", pal: "Mimog" },
+];
+
+/**
+ * The effigy's own icon, built from its id rather than looked up.
+ *
+ * items.json knows the icon name, but importing it here would pull a 532 KB
+ * catalog into this route to resolve thirteen strings — and the icon name is
+ * simply the id lowercased (`Relic_04` → `relic_04`) for every effigy. If that
+ * convention ever breaks, the icon 404s and the chip loses its picture; it
+ * can't show the wrong one.
+ */
+export function effigyIconUrl(item: string): string {
+  return `${import.meta.env.BASE_URL}item-icons/${item.toLowerCase()}.webp`;
+}
+
+/** Effigies found per kind, biggest first, skipping kinds with none — a row
+ * reading "Yakumo 0" is a slower way of saying nothing. A kind the table
+ * doesn't know still shows, under its raw enum name, rather than vanishing. */
+export function effigyCounts(found: Record<string, number>): { pal: string; item: string; count: number }[] {
+  const known = new Set(EFFIGY_KINDS.map((k) => k.type));
+  const rows = EFFIGY_KINDS.filter((k) => (found[k.type] ?? 0) > 0).map((k) => ({
+    pal: k.pal,
+    item: k.item,
+    count: found[k.type],
+  }));
+  for (const [type, count] of Object.entries(found)) {
+    if (!known.has(type) && count > 0) rows.push({ pal: type, item: "Relic", count });
+  }
+  return rows.sort((a, b) => b.count - a.count || a.pal.localeCompare(b.pal));
+}
+
+/**
+ * The effigy rank a player has put into capture power.
+ *
+ * This is the only one of the thirteen relic bonuses worth repeating here:
+ * the other twelve are movement and utility stats the inventory view already
+ * lists as adventure stats, and capture power is the one that view leaves out
+ * — which is also the one people mean when they say "effigies".
+ */
+export function capturePower(ranks: Record<string, number>): number {
+  return ranks.CapturePower ?? 0;
 }
 
 /** The solo arena ladder, lowest rank first. */
@@ -180,9 +262,14 @@ export function arenaRank(ranks: Record<string, number>): string | null {
 }
 
 /**
- * Summonable raid bosses, in release order. The record keys are
+ * Summonable raid bosses, easiest first. The record keys are
  * PalSummon_<pal id>, and the catalog's `raid_` entries carry both the name
  * and the raid artwork, so the join is mechanical.
+ *
+ * Ordered by the vendored normal-mode level rather than by hand, so the list
+ * can't drift out of order when one is added — release order and difficulty
+ * order are not the same thing, and it was Hartalis (70) sitting above
+ * Xenolord (65) that showed it.
  *
  * The Terraria crossover bosses are catalogued too but left off: they're
  * limited-time event content, and a roster that permanently reads "2 never
@@ -195,7 +282,13 @@ export const RAID_ROSTER: { key: string; palId: string }[] = [
   { key: "PalSummon_KingBahamut_Dragon", palId: "raid_kingbahamut_dragon" },
   { key: "PalSummon_LegendDeer", palId: "raid_legenddeer" },
   { key: "PalSummon_DarkMechaDragon", palId: "raid_darkmechadragon" },
-];
+].sort((a, b) => raidLevel(a.key) - raidLevel(b.key));
+
+/** Normal-mode level, for ordering. A boss with no vendored fight sorts last
+ * rather than to the front, which is where a 0 would put it. */
+function raidLevel(key: string): number {
+  return fights.raids[key]?.normal?.[0] ?? Number.MAX_SAFE_INTEGER;
+}
 
 /** Portrait for a raid key the roster doesn't list, so a new raid boss still
  * draws something: PalSummon_Foo → the catalog's raid_foo, else plain foo. */
@@ -224,42 +317,22 @@ function isBountyKey(key: string): boolean {
 }
 
 /**
- * Splits NormalBossDefeatFlag into the two things it actually holds.
+ * Splits NormalBossDefeatFlag into the two things it actually holds: named
+ * human bounty targets, and field boss spawn points.
  *
- * `alphasNamed` is the minority of field alpha keys that carry their species
- * (81_1_grass_FBOSS_FlameBuffalo is an Arsox); the rest are bare spawner
- * indices the catalog can't name, so they're only ever counted. Both are
- * respawn state — the game clears these flags periodically — so neither is a
- * lifetime total.
+ * Both are respawn state — the game clears these flags periodically — so
+ * neither is a lifetime total.
  */
-export function splitFieldBosses(keys: string[]): {
-  bounties: string[];
-  alphasNamed: { key: string; palId: string; name: string }[];
-  alphaCount: number;
-} {
+export function splitFieldBosses(keys: string[]): { bounties: string[]; fieldBosses: string[] } {
   const bounties: string[] = [];
-  const alphasNamed: { key: string; palId: string; name: string }[] = [];
-  let alphaCount = 0;
+  const fieldBosses: string[] = [];
   for (const key of keys) {
-    if (isBountyKey(key)) {
-      bounties.push(key.toLowerCase());
-      continue;
-    }
-    alphaCount += 1;
-    // The species, when the spawner id ends in one: 81_1_grass_FBOSS_FlameBuffalo
-    // is an Arsox. Longest tail first, so FlowerDinosaur_Electric resolves to
-    // Dinossom Lux rather than to whatever a bare "Electric" would hit.
-    const parts = key.toLowerCase().split("_");
-    for (let i = 1; i < parts.length; i += 1) {
-      const tail = parts.slice(i).join("_");
-      if (!/^\d+$/.test(tail) && tail in dex) {
-        alphasNamed.push({ key, palId: tail, name: dex[tail].name });
-        break;
-      }
-    }
+    if (isBountyKey(key)) bounties.push(key.toLowerCase());
+    else fieldBosses.push(key);
   }
-  return { bounties, alphasNamed, alphaCount };
+  return { bounties, fieldBosses };
 }
+
 
 /** How many of the chain's boss battles this player has cleared. Counts only
  * the known chain, so an unrecognised key can't push the figure past the

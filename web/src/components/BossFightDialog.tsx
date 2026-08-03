@@ -1,6 +1,7 @@
 import type { AchievementsPlayer } from "../lib/api";
 import { type Boss, type FightStats, bossLabel, isLaboratory } from "../lib/achievements";
-import { elementCounters, palEntry, palIconUrl } from "../lib/paldex";
+import { palEntry, palIconUrl } from "../lib/paldex";
+import { elementCounters } from "../lib/elements";
 import { ElementTag } from "./ElementIcon";
 import { cn } from "../lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";

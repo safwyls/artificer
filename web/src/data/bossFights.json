@@ -73,7 +73,7 @@
         ["Selyne", "Shadowbeak"],
         ["Shaolong", "Bastigor"]
       ],
-      "note": "Eight modified tower boss pals over four waves rather than one fight. Clearing it drops the Pal's Containment Core, one of the three materials that open the Sealed Sanctum."
+      "note": "Eight modified tower boss pals over four waves rather than one fight. The roster is confirmed by the game's own BOSS_<pal>_BossRush character entries; the pairing into waves is not. Clearing it drops the Pal's Containment Core, one of the three materials that open the Sealed Sanctum."
     },
     "BOSS_BATTLE_NAME_WorldTreeBoss": {
       "title": "Nullstar Calamity",

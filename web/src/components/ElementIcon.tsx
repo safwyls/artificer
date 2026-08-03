@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import type { LucideProps } from "lucide-react";
 import { Circle, Droplet, Flame, Leaf, Moon, Mountain, Snowflake, Zap } from "lucide-react";
-import { elementColor } from "../lib/paldex";
+import { elementColor } from "../lib/elements";
 import { cn } from "../lib/utils";
 
 /**

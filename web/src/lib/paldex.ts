@@ -215,46 +215,7 @@ export function rarityTier(rarity: number): "legendary" | "rare" | "common" {
   return "common";
 }
 
-export const ELEMENT_COLORS: Record<string, string> = {
-  Normal: "#9C9186",
-  Fire: "#E8491D",
-  Water: "#5B9BD5",
-  Leaf: "#4A9D7C",
-  Electricity: "#F2A93B",
-  Ice: "#7FC8E8",
-  Earth: "#A9773F",
-  Dark: "#6B4A7E",
-  Dragon: "#8B3A9E",
-};
-
-export function elementColor(element: string): string {
-  return ELEMENT_COLORS[element] ?? "#9C9186";
-}
-
-/** What beats what. Palworld's element chart is a plain cycle plus two
- * strays — Ice loses to Fire rather than to its own predecessor, and Normal
- * only loses to Dark — so a boss's counters are derivable from its elements
- * and don't need vendoring per fight. Keyed by the *defender*. */
-const BEATEN_BY: Record<string, string> = {
-  Normal: "Dark",
-  Fire: "Water",
-  Water: "Electricity",
-  Electricity: "Earth",
-  Leaf: "Fire",
-  Earth: "Leaf",
-  Ice: "Fire",
-  Dragon: "Ice",
-  Dark: "Dragon",
-};
-
-/** The elements that hit these ones hardest, deduplicated and in the order
- * given. Empty for a typeless pal, which is the honest answer: nothing
- * counters Astralym. */
-export function elementCounters(elements: string[]): string[] {
-  const out: string[] = [];
-  for (const el of elements) {
-    const beats = BEATEN_BY[el];
-    if (beats && !out.includes(beats)) out.push(beats);
-  }
-  return out;
-}
+// Element colours and the counter chart live in ./elements — they need no
+// catalog, and the map imports them without dragging palDex along. Re-exported
+// so the pal-catalog views can keep importing them from here.
+export { ELEMENT_COLORS, elementColor, elementCounters } from "./elements";
