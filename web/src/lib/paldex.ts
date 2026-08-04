@@ -51,6 +51,21 @@ const keyCache = new Map<string, string>();
  * catalog, of the other spawn decorations until something matches. An id
  * the catalog simply doesn't know keeps its plain de-bossed form, so icon
  * paths stay stable for genuinely unknown pals. */
+/**
+ * Completion as a whole percent that only reads 100 when it really is 100.
+ *
+ * Math.round turns 99.6% into "100%", which on a collection view is a lie the
+ * reader can disprove by scrolling — the uncaught species is right there. So
+ * it floors, and 100 is reserved for done. Flooring the rest of the range too
+ * keeps one rule rather than a special case near the top: at 49.7% you have
+ * not reached half.
+ */
+export function completionPct(done: number, total: number): number {
+  if (total <= 0) return 0;
+  if (done >= total) return 100;
+  return Math.min(99, Math.floor((done / total) * 100));
+}
+
 export function palKey(characterId: string): string {
   const raw = characterId.toLowerCase().replace(/^boss_/, "");
   const cached = keyCache.get(raw);

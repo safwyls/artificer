@@ -7,12 +7,12 @@ import {
   useTransformEffect,
   useTransformInit,
 } from "react-zoom-pan-pinch";
-import { DoorOpen, Eye, Home, MapPin, Maximize, Skull, ZoomIn, ZoomOut } from "lucide-react";
+import { DoorOpen, Eye, Ghost, Home, MapPin, Maximize, Skull, ZoomIn, ZoomOut } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import type { Player } from "../lib/api";
 import { MAP_AREAS, mapOf, worldToMapPercent, type MapArea } from "../lib/map";
 import { POI_META, POI_POINTS, type PoiKind } from "../lib/pois";
-import { FIELD_BOSS_POINTS, type FieldBossPin, fieldBossIconUrl } from "../lib/fieldBosses";
+import { BOUNTY_POINTS, FIELD_BOSS_POINTS, type MapBossPin, fieldBossIconUrl } from "../lib/fieldBosses";
 import { FieldBossDialog } from "./FieldBossDialog";
 import { playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
@@ -101,6 +101,9 @@ export const POI_ICONS: Record<PoiKind, ComponentType<LucideProps>> = {
   watchtower: Eye,
   dungeon: DoorOpen,
   alpha: MapPin, // unused — field bosses draw their own portrait
+  // A hooded figure is what the game puts on these; Ghost is the closest
+  // silhouette lucide has that still reads at pin size.
+  bounty: Ghost,
   predator: Skull,
 };
 
@@ -121,7 +124,7 @@ function PoiLayer({
   area: MapArea;
   layers: Set<PoiKind>;
   onPoiSelect?: (name: string, x: number, y: number) => void;
-  onFieldBossSelect?: (boss: FieldBossPin) => void;
+  onFieldBossSelect?: (boss: MapBossPin) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const context = useTransformContext();
@@ -137,7 +140,7 @@ function PoiLayer({
       style={{ "--poi-inv": String(1 / (context.state.scale || 1)) } as React.CSSProperties}
     >
       {[...layers].map((kind) =>
-        (kind === "alpha" ? [] : POI_POINTS[kind])
+        (kind === "alpha" || kind === "bounty" ? [] : POI_POINTS[kind])
           .filter(([x, y]) => mapOf(x, y) === area)
           .map(([x, y, name], i) => {
             const { xPct, yPct } = worldToMapPercent(x, y, area);
@@ -185,6 +188,35 @@ function PoiLayer({
           }),
       )}
 
+      {layers.has("bounty") &&
+        BOUNTY_POINTS.filter(({ x, y }) => mapOf(x, y) === area).map((boss, i) => {
+          const { xPct, yPct } = worldToMapPercent(boss.x, boss.y, area);
+          return (
+            <button
+              key={`bounty-${i}`}
+              type="button"
+              title={`${boss.name} · Lv ${boss.level}`}
+              aria-label={`Bounty target: ${boss.name}`}
+              onClick={() => onFieldBossSelect?.(boss)}
+              className="pointer-events-auto absolute cursor-pointer rounded-full border border-ink/25 bg-paper shadow-[0_1px_2px_rgba(0,0,0,0.35)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-amber"
+              style={{
+                left: `${xPct}%`,
+                top: `${yPct}%`,
+                width: 18,
+                height: 18,
+                transform: "translate(-50%,-50%) scale(var(--poi-inv))",
+              }}
+            >
+              <Ghost
+                className="h-full w-full p-[2.5px]"
+                style={{ color: POI_META.bounty.color }}
+                strokeWidth={2.25}
+                aria-hidden
+              />
+            </button>
+          );
+        })}
+
       {/* Field bosses draw as the pal that stands there rather than as a
           shape, because for this one layer we know: every spawn point has
           exactly one occupant, and the vendored table names all of them. A
@@ -217,7 +249,7 @@ function PoiLayer({
               }}
             >
               <img
-                src={fieldBossIconUrl(boss.palId)}
+                src={fieldBossIconUrl(boss.palId ?? "")}
                 alt=""
                 loading="lazy"
                 className="h-full w-full rounded-full object-contain"
@@ -375,7 +407,7 @@ export function PlayerMap({
   const [texState, setTexState] = useState<"loading" | "ready" | "missing">("loading");
   // Which field boss pin is open. Local to the map: nothing above it needs to
   // know, and the dialog reads everything it shows off the pin itself.
-  const [fieldBoss, setFieldBoss] = useState<FieldBossPin | null>(null);
+  const [fieldBoss, setFieldBoss] = useState<MapBossPin | null>(null);
   const [settleSignal, setSettleSignal] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 

@@ -28,6 +28,15 @@ interface FieldBossPoint extends FieldBossSpawn {
   y: number;
 }
 
+interface BountyPoint {
+  /** Spawn key — also this target's NormalBossDefeatFlag key. */
+  k: string;
+  n: string;
+  l: number;
+  x: number;
+  y: number;
+}
+
 /**
  * Two lists, not one, because they don't line up one-to-one. `spawns` maps a
  * save's flag key to its occupant — 89 keys, 89 pals. `points` has 90, because
@@ -42,7 +51,11 @@ interface FieldBossPoint extends FieldBossSpawn {
  * found. If one ever does turn up in a save it counts through
  * `unknownFieldBossCount` and says so, which is the signal to put it back.
  */
-const data = fieldBosses as { spawns: Record<string, FieldBossSpawn>; points: FieldBossPoint[] };
+const data = fieldBosses as {
+  spawns: Record<string, FieldBossSpawn>;
+  points: FieldBossPoint[];
+  bounties: BountyPoint[];
+};
 const spawns = data.spawns;
 
 /** The pal's portrait. The id is already the icon's filename for every entry
@@ -61,20 +74,46 @@ export const FIELD_BOSS_ROSTER: { palId: string; name: string }[] = [
   .map(([palId, name]) => ({ palId, name }))
   .sort((a, b) => a.name.localeCompare(b.name));
 
-export interface FieldBossPin {
-  palId: string;
+/**
+ * A boss the map can place. Field bosses carry a portrait and elements; bounty
+ * targets are people, so they have neither — which is why both are optional
+ * rather than there being two pin types the map has to branch on twice.
+ */
+export interface MapBossPin {
   name: string;
-  elements: string[];
   level: number;
   x: number;
   y: number;
+  /** Pal id for the portrait — field bosses only. */
+  palId?: string;
+  /** Field bosses only; a human has no element. */
+  elements?: string[];
 }
 
-/** Where to draw a pin, with what the detail popup shows. */
-export const FIELD_BOSS_POINTS: FieldBossPin[] = data.points.map((b) => ({
+export const FIELD_BOSS_POINTS: MapBossPin[] = data.points.map((b) => ({
   palId: b.p,
   name: b.n,
   elements: b.e,
+  level: b.l,
+  x: b.x,
+  y: b.y,
+}));
+
+/**
+ * Where the human bounty targets stand. 66 pins for 33 targets: most spawn in
+ * more than one camp, and the save records one flag for the target rather than
+ * one per camp, so beating it anywhere clears them all.
+ *
+ * Elder is the one target with no pin. Its id
+ * (`boss_hunter_fat_gatlinggun_quest_strongoldman`) marks it as quest-spawned,
+ * so there is no fixed world position to record — not a gap in the data.
+ *
+ * The three `REGION_Oilrig_*` entries the source files alongside these are
+ * left out: they have no catalog name and no bounty flag, and the save counts
+ * them separately in OilrigClearCount.
+ */
+export const BOUNTY_POINTS: MapBossPin[] = data.bounties.map((b) => ({
+  name: b.n,
   level: b.l,
   x: b.x,
   y: b.y,

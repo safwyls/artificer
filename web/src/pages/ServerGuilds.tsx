@@ -6,7 +6,9 @@ import { initials, playerColor } from "../lib/palette";
 import { seenPhrase } from "../lib/time";
 import { mapOf, MAP_AREAS } from "../lib/map";
 import { nearestLandmark } from "../lib/pois";
-import { DECK_BASE_ENTRIES, palDeckNo, palName } from "../lib/paldex";
+import { DECK_BASE_ENTRIES, palDeckNo, palName,
+  completionPct,
+} from "../lib/paldex";
 
 function allPals(p: PlayerPals): Pal[] {
   return [...p.party, ...p.palbox, ...p.base, ...p.storage];
@@ -73,7 +75,7 @@ function GuildCard({ guild, players, serverId }: { guild: Guild; players: Player
     pals: memberPals.length,
     alphas: memberPals.filter((x) => x.isBoss && !x.isLucky).length,
     luckies: memberPals.filter((x) => x.isLucky).length,
-    dexPct: Math.round((dexBaseCount(dexUnion) / DECK_BASE_ENTRIES.length) * 100),
+    dexPct: completionPct(dexBaseCount(dexUnion), DECK_BASE_ENTRIES.length),
   };
 
   // Sick pals stop working — the one base problem worth surfacing loudly.
@@ -150,7 +152,7 @@ function GuildCard({ guild, players, serverId }: { guild: Guild; players: Player
                     {player && (
                       <p className="truncate font-mono text-[11px] text-ink/40">
                         {allPals(player).length.toLocaleString()} pals ·{" "}
-                        {Math.round((dexBaseCount(deckLabels(player)) / DECK_BASE_ENTRIES.length) * 100)}% dex ·{" "}
+                        {completionPct(dexBaseCount(deckLabels(player)), DECK_BASE_ENTRIES.length)}% dex ·{" "}
                         {player.technologyPoints.toLocaleString()} tech
                       </p>
                     )}

@@ -13,6 +13,7 @@ import {
   palIconUrl,
   palName,
   passiveTier,
+  completionPct,
 } from "../lib/paldex";
 import { initials, playerColor } from "../lib/palette";
 import { cn } from "../lib/utils";
@@ -151,7 +152,7 @@ function CompletionRow({ player }: { player: PlayerPals }) {
   const caughtBase = useMemo(() => BASE_ENTRIES.filter((e) => caught.has(e.label)).length, [caught]);
   const caughtVariants = useMemo(() => VARIANT_ENTRIES.filter((e) => caught.has(e.label)).length, [caught]);
   const total = BASE_ENTRIES.length;
-  const pct = total ? Math.round((caughtBase / total) * 100) : 0;
+  const pct = completionPct(caughtBase, total);
   const missingBase = useMemo(() => BASE_ENTRIES.filter((e) => !caught.has(e.label)), [caught]);
   const missingVariants = useMemo(() => VARIANT_ENTRIES.filter((e) => !caught.has(e.label)), [caught]);
   const ownedUnregistered = useMemo(
@@ -594,7 +595,7 @@ export function ServerPaldex() {
   const notConfigured = palsQuery.isError && palsQuery.error instanceof ApiError && palsQuery.error.status === 400;
   const hasData = palsQuery.data !== undefined;
   const baseTotal = BASE_ENTRIES.length;
-  const pct = baseTotal ? Math.round((serverCaughtBase / baseTotal) * 100) : 0;
+  const pct = completionPct(serverCaughtBase, baseTotal);
 
   return (
     <div className="pb-24">

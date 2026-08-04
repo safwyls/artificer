@@ -1,13 +1,13 @@
 import mapPois from "../data/mapPois.json";
-import { FIELD_BOSS_POINTS } from "./fieldBosses";
+import { BOUNTY_POINTS, FIELD_BOSS_POINTS } from "./fieldBosses";
 
 /** Static map points of interest, vendored from palworld-save-pal (see
  * docs/vendored-game-data.md). Coordinates are world units — the same space
  * players and bases are plotted in. Fast travel statues and watchtowers
  * carry their in-game names; the other layers are anonymous spawns. */
-export type PoiKind = "fastTravel" | "watchtower" | "dungeon" | "alpha" | "predator";
+export type PoiKind = "fastTravel" | "watchtower" | "dungeon" | "alpha" | "bounty" | "predator";
 
-export const POI_KINDS: PoiKind[] = ["fastTravel", "watchtower", "dungeon", "alpha", "predator"];
+export const POI_KINDS: PoiKind[] = ["fastTravel", "watchtower", "dungeon", "alpha", "bounty", "predator"];
 
 /** [x, y] for anonymous layers; [x, y, name] for the named ones. */
 export type PoiPoint = [number, number] | [number, number, string];
@@ -19,7 +19,9 @@ export const POI_POINTS = mapPois as unknown as Record<PoiKind, PoiPoint[]>;
  * coordinates for them — so its count has to come from there too, or the
  * legend and the map disagree. */
 export function poiCount(kind: PoiKind): number {
-  return kind === "alpha" ? FIELD_BOSS_POINTS.length : POI_POINTS[kind].length;
+  if (kind === "alpha") return FIELD_BOSS_POINTS.length;
+  if (kind === "bounty") return BOUNTY_POINTS.length;
+  return POI_POINTS[kind].length;
 }
 
 // Statues and watchtowers double as the map's named landmarks — each is
@@ -51,6 +53,7 @@ export const POI_META: Record<PoiKind, { label: string; color: string }> = {
   watchtower: { label: "Watchtowers", color: "#2B2420" }, // ink
   dungeon: { label: "Dungeons", color: "#8B3A9E" }, // legendary violet
   alpha: { label: "Field bosses", color: "#E8491D" }, // brand-red
+  bounty: { label: "Bounty targets", color: "#F2A93B" }, // brand-amber
   predator: { label: "Predators", color: "#9E2B21" }, // deeper alarm red
 };
 

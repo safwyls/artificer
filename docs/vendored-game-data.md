@@ -82,9 +82,19 @@ paldb catalogues under exactly that name. If you ever swap it, check the
 silhouette at 44px first — a rounder pal flattens to a featureless blob, and
 the horns are what make it read as a creature at all.
 
-`BOUNTY_ROSTER` needs no maintenance — the 34 human bounty targets are derived
+`BOUNTY_ROSTER` needs no maintenance — the human bounty targets are derived
 from every `boss_*` key in the catalog at module load, so refreshing
-`palDex.json` refreshes the roster and its denominator together.
+`palDex.json` refreshes the roster and its denominator together. One rule is
+applied on top: keys containing `_quest_` are excluded, which currently means
+only Elder (`boss_hunter_fat_gatlinggun_quest_strongoldman`), a quest-spawned
+target that isn't obtainable in the game as it stands. That leaves 33. It is
+the *rule* that's encoded rather than the name, so a future quest-spawned
+target is handled without an edit — and it agrees with the map data, where
+Elder is the only target with no position.
+
+Being unrecorded in a save is deliberately **not** the test: four other targets
+were unrecorded on the world this was checked against and are perfectly
+obtainable, which is exactly what "still out there" is for.
 
 Both tables render keys they don't recognise rather than dropping them: an
 unknown tower is listed under the run, an unknown raid boss gets its own row.
@@ -147,10 +157,23 @@ needs no catalog: the live map draws these, and reaching into `achievements.ts`
 for them pulled `palDex.json` into the main bundle and cost 230 KB on first
 paint.
 
-The two lists are separate because they don't line up one-to-one. `spawns` has
+The lists are separate because they don't line up one-to-one. `spawns` has
 89 keys for 89 pals; `points` has 90, because
 `remainsIsland_1_GrassGolem_FBOSS` covers **two** Dualith spawns at different
 places and levels, so keying pins by flag key drops one.
+
+`bounties` is the third list: the human bounty targets, from the same source's
+`character_id: "None"` entries. 66 pins for 33 targets — most spawn in more
+than one camp, and the save records one flag per *target*, so beating it
+anywhere clears them all. Names come from `palDex.json`'s `boss_*` keys, which
+is also how the Achievements roster names them.
+
+Two deliberate omissions there. **Elder** has no pin: its id
+(`boss_hunter_fat_gatlinggun_quest_strongoldman`) marks it quest-spawned, so
+there is no fixed world position to record — the one bounty target of 34 that
+can't be placed, and not a data gap. And the three `REGION_Oilrig_*` entries
+the source files alongside these are dropped: no catalog name, no bounty flag,
+and the save counts them separately in `OilrigClearCount`.
 
 Three things checked when it was first vendored, worth repeating on refresh:
 

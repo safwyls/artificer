@@ -8,7 +8,7 @@ import type { PlayerRecords } from "./api";
  *
  * The names themselves are already vendored — palDex.json carries the boss
  * duos (`gym_elecpanda` is "Zoe & Grizzbolt"), the raid bosses (`raid_nightlady`
- * is "Bellanoir") and all 34 human bounty targets (`boss_hunter_rifle` is
+ * is "Bellanoir") and the human bounty targets (`boss_hunter_rifle` is
  * "Hawk"). What's new here is only the join: which record key names which
  * catalog entry. See docs/vendored-game-data.md for the refresh chore.
  *
@@ -298,15 +298,25 @@ export function raidPalId(key: string): string {
 }
 
 /**
- * The human bounty targets, every one the catalog knows. They're the whole
- * roster rather than the observed subset, so the view has an honest
- * denominator: 34 named criminals, of whom this player has taken down N.
+ * The human bounty targets, so the view has an honest denominator: 33 named
+ * criminals, of whom this player has taken down N. Derived from the catalog
+ * rather than typed out, so it tracks a refresh of palDex.json instead of
+ * drifting from it.
  *
- * Derived from the catalog rather than typed out, so the list tracks a
- * refresh of palDex.json instead of drifting from it.
+ * Quest-spawned targets are excluded. That currently means exactly one — Elder
+ * (`boss_hunter_fat_gatlinggun_quest_strongoldman`), which isn't obtainable in
+ * the game as it stands — and it's expressed as the rule rather than as that
+ * name so a future one is handled too.
+ *
+ * Note that "no player has ever recorded it" is *not* the test. Four other
+ * targets are unrecorded on the save this was checked against (Ram, Shadow,
+ * Pinch, Gnaw) and they're perfectly obtainable — the players just haven't got
+ * to them, which is the whole point of listing what's outstanding. The `quest`
+ * marker is the real signal, and it lines up with the other evidence: Elder is
+ * also the only target the map data has no position for.
  */
 export const BOUNTY_ROSTER: string[] = Object.keys(dex)
-  .filter((k) => k.startsWith("boss_"))
+  .filter((k) => k.startsWith("boss_") && !k.includes("_quest_"))
   .sort((a, b) => dex[a].name.localeCompare(dex[b].name));
 
 /** Human bounty targets are keyed BOSS_<who>; field alphas carry a region and
