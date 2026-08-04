@@ -29,12 +29,18 @@ interface FieldBossPoint extends FieldBossSpawn {
 }
 
 /**
- * Two lists, not one, because they answer different questions and don't line
- * up one-to-one. `spawns` maps a save's flag key to its occupant — 98 of them,
- * eight being dungeon interiors with no overworld position. `points` is where
- * to draw pins, and it has 90: one flag key (`remainsIsland_1_GrassGolem_FBOSS`)
- * covers two Dualith spawns at different places and levels, so keying pins by
- * flag would quietly lose one of them.
+ * Two lists, not one, because they don't line up one-to-one. `spawns` maps a
+ * save's flag key to its occupant — 89 keys, 89 pals. `points` has 90, because
+ * one flag key (`remainsIsland_1_GrassGolem_FBOSS`) covers two Dualith spawns
+ * at different places and levels; keying pins by flag would lose one.
+ *
+ * Every spawn here is one the location data can place. Nine keys the name
+ * source also lists were dropped: no save read has ever set one, and the
+ * location data has none of them either, which together say they are spawn
+ * points a game update removed or renamed rather than content anyone can
+ * reach. Listing them made the roster claim nine field bosses that cannot be
+ * found. If one ever does turn up in a save it counts through
+ * `unknownFieldBossCount` and says so, which is the signal to put it back.
  */
 const data = fieldBosses as { spawns: Record<string, FieldBossSpawn>; points: FieldBossPoint[] };
 const spawns = data.spawns;
@@ -46,7 +52,7 @@ export function fieldBossIconUrl(palId: string): string {
   return `${import.meta.env.BASE_URL}pal-icons/${palId}.webp`;
 }
 
-/** Every field boss in the game, once each, alphabetical. Each pal has exactly
+/** Every field boss on the map, once each, alphabetical. Each pal has exactly
  * one spawn point, so the table's values are the roster — which is what makes
  * "what's left" answerable rather than just "how many". */
 export const FIELD_BOSS_ROSTER: { palId: string; name: string }[] = [

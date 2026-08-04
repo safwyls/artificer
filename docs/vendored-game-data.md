@@ -26,7 +26,7 @@ All files live in `web/src/data/`:
 | `mapPois.json` | map POI world coordinates by kind; fast travel + watchtower entries carry their English names (`[x, y, name]`) used as "near X" landmarks for bases | palworld-save-pal `fast_travel_points.json` (split on the `UnlockMapPoint` class) joined with `l10n/en/fast_travel_points.json` by GUID, and `map_objects.json` (dungeons, alpha/predator spawns), rounded to whole units |
 | `items.json` | item id → name, category, rarity, weight, icon, description, and the gear figures the inventory view shows (max durability, magazine size, attack, defense, built-in passives) | palworld-save-pal `items.json` joined with `l10n/en/items.json`; see `web/public/item-icons/README.md` |
 | `structures.json` | building id → build-menu name (`n`), category (`c`, upstream's `type_b`) and icon name (`i`), for the Storage view's container labels, its storage/farm/station grouping and its row icons | palworld-save-pal `buildings.json` joined with `l10n/en/buildings.json` by key; 489 entries trimmed to those three fields |
-| `fieldBosses.json` | `spawns`: field boss flag key (`81_1_grass_FBOSS_20`) → the pal there, so the Achievements view can name them. `points`: where to draw each one on the live map, with its level | Two sources that agree: names from [PalworldSaveTools](https://github.com/deafdudecomputers/PalworldSaveTools) (MIT) `resources/game_data/boss_mapping.json`; positions and levels from palworld-save-pal `data/json/bosses.json` |
+| `fieldBosses.json` | `spawns`: field boss flag key (`81_1_grass_FBOSS_20`) → the pal there, so the Achievements view can name them. `points`: where to draw each one on the live map, with its level | palworld-save-pal `data/json/bosses.json`, cross-checked against [PalworldSaveTools](https://github.com/deafdudecomputers/PalworldSaveTools) (MIT) `resources/game_data/boss_mapping.json` — see the note below on the nine keys deliberately dropped |
 | `bossFights.json` | boss record key → the fight's in-game title, where it happens, and `[level, HP]` per difficulty, for the Achievements view's fight dialog | [paldb.cc/en/Tower](https://paldb.cc/en/Tower) and [paldb.cc/en/Raid](https://paldb.cc/en/Raid), both datamined — see the note below on why not the guide sites |
 
 Pal icons: `web/public/pal-icons/` — see the README there. Item icons:
@@ -115,40 +115,57 @@ the join, and uses it for the same reason we do: its bounty token counts come
 from `NormalBossDefeatFlag` through this table, because the tokens themselves
 get spent and so can't be counted from anyone's inventory.
 
-Regenerate from two upstream files, merged:
+Generated from palworld-save-pal `data/json/bosses.json` — 159 entries of
+`{spawner_id, character_id, level, x, y, z}`, of which 90 name a pal (the other
+69 are human bosses, `character_id: "None"`). PalworldSaveTools
+`resources/game_data/boss_mapping.json` (keyed `BossDefeatReward_<Pal>` → one
+spawn key or a list) is kept as the **cross-check**, not as input: the
+generator asserts the two agree on every shared key. They currently agree on
+all 90, zero disagreements, which is the strongest check available on either.
 
-- PalworldSaveTools `resources/game_data/boss_mapping.json` — keyed
-  `BossDefeatReward_<Pal>` → one spawn key or a list. Invert it for `spawns`.
-  This has the widest coverage: 98 keys.
-- palworld-save-pal `data/json/bosses.json` — 159 entries of
-  `{spawner_id, character_id, level, x, y, z}`, of which 90 name a pal (the
-  other 69 are human bosses, `character_id: "None"`). This is where `points`
-  and the levels come from.
+That file also lists **nine spawn keys the location data doesn't have**, and
+those are deliberately dropped rather than carried as positionless entries:
 
-**The two agree completely** — 89 overlapping keys, zero disagreements — which
-is the strongest check available on either. Pal names are baked into the JSON
-so `web/src/lib/fieldBosses.ts` needs no catalog: the live map draws these, and
-reaching into `achievements.ts` for them pulled `palDex.json` into the main
-bundle and cost 230 KB on first paint.
+```
+50_12_dungeon_snow_boss  50_5_dungeon_forest  81_1_grass_FBOSS_19
+81_1_grass_FBOSS_5  81_1_grass_FBOSS_8  81_5_Yamijima_FBOSS_17
+skyisland_8_01_A_meadow  worldtree_9_55_WorldTreeAura  yellow_D
+```
+
+No save read has ever set one of them — zero occurrences across 84 distinct
+field boss keys in a four-player world — and the location data has none of
+them either. Two sources missing them and no save containing them says they're
+spawn points a game update removed or renamed, not content anyone can reach.
+Keeping them made the Achievements roster promise nine field bosses (Broncherry
+Aqua, Pyrin, Pierdon Cryst, Quivern, Relaxaurus Lux, Felbat, Katress, Ribbuny
+Botan, Petallia) that could not be found on the map. If one ever does appear in
+a save it is counted and reported through `unknownFieldBossCount`, which is the
+signal to put it back.
+
+Pal names and elements are baked into the JSON so `web/src/lib/fieldBosses.ts`
+needs no catalog: the live map draws these, and reaching into `achievements.ts`
+for them pulled `palDex.json` into the main bundle and cost 230 KB on first
+paint.
 
 The two lists are separate because they don't line up one-to-one. `spawns` has
-98, eight of which are dungeon interiors with no overworld position. `points`
-has 90: `remainsIsland_1_GrassGolem_FBOSS` covers **two** Dualith spawns at
-different places and levels, so keying pins by flag key drops one.
+89 keys for 89 pals; `points` has 90, because
+`remainsIsland_1_GrassGolem_FBOSS` covers **two** Dualith spawns at different
+places and levels, so keying pins by flag key drops one.
 
 Three things checked when it was first vendored, worth repeating on refresh:
 
 - **Coverage.** Every non-human key in a real four-player save resolved — 55,
   64, 46 and 33 respectively — with the leftovers being exactly the `BOSS_*`
   human bounty targets, which are a separate roster. A key the table doesn't
-  know is counted but not named, and the view says how many those are.
+  know is counted but not named, and the view says how many those are. This is
+  also the check that says whether a dropped key has come back.
 - **Agreement.** A handful of spawn keys name their own species, which is a
   free correctness test: Arsox, Dinossom Lux, Lyleen, Lyleen Noct and Celesdir
   all match. The one disagreement is `1_10_plain_F_Boss_FairyDragon`, which the
   table calls Chillet — a plains spawn whose contents changed without the level
   object being renamed is the likely story, and the table comes from game data
   where the key text is only a label, so the table wins.
-- **Icons.** All 98 pal ids resolve to a file in `web/public/pal-icons/`.
+- **Icons.** All 89 pal ids resolve to a file in `web/public/pal-icons/`.
 
 Upstream has one collision: `worldtree_9_55_WorldTreeAura` is claimed by both
 `HerculesBeetle` and `LazyDragon_Electric`, so one of them loses. It appears in
