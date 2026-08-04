@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import type { Pal } from "../lib/api";
 import { palName, passiveName } from "../lib/paldex";
@@ -38,6 +38,16 @@ export interface SavePal {
   where: string;
 }
 
+/** A save pal with its search fields derived once, at load, rather than per
+ * keystroke — see the `groups` memo. */
+interface IndexedPal {
+  pal: SavePal;
+  /** Nickname + species + passive display names, lowercased. */
+  text: string;
+  /** Passive display names, for the exact-match passive filter. */
+  names: Set<string>;
+}
+
 export interface PickedPal {
   characterId: string;
   /** Present only when chosen from the save, carrying its real stats. */
@@ -59,6 +69,19 @@ const IV_LABELS: Record<IvMetric, string> = {
   attack: "IV Attack",
   defense: "IV Defense",
 };
+
+/**
+ * How many pals a group shows before the reveal row, and how many each tap
+ * of it adds. A real save runs to thousands of pals — the fixture this was
+ * tuned against holds 6,332 across four players — and every one of them is
+ * a portrait, up to four passive chips and a talent triplet. Rendering the
+ * lot on a one-character query (which matches nearly everything, and
+ * force-opens every group) is what made typing feel stuck. A picker's job
+ * is to surface the pal you're after, so the cap costs nothing you'd miss:
+ * narrow further, or reveal more.
+ */
+const GROUP_PAGE = 60;
+const GROUP_PAGE_MORE = 200;
 
 function ivValue(p: SavePal, metric: IvMetric): number {
   switch (metric) {
@@ -104,21 +127,35 @@ export function PalPicker({
   // save — but a tap on the header always wins, so a noisy player can be
   // folded away mid-search.
   const [groupOverrides, setGroupOverrides] = useState<Map<string, boolean>>(() => new Map());
-  const q = query.trim().toLowerCase();
+  // How many rows each group has revealed past the cap. Reset whenever the
+  // filter changes, so a fresh search always starts at the top of its own
+  // matches rather than inheriting a previous hunt's expansion.
+  const [revealed, setRevealed] = useState<Map<string, number>>(() => new Map());
+  // Filtering thousands of rows is the slow half of a keystroke; letting it
+  // lag the input by a frame keeps typing at full speed.
+  const q = useDeferredValue(query.trim().toLowerCase());
 
   const species = useMemo(
     () => (q ? BREEDABLE.filter((p) => p.name.toLowerCase().includes(q)) : BREEDABLE),
     [q],
   );
   // The save tab groups by owner so a player can jump straight to their own
-  // box; groups collapse when the server has more than one player.
+  // box; groups collapse when the server has more than one player. Each pal
+  // is indexed once here — its searchable text and its passives' display
+  // names — so a keystroke is an includes() per pal instead of re-deriving
+  // every name and lowercasing it again.
   const groups = useMemo(() => {
-    const byUid = new Map<string, { key: string; name: string; pals: SavePal[] }>();
+    const byUid = new Map<string, { key: string; name: string; pals: IndexedPal[] }>();
     for (const p of savePals ?? []) {
       const key = p.playerUid || p.playerName;
       let g = byUid.get(key);
       if (!g) byUid.set(key, (g = { key, name: p.playerName || "Unknown player", pals: [] }));
-      g.pals.push(p);
+      const names = new Set(p.passives.map(passiveName));
+      g.pals.push({
+        pal: p,
+        text: `${p.nickname} ${palName(p.characterId)} ${[...names].join(" ")}`.toLowerCase(),
+        names,
+      });
     }
     return [...byUid.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [savePals]);
@@ -134,23 +171,23 @@ export function PalPicker({
   const narrowed = q !== "" || wantPassives.size > 0 || ivMin > 0;
   const shownGroups = useMemo(() => {
     if (!narrowed) return groups;
-    const match = (p: SavePal) => {
-      if (
-        q &&
-        !p.nickname.toLowerCase().includes(q) &&
-        !palName(p.characterId).toLowerCase().includes(q) &&
-        !p.passives.some((code) => passiveName(code).toLowerCase().includes(q))
-      )
-        return false;
+    const match = ({ pal, text, names }: IndexedPal) => {
+      if (q && !text.includes(q)) return false;
       // Matched by display name, so two codes that read the same count as one.
-      for (const name of wantPassives)
-        if (!p.passives.some((code) => passiveName(code) === name)) return false;
-      if (ivMin > 0 && ivValue(p, ivMetric) < ivMin) return false;
+      for (const name of wantPassives) if (!names.has(name)) return false;
+      if (ivMin > 0 && ivValue(pal, ivMetric) < ivMin) return false;
       return true;
     };
     return groups.map((g) => ({ ...g, pals: g.pals.filter(match) })).filter((g) => g.pals.length > 0);
   }, [groups, q, narrowed, wantPassives, ivMetric, ivMin]);
   const matched = useMemo(() => shownGroups.reduce((n, g) => n + g.pals.length, 0), [shownGroups]);
+
+  useEffect(() => {
+    // Returning the same map when it's already empty lets React bail out,
+    // so the common "no reveals yet" case costs no extra render.
+    setRevealed((prev) => (prev.size === 0 ? prev : new Map()));
+  }, [q, wantPassives, ivMetric, ivMin]);
+
   const groupOpen = (key: string) => groupOverrides.get(key) ?? (narrowed || groups.length === 1);
   const toggleGroup = (key: string) =>
     setGroupOverrides((prev) => {
@@ -158,12 +195,18 @@ export function PalPicker({
       next.set(key, !groupOpen(key));
       return next;
     });
+  const revealMore = (key: string) =>
+    setRevealed((prev) => new Map(prev).set(key, (prev.get(key) ?? GROUP_PAGE) + GROUP_PAGE_MORE));
 
-  const pick = (pick: PickedPal) => {
-    onPick(pick);
-    onOpenChange(false);
-    setQuery("");
-  };
+  // Stable so the memoized rows below aren't invalidated every render.
+  const pick = useCallback(
+    (picked: PickedPal) => {
+      onPick(picked);
+      onOpenChange(false);
+      setQuery("");
+    },
+    [onPick, onOpenChange],
+  );
 
   const tabClass = (active: boolean) =>
     cn(
@@ -261,61 +304,41 @@ export function PalPicker({
           )}
 
           {mode === "save" &&
-            shownGroups.map((g) => (
-              <div key={g.key}>
-                <button
-                  onClick={() => toggleGroup(g.key)}
-                  className="sticky top-0 z-10 flex w-full items-center gap-2 border-b border-ink/10 bg-card py-2 pl-1 pr-2 text-left"
-                >
-                  <ChevronDown
-                    className={cn("h-4 w-4 text-ink/40 transition-transform", !groupOpen(g.key) && "-rotate-90")}
-                  />
-                  <span className="font-display text-sm font-bold">{g.name}</span>
-                  <span className="ml-auto rounded-full bg-ink/5 px-2 py-0.5 font-mono text-[11px] text-ink/50">
-                    {g.pals.length}
-                  </span>
-                </button>
-                {groupOpen(g.key) &&
-                  g.pals.map((p) => (
-                    <button
-                      key={p.key}
-                      onClick={() => pick({ characterId: p.characterId, save: p })}
-                      className="flex w-full items-start gap-3 rounded-xl border border-transparent p-1.5 text-left hover:border-ink/10 hover:bg-white"
-                    >
-                      <PalPortrait characterId={p.characterId} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-foreground">
-                          {p.nickname || palName(p.characterId)}
-                          {p.gender && (
-                            <span
-                              className={cn("ml-1", p.gender === "female" ? "text-brand-red" : "text-pal-blue")}
-                              aria-label={p.gender === "female" ? "Female" : "Male"}
-                            >
-                              {p.gender === "female" ? "♀" : "♂"}
-                            </span>
-                          )}
-                        </p>
-                        <p className="truncate font-mono text-[11px] text-ink/40">
-                          Lv.{p.level} · {palName(p.characterId)}
-                        </p>
-                        {p.passives.length > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {p.passives.map((code, i) => (
-                              <PassiveBadge key={`${code}-${i}`} code={code} />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <TalentTriplet
-                        hp={p.ivHp}
-                        attack={p.ivAttack}
-                        defense={p.ivDefense}
-                        className="shrink-0 pt-0.5 font-mono text-[11px] text-ink/40"
-                      />
-                    </button>
-                  ))}
-              </div>
-            ))}
+            shownGroups.map((g) => {
+              const cap = revealed.get(g.key) ?? GROUP_PAGE;
+              const hidden = g.pals.length - cap;
+              return (
+                <div key={g.key}>
+                  <button
+                    onClick={() => toggleGroup(g.key)}
+                    className="sticky top-0 z-10 flex w-full items-center gap-2 border-b border-ink/10 bg-card py-2 pl-1 pr-2 text-left"
+                  >
+                    <ChevronDown
+                      className={cn("h-4 w-4 text-ink/40 transition-transform", !groupOpen(g.key) && "-rotate-90")}
+                    />
+                    <span className="font-display text-sm font-bold">{g.name}</span>
+                    <span className="ml-auto rounded-full bg-ink/5 px-2 py-0.5 font-mono text-[11px] text-ink/50">
+                      {g.pals.length}
+                    </span>
+                  </button>
+                  {groupOpen(g.key) && (
+                    <>
+                      {g.pals.slice(0, cap).map(({ pal }) => (
+                        <SavePalRow key={pal.key} pal={pal} onPick={pick} />
+                      ))}
+                      {hidden > 0 && (
+                        <button
+                          onClick={() => revealMore(g.key)}
+                          className="w-full rounded-xl py-2 text-center font-mono text-[11px] text-ink/40 hover:bg-ink/5 hover:text-ink/60"
+                        >
+                          Show {Math.min(hidden, GROUP_PAGE_MORE)} more · {hidden} hidden
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
           {mode === "save" && shownGroups.length === 0 && (
             <p className="py-6 text-center text-sm text-muted-foreground">
               {saveStatus ??
@@ -327,3 +350,52 @@ export function PalPicker({
     </Dialog>
   );
 }
+
+/** One pal from the save. Memoized: a keystroke rewrites the whole list, and
+ * the rows that survive it are identical — reconciling their portraits and
+ * passive chips again is the bulk of the work a search would otherwise do. */
+const SavePalRow = memo(function SavePalRow({
+  pal,
+  onPick,
+}: {
+  pal: SavePal;
+  onPick: (pick: PickedPal) => void;
+}) {
+  return (
+    <button
+      onClick={() => onPick({ characterId: pal.characterId, save: pal })}
+      className="flex w-full items-start gap-3 rounded-xl border border-transparent p-1.5 text-left hover:border-ink/10 hover:bg-white"
+    >
+      <PalPortrait characterId={pal.characterId} size="sm" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-foreground">
+          {pal.nickname || palName(pal.characterId)}
+          {pal.gender && (
+            <span
+              className={cn("ml-1", pal.gender === "female" ? "text-brand-red" : "text-pal-blue")}
+              aria-label={pal.gender === "female" ? "Female" : "Male"}
+            >
+              {pal.gender === "female" ? "♀" : "♂"}
+            </span>
+          )}
+        </p>
+        <p className="truncate font-mono text-[11px] text-ink/40">
+          Lv.{pal.level} · {palName(pal.characterId)}
+        </p>
+        {pal.passives.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {pal.passives.map((code, i) => (
+              <PassiveBadge key={`${code}-${i}`} code={code} />
+            ))}
+          </div>
+        )}
+      </div>
+      <TalentTriplet
+        hp={pal.ivHp}
+        attack={pal.ivAttack}
+        defense={pal.ivDefense}
+        className="shrink-0 pt-0.5 font-mono text-[11px] text-ink/40"
+      />
+    </button>
+  );
+});

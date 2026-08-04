@@ -146,6 +146,109 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	}
 }
 
+// A name whose container already exists on the host must be refused
+// outright. The regression this guards: the deploy failed, but the row had
+// already been written, leaving a server registered with credentials the
+// running container has never seen — visible in the rail, unreachable
+// forever.
+func TestProvisionNameConflictRegistersNothing(t *testing.T) {
+	app, admin := newTestAppWithAdmin(t)
+
+	created := false
+	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/containers/json":
+			w.Write([]byte(`[{"Id":"c1","Names":["/palagent-taken"],"Image":"ghcr.io/safwyls/palagent:latest","State":"running",
+			  "Ports":[{"PrivatePort":8811,"PublicPort":8811,"Type":"tcp"}]}]`))
+		case "/containers/c1/json":
+			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=supervisor"]}}`))
+		case "/images/create":
+			w.Write([]byte(`{"status":"done"}` + "\n"))
+		case "/containers/create":
+			created = true
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(`{"message":"Conflict. The container name \"/palagent-taken\" is already in use"}`))
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	t.Cleanup(dockerSrv.Close)
+
+	provAgent, err := palagent.New(palagent.Config{
+		Token: agentToken, InstallDir: t.TempDir(), Version: "test",
+		Mode: "provisioner", DockerHost: dockerSrv.URL, DataRoot: t.TempDir(),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provSrv := httptest.NewServer(provAgent.Handler())
+	t.Cleanup(provSrv.Close)
+	if app.api.Provisioner, err = agentctl.New(provSrv.URL, agentToken); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
+		"name": "Taken", "host": "10.0.0.9",
+	}, admin)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("provision onto a taken name: %d, want 409 (body %s)", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), "palagent-taken") {
+		t.Errorf("error should name the container that's in the way: %s", rec.Body)
+	}
+	if created {
+		t.Error("docker create was attempted despite the name being visibly taken")
+	}
+	servers, err := app.store.ListServers(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(servers) != 0 {
+		t.Errorf("a refused provision registered %d server(s): %+v", len(servers), servers)
+	}
+}
+
+// An unreachable provisioner is the other half of the same decision: there
+// is nothing to conflict with, the generated stack is still deployable by
+// hand, so the row stays and the wizard falls back to pasting.
+func TestProvisionKeepsRowWhenProvisionerUnreachable(t *testing.T) {
+	app, admin := newTestAppWithAdmin(t)
+
+	dead := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	dead.Close() // nothing listens: every call fails at the transport
+	prov, err := agentctl.New(dead.URL, agentToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.api.Provisioner = prov
+
+	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
+		"name": "Fallback", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/fallback",
+	}, admin)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("provision: %d, want 201 (body %s)", rec.Code, rec.Body)
+	}
+	var res struct {
+		Deployed    bool   `json:"deployed"`
+		DeployError string `json:"deployError"`
+		Stack       string `json:"stack"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Deployed || res.DeployError == "" || res.Stack == "" {
+		t.Errorf("want an undeployed row with a paste fallback, got %+v", res)
+	}
+	servers, err := app.store.ListServers(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(servers) != 1 {
+		t.Errorf("registered %d servers, want the one waiting for a manual deploy", len(servers))
+	}
+}
+
 func TestProvisionDefaultsAndDiscover(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 

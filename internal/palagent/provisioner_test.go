@@ -105,6 +105,31 @@ func TestProvisionerCreatesServer(t *testing.T) {
 	}
 }
 
+// A slug whose container already exists is refused before the mkdir and
+// the image pull, and with 409 — the status palcon reads as "nothing was
+// made", which is what keeps it from registering the server anyway.
+func TestProvisionerRefusesNameInUse(t *testing.T) {
+	srv, fake, dataRoot := newProvisioner(t)
+
+	resp, m := do(t, srv, "POST", "/v1/provision", testToken, map[string]any{
+		"slug": "main", "token": "new-agent-token-0123456789abcdef", "adminPassword": "pw12345",
+		"gamePort": 9211, "restPort": 9212, "rconPort": 9575, "agentPort": 9811,
+	})
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("provision onto an existing name: %d %v, want 409", resp.StatusCode, m)
+	}
+	if msg, _ := m["error"].(string); !strings.Contains(msg, "palagent-main") {
+		t.Errorf("error should name the container in the way: %v", m)
+	}
+	joined := strings.Join(fake.calls, " | ")
+	if strings.Contains(joined, "/images/create") || strings.Contains(joined, "/containers/create") {
+		t.Errorf("pulled or created despite the conflict: %s", joined)
+	}
+	if _, err := os.Stat(filepath.Join(dataRoot, "main")); !os.IsNotExist(err) {
+		t.Errorf("data dir created for a refused provision (err %v)", err)
+	}
+}
+
 func toStrings(in []any) []string {
 	out := make([]string, len(in))
 	for i, v := range in {

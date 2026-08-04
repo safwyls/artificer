@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -146,22 +147,22 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	}
 	token := randomHex(24)
 
-	srv := &store.Server{
-		Name: req.Name, Host: req.Host,
-		RCONPort: req.RCONPort, RCONPassword: req.AdminPassword,
-		RESTPort: req.RESTPort, RESTPassword: req.AdminPassword,
-		GamePort: req.GamePort,
-		UseREST:  true, Enabled: true,
-		AgentURL:   fmt.Sprintf("http://%s:%d", req.Host, req.AgentPort),
-		AgentToken: token,
+	// The container is named from the slug, so a name already on the host
+	// can never deploy. Catch it before anything is written: the row would
+	// carry freshly generated credentials that the running container has
+	// never seen, leaving a server palcon can see and never reach. (The
+	// provisioner refuses this itself — checked here too so an older
+	// provisioner image, which only fails at docker create, is covered.)
+	if s.Provisioner != nil {
+		if found, err := s.Provisioner.Discover(r.Context()); err == nil {
+			for _, f := range found {
+				if f.Name == "palagent-"+slug {
+					writeError(w, http.StatusConflict, conflictMessage(slug))
+					return
+				}
+			}
+		}
 	}
-	id, err := s.store.CreateServer(r.Context(), srv)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create server")
-		return
-	}
-	srv.ID = id
-	s.audit(r, id, "server-provision", srv.Name)
 
 	userLine := ""
 	if req.RunAs != "" {
@@ -199,11 +200,17 @@ services:
 		req.GamePort, req.RESTPort, req.RCONPort, req.AgentPort, req.DataPath)
 
 	// One-click (phase 5): when a provisioner is configured, deploy the
-	// stack now. A failed deploy is reported but not fatal — the row and
-	// the stack file remain, and the operator can fall back to pasting.
+	// stack now — before registering, so a deploy that never made anything
+	// leaves no server row behind. A *refusal* is fatal: the container name
+	// is taken, or the token was rejected, and neither is fixed by pasting
+	// the same stack somewhere. Everything else is not — a provisioner that
+	// couldn't be reached, or one that created the container and failed to
+	// start it, both leave a row and a stack that still describe the server
+	// the operator wanted, which is the point of still generating one.
 	deployed := false
 	deployError := ""
 	dataDir := ""
+	container := ""
 	if s.Provisioner != nil {
 		result, err := s.Provisioner.Provision(r.Context(), palagent.ProvisionRequest{
 			Slug:          slug,
@@ -218,15 +225,45 @@ services:
 			RCONPort:      req.RCONPort,
 			AgentPort:     req.AgentPort,
 		})
-		if err != nil {
-			deployError = err.Error()
-			s.logger.Error("provisioner deploy failed", "server", srv.Name, "error", err)
-		} else {
+		switch {
+		case err == nil:
 			deployed = true
 			dataDir = result.DataDir
-			s.audit(r, id, "server-deploy", result.Container)
-			s.logger.Info("provisioner deployed server", "server", srv.Name, "container", result.Container)
+			container = result.Container
+		// The only conflict /v1/provision reports is the container name.
+		case errors.Is(err, agentctl.ErrBusy):
+			s.logger.Warn("provisioner refused deploy: name in use", "server", req.Name, "slug", slug)
+			writeError(w, http.StatusConflict, conflictMessage(slug))
+			return
+		case errors.Is(err, agentctl.ErrRejected):
+			s.logger.Warn("provisioner refused deploy", "server", req.Name, "error", err)
+			writeAgentError(w, err)
+			return
+		default:
+			deployError = err.Error()
+			s.logger.Error("provisioner deploy failed", "server", req.Name, "error", err)
 		}
+	}
+
+	srv := &store.Server{
+		Name: req.Name, Host: req.Host,
+		RCONPort: req.RCONPort, RCONPassword: req.AdminPassword,
+		RESTPort: req.RESTPort, RESTPassword: req.AdminPassword,
+		GamePort: req.GamePort,
+		UseREST:  true, Enabled: true,
+		AgentURL:   fmt.Sprintf("http://%s:%d", req.Host, req.AgentPort),
+		AgentToken: token,
+	}
+	id, err := s.store.CreateServer(r.Context(), srv)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create server")
+		return
+	}
+	srv.ID = id
+	s.audit(r, id, "server-provision", srv.Name)
+	if deployed {
+		s.audit(r, id, "server-deploy", container)
+		s.logger.Info("provisioner deployed server", "server", srv.Name, "container", container)
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -238,6 +275,15 @@ services:
 		"deployError":   deployError,
 		"dataDir":       dataDir,
 	})
+}
+
+// conflictMessage names both ways out of a taken container name, because
+// which one is right depends on what the operator meant: a genuinely new
+// server needs a different name, while "I deleted the row and want it
+// back" is what adoption is for.
+func conflictMessage(slug string) string {
+	return fmt.Sprintf("a container named palagent-%s already exists on the host — "+
+		"pick a different name, or adopt the existing container from Add server", slug)
 }
 
 // handleProvisionDefaults reports everything the wizard can prefill: the

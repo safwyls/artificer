@@ -93,6 +93,21 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 		seen[p] = true
 	}
 
+	name := "palagent-" + req.Slug
+	// A name already in use can only fail at create — after the mkdir, the
+	// chown and a multi-hundred-MB image pull have all reported progress.
+	// Check it first, and refuse in the one status the caller can read as
+	// "the provisioner made nothing" rather than "something went wrong
+	// partway through".
+	if containers, err := a.docker.ContainerList(r.Context()); err == nil {
+		for _, c := range containers {
+			if c.Name == name {
+				writeError(w, http.StatusConflict, "a container named "+name+" already exists on this host")
+				return
+			}
+		}
+	}
+
 	// The data directory is always DataRoot/<slug> — the slug pattern
 	// forbids traversal, and nothing else about the location is
 	// caller-controlled.
@@ -130,7 +145,6 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 	if req.ServerDesc != "" {
 		env = append(env, "PALAGENT_SERVER_DESC="+req.ServerDesc)
 	}
-	name := "palagent-" + req.Slug
 	id, err := a.docker.ContainerCreate(r.Context(), dockerctl.ContainerSpec{
 		Name:  name,
 		Image: image,

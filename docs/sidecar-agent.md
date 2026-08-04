@@ -224,7 +224,7 @@ compare; agent refuses to start with a token under 16 chars). Bare
 | GET/PUT | `/v1/files/config` | companion/supervisor | `PalWorldSettings.ini`; PUT writes atomically, refuses to create |
 | POST | `/v1/power/{start,stop,restart}` | supervisor | game process control; returns post-action status. `?graceful=20s` on stop/restart means "the game has already accepted an in-game shutdown — let that exit finish before signalling it" (see below) |
 | GET | `/v1/power/logs` | supervisor | game stdout ring buffer |
-| POST | `/v1/provision` | provisioner | instantiate the locked supervisor template |
+| POST | `/v1/provision` | provisioner | instantiate the locked supervisor template; 409 when `palagent-<slug>` already exists, checked before the mkdir and the pull so a refusal means nothing was made |
 | GET | `/v1/discover` | provisioner | list palagent containers (name, mode, ports, state — never env) |
 | POST | `/v1/adopt` | provisioner | recover a palagent container's registration data, **secrets included** — the deliberate exception to the env rule, bounded to palagent containers, because the provisioner injected those secrets itself and returning them to the token-authenticated control plane recreates a lost server row in one click |
 
@@ -276,8 +276,20 @@ spinning up a new Palworld server from the dashboard — lands in two steps:
   leaked provisioner token) can stamp out more Palworld servers, and
   nothing else. When palcon has `PROVISIONER_URL`/`PROVISIONER_TOKEN`
   set, the wizard deploys the stack itself — the operator clicks Generate
-  and watches the install on the server's card. Deploy failures fall back
-  to the paste flow with the error shown.
+  and watches the install on the server's card.
+
+  Two kinds of deploy failure, handled differently, because only one of
+  them has a fallback. A provisioner that *refused* — the container name
+  is taken (409), the token was rejected, the request was malformed —
+  made nothing, and pasting the same stack elsewhere would collide the
+  same way; palcon registers no server row and returns the error. A
+  provisioner that merely couldn't be *reached* leaves the paste flow
+  intact: the row and the generated stack still describe a server the
+  operator can bring up by hand, which is the point of still generating
+  one. Hence the ordering in `handleProvisionServer` — deploy first,
+  register after. Registering first is what once left a name collision
+  showing as a server in the rail that palcon could never reach, since
+  its row carried credentials the running container had never seen.
 
   Provisioner stack (deliberately privileged — the ONE component that
   touches the docker socket; run as root, no `user:` line, since it
