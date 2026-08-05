@@ -6,6 +6,7 @@ import { api, ApiError, type Pal, type PlayerPals } from "../lib/api";
 import { initials, playerColor } from "../lib/palette";
 import { agoLabel } from "../lib/time";
 import { elementColor, palDeckNo, palDeckSortValue, palEntry, palIconUrl, palName, passiveName, rarityTier } from "../lib/paldex";
+import { WORK_TYPES, workLevel } from "../lib/crew";
 import { palEffectiveStats } from "../lib/stats";
 import { TalentTriplet } from "../components/TalentTriplet";
 import { cn } from "../lib/utils";
@@ -15,6 +16,7 @@ import { ServerUnreachable } from "../components/ServerUnreachable";
 import { SaveReadProgress } from "../components/SaveReadProgress";
 import { SaveUpdatingBanner } from "../components/SaveUpdatingBanner";
 import { PalDetailDialog } from "../components/PalDetailDialog";
+import { WorkIcon, WORK_COLORS } from "../components/WorkIcon";
 import { SavePathSetup } from "../components/SavePathSetup";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
@@ -27,7 +29,11 @@ import { Select } from "../components/ui/select";
 // ---------------------------------------------------------------------------
 
 type Metric = "iv-total" | "iv-hp" | "iv-atk" | "iv-def" | "eff-hp" | "eff-atk" | "eff-def";
-type SortKey = "name" | "level" | "deck" | Metric;
+/** `work-<type>` sorts by a work suitability level — the species' own, so
+ * every Digtoise ties and the order within a species holds steady. */
+type SortKey = "name" | "level" | "deck" | Metric | `work-${string}`;
+
+const WORK_LABELS = Object.fromEntries(WORK_TYPES.map((w) => [w.id, w.label]));
 
 const METRIC_LABELS: Record<Metric, string> = {
   "iv-total": "IV total",
@@ -64,6 +70,10 @@ interface Controls {
   passives: Set<string>;
   minMetric: Metric;
   minValue: number;
+  /** Work-suitability filter: a type id, or "" for off. */
+  workType: string;
+  /** Minimum level for that type; a picked type always implies at least 1. */
+  workMin: number;
   sortKey: SortKey;
   sortDir: "asc" | "desc";
   /** instanceId -> effective stats, memoized so sorting doesn't recompute. */
@@ -71,7 +81,7 @@ interface Controls {
 }
 
 function controlsActive(c: Controls): boolean {
-  return Boolean(c.query.trim()) || c.passives.size > 0 || c.minValue > 0;
+  return Boolean(c.query.trim()) || c.passives.size > 0 || c.minValue > 0 || c.workType !== "";
 }
 
 function matchPal(pal: Pal, c: Controls): boolean {
@@ -90,6 +100,7 @@ function matchPal(pal: Pal, c: Controls): boolean {
   for (const name of c.passives)
     if (!pal.passives.some((code) => passiveName(code) === name)) return false;
   if (c.minValue > 0 && metricValue(pal, c.minMetric, c.effMap.get(pal.instanceId)) < c.minValue) return false;
+  if (c.workType && workLevel(pal.characterId, c.workType) < Math.max(1, c.workMin)) return false;
   return true;
 }
 
@@ -102,19 +113,28 @@ function sortPals(pals: Pal[], c: Controls): Pal[] {
     if (c.sortKey === "deck") {
       return dir * (palDeckSortValue(a.characterId) - palDeckSortValue(b.characterId));
     }
-    const av = c.sortKey === "level" ? a.level : metricValue(a, c.sortKey, c.effMap.get(a.instanceId));
-    const bv = c.sortKey === "level" ? b.level : metricValue(b, c.sortKey, c.effMap.get(b.instanceId));
+    if (c.sortKey.startsWith("work-")) {
+      const type = c.sortKey.slice(5);
+      return dir * (workLevel(a.characterId, type) - workLevel(b.characterId, type));
+    }
+    // The work- branch above leaves only "level" and the metrics, but
+    // startsWith doesn't narrow a template-literal type — hence the cast.
+    const av = c.sortKey === "level" ? a.level : metricValue(a, c.sortKey as Metric, c.effMap.get(a.instanceId));
+    const bv = c.sortKey === "level" ? b.level : metricValue(b, c.sortKey as Metric, c.effMap.get(b.instanceId));
     return dir * (av - bv);
   });
 }
 
 // ---------------------------------------------------------------------------
 
-function PalCard({ pal, onOpen }: { pal: Pal; onOpen: () => void }) {
+function PalCard({ pal, onOpen, workBadge }: { pal: Pal; onOpen: () => void; workBadge?: string }) {
   const species = palName(pal.characterId);
   const entry = palEntry(pal.characterId);
   const elements = (entry?.elements ?? []).slice(0, 2);
   const tier = rarityTier(entry?.rarity ?? 0);
+  // Only while a work sort or filter is on: the number being sorted by has
+  // to be visible, or the ordering reads as arbitrary.
+  const workBadgeLevel = workBadge ? workLevel(pal.characterId, workBadge) : 0;
 
   return (
     <button
@@ -179,6 +199,15 @@ function PalCard({ pal, onOpen }: { pal: Pal; onOpen: () => void }) {
       </p>
 
         <div className="mt-1 flex flex-wrap items-center gap-1">
+          {workBadge && workBadgeLevel > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
+              style={{ backgroundColor: `${WORK_COLORS[workBadge] ?? "#8A8578"}22`, color: WORK_COLORS[workBadge] ?? "#8A8578" }}
+            >
+              <WorkIcon type={workBadge} className="h-3 w-3" />
+              {WORK_LABELS[workBadge] ?? workBadge} {workBadgeLevel}
+            </span>
+          )}
           {elements.map((el) => (
             <span
               key={el}
@@ -223,6 +252,7 @@ function PalGroup({
   pals,
   onOpen,
   forceOpen,
+  workBadge,
 }: {
   title: string;
   pals: Pal[];
@@ -230,6 +260,9 @@ function PalGroup({
   /** While a filter is active every match must be visible, so collapsing is
    * suspended rather than hiding results behind a closed group. */
   forceOpen?: boolean;
+  /** Work type whose level each card shows — set while a work sort/filter
+   * is on, so the ordering carries its own evidence. */
+  workBadge?: string;
 }) {
   const [open, setOpen] = useState(true);
   if (pals.length === 0) return null;
@@ -254,7 +287,7 @@ function PalGroup({
       {expanded && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {pals.map((pal) => (
-            <PalCard key={pal.instanceId} pal={pal} onOpen={() => onOpen(pal)} />
+            <PalCard key={pal.instanceId} pal={pal} onOpen={() => onOpen(pal)} workBadge={workBadge} />
           ))}
         </div>
       )}
@@ -279,6 +312,7 @@ function PlayerSection({
   open,
   onToggle,
   onOpen,
+  workBadge,
 }: {
   player: PlayerPals;
   /** This player's filtered/sorted boxes, computed once by the page. */
@@ -288,6 +322,7 @@ function PlayerSection({
   open: boolean;
   onToggle: () => void;
   onOpen: (pal: Pal, location: string) => void;
+  workBadge?: string;
 }) {
   const color = playerColor(player.uid);
   const { party, palbox, base, storage, total } = parts;
@@ -323,14 +358,15 @@ function PlayerSection({
 
       {open && (
         <div className="space-y-5 border-t border-ink/10 p-5">
-          <PalGroup title="Party" pals={party} forceOpen={filtered} onOpen={(p) => onOpen(p, "Party")} />
-          <PalGroup title="Palbox" pals={palbox} forceOpen={filtered} onOpen={(p) => onOpen(p, "Palbox")} />
-          <PalGroup title="At base" pals={base} forceOpen={filtered} onOpen={(p) => onOpen(p, "At base")} />
+          <PalGroup title="Party" pals={party} forceOpen={filtered} onOpen={(p) => onOpen(p, "Party")} workBadge={workBadge} />
+          <PalGroup title="Palbox" pals={palbox} forceOpen={filtered} onOpen={(p) => onOpen(p, "Palbox")} workBadge={workBadge} />
+          <PalGroup title="At base" pals={base} forceOpen={filtered} onOpen={(p) => onOpen(p, "At base")} workBadge={workBadge} />
           <PalGroup
             title="Pal storage"
             pals={storage}
             forceOpen={filtered}
             onOpen={(p) => onOpen(p, "Pal storage")}
+            workBadge={workBadge}
           />
           {total === 0 && <p className="text-sm text-muted-foreground">No pals owned yet.</p>}
         </div>
@@ -356,6 +392,8 @@ export function ServerPlayers() {
   const [passives, setPassives] = useState<Set<string>>(new Set());
   const [minMetric, setMinMetric] = useState<Metric>("iv-total");
   const [minValue, setMinValue] = useState(0);
+  const [workType, setWorkType] = useState("");
+  const [workMin, setWorkMin] = useState(1);
   const [sortKey, setSortKey] = useState<SortKey>("level");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -402,10 +440,13 @@ export function ServerPlayers() {
   // Stable across unrelated re-renders, so the partition memo below only
   // recomputes when a filter/sort input or the roster actually changes.
   const controls: Controls = useMemo(
-    () => ({ query, passives, minMetric, minValue, sortKey, sortDir, effMap }),
-    [query, passives, minMetric, minValue, sortKey, sortDir, effMap],
+    () => ({ query, passives, minMetric, minValue, workType, workMin, sortKey, sortDir, effMap }),
+    [query, passives, minMetric, minValue, workType, workMin, sortKey, sortDir, effMap],
   );
   const active = controlsActive(controls);
+  // The work type in play, from either control — it puts a level badge on
+  // every card so a work sort/filter shows the number it ordered by.
+  const workBadge = workType || (sortKey.startsWith("work-") ? sortKey.slice(5) : "");
 
   // Every player's filtered/sorted boxes in one pass — the sections render
   // from this instead of re-partitioning per player per render.
@@ -434,6 +475,8 @@ export function ServerPlayers() {
     setQuery("");
     setPassives(new Set());
     setMinValue(0);
+    setWorkType("");
+    setWorkMin(1);
   };
 
   return (
@@ -497,6 +540,13 @@ export function ServerPlayers() {
                     <option value="eff-atk">Effective Attack</option>
                     <option value="eff-def">Effective Defense</option>
                   </optgroup>
+                  <optgroup label="Work suitability">
+                    {WORK_TYPES.map((w) => (
+                      <option key={w.id} value={`work-${w.id}`}>
+                        {w.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 </Select>
                 <button
                   onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
@@ -559,6 +609,31 @@ export function ServerPlayers() {
                 />
               </label>
 
+              <label className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-ink/40">Work</span>
+                <Select value={workType} onChange={(e) => setWorkType(e.target.value)}>
+                  <option value="">Any work</option>
+                  {WORK_TYPES.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.label}
+                    </option>
+                  ))}
+                </Select>
+                {workType && (
+                  <Input
+                    type="number"
+                    min={1}
+                    // Species tables already run to 8 post-Yakushima; 10 is
+                    // the game's enhanced ceiling, kept for headroom.
+                    max={10}
+                    value={workMin}
+                    aria-label="Minimum work level"
+                    onChange={(e) => setWorkMin(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-16 text-right"
+                  />
+                )}
+              </label>
+
               <div className="ml-auto flex items-center gap-2 text-xs">
                 {active && (
                   <button onClick={clearFilters} className="font-semibold text-brand-red hover:underline">
@@ -603,6 +678,7 @@ export function ServerPlayers() {
                   })
                 }
                 onOpen={openPal}
+                workBadge={workBadge}
               />
             ))
           ))}

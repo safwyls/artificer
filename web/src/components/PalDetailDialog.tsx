@@ -1,5 +1,7 @@
-import { Star } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Moon, Star } from "lucide-react";
 import type { Pal } from "../lib/api";
+import { WORK_TYPES, appetite, isNocturnal, workLevel } from "../lib/crew";
 import {
   elementColor,
   palBaseStats,
@@ -13,10 +15,11 @@ import {
   skillDescription,
   skillName,
 } from "../lib/paldex";
-import { partnerSkill, partnerTags } from "../lib/partner";
+import { partnerSkill, partnerTags, workProfile } from "../lib/partner";
 import { friendshipRank, palEffectiveStats, talentTone, STAT_COLORS } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { PassiveTierTile } from "./PassiveBadge";
+import { WorkIcon } from "./WorkIcon";
 import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 
@@ -63,11 +66,20 @@ export function PalDetailDialog({
   pal,
   location,
   onClose,
+  initialTab = "overview",
 }: {
   pal: Pal | null;
   location: string;
   onClose: () => void;
+  /** Which tab a fresh viewing lands on — the crew planner opens straight
+   * to Work, everywhere else starts at Overview. */
+  initialTab?: "overview" | "work";
 }) {
+  const [tab, setTab] = useState<"overview" | "work">(initialTab);
+  // A fresh pal starts on the caller's tab — the choice belongs to one
+  // viewing, not to the dialog instance.
+  useEffect(() => setTab(initialTab), [pal?.instanceId, initialTab]);
+
   if (!pal) return null;
 
   const species = palName(pal.characterId);
@@ -194,7 +206,26 @@ export function PalDetailDialog({
             </p>
           )}
 
-          {partner && (
+          <div role="tablist" aria-label="Pal details" className="flex w-fit gap-1 rounded-lg bg-ink/5 p-1">
+            {(["overview", "work"] as const).map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs font-bold transition-colors",
+                  tab === t ? "bg-brand-red text-paper" : "text-ink/60 hover:text-ink",
+                )}
+              >
+                {t === "overview" ? "Overview" : "Work"}
+              </button>
+            ))}
+          </div>
+
+          {tab === "work" && <WorkPanel pal={pal} />}
+
+          {tab === "overview" && partner && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">Partner skill</p>
               <div className="rounded-lg border border-ink/10 bg-white/60 px-3 py-2">
@@ -218,6 +249,8 @@ export function PalDetailDialog({
             </div>
           )}
 
+          {tab === "overview" && (
+            <>
           {eff && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">Effective stats</p>
@@ -295,6 +328,8 @@ export function PalDetailDialog({
               </div>
             </div>
           )}
+            </>
+          )}
 
           <p className="border-t border-ink/10 pt-3 font-mono text-[10px] text-ink/30">
             {pal.characterId} · {pal.instanceId}
@@ -302,5 +337,72 @@ export function PalDetailDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The Work tab: the species' full suitability sheet — all twelve types,
+ * the unsuited ones dimmed rather than dropped, because "can't water" is an
+ * answer too — plus the working traits: night shift, appetite, and the
+ * movement figures where they matter (ride speed only for a rideable pal,
+ * carry speed only for a transporter).
+ */
+function WorkPanel({ pal }: { pal: Pal }) {
+  const work = workProfile(pal.characterId);
+  if (!work) {
+    return <p className="py-2 text-sm text-muted-foreground">No work data vendored for this species yet.</p>;
+  }
+  const rideable = Boolean(partnerSkill(pal.characterId)?.m);
+  const transporter = workLevel(pal.characterId, "Transport") > 0;
+
+  return (
+    <div role="tabpanel" className="space-y-3">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        {WORK_TYPES.map(({ id, label }) => {
+          const lvl = workLevel(pal.characterId, id);
+          return (
+            <div
+              key={id}
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-2.5 py-2",
+                lvl > 0 ? "border-ink/10 bg-white/60" : "border-ink/5 bg-ink/[0.02] opacity-45",
+              )}
+            >
+              <WorkIcon type={id} className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink/70">{label}</span>
+              <span className="font-mono text-sm font-bold tabular-nums">
+                {lvl > 0 ? lvl : <span className="text-ink/30">—</span>}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {isNocturnal(pal.characterId) && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-pal-blue/10 px-2.5 py-0.5 text-xs font-semibold text-pal-blue">
+            <Moon className="h-3 w-3" /> works through the night
+          </span>
+        )}
+        <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-semibold text-ink/55">
+          eats {appetite(pal.characterId)}
+        </span>
+        {rideable && (work.r ?? 0) > 0 && (
+          <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-semibold text-ink/55">
+            ride sprint {work.r}
+          </span>
+        )}
+        {transporter && (work.t ?? 0) > 0 && (
+          <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-semibold text-ink/55">
+            carry speed {work.t}
+          </span>
+        )}
+      </div>
+
+      <p className="text-[11px] text-ink/35">
+        Species levels from the game's tables — work books recorded in the save aren't read yet, so a hand-fed pal can
+        run a level higher than shown.
+      </p>
+    </div>
   );
 }

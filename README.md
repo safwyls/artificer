@@ -48,10 +48,12 @@ One Go binary. Your hardware. Your data.
   handed a loot map they didn't ask for.
 - **Plan** — breeding calculators that know what's actually in your boxes:
   child species, reverse lookup, shortest routes, passive-inheritance odds.
-  And a team builder: pick a tower boss, raid or field boss and it ranks
-  every pal in the save against the fight — real stats, element edges both
-  ways, partner-skill synergies — then fills your party and explains every
-  pick.
+  A team builder: pick a tower boss, raid or field boss and it ranks every
+  pal in the save against the fight — real stats, element edges both ways,
+  partner-skill synergies — then fills your party and explains every pick.
+  And a base crew planner: the game's work-suitability sheet per base, who
+  works nights, who's sick or idle, and who in the guild's boxes would do a
+  job better.
 
 The whole console is responsive and installable as a PWA, so it works as well
 from a phone as from a desk.

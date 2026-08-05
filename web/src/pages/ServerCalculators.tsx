@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Ban, Info, Plus, Sparkles, X } from "lucide-react";
-import { api, ApiError } from "../lib/api";
+import { ArrowRight, Ban, Info, Moon, Plus, Sparkles, X } from "lucide-react";
+import { api, ApiError, type Guild } from "../lib/api";
 import { palEntry, palIconUrl, palName, passiveName, passiveTier, elementColor, elementCounters } from "../lib/paldex";
 import { partnerSkill } from "../lib/partner";
+import { appetite, crewReport, dedupeSpecies, isNocturnal, topWork, type CrewPal } from "../lib/crew";
+import { nearestLandmark } from "../lib/pois";
 import {
   TEAM_ELEMENTS,
   TEAM_TARGETS,
@@ -38,11 +40,12 @@ import { TalentTriplet } from "../components/TalentTriplet";
 import { PalDetailDialog } from "../components/PalDetailDialog";
 import { ElementIcon } from "../components/ElementIcon";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { WorkIcon } from "../components/WorkIcon";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
 import { NumberField as NumberInput } from "../components/ui/number-field";
 import { Select } from "../components/ui/select";
 
-type Mode = "breeding" | "path" | "stats" | "team";
+type Mode = "breeding" | "path" | "stats" | "team" | "crew";
 /** Which slot a pending pick lands in; the whole page shares one picker. */
 type PickTarget = "a" | "b" | "stats" | "reverse" | null;
 
@@ -135,7 +138,7 @@ export function ServerCalculators() {
       <header className="sticky top-0 z-10 hidden items-center justify-between border-b border-ink/10 bg-paper px-8 py-6 lg:flex">
         <div>
           <h1 className="font-display text-2xl font-extrabold">Calculators</h1>
-          <p className="mt-0.5 text-sm text-ink/50">{serverQuery.data.name} · breeding, paths, stats & teams</p>
+          <p className="mt-0.5 text-sm text-ink/50">{serverQuery.data.name} · breeding, paths, stats, teams & crews</p>
         </div>
         <div className="flex gap-1 rounded-xl bg-ink/5 p-1">
           <button className={segClass(mode === "breeding")} onClick={() => setMode("breeding")}>
@@ -149,6 +152,9 @@ export function ServerCalculators() {
           </button>
           <button className={segClass(mode === "team")} onClick={() => setMode("team")}>
             Team
+          </button>
+          <button className={segClass(mode === "crew")} onClick={() => setMode("crew")}>
+            Crew
           </button>
         </div>
       </header>
@@ -168,6 +174,9 @@ export function ServerCalculators() {
           <button className={cn(segClass(mode === "team"), "flex-1")} onClick={() => setMode("team")}>
             Team
           </button>
+          <button className={cn(segClass(mode === "crew"), "flex-1")} onClick={() => setMode("crew")}>
+            Crew
+          </button>
         </div>
 
         {mode === "breeding" ? (
@@ -176,8 +185,10 @@ export function ServerCalculators() {
           <PathFinder savePals={savePals} saveStatus={saveStatus} />
         ) : mode === "stats" ? (
           <StatCalculator savePals={savePals} saveStatus={saveStatus} />
-        ) : (
+        ) : mode === "team" ? (
           <TeamBuilder serverId={id} savePals={savePals} saveStatus={saveStatus} />
+        ) : (
+          <CrewPlanner savePals={savePals} guilds={palsQuery.data?.guilds} saveStatus={saveStatus} />
         )}
       </div>
     </div>
@@ -1979,5 +1990,277 @@ function TeamChip({ label, element, pair }: { label: string; element?: string; p
     >
       {label}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Crew planner
+// ---------------------------------------------------------------------------
+
+interface BaseOption {
+  id: string;
+  label: string;
+  /** Member uids whose boxes may staff this base; null for an orphan camp
+   * the guild data doesn't know, which draws on the whole save. */
+  memberUids: Set<string> | null;
+  workers: number;
+}
+
+/**
+ * Base crew planner: the game's 12-row suitability sheet for one base at a
+ * time — who covers each job and how well, who works nights, who's sick or
+ * suited to nothing, and who in the guild's boxes would do a job better.
+ * The math lives in lib/crew.ts.
+ */
+function CrewPlanner({ savePals, guilds, saveStatus }: { savePals?: SavePal[]; guilds?: Guild[]; saveStatus?: string }) {
+  const pals = useMemo(() => savePals ?? [], [savePals]);
+  // Pal taps here are about work, so the dialog opens on its Work tab; the
+  // partner-skill buff chips are the exception — what a skill does lives on
+  // Overview, and that's the question a tap on one is asking.
+  const [detail, setDetail] = useState<{ pal: SavePal; tab: "overview" | "work" } | null>(null);
+
+  const bases = useMemo<BaseOption[]>(() => {
+    const out: BaseOption[] = [];
+    const known = new Set<string>();
+    for (const g of guilds ?? []) {
+      const uids = new Set(g.members.map((m) => m.uid));
+      g.bases.forEach((b, i) => {
+        known.add(b.id);
+        const mark = nearestLandmark(b.x, b.y);
+        out.push({
+          id: b.id,
+          label:
+            `${g.name || "Unnamed guild"} · Base ${i + 1}` + (mark ? ` · near ${mark.name}` : ""),
+          memberUids: uids,
+          workers: pals.filter((p) => p.pal.baseId === b.id).length,
+        });
+      });
+    }
+    // Camps the guild data doesn't list still deserve a board — a save read
+    // mid-write, or a future base kind. Named honestly rather than dropped.
+    const orphans = new Set(pals.map((p) => p.pal.baseId).filter((id) => id && !known.has(id)));
+    for (const id of orphans) {
+      out.push({ id, label: "Unlisted base", memberUids: null, workers: pals.filter((p) => p.pal.baseId === id).length });
+    }
+    return out;
+  }, [guilds, pals]);
+
+  const [baseId, setBaseId] = useState("");
+  // First base that has a crew, else the first base — and reselect when the
+  // save read replaces the base list.
+  useEffect(() => {
+    if (bases.some((b) => b.id === baseId)) return;
+    setBaseId((bases.find((b) => b.workers > 0) ?? bases[0])?.id ?? "");
+  }, [bases, baseId]);
+
+  const base = bases.find((b) => b.id === baseId);
+  const crew = useMemo(() => pals.filter((p) => p.pal.baseId === baseId), [pals, baseId]);
+  const boxes = useMemo(
+    () =>
+      pals.filter(
+        (p) => p.pal.baseId === "" && (base?.memberUids === null || base?.memberUids?.has(p.playerUid)),
+      ),
+    [pals, base],
+  );
+  const report = useMemo(() => crewReport<SavePal & CrewPal>(crew, boxes), [crew, boxes]);
+
+  if (saveStatus) {
+    return (
+      <section className="rounded-2xl border border-ink/10 bg-white/70 p-5">
+        <h2 className="font-display text-base font-bold">Work board</h2>
+        <p className="py-4 text-sm text-muted-foreground">{saveStatus}</p>
+      </section>
+    );
+  }
+  if (bases.length === 0) {
+    return (
+      <section className="rounded-2xl border border-ink/10 bg-white/70 p-5">
+        <h2 className="font-display text-base font-bold">Work board</h2>
+        <p className="py-4 text-sm text-muted-foreground">
+          No bases in the save yet — build a camp and the board fills in.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-ink/10 bg-white/70 p-5 lg:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base font-bold">Work board</h2>
+            <p className="text-xs text-ink/40">Who covers each job at this base, and who in the boxes would do it better.</p>
+          </div>
+          <Select value={baseId} onChange={(e) => setBaseId(e.target.value)} aria-label="Pick a base">
+            {bases.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.label} · {b.workers} {b.workers === 1 ? "pal" : "pals"}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-semibold text-ink/55">
+            {crew.length} on the crew
+          </span>
+          <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-semibold text-ink/55">
+            appetite {report.appetite}
+          </span>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+              report.nightHands > 0 ? "bg-pal-blue/10 text-pal-blue" : "bg-ink/5 text-ink/55",
+            )}
+          >
+            <Moon className="h-3 w-3" />
+            {report.nightHands > 0 ? `${report.nightHands} night ${report.nightHands === 1 ? "worker" : "workers"}` : "nobody works nights"}
+          </span>
+          {report.ranchers.length > 0 && (
+            <span className="rounded-full bg-ink/5 px-2.5 py-0.5 text-xs font-semibold text-ink/55">
+              {report.ranchers.length} at the ranch
+            </span>
+          )}
+          {report.buffs.map((b) => (
+            <button
+              key={b.pal.key}
+              title={b.description}
+              onClick={() => setDetail({ pal: b.pal, tab: "overview" })}
+              className="inline-flex items-center gap-1 rounded-full bg-brand-amber/15 px-2.5 py-0.5 text-xs font-semibold text-brand-amber transition hover:bg-brand-amber/25"
+            >
+              <Sparkles className="h-3 w-3" /> {palName(b.pal.characterId)}: {b.skill}
+            </button>
+          ))}
+          {report.sick.length > 0 && (
+            <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-semibold text-destructive">
+              {report.sick.length} sick — not working
+            </span>
+          )}
+        </div>
+
+        <div className="mt-4">
+          {report.rows.map((row) => {
+            const species = dedupeSpecies(row.hands);
+            return (
+              <div
+                key={row.type}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-ink/5 py-2 last:border-0"
+              >
+                <span className="flex w-36 shrink-0 items-center gap-2 text-sm font-semibold text-ink/70">
+                  <WorkIcon type={row.type} className="h-4 w-4 shrink-0" />
+                  {row.label}
+                </span>
+                <span className="w-12 shrink-0 font-mono text-sm font-semibold tabular-nums">
+                  {row.best > 0 ? `Lv ${row.best}` : <span className="text-ink/25">—</span>}
+                </span>
+                <span className="w-4 shrink-0">
+                  {row.night && <Moon className="h-3.5 w-3.5 text-pal-blue" aria-label="Covered through the night" />}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                  {species.slice(0, 8).map(({ pal, count }) => (
+                    <MiniPal key={pal.key} pal={pal} count={count} onClick={() => setDetail({ pal, tab: "work" })} />
+                  ))}
+                  {species.length > 8 && <span className="text-[11px] text-ink/40">+{species.length - 8} more</span>}
+                </span>
+                {row.upgrade && (
+                  <button
+                    onClick={() => setDetail({ pal: row.upgrade!.pal, tab: "work" })}
+                    className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-brand-amber transition hover:bg-brand-amber/10"
+                    title={`${row.upgrade.pal.playerName}'s ${row.upgrade.pal.where.toLowerCase()}`}
+                  >
+                    ↑ Lv {row.upgrade.level} {row.upgrade.pal.nickname || palName(row.upgrade.pal.characterId)} —{" "}
+                    {row.upgrade.pal.playerName}'s
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[11px] text-ink/35">
+          Levels are the species' own, from the game's tables. Work books recorded in the save aren't read yet, so a
+          hand-fed pal can run a level higher than shown.
+        </p>
+      </section>
+
+      <section className="rounded-2xl border border-ink/10 bg-white/70 p-5">
+        <h2 className="font-display text-base font-bold">Crew</h2>
+        <p className="text-xs text-ink/40">Everyone assigned to this base, with what they're suited to.</p>
+        {crew.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">Nobody is assigned here yet.</p>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-1.5 md:grid-cols-2">
+            {crew.map((p) => {
+              const works = topWork(p.characterId);
+              return (
+                <button
+                  key={p.key}
+                  onClick={() => setDetail({ pal: p, tab: "work" })}
+                  className="flex items-center gap-3 rounded-xl border border-ink/10 bg-white/60 p-2.5 text-left transition hover:border-brand-red/40"
+                >
+                  <PalPortrait characterId={p.characterId} size="sm" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-foreground">
+                      {p.nickname || palName(p.characterId)}
+                      <span className="ml-1.5 font-normal text-ink/40">Lv {p.level}</span>
+                      {isNocturnal(p.characterId) && <Moon className="ml-1.5 inline h-3 w-3 text-pal-blue" aria-label="Nocturnal" />}
+                    </span>
+                    <span className="block truncate text-[11px] text-ink/45">
+                      {p.playerName} · eats {appetite(p.characterId)}
+                    </span>
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      {works.map((w) => (
+                        <span key={w.type} className="rounded bg-ink/5 px-1.5 py-0.5 text-[10px] font-semibold text-ink/55">
+                          {w.label} {w.level}
+                        </span>
+                      ))}
+                      {works.length === 0 && (
+                        <span className="rounded bg-ink/5 px-1.5 py-0.5 text-[10px] font-semibold text-ink/40">
+                          suited to no work
+                        </span>
+                      )}
+                      {p.pal.sick && (
+                        <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                          sick — not working
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <PalDetailDialog
+        pal={detail?.pal.pal ?? null}
+        location={detail?.pal.where ?? ""}
+        initialTab={detail?.tab}
+        onClose={() => setDetail(null)}
+      />
+    </div>
+  );
+}
+
+/** A hand on the board: small enough for twelve rows, labeled by tooltip,
+ * with a ×n badge when a base runs several of the species. */
+function MiniPal({ pal, count, onClick }: { pal: SavePal; count: number; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={`${pal.nickname || palName(pal.characterId)}${count > 1 ? ` ×${count}` : ""}`}
+      className="relative shrink-0"
+    >
+      <img
+        src={palIconUrl(pal.characterId)}
+        alt={palName(pal.characterId)}
+        className="h-8 w-8 rounded-lg border border-ink/10 bg-ink/5 object-contain p-0.5 transition-transform hover:scale-110"
+      />
+      {count > 1 && (
+        <span className="absolute -bottom-1 -right-1 rounded bg-ink px-0.5 font-mono text-[9px] font-bold leading-tight text-paper">
+          ×{count}
+        </span>
+      )}
+    </button>
   );
 }
