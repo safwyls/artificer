@@ -1,3 +1,4 @@
+import { Star } from "lucide-react";
 import type { Pal } from "../lib/api";
 import {
   elementColor,
@@ -12,6 +13,7 @@ import {
   skillDescription,
   skillName,
 } from "../lib/paldex";
+import { partnerSkill, partnerTags } from "../lib/partner";
 import { friendshipRank, palEffectiveStats, talentTone, STAT_COLORS } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { PassiveTierTile } from "./PassiveBadge";
@@ -70,9 +72,12 @@ export function PalDetailDialog({
 
   const species = palName(pal.characterId);
   const entry = palEntry(pal.characterId);
+  const partner = partnerSkill(pal.characterId);
   const base = palBaseStats(pal.characterId);
   const tier = rarityTier(entry?.rarity ?? 0);
   const souls = Object.entries(pal.souls ?? {});
+  // rank is 1-based (1 = never condensed), so stars run 0–4.
+  const stars = Math.max(0, Math.min(4, pal.rank - 1));
   const eff = palEffectiveStats(pal);
   const ivs = [
     ["HP", pal.talentHp],
@@ -163,11 +168,23 @@ export function PalDetailDialog({
                 Lucky
               </Badge>
             )}
-            {pal.rank > 1 && (
-              <Badge variant="outline" className="border-pal-blue/40 bg-pal-blue/10 text-pal-blue">
-                Condenser +{pal.rank - 1}
-              </Badge>
-            )}
+            {/* Condenser rank as the game draws it: four stars, filled as
+                condensed — and the empty row is information too, which is
+                why it isn't hidden the way the old +n badge was. */}
+            <span
+              className="inline-flex items-center gap-0.5 rounded-full border border-ink/10 bg-ink/[0.03] px-2 py-1"
+              role="img"
+              aria-label={`Condenser: ${stars} of 4 stars`}
+              title={`Condenser: ${stars} of 4 stars`}
+            >
+              {Array.from({ length: 4 }, (_, i) => (
+                <Star
+                  key={i}
+                  aria-hidden
+                  className={cn("h-3.5 w-3.5", i < stars ? "fill-brand-amber text-brand-amber" : "text-ink/20")}
+                />
+              ))}
+            </span>
           </div>
 
           {pal.sick && (
@@ -175,6 +192,30 @@ export function PalDetailDialog({
               Ailing: {pal.sick.replace(/([a-z])([A-Z])/g, "$1 $2")} — a sick pal stops working at a base until
               treated.
             </p>
+          )}
+
+          {partner && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">Partner skill</p>
+              <div className="rounded-lg border border-ink/10 bg-white/60 px-3 py-2">
+                <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-ink">
+                  {partner.n}
+                  {partnerTags(partner).map((t) => (
+                    <span
+                      key={t.label}
+                      className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                      style={{
+                        backgroundColor: `${t.bond ? "#F2A93B" : t.element ? elementColor(t.element) : "#5F5850"}22`,
+                        color: t.bond ? "#F2A93B" : t.element ? elementColor(t.element) : "#5F5850",
+                      }}
+                    >
+                      {t.label}
+                    </span>
+                  ))}
+                </p>
+                {partner.d && <p className="mt-0.5 text-xs text-ink/55">{partner.d}</p>}
+              </div>
+            </div>
           )}
 
           {eff && (

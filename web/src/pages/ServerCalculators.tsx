@@ -1,9 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Sparkles, X } from "lucide-react";
+import { ArrowRight, Ban, Info, Plus, Sparkles, X } from "lucide-react";
 import { api, ApiError } from "../lib/api";
-import { palEntry, palName, passiveName, passiveTier, elementColor } from "../lib/paldex";
+import { palEntry, palIconUrl, palName, passiveName, passiveTier, elementColor, elementCounters } from "../lib/paldex";
+import { partnerSkill } from "../lib/partner";
+import {
+  TEAM_ELEMENTS,
+  TEAM_TARGETS,
+  TEAM_WEIGHTS,
+  analyzeTeam,
+  bestPower,
+  fillTeam,
+  rankCandidates,
+  scoreCandidate,
+  suggestBuilds,
+  teamTargetById,
+  type BuildOption,
+  type TeamTarget,
+} from "../lib/team";
 import { breedChild, parentPairsFor, isBreedable } from "../lib/breeding";
 import { eggsForConfidence, expectedEggs, passiveOdds } from "../lib/inheritance";
 import {
@@ -21,11 +36,13 @@ import { PalPortrait } from "../components/PalPortrait";
 import { PassiveBadge, PassiveTierTile } from "../components/PassiveBadge";
 import { TalentTriplet } from "../components/TalentTriplet";
 import { PalDetailDialog } from "../components/PalDetailDialog";
+import { ElementIcon } from "../components/ElementIcon";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
 import { NumberField as NumberInput } from "../components/ui/number-field";
 import { Select } from "../components/ui/select";
 
-type Mode = "breeding" | "path" | "stats";
+type Mode = "breeding" | "path" | "stats" | "team";
 /** Which slot a pending pick lands in; the whole page shares one picker. */
 type PickTarget = "a" | "b" | "stats" | "reverse" | null;
 
@@ -118,7 +135,7 @@ export function ServerCalculators() {
       <header className="sticky top-0 z-10 hidden items-center justify-between border-b border-ink/10 bg-paper px-8 py-6 lg:flex">
         <div>
           <h1 className="font-display text-2xl font-extrabold">Calculators</h1>
-          <p className="mt-0.5 text-sm text-ink/50">{serverQuery.data.name} · breeding, paths & pal stats</p>
+          <p className="mt-0.5 text-sm text-ink/50">{serverQuery.data.name} · breeding, paths, stats & teams</p>
         </div>
         <div className="flex gap-1 rounded-xl bg-ink/5 p-1">
           <button className={segClass(mode === "breeding")} onClick={() => setMode("breeding")}>
@@ -129,6 +146,9 @@ export function ServerCalculators() {
           </button>
           <button className={segClass(mode === "stats")} onClick={() => setMode("stats")}>
             Stats
+          </button>
+          <button className={segClass(mode === "team")} onClick={() => setMode("team")}>
+            Team
           </button>
         </div>
       </header>
@@ -145,14 +165,19 @@ export function ServerCalculators() {
           <button className={cn(segClass(mode === "stats"), "flex-1")} onClick={() => setMode("stats")}>
             Stats
           </button>
+          <button className={cn(segClass(mode === "team"), "flex-1")} onClick={() => setMode("team")}>
+            Team
+          </button>
         </div>
 
         {mode === "breeding" ? (
           <BreedingCalculator savePals={savePals} saveStatus={saveStatus} />
         ) : mode === "path" ? (
           <PathFinder savePals={savePals} saveStatus={saveStatus} />
-        ) : (
+        ) : mode === "stats" ? (
           <StatCalculator savePals={savePals} saveStatus={saveStatus} />
+        ) : (
+          <TeamBuilder serverId={id} savePals={savePals} saveStatus={saveStatus} />
         )}
       </div>
     </div>
@@ -1280,5 +1305,679 @@ function NumberField({
       <label className="text-xs font-medium text-ink/50">{label}</label>
       <NumberInput value={value} onChange={onChange} min={min} max={max} className="text-right" />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Team builder
+// ---------------------------------------------------------------------------
+
+const TARGET_GROUPS: { label: string; group: TeamTarget["group"] }[] = [
+  { label: "Towers & story", group: "story" },
+  { label: "Raids", group: "raid" },
+  { label: "Field bosses", group: "field" },
+  { label: "By element", group: "element" },
+];
+
+/**
+ * Party planner: pick a fight (or none), and the bench ranks every pal in
+ * the save against it — real stats, element edges both ways, and what each
+ * partner skill contributes. Rankings are marginal against the party as it
+ * stands, so the same pal reads differently once its edge is covered or the
+ * team already has a mount. All the reasoning lives in lib/team.ts; this
+ * renders its reasons as chips and never re-derives them.
+ */
+function TeamBuilder({ serverId, savePals, saveStatus }: { serverId: number; savePals?: SavePal[]; saveStatus?: string }) {
+  const [targetId, setTargetId] = useState("");
+  const [team, setTeam] = useState<SavePal[]>([]);
+  const [owner, setOwner] = useState("all");
+  const [shown, setShown] = useState(48);
+  const [detail, setDetail] = useState<SavePal | null>(null);
+  const [howOpen, setHowOpen] = useState(false);
+  const benchRef = useRef<HTMLElement | null>(null);
+
+  // The sit-out list survives reloads: a pal someone is saving for breeding
+  // stays benched next visit too. Instance keys, per server.
+  const excludedKey = `palcon.team-excluded.${serverId}`;
+  const [excluded, setExcluded] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(excludedKey) ?? "[]") as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const setExcludedPersist = (next: Set<string>) => {
+    setExcluded(next);
+    localStorage.setItem(excludedKey, JSON.stringify([...next]));
+  };
+  const toggleExcluded = (key: string) => {
+    const next = new Set(excluded);
+    if (!next.delete(key)) next.add(key);
+    setExcludedPersist(next);
+  };
+
+  const target = targetId ? (teamTargetById(targetId) ?? null) : null;
+  const pool = useMemo(() => savePals ?? [], [savePals]);
+  // What suggestions may draw from: the save minus the sit-outs. A pal the
+  // player placed by hand stays on the team even if excluded afterwards.
+  const available = useMemo(() => pool.filter((p) => !excluded.has(p.key)), [pool, excluded]);
+  // The owner filter scopes every suggestion source — bench, fill and the
+  // build proposals draw from the same pals the list shows, so "fill" never
+  // hands a one-player party someone else's pal.
+  const scoped = useMemo(
+    () => (owner === "all" ? available : available.filter((p) => p.playerUid === owner)),
+    [available, owner],
+  );
+  const filtered = useMemo(() => rankCandidates(scoped, { target, team }), [scoped, target, team]);
+  const analysis = useMemo(() => analyzeTeam(team, target), [team, target]);
+  const excludedPals = useMemo(() => pool.filter((p) => excluded.has(p.key)), [pool, excluded]);
+  // One yardstick for every strength figure: the save's strongest pal,
+  // exclusions notwithstanding — a sit-out doesn't make everyone stronger.
+  const yardstick = useMemo(() => bestPower(pool), [pool]);
+
+  // Full-party proposals. A part-built team is completed three ways; a full
+  // one gets fresh alternatives to weigh against it.
+  const builds = useMemo(
+    () => (scoped.length > 0 ? suggestBuilds(scoped, team.length < 5 ? team : [], target) : []),
+    [scoped, team, target],
+  );
+  const teamSignature = team
+    .map((t) => t.key)
+    .sort()
+    .join("|");
+
+  // A new fight or owner restarts the ranking read from the top.
+  useEffect(() => setShown(48), [targetId, owner]);
+
+  const players = useMemo(() => {
+    const byUid = new Map<string, string>();
+    for (const p of pool) byUid.set(p.playerUid, p.playerName);
+    return [...byUid.entries()];
+  }, [pool]);
+  const ownerName = owner === "all" ? null : (players.find(([uid]) => uid === owner)?.[1] ?? null);
+
+  const add = (p: SavePal) => {
+    setTeam((t) => (t.length >= 5 || t.some((x) => x.key === p.key) ? t : [...t, p]));
+  };
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-ink/10 bg-white/70 p-5 lg:p-8">
+        <div className="grid gap-6 lg:grid-cols-[minmax(15rem,19rem)_auto_1fr]">
+          <TargetPanel targetId={targetId} onChange={setTargetId} target={target} />
+          <div className="hidden select-none items-center font-display text-2xl font-extrabold text-ink/20 lg:flex">
+            vs
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Party</p>
+            <div className="mt-2 flex gap-2">
+              {Array.from({ length: 5 }, (_, i) => {
+                const pick = team[i];
+                return pick ? (
+                  <PartySlot
+                    key={pick.key}
+                    pal={pick}
+                    onShow={() => setDetail(pick)}
+                    onRemove={() => setTeam((t) => t.filter((x) => x.key !== pick.key))}
+                  />
+                ) : (
+                  <button
+                    key={`empty-${i}`}
+                    aria-label="Add a pal from the bench"
+                    onClick={() => benchRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-ink/15 text-lg text-ink/30 transition-colors hover:border-brand-red/40 hover:text-brand-red"
+                  >
+                    +
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setTeam((t) => fillTeam(scoped, t, target))}
+                disabled={scoped.length === 0 || team.length >= 5}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-red px-3 py-1.5 text-sm font-bold text-paper transition hover:bg-brand-red/90 disabled:opacity-40"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Fill empty slots
+              </button>
+              {team.length > 0 && (
+                <button
+                  onClick={() => setTeam([])}
+                  className="rounded-lg border border-ink/15 px-3 py-1.5 text-sm font-semibold text-ink/60 transition hover:bg-ink/5"
+                >
+                  Clear
+                </button>
+              )}
+              {ownerName && <span className="text-[11px] text-ink/40">from {ownerName}'s pals</span>}
+            </div>
+          </div>
+        </div>
+
+        {team.length > 0 && (
+          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-ink/10 pt-4">
+            <div className="flex items-center gap-2" title="Elements this party's attacks answer super-effectively">
+              <span className="text-xs font-bold uppercase tracking-wide text-ink/45">Hits hard</span>
+              <div className="flex gap-1">
+                {TEAM_ELEMENTS.map((el) => (
+                  <span key={el} title={el} className={analysis.coverage.has(el) ? "" : "opacity-20 grayscale"}>
+                    <ElementIcon element={el} className="h-4 w-4" />
+                  </span>
+                ))}
+              </div>
+            </div>
+            {analysis.synergies.map((s) => (
+              <span
+                key={s.label}
+                className="inline-flex items-center gap-1 rounded-full bg-brand-amber/15 px-2.5 py-0.5 text-xs font-semibold text-brand-amber"
+              >
+                <Sparkles className="h-3 w-3" /> {s.label}
+              </span>
+            ))}
+            {analysis.gaps.map((g) => (
+              <span
+                key={g.label}
+                className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-semibold text-destructive"
+              >
+                {g.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {team.length > 0 && (
+          <div className="mt-4 border-t border-ink/10 pt-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Why these picks</p>
+            <div className="mt-2 space-y-1.5">
+              {team.map((p) => {
+                const scored = scoreCandidate(p, { target, team }, yardstick);
+                return (
+                  <div key={p.key} className="flex items-center gap-2.5 rounded-xl border border-ink/10 bg-white/60 p-2">
+                    <PalPortrait characterId={p.characterId} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">
+                        {p.nickname || palName(p.characterId)}
+                        <span className="ml-1.5 font-normal text-ink/40">Lv {p.level}</span>
+                      </p>
+                      <div className="mt-0.5 flex flex-wrap gap-1">
+                        {scored.reasons.map((r) => (
+                          <TeamChip key={r.label} label={r.label} element={r.element} pair={r.kind === "pair"} />
+                        ))}
+                        {scored.warnings.map((w) => (
+                          <span
+                            key={w.label}
+                            className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold text-destructive"
+                          >
+                            {w.label}
+                          </span>
+                        ))}
+                        {scored.reasons.length === 0 && scored.warnings.length === 0 && (
+                          <span className="text-[11px] text-ink/40">no matchup factors — a neutral pick</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="font-mono text-sm font-semibold tabular-nums text-ink/70">
+                      {Math.round(scored.score)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {builds.length > 0 && !saveStatus && (
+        <section className="rounded-2xl border border-ink/10 bg-white/70 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-base font-bold">Suggested parties</h2>
+              <p className="text-xs text-ink/40">
+                {team.length > 0 && team.length < 5
+                  ? "Your picks stay — three ways to finish the party."
+                  : "Three leans on the same save. Using one replaces your current picks."}
+                {ownerName ? ` Drawing from ${ownerName}'s pals only.` : ""}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+            {builds.map((b) => (
+              <BuildCard key={b.id} build={b} current={b.team.map((t) => t.key).sort().join("|") === teamSignature} onUse={() => setTeam(b.team)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section ref={benchRef} className="scroll-mt-4 rounded-2xl border border-ink/10 bg-white/70 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base font-bold">Bench</h2>
+            <p className="text-xs text-ink/40">
+              {ownerName ? `${ownerName}'s pals` : "Every pal in the save"}, best first{" "}
+              {target ? `for the ${target.label} fight` : "for a balanced party"}.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setHowOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink/15 px-3 py-1.5 text-sm font-semibold text-ink/60 transition hover:bg-ink/5"
+            >
+              <Info className="h-3.5 w-3.5" /> How ranking works
+            </button>
+            {players.length > 1 && (
+              <Select value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Filter by owner">
+                <option value="all">All players</option>
+                {players.map(([uid, name]) => (
+                  <option key={uid} value={uid}>
+                    {name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
+        </div>
+
+        {saveStatus ? (
+          <p className="py-6 text-sm text-muted-foreground">{saveStatus}</p>
+        ) : (
+          <>
+            <div className="mt-4 grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-3">
+              {filtered.slice(0, shown).map((b) => (
+                <BenchCard
+                  key={b.pal.key}
+                  scored={b}
+                  full={team.length >= 5}
+                  onAdd={() => add(b.pal)}
+                  onDetail={() => setDetail(b.pal)}
+                  onExclude={() => toggleExcluded(b.pal.key)}
+                />
+              ))}
+            </div>
+            {filtered.length > shown && (
+              <button
+                onClick={() => setShown((n) => n + 48)}
+                className="mt-3 w-full rounded-lg border border-ink/10 py-2 text-sm font-semibold text-ink/50 transition hover:bg-ink/5"
+              >
+                Show more · {filtered.length - shown} remaining
+              </button>
+            )}
+            {excludedPals.length > 0 && (
+              <div className="mt-4 border-t border-ink/10 pt-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">
+                  Sitting out · {excludedPals.length}
+                </p>
+                <p className="mt-0.5 text-[11px] text-ink/40">
+                  Never suggested, and hidden from the ranking. Kept between visits.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {excludedPals.map((p) => (
+                    <button
+                      key={p.key}
+                      onClick={() => toggleExcluded(p.key)}
+                      title="Put back on the bench"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 py-1 pl-1.5 pr-2.5 text-xs text-ink/60 transition hover:border-ink/30 hover:text-ink"
+                    >
+                      <img src={palIconUrl(p.characterId)} alt="" className="h-5 w-5 object-contain" />
+                      {p.nickname || palName(p.characterId)}
+                      <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="mt-3 text-[11px] text-ink/35">
+              Rankings blend each pal's stats from the save with the element chart and what its partner skill does. Buff
+              sizes scale with partner-skill rank, which the save doesn't record — effects count by what they do, not by
+              how much.
+            </p>
+          </>
+        )}
+      </section>
+
+      <PalDetailDialog pal={detail?.pal ?? null} location={detail?.where ?? ""} onClose={() => setDetail(null)} />
+      <HowRankingDialog open={howOpen} onClose={() => setHowOpen(false)} />
+    </div>
+  );
+}
+
+function TargetPanel({
+  targetId,
+  onChange,
+  target,
+}: {
+  targetId: string;
+  onChange: (id: string) => void;
+  target: TeamTarget | null;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Target</p>
+      <Select
+        value={targetId}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="Pick a fight to plan for"
+        className="mt-2 w-full"
+      >
+        <option value="">Anything — balanced party</option>
+        {TARGET_GROUPS.map(({ label, group }) => (
+          <optgroup key={group} label={label}>
+            {TEAM_TARGETS.filter((t) => t.group === group).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+                {t.level ? ` · Lv ${t.level}` : ""}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </Select>
+
+      {target ? (
+        <div className="mt-4 flex items-start gap-3">
+          {target.characterId && <PalPortrait characterId={target.characterId} size="lg" />}
+          <div className="min-w-0">
+            <p className="font-display text-lg font-extrabold leading-tight">{target.label}</p>
+            {target.where && <p className="text-xs text-ink/50">{target.where}</p>}
+            {target.level && (
+              <p className="font-mono text-xs tabular-nums text-ink/50">
+                Lv {target.level}
+                {target.levelHard ? ` · hard ${target.levelHard}` : ""}
+              </p>
+            )}
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {target.elements.map((el) => (
+                <TeamChip key={el} label={el} element={el} />
+              ))}
+            </div>
+            {target.elements.length > 0 ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1">
+                <span className="text-[11px] text-ink/45">weak to</span>
+                {elementCounters(target.elements).map((el) => (
+                  <TeamChip key={el} label={el} element={el} />
+                ))}
+              </div>
+            ) : (
+              // Astralym: no elements, so no counters — say so rather than
+              // showing an empty row that reads like missing data.
+              <p className="mt-2 text-[11px] text-ink/45">No element — nothing counters it.</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-muted-foreground">
+          Pick a fight to plan against, or leave it open for a party that covers the chart.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PartySlot({ pal, onShow, onRemove }: { pal: SavePal; onShow: () => void; onRemove: () => void }) {
+  const el = palEntry(pal.characterId)?.elements?.[0];
+  return (
+    <div className="relative shrink-0 motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:duration-200">
+      <button
+        onClick={onShow}
+        title={pal.nickname || palName(pal.characterId)}
+        aria-label="Show pal details"
+        className="block rounded-xl transition-transform hover:scale-105"
+        // The slot ring names the pal's leading element, same hue the bench
+        // chips use — the rail reads as the party bar, not five identical
+        // frames. The radius matches the md portrait's so the ring hugs it.
+        style={el ? { boxShadow: `0 0 0 2px ${elementColor(el)}` } : undefined}
+      >
+        <PalPortrait characterId={pal.characterId} size="md" />
+      </button>
+      <button
+        onClick={onRemove}
+        aria-label={`Remove ${pal.nickname || palName(pal.characterId)}`}
+        className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-ink text-paper transition hover:bg-brand-red"
+      >
+        <X className="h-2.5 w-2.5" />
+      </button>
+    </div>
+  );
+}
+
+function BenchCard({
+  scored,
+  full,
+  onAdd,
+  onDetail,
+  onExclude,
+}: {
+  scored: ReturnType<typeof rankCandidates<SavePal>>[number];
+  full: boolean;
+  onAdd: () => void;
+  onDetail: () => void;
+  onExclude: () => void;
+}) {
+  const { pal, score, reasons, warnings } = scored;
+  const skill = partnerSkill(pal.characterId);
+  // The score column already says "strong"; chips are for the reasons a
+  // number can't carry. Cap them so a synergy-rich pal doesn't wrap forever.
+  const chips = reasons.filter((r) => r.kind !== "power").slice(0, 3);
+  return (
+    <div className="flex w-full items-center gap-2 rounded-xl border border-ink/10 bg-white/60 p-2.5">
+      {/* The card body opens details; adding is its own button — one gesture
+          per intent, and the details view is where the pal makes its case. */}
+      <button onClick={onDetail} className="flex min-w-0 flex-1 items-center gap-3 text-left" title="Show pal details">
+        <PalPortrait characterId={pal.characterId} size="sm" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-foreground">
+            {pal.nickname || palName(pal.characterId)}
+            <span className="ml-1.5 font-normal text-ink/40">Lv {pal.level}</span>
+          </span>
+          <span className="block truncate text-[11px] text-ink/45">
+            {pal.playerName} · {pal.where}
+            {skill ? ` · ${skill.n}` : ""}
+          </span>
+          {(chips.length > 0 || warnings.length > 0) && (
+            <span className="mt-1 flex flex-wrap gap-1">
+              {chips.map((r) => (
+                <TeamChip key={r.label} label={r.label} element={r.element} pair={r.kind === "pair"} />
+              ))}
+              {warnings.map((w) => (
+                <span
+                  key={w.label}
+                  className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold text-destructive"
+                >
+                  {w.label}
+                </span>
+              ))}
+            </span>
+          )}
+        </span>
+      </button>
+      <span className="font-mono text-sm font-semibold tabular-nums text-ink/70">{Math.round(score)}</span>
+      <div className="flex shrink-0 flex-col gap-1">
+        <button
+          onClick={onAdd}
+          disabled={full}
+          aria-label={`Add ${pal.nickname || palName(pal.characterId)} to the party`}
+          title={full ? "The party is full" : "Add to the party"}
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-red text-paper transition hover:bg-brand-red/90 disabled:opacity-30"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onExclude}
+          aria-label={`Sit ${pal.nickname || palName(pal.characterId)} out`}
+          title="Sit this pal out — never suggested"
+          className="flex h-7 w-7 items-center justify-center rounded-lg border border-ink/15 text-ink/40 transition hover:border-destructive/40 hover:text-destructive"
+        >
+          <Ban className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One full-party proposal: its lean, its five, and what that lean buys and
+ * costs — counted, not adjectived, so two cards can actually be compared.
+ */
+function BuildCard({ build, current, onUse }: { build: BuildOption<SavePal>; current: boolean; onUse: () => void }) {
+  const s = build.summary;
+  const facts: { label: string; tone?: "good" | "bad" }[] = [
+    { label: `${s.counters} counter pick${s.counters === 1 ? "" : "s"}`, tone: s.counters > 0 ? "good" : undefined },
+    { label: `${s.armed} partner offense`, tone: s.armed > 0 ? "good" : undefined },
+    s.exposed > 0
+      ? { label: `${s.exposed} exposed`, tone: "bad" }
+      : { label: "nobody exposed", tone: "good" },
+    s.mount ? { label: "has a mount" } : { label: "no mount", tone: "bad" },
+    ...(s.synergies > 0 ? [{ label: `${s.synergies} synerg${s.synergies === 1 ? "y" : "ies"}`, tone: "good" as const }] : []),
+    { label: `avg Lv ${s.avgLevel}` },
+  ];
+  return (
+    <div className={cn("flex flex-col rounded-xl border p-3", current ? "border-brand-red/40 bg-brand-red/[0.03]" : "border-ink/10 bg-white/60")}>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="font-display text-sm font-bold">{build.label}</p>
+        {current && <span className="text-[10px] font-bold uppercase tracking-wide text-brand-red">Current party</span>}
+      </div>
+      <p className="mt-0.5 text-[11px] text-ink/45">{build.blurb}</p>
+      <div className="mt-2 flex gap-1.5">
+        {build.team.map((p) => (
+          <PalPortrait key={p.key} characterId={p.characterId} size="sm" />
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {facts.map((f) => (
+          <span
+            key={f.label}
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-semibold",
+              f.tone === "good"
+                ? "bg-pal-green/15 text-pal-green"
+                : f.tone === "bad"
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-ink/5 text-ink/55",
+            )}
+          >
+            {f.label}
+          </span>
+        ))}
+      </div>
+      <button
+        onClick={onUse}
+        disabled={current}
+        className="mt-3 rounded-lg border border-ink/15 py-1.5 text-sm font-semibold text-ink transition hover:border-brand-red/40 hover:text-brand-red disabled:opacity-40"
+      >
+        {current ? "In use" : "Use this party"}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The engine, explained from its own numbers: every figure below is read
+ * from TEAM_WEIGHTS, so this page can't say one thing while the ranking
+ * does another.
+ */
+function HowRankingDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const W = TEAM_WEIGHTS;
+  const rows: { factor: string; points: string; when: string }[] = [
+    {
+      factor: "Strength",
+      points: `0–${W.power}`,
+      when: "Effective HP, Attack and Defense computed from the save — level, talents, souls, condenser stars, trust, the alpha HP bonus and stat passives — scaled against the strongest pal in the save.",
+    },
+    {
+      factor: "Beats an element",
+      points: `+${W.hits}`,
+      when: "Per element of the pal's that the target is weak to, from the game's element chart.",
+    },
+    {
+      factor: "Takes super-effective hits",
+      points: `${W.takes}`,
+      when: "Per element of the pal's that the target's own attacks answer. The one negative factor.",
+    },
+    {
+      factor: "Arms you",
+      points: `+${W.attackChange}`,
+      when: "The partner skill turns the player's own attacks into an element the target is weak to (Anubis into an Electric fight). Stacks with the pal's own edge — its damage and yours are separate.",
+    },
+    {
+      factor: "Arms allies",
+      points: `+${W.buffAlly} each`,
+      when: "Per party member reached by an element-scoped damage buff (Dumud arming Earth pals), counting at most two.",
+    },
+    {
+      factor: "Loot buff",
+      points: `+${W.buffDrops}`,
+      when: "An element-scoped drops buff with at least one party member to land on.",
+    },
+    {
+      factor: "Pair bond",
+      points: `+${W.pair}`,
+      when: "The species its partner skill names is on the party — the game has exactly two: Melpaca with Kingpaca, Beegarde with Elizabee. Counted from either side.",
+    },
+    {
+      factor: "First mount",
+      points: `+${W.mount}+`,
+      when: "The party's first rideable pal, with a nudge for ride speed (÷400) so faster mounts edge out slower ones. Later mounts score nothing.",
+    },
+    {
+      factor: "Coverage",
+      points: `+${W.coverage}`,
+      when: "Only with no fight picked: per element this pal newly answers that the party didn't already.",
+    },
+  ];
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>How ranking works</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 text-sm text-ink/80">
+          <p>
+            A pal's score is the sum of the factors below — nothing hidden, and every point also appears as a chip on
+            its card. Scores are <b>marginal against the party as it stands</b>: once someone covers an edge, brings the
+            mount, or fills a buff, the next pal offering the same thing scores lower for it.
+          </p>
+          <div className="overflow-hidden rounded-xl border border-ink/10">
+            {rows.map((r, i) => (
+              <div key={r.factor} className={cn("flex gap-3 px-3 py-2", i % 2 === 1 && "bg-ink/[0.03]")}>
+                <div className="w-32 shrink-0">
+                  <p className="text-xs font-semibold text-ink">{r.factor}</p>
+                  <p className="font-mono text-xs tabular-nums text-ink/50">{r.points}</p>
+                </div>
+                <p className="text-xs text-ink/60">{r.when}</p>
+              </div>
+            ))}
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Fill &amp; suggested parties</p>
+            <p className="mt-1 text-xs text-ink/60">
+              "Fill empty slots" picks greedily: best marginal candidate, one pal per species, your locked picks and
+              sit-outs respected. The three suggested parties are the same engine with the weights leaned:{" "}
+              <b>Play it safe</b> quadruples the penalty for taking super-effective hits; <b>Hit hardest</b> raises
+              strength to 60 and ignores mounts and loot buffs. A lean that lands on the same five isn't shown twice.
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-ink/45">What it can't know</p>
+            <p className="mt-1 text-xs text-ink/60">
+              Partner-skill <b>sizes</b> — the save doesn't record skill ranks, so a buff counts by what it does, never
+              by how much. Equipped move sets aren't scored, only elements. Player gear, world difficulty and boss
+              mechanics are out of scope, and trust is the one estimated input to the stat model. The element chart,
+              stats and skill effects are vendored game data; the weights are palcon's own model, tuned by hand.
+            </p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The matchup vocabulary: one chip shape for elements, reasons and pair
+ * bonds, tinted by the element it talks about — amber when it's a bond. */
+function TeamChip({ label, element, pair }: { label: string; element?: string; pair?: boolean }) {
+  const color = pair ? "#F2A93B" : element ? elementColor(element) : "#5F5850";
+  return (
+    <span
+      className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+      style={{ backgroundColor: `${color}22`, color }}
+    >
+      {label}
+    </span>
   );
 }
