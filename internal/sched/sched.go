@@ -16,9 +16,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/safwyls/palcon/internal/agentctl"
 	"github.com/safwyls/palcon/internal/dockerctl"
 	"github.com/safwyls/palcon/internal/notify"
-	"github.com/safwyls/palcon/internal/palworld"
 	"github.com/safwyls/palcon/internal/store"
 )
 
@@ -181,17 +181,6 @@ func (s *Scheduler) sweep(ctx context.Context, now time.Time) {
 	}
 }
 
-func clientFor(srv *store.Server) palworld.Client {
-	return palworld.New(palworld.Config{
-		Host:         srv.Host,
-		RESTPort:     srv.RESTPort,
-		RESTPassword: srv.RESTPassword,
-		RCONPort:     srv.RCONPort,
-		RCONPassword: srv.RCONPassword,
-		PreferREST:   srv.UseREST,
-	})
-}
-
 func (s *Scheduler) warn(ctx context.Context, srv *store.Server, minutes int) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -201,50 +190,103 @@ func (s *Scheduler) warn(ctx context.Context, srv *store.Server, minutes int) {
 		unit = "minute"
 	}
 	msg := fmt.Sprintf("Server restart in %d %s", minutes, unit)
-	if err := clientFor(srv).Broadcast(ctx, msg); err != nil {
+
+	// Discord first, and unconditionally: it needs no game client, and the
+	// restart it is warning about goes ahead even for a row naming a game
+	// this build doesn't register. Warning in-game and warning subscribers
+	// are separate promises, so one failing must not cancel the other.
+	s.notifier.RestartWarning(ctx, srv, minutes)
+
+	client, err := srv.Client()
+	if err != nil {
+		s.logger.Info("scheduler: cannot warn in game", "server", srv.ID, "error", err)
+		return
+	}
+	if err := client.Broadcast(ctx, msg); err != nil {
 		// An unreachable server can't be warned — and doesn't need to be.
 		s.logger.Info("scheduler: warning broadcast failed", "server", srv.ID, "minutes", minutes, "error", err)
 	} else {
 		s.logger.Info("scheduler: restart warning broadcast", "server", srv.ID, "minutes", minutes)
 	}
-	s.notifier.RestartWarning(ctx, srv, minutes)
 }
 
-// restart mirrors the manual power flow (save → in-game shutdown → docker
-// restart), with each step best-effort: a hung server that can't save is
-// exactly the server most in need of the restart that follows.
+// restart mirrors the manual power flow (save → in-game shutdown → agent
+// or container restart), with each step best-effort: a hung server that
+// can't save is exactly the server most in need of the restart that
+// follows.
 func (s *Scheduler) restart(ctx context.Context, srv *store.Server, sc *store.RestartSchedule) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	// Wide enough for the worst legitimate case, which the steps' own
+	// timeouts add up to: save (25s) + in-game shutdown (25s) + the restart
+	// itself — up to 110s through an agent that waits out the self-exit
+	// window, or 90s through docker's stop grace. A tighter budget cuts the
+	// last step off partway, which is the one step that must not be
+	// interrupted. Restarts already run in their own goroutine, so a slow
+	// one delays nothing else.
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancel()
 
 	s.notifier.SuppressStatus(srv.ID, suppressFor)
 	s.notifier.RestartingNow(ctx, srv)
 	s.logger.Info("scheduler: restarting server", "server", srv.ID, "name", srv.Name, "schedule", sc.ID)
 
-	client := clientFor(srv)
-	stepCtx, stepCancel := context.WithTimeout(ctx, 25*time.Second)
-	if err := client.Save(stepCtx); err != nil {
-		s.logger.Warn("scheduler: save before restart failed; restarting anyway", "server", srv.ID, "error", err)
+	// A client failure here is a row naming an unknown game, not an
+	// unreachable server: skip the in-game steps and let the container
+	// restart below still happen.
+	client, clientErr := srv.Client()
+	if clientErr != nil {
+		s.logger.Warn("scheduler: no game client; restarting container only", "server", srv.ID, "error", clientErr)
+	} else {
+		stepCtx, stepCancel := context.WithTimeout(ctx, 25*time.Second)
+		if err := client.Save(stepCtx); err != nil {
+			s.logger.Warn("scheduler: save before restart failed; restarting anyway", "server", srv.ID, "error", err)
+		}
+		stepCancel()
 	}
-	stepCancel()
 
-	useDocker := s.docker != nil && srv.ContainerName != ""
-	// With docker control the game just needs to exit cleanly before the
-	// container restart (same trick as the manual stop button: exit code 0
-	// instead of SIGKILL's 137). Without it, the in-game shutdown IS the
-	// restart — the container's restart policy revives the process — so
-	// give players a short countdown.
+	// A supervisor-mode agent owns the game process, so it does the
+	// restarting — checked before docker for the same reason the manual
+	// power flow checks it first. It matters more here since provisioning
+	// began recording container names: a provisioned server now has both an
+	// agent and a container name, and only the agent is guaranteed to be
+	// looking at the same machine palcon's docker proxy is.
+	agent, _ := agentctl.Supervisor(ctx, srv.AgentURL, srv.AgentToken)
+	useDocker := agent == nil && s.docker != nil && srv.ContainerName != ""
+
+	// When something is standing by to restart the server the moment the
+	// game exits, the game only needs to exit *cleanly* (code 0 rather than
+	// SIGKILL's 137) and a countdown would be dead air. With neither, the
+	// in-game shutdown IS the restart — the container's restart policy
+	// revives the process — so players get a real countdown.
 	wait := 10
-	if useDocker {
+	if agent != nil || useDocker {
 		wait = 1
 	}
-	stepCtx, stepCancel = context.WithTimeout(ctx, 25*time.Second)
-	if err := client.Shutdown(stepCtx, wait, "Server restarting"); err != nil {
-		s.logger.Warn("scheduler: in-game shutdown failed", "server", srv.ID, "error", err)
+	shutdownOK := false
+	if clientErr == nil {
+		stepCtx, stepCancel := context.WithTimeout(ctx, 25*time.Second)
+		if err := client.Shutdown(stepCtx, wait, "Server restarting"); err != nil {
+			s.logger.Warn("scheduler: in-game shutdown failed", "server", srv.ID, "error", err)
+		} else {
+			shutdownOK = true
+		}
+		stepCancel()
 	}
-	stepCancel()
 
-	if useDocker {
+	switch {
+	case agent != nil:
+		// The agent signals the game's whole process group, so a signal
+		// landing on top of an accepted in-game shutdown catches the engine
+		// mid-save and ends it at 143 instead of 0. Let that exit finish
+		// first — but only when the shutdown was actually accepted.
+		graceful := time.Duration(0)
+		if shutdownOK {
+			graceful = agentctl.GameSelfExitWindow
+		}
+		if _, err := agent.Power(ctx, "restart", graceful); err != nil {
+			s.logger.Error("scheduler: agent restart failed", "server", srv.ID, "error", err)
+			return
+		}
+	case useDocker:
 		if err := s.docker.Restart(ctx, srv.ContainerName); err != nil {
 			s.logger.Error("scheduler: container restart failed", "server", srv.ID, "container", srv.ContainerName, "error", err)
 			return

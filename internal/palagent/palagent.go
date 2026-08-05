@@ -28,7 +28,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/safwyls/palcon/internal/dockerctl"
-	"github.com/safwyls/palcon/internal/steamops"
+	"github.com/safwyls/palcon/internal/steamcmd"
 )
 
 // APIVersion is reported in /v1/health so palcon can refuse to drive an
@@ -36,6 +36,18 @@ import (
 // 1 = steam verbs; 2 adds the file verbs (save bundle, config); 3 adds
 // supervisor mode's power verbs and game status.
 const APIVersion = 3
+
+// DefaultAppID is the Steam app the agent updates when none is configured:
+// the Palworld dedicated server, which is what every existing deployment
+// expects. Set PALAGENT_APPID to point the agent at a different one.
+//
+// Spelled out here rather than read from internal/games/palworld, on purpose.
+// The agent is a thin sidecar — file access, process control, SteamCMD — and
+// importing a game package for one integer would link the game registry and
+// the RCON client it never speaks into every agent binary, and run a
+// registration nothing here queries. A Steam app id is a fixed number, so the
+// duplication cannot drift.
+const DefaultAppID = 2394010
 
 // minTokenLen is the floor for the shared token; the agent refuses to
 // start below it rather than run guessably authenticated.
@@ -49,8 +61,7 @@ type Config struct {
 	InstallDir string
 	// SteamCmd is the steamcmd binary to exec for update jobs.
 	SteamCmd string
-	// AppID is the Steam app to update; defaults to the Palworld
-	// dedicated server.
+	// AppID is the Steam app to update; defaults to DefaultAppID.
 	AppID int
 	// Mode is "companion" (default: the game runs in its own container)
 	// or "supervisor" (this agent runs the game as a child process and
@@ -124,7 +135,7 @@ func New(cfg Config) (*Agent, error) {
 		cfg.SteamCmd = "steamcmd"
 	}
 	if cfg.AppID == 0 {
-		cfg.AppID = steamops.PalworldAppID
+		cfg.AppID = DefaultAppID
 	}
 	if cfg.Mode == "" {
 		cfg.Mode = "companion"
@@ -162,7 +173,7 @@ func (a *Agent) Run() {
 	}
 	if !a.game.Installed() {
 		a.cfg.Logger.Info("game not installed; installing", "dir", a.cfg.InstallDir)
-		args := steamops.UpdateArgs(a.cfg.InstallDir, a.cfg.AppID, true)
+		args := steamcmd.UpdateArgs(a.cfg.InstallDir, a.cfg.AppID, true)
 		job, err := a.jobs.start("steam-install", a.cfg.SteamCmd, args)
 		if err != nil {
 			a.cfg.Logger.Error("install could not start", "error", err)
@@ -223,6 +234,9 @@ func (a *Agent) Handler() http.Handler {
 		r.Post("/provision", a.handleProvision)
 		r.Get("/discover", a.handleDiscover)
 		r.Post("/adopt", a.handleAdopt)
+		// Destroy is create's inverse and is gated on the label create
+		// writes, so it reaches only containers this provisioner made.
+		r.Post("/destroy", a.handleDestroy)
 	})
 	return r
 }
@@ -246,12 +260,12 @@ func (a *Agent) requireToken(next http.Handler) http.Handler {
 // Health is the /v1/health payload — everything palcon needs to decide
 // what this agent can do and whether work is in flight.
 type Health struct {
-	Agent         string `json:"agent"`
-	Version       string `json:"version"`
-	APIVersion    int    `json:"apiVersion"`
-	Mode          string `json:"mode"`
-	InstallDir    string `json:"installDir"`
-	InstallDirOk  bool   `json:"installDirOk"`
+	Agent        string `json:"agent"`
+	Version      string `json:"version"`
+	APIVersion   int    `json:"apiVersion"`
+	Mode         string `json:"mode"`
+	InstallDir   string `json:"installDir"`
+	InstallDirOk bool   `json:"installDirOk"`
 	// SaveFound/ConfigFound report whether the phase 2 file verbs have
 	// anything to serve, so palcon can distinguish "not synced yet" from
 	// "this install has no world".
@@ -303,9 +317,9 @@ func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (a *Agent) handleClearCache(w http.ResponseWriter, _ *http.Request) {
-	removed, err := steamops.ClearCache(a.cfg.InstallDir)
+	removed, err := steamcmd.ClearCache(a.cfg.InstallDir)
 	if err != nil {
-		if errors.Is(err, steamops.ErrNotInstallRoot) {
+		if errors.Is(err, steamcmd.ErrNotInstallRoot) {
 			writeError(w, http.StatusBadRequest, err.Error()+" (agent install dir: "+a.cfg.InstallDir+")")
 			return
 		}
@@ -339,7 +353,7 @@ func (a *Agent) handleStartUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	args := steamops.UpdateArgs(a.cfg.InstallDir, a.cfg.AppID, req.Validate)
+	args := steamcmd.UpdateArgs(a.cfg.InstallDir, a.cfg.AppID, req.Validate)
 	job, err := a.jobs.start("steam-update", a.cfg.SteamCmd, args)
 	if errors.Is(err, errJobRunning) {
 		writeError(w, http.StatusConflict, "a job is already running")
