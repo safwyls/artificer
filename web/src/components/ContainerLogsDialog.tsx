@@ -9,6 +9,14 @@ import { Select } from "./ui/select";
 const TAILS = [200, 500, 1000];
 
 /**
+ * The game logs every successful REST call — and palcon's own metrics
+ * polling makes one every few seconds, so these lines can outnumber
+ * everything a person actually opened the log to read. Only the `OK` form
+ * is treated as noise: a failing REST access is signal, and stays.
+ */
+const REST_NOISE = /REST accessed endpoint \S+ OK\s*$/;
+
+/**
  * The container's recent log, polled while open. Follows the standard
  * log-viewer contract: pinned to the bottom until the user scrolls up,
  * and a pause button when they want the text to hold still.
@@ -26,6 +34,7 @@ export function ContainerLogsDialog({
 }) {
   const [tail, setTail] = useState(500);
   const [paused, setPaused] = useState(false);
+  const [hideRest, setHideRest] = useState(true);
   const scrollRef = useRef<HTMLPreElement>(null);
   const pinnedRef = useRef(true);
 
@@ -52,7 +61,11 @@ export function ContainerLogsDialog({
     }
   }, [open]);
 
-  const lines = logsQuery.data?.lines ?? [];
+  // Filtered client-side so nothing is hidden silently: the toggle shows
+  // how many lines it's holding back, and Download saves what's on screen.
+  const allLines = logsQuery.data?.lines ?? [];
+  const lines = hideRest ? allLines.filter((l) => !REST_NOISE.test(l)) : allLines;
+  const hiddenCount = allLines.length - lines.length;
 
   const download = () => {
     const blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain" });
@@ -106,6 +119,16 @@ export function ContainerLogsDialog({
             <Download className="h-3.5 w-3.5" />
             Download
           </button>
+          <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-xs text-ink/60">
+            <input
+              type="checkbox"
+              checked={hideRest}
+              onChange={(e) => setHideRest(e.target.checked)}
+              className="h-3.5 w-3.5 accent-brand-red"
+            />
+            Hide REST polling
+            {hideRest && hiddenCount > 0 && <span className="font-mono text-ink/35">· {hiddenCount} hidden</span>}
+          </label>
         </div>
 
         <pre
