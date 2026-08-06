@@ -32,8 +32,12 @@ export interface PartnerSkill {
   pb?: [string, string];
   /** Produces something when assigned to a Ranch. */
   ranch?: 1;
-  /** Raises a work suitability for every other pal at the base. */
-  base?: 1;
+  /** The work type this skill raises for every *other* pal at the base
+   * while this one is deployed ("Cool", "EmitFlame", ...). A flat,
+   * non-stacking +1 at every partner-skill rank — paldb's datamined
+   * effect values are identical at all five, which is why the catalog
+   * stores the type and no magnitude. */
+  base?: string;
 }
 
 /** Work levels (nonzero only), appetite, and the movement figures. */
@@ -95,6 +99,8 @@ export function partnerTags(skill: PartnerSkill): PartnerTag[] {
   }
   if (skill.pb) tags.push({ label: `boosts ${palName(skill.pb[0])}`, bond: true });
   if (skill.ranch) tags.push({ label: "ranch drops" });
-  if (skill.base) tags.push({ label: "base-wide work boost" });
+  // "EmitFlame" -> "Emit Flame": the tag speaks the id; the crew board,
+  // which owns the sheet vocabulary, names the row properly.
+  if (skill.base) tags.push({ label: `base-wide ${skill.base.replace(/([a-z])([A-Z])/g, "$1 $2")} +1` });
   return tags;
 }

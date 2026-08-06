@@ -52,23 +52,33 @@ export function workLevel(characterId: string, type: string): number {
 }
 
 /**
- * The suitabilities a condensed pal's star bonus reaches, derived from rank
- * the way the game does: one star boosts the best suitability by +1, two
- * stars the second-best as well, three the third; four stars boost every
- * suitability the species has. "Best" ranks by species level, ties in
- * sheet order. Community-verified (palworld.wiki.gg, Pal Condensation) —
- * the save stores no trace of it, so it has to be modeled.
+ * The condenser's work bonus per suitability, derived from rank the way
+ * the game actually applies it. Stars 1–3 each add +1 to the *next*
+ * suitability, best first and cycling round — a mono-suitability pal
+ * stacks all three on its one job, which the wikis' "n-th best" phrasing
+ * misses. Four stars add +1 to everything the species has, on top of the
+ * 3-star allocation, not instead of it. "Best" ranks by species level,
+ * ties in sheet order.
+ *
+ * Calibrated against real 0–4★ ladders on a live save (2026-08-06):
+ * Jormuntide Ignis (Kindling 7 alone) reads 7/8/9/10/10, Eidrolon Ignis
+ * (6/6) reads 6·6 / 7·6 / 7·7 / 8·7 / 9·8, and Pengullet (four 1s) reads
+ * 1111 / 2111 / 2211 / 2221 / 3332 — all with zero work books to confound.
+ * The save stores none of this; it's derived from Rank at runtime.
  */
-function condensedTypes(characterId: string, stars: number): string[] {
-  if (stars <= 0) return [];
-  const owned = WORK_TYPES.map((w, i) => ({ id: w.id, level: workLevel(characterId, w.id), i })).filter(
-    (w) => w.level > 0,
-  );
-  if (stars >= 4) return owned.map((w) => w.id);
-  return owned
-    .sort((a, b) => b.level - a.level || a.i - b.i)
-    .slice(0, stars)
-    .map((w) => w.id);
+function condenseAdds(characterId: string, stars: number): Map<string, number> {
+  const adds = new Map<string, number>();
+  if (stars <= 0) return adds;
+  const owned = WORK_TYPES.map((w, i) => ({ id: w.id, level: workLevel(characterId, w.id), i }))
+    .filter((w) => w.level > 0)
+    .sort((a, b) => b.level - a.level || a.i - b.i);
+  if (owned.length === 0) return adds;
+  for (let k = 0; k < Math.min(stars, 3); k++) {
+    const id = owned[k % owned.length].id;
+    adds.set(id, (adds.get(id) ?? 0) + 1);
+  }
+  if (stars >= 4) for (const w of owned) adds.set(w.id, (adds.get(w.id) ?? 0) + 1);
+  return adds;
 }
 
 export interface WorkBreakdown {
@@ -76,7 +86,8 @@ export interface WorkBreakdown {
   base: number;
   /** Ranks added by work books, recorded per-pal in the save. */
   books: number;
-  /** +1 when the condenser's star bonus reaches this type. */
+  /** Ranks added by the condenser's stars — up to +3 on a specialist's
+   * one suitability (see condenseAdds). */
   condensed: number;
   /** What the game shows: base + books + star bonus, capped at 10. */
   level: number;
@@ -88,7 +99,7 @@ export function workBreakdown(pal: Pal, type: string): WorkBreakdown {
   const base = workLevel(pal.characterId, type);
   const books = pal.workAdds?.[type] ?? 0;
   const stars = Math.max(0, Math.min(4, (pal.rank ?? 1) - 1));
-  const condensed = base > 0 && condensedTypes(pal.characterId, stars).includes(type) ? 1 : 0;
+  const condensed = condenseAdds(pal.characterId, stars).get(type) ?? 0;
   const level = base + books <= 0 ? 0 : Math.min(10, base + books + condensed);
   return { base, books, condensed, level, off: pal.workOff?.includes(type) ?? false };
 }
@@ -118,12 +129,16 @@ export interface CrewUpgrade<P extends CrewPal = CrewPal> {
 export interface WorkRow<P extends CrewPal = CrewPal> {
   type: string;
   label: string;
-  /** Best suitability level on the crew; 0 when nobody covers it. */
+  /** Best operational level on the crew — a deployed work buff included;
+   * 0 when nobody covers it. */
   best: number;
   /** Everyone covering it, best level first. */
   hands: P[];
   /** Someone on this row works through the night. */
   night: boolean;
+  /** The deployed pal whose partner skill gives every *other* hand here a
+   * flat +1 — already folded into best and the upgrade comparison. */
+  buff?: { pal: P };
   upgrade?: CrewUpgrade<P>;
 }
 
@@ -138,7 +153,7 @@ export interface CrewReport<P extends CrewPal = CrewPal> {
   /** Assigned to the base but suited to no work at all. */
   idle: P[];
   /** Members whose partner skill raises a suitability base-wide. */
-  buffs: { pal: P; skill: string; description: string }[];
+  buffs: { pal: P; skill: string; type: string; description: string }[];
   /** Members that produce something at a Ranch. */
   ranchers: P[];
 }
@@ -146,42 +161,64 @@ export interface CrewReport<P extends CrewPal = CrewPal> {
 /**
  * The board for one base. `boxes` is the upgrade pool — the guild's pals
  * not working at any base; pass only those, since poaching another base's
- * crew is its own decision, not a suggestion. Levels are per-pal effective
- * levels (books and condenser stars included), and a pal whose job is
- * switched off is neither a hand for it nor suggested into it. A candidate
- * is suggested when it beats the base's best level for a type the base
- * covers, or covers a type nobody does; ties prefer the smaller appetite,
- * then the higher combat level (a stronger pal defends the base it works).
+ * crew is its own decision, not a suggestion. Levels are operational:
+ * per-pal effective levels (books and condenser stars included), plus the
+ * flat +1 a deployed work-buffing partner skill gives every *other* hand
+ * of its type — non-stacking, and a sick buffer isn't working so doesn't
+ * count. A pal whose job is switched off is neither a hand for it nor
+ * suggested into it. A candidate is suggested when it beats the base's
+ * best (buffed like-for-like — it would enjoy the same aura); ties prefer
+ * the smaller appetite, then the higher combat level (a stronger pal
+ * defends the base it works).
  */
 export function crewReport<P extends CrewPal>(crew: P[], boxes: P[]): CrewReport<P> {
+  // One buffer per type at most matters: the +1 doesn't stack.
+  const buffers = new Map<string, P>();
+  for (const p of crew) {
+    const type = partnerSkill(p.characterId)?.base;
+    if (type && p.pal.sick === "" && !buffers.has(type)) buffers.set(type, p);
+  }
+  // A hand's operational level: its own sheet, plus the aura when someone
+  // *else* provides it and the pal has the suitability at all.
+  const operational = (p: P, id: string, work: WorkBreakdown): number => {
+    const buffer = buffers.get(id);
+    if (work.level <= 0 || !buffer || buffer.key === p.key) return work.level;
+    return Math.min(10, work.level + 1);
+  };
+
   const rows: WorkRow<P>[] = WORK_TYPES.map(({ id, label }) => {
     const hands = crew
       .map((p) => ({ p, work: workBreakdown(p.pal, id) }))
       .filter(({ work }) => work.level > 0 && !work.off)
-      .sort((a, b) => b.work.level - a.work.level);
-    const best = hands.length ? hands[0].work.level : 0;
+      .map((x) => ({ ...x, level: operational(x.p, id, x.work) }))
+      .sort((a, b) => b.level - a.level);
+    const best = hands.length ? hands[0].level : 0;
 
     let upgrade: CrewUpgrade<P> | undefined;
     for (const p of boxes) {
       const work = workBreakdown(p.pal, id);
-      if (work.off || work.level <= best) continue;
+      if (work.off) continue;
+      const level = operational(p, id, work);
+      if (level <= best) continue;
       if (
         !upgrade ||
-        work.level > upgrade.level ||
-        (work.level === upgrade.level &&
+        level > upgrade.level ||
+        (level === upgrade.level &&
           (appetite(p.characterId) < appetite(upgrade.pal.characterId) ||
             (appetite(p.characterId) === appetite(upgrade.pal.characterId) && p.pal.level > upgrade.pal.pal.level)))
       ) {
-        upgrade = { pal: p, level: work.level, over: best };
+        upgrade = { pal: p, level, over: best };
       }
     }
 
+    const buffer = buffers.get(id);
     return {
       type: id,
       label,
       best,
       hands: hands.map(({ p }) => p),
       night: hands.some(({ p }) => isNocturnal(p.characterId)),
+      buff: buffer && hands.some(({ p }) => p.key !== buffer.key) ? { pal: buffer } : undefined,
       upgrade,
     };
   });
@@ -197,7 +234,7 @@ export function crewReport<P extends CrewPal>(crew: P[], boxes: P[]): CrewReport
     }),
     buffs: crew.flatMap((p) => {
       const s = partnerSkill(p.characterId);
-      return s?.base ? [{ pal: p, skill: s.n, description: s.d }] : [];
+      return s?.base ? [{ pal: p, skill: s.n, type: s.base, description: s.d }] : [];
     }),
     ranchers: crew.filter((p) => partnerSkill(p.characterId)?.ranch === 1),
   };

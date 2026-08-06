@@ -5,7 +5,7 @@ import { ArrowRight, Ban, Info, Moon, Plus, Sparkles, X } from "lucide-react";
 import { api, ApiError, type Guild } from "../lib/api";
 import { palEntry, palIconUrl, palName, passiveName, passiveTier, elementColor, elementCounters } from "../lib/paldex";
 import { partnerSkill } from "../lib/partner";
-import { appetite, crewReport, dedupeSpecies, isNocturnal, topWork, type CrewPal } from "../lib/crew";
+import { WORK_TYPES, appetite, crewReport, dedupeSpecies, isNocturnal, topWork, type CrewPal } from "../lib/crew";
 import { nearestLandmark } from "../lib/pois";
 import {
   TEAM_ELEMENTS,
@@ -2128,7 +2128,8 @@ function CrewPlanner({ savePals, guilds, saveStatus }: { savePals?: SavePal[]; g
               onClick={() => setDetail({ pal: b.pal, tab: "overview" })}
               className="inline-flex items-center gap-1 rounded-full bg-brand-amber/15 px-2.5 py-0.5 text-xs font-semibold text-brand-amber transition hover:bg-brand-amber/25"
             >
-              <Sparkles className="h-3 w-3" /> {palName(b.pal.characterId)}: {b.skill}
+              <Sparkles className="h-3 w-3" /> {palName(b.pal.characterId)}: +1{" "}
+              {WORK_TYPES.find((w) => w.id === b.type)?.label ?? b.type} base-wide
             </button>
           ))}
           {report.sick.length > 0 && (
@@ -2150,7 +2151,19 @@ function CrewPlanner({ savePals, guilds, saveStatus }: { savePals?: SavePal[]; g
                   <WorkIcon type={row.type} className="h-4 w-4 shrink-0" />
                   {row.label}
                 </span>
-                <span className="w-12 shrink-0 font-mono text-sm font-semibold tabular-nums">
+                <span
+                  className={cn(
+                    "w-12 shrink-0 font-mono text-sm font-semibold tabular-nums",
+                    row.buff && "text-brand-amber",
+                  )}
+                  title={
+                    row.buff
+                      ? `Includes the +1 every other hand gets while ${
+                          row.buff.pal.nickname || palName(row.buff.pal.characterId)
+                        } is deployed`
+                      : undefined
+                  }
+                >
                   {row.best > 0 ? `Lv ${row.best}` : <span className="text-ink/25">—</span>}
                 </span>
                 <span className="w-4 shrink-0">
@@ -2177,8 +2190,9 @@ function CrewPlanner({ savePals, guilds, saveStatus }: { savePals?: SavePal[]; g
           })}
         </div>
         <p className="mt-3 text-[11px] text-ink/35">
-          Levels are each pal's own — species tables plus its work books and condenser stars, the same math the game
-          shows. A pal whose job is switched off isn't counted as a hand for it.
+          Levels are operational: species tables plus each pal's work books and condenser stars, and the flat +1 a
+          deployed work-buffing partner skill gives every other hand of its type (amber, doesn't stack). A sick buffer
+          isn't working, and a pal whose job is switched off isn't counted as a hand for it.
         </p>
       </section>
 

@@ -88,22 +88,50 @@ describe("workBreakdown", () => {
     expect(workBreakdown(odd, "Watering").level).toBeGreaterThanOrEqual(0);
   });
 
-  it("one star boosts only the best suitability, ties in sheet order", () => {
-    // Pengullet's four suitabilities all sit at 1, so the sheet order
-    // decides: Watering comes first and takes the single star's +1.
-    const oneStar = makePal("Penguin", { rank: 2 });
-    expect(workBreakdown(oneStar, "Watering").condensed).toBe(1);
-    expect(workBreakdown(oneStar, "Cool").condensed).toBe(0);
-    expect(workBreakdown(oneStar, "Handcraft").condensed).toBe(0);
+  // The three condensation ladders below are real in-game readings from a
+  // live save (2026-08-06) — every pal verified book-free, so the numbers
+  // isolate the star bonus exactly. If a patch changes condensation,
+  // re-read the ladders in game and recalibrate condenseAdds.
+
+  it("Pengullet ladder: stars walk the tied suitabilities in sheet order", () => {
+    // In game: 1111 / 2111 / 2211 / 2221 / 3332 across 0–4 stars, listed
+    // as Watering · Handiwork · Cooling · Transporting.
+    const sheet = ["Watering", "Handcraft", "Cool", "Transport"];
+    const ladder = [
+      [1, 1, 1, 1],
+      [2, 1, 1, 1],
+      [2, 2, 1, 1],
+      [2, 2, 2, 1],
+      [3, 3, 3, 2],
+    ];
+    ladder.forEach((expected, stars) => {
+      const pal = makePal("Penguin", { rank: stars + 1 });
+      expect(sheet.map((t) => workBreakdown(pal, t).level)).toEqual(expected);
+    });
+    // Never a suitability the species lacks.
+    expect(workBreakdown(makePal("Penguin", { rank: 5 }), "Mining").level).toBe(0);
   });
 
-  it("four stars boost every suitability the species has", () => {
-    const maxed = makePal("Penguin", { rank: 5 });
-    for (const type of ["Watering", "Cool", "Handcraft", "Transport"]) {
-      expect(workBreakdown(maxed, type).condensed).toBe(1);
-    }
-    // But never one it doesn't have.
-    expect(workBreakdown(maxed, "Mining").level).toBe(0);
+  it("Jormuntide Ignis ladder: a specialist stacks every star on its one job", () => {
+    // In game: Kindling 7 / 8 / 9 / 10 / 10 — maxed out at three stars.
+    [7, 8, 9, 10, 10].forEach((expected, stars) => {
+      expect(workBreakdown(makePal("Umihebi_Fire", { rank: stars + 1 }), "EmitFlame").level).toBe(expected);
+    });
+  });
+
+  it("Eidrolon Ignis ladder: the third star wraps back to the best", () => {
+    // In game: 6·6 / 7·6 / 7·7 / 8·7 / 9·8 for Kindling · Transporting.
+    const ladder = [
+      [6, 6],
+      [7, 6],
+      [7, 7],
+      [8, 7],
+      [9, 8],
+    ];
+    ladder.forEach((expected, stars) => {
+      const pal = makePal("GhostDragon_Fire", { rank: stars + 1 });
+      expect([workBreakdown(pal, "EmitFlame").level, workBreakdown(pal, "Transport").level]).toEqual(expected);
+    });
   });
 
   it("caps the total at the game's ceiling of 10", () => {
@@ -159,10 +187,29 @@ describe("crewReport", () => {
   });
 
   it("uses effective levels: a condensed hand raises the base's best", () => {
-    // A 4-star Arsox: Kindling 3 -> 4, so the board reads 4.
+    // A 4-star Arsox (Kindling 3, Lumbering 2): the star cycle lands on
+    // Kindling twice and Lumbering once, then the fourth star adds one
+    // more everywhere — Kindling 6, Lumbering 4 on the board.
     const maxed = [cp("FlameBuffalo", { nickname: "maxed", rank: 5 })];
     const r = crewReport(maxed, []);
-    expect(r.rows.find((x) => x.type === "EmitFlame")!.best).toBe(4);
+    expect(r.rows.find((x) => x.type === "EmitFlame")!.best).toBe(6);
+    expect(r.rows.find((x) => x.type === "Deforest")!.best).toBe(4);
+  });
+
+  it("a deployed work buffer gives every other hand a flat +1", () => {
+    // Wumpo raises Transporting base-wide; Pengullet's Transport 1 reads
+    // 2 on the board, while Wumpo's own level stays unbuffed.
+    const wumpo = cp("Yeti", { nickname: "buffer" });
+    const r = crewReport([wumpo, cp("Penguin", { nickname: "hauler" })], []);
+    const row = r.rows.find((x) => x.type === "Transport")!;
+    const wumpoOwn = workBreakdown(wumpo.pal, "Transport").level;
+    expect(row.buff?.pal.pal.nickname).toBe("buffer");
+    expect(row.hands.length).toBe(2);
+    // Pengullet: 1 + 1 aura = 2; the row's best is whoever ends higher.
+    expect(row.best).toBe(Math.max(2, wumpoOwn));
+    // A sick buffer isn't working, so the aura is gone.
+    const sick = crewReport([cp("Yeti", { nickname: "ill", sick: "Cold" }), cp("Penguin", { nickname: "hauler" })], []);
+    expect(sick.rows.find((x) => x.type === "Transport")!.buff).toBeUndefined();
   });
 
   it("a switched-off job is neither a hand nor a suggestion", () => {

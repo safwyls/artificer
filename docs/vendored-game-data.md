@@ -225,11 +225,23 @@ data — a hand-set model like the inheritance rates, kept in one table.
 level adds two per-pal pieces on top: work-book ranks, which the extractor
 reads from the save (`GotWorkSuitabilityAddRankList` → `workAdds`), and the
 condenser's star bonus, which the save does *not* store — the game derives
-it from Rank at runtime, and `workBreakdown` in `web/src/lib/crew.ts`
-models the same rule (star n boosts the n-th-best suitability; four stars
-boost them all; community-verified against palworld.wiki.gg). Re-check that
-rule if a patch touches condensation. The save's per-pal off-toggles
-(`workOff`) ride along the same way.
+it from Rank at runtime, and `condenseAdds` in `web/src/lib/crew.ts`
+models the same rule: **stars 1–3 each add +1 to the next suitability,
+best first and cycling round; four stars add +1 to everything on top.**
+The wikis phrase it as "star n boosts the n-th-best", which misses the
+wrap — a mono-suitability specialist stacks all three early stars on its
+one job. Calibrated against real in-game 0–4★ ladders (Jormuntide Ignis,
+Eidrolon Ignis, Pengullet — 2026-08-06, book-free, encoded as fixtures in
+`crew.test.ts`); if a patch touches condensation, re-read a ladder in game
+and recalibrate. The save's per-pal off-toggles (`workOff`) ride along the
+same way.
+
+The crew board additionally folds in the twelve **base-buffing partner
+skills** (one per work type — `base` in `partnerSkills.json` names it): a
+deployed buffer gives every *other* base pal +1 in that type. paldb's
+datamined effect values are a flat 1 at all five partner-skill ranks and
+the skills say "(Does not stack)", so the model is exact: one buffer per
+type counts, a sick one doesn't.
 
 ### Why bossFights.json comes from paldb and nowhere else
 

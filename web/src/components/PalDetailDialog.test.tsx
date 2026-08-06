@@ -63,13 +63,15 @@ describe("PalDetailDialog", () => {
 
   it("shows effective levels with the earned part called out", async () => {
     const user = userEvent.setup();
-    // 4-star with two Handiwork books: species 6 + 2 + 1, capped nowhere.
+    // 4-star Anubis with two Handiwork books: the star cycle hits each of
+    // its three suitabilities once, the fourth star again — Handiwork gets
+    // species 6 + books 2 + condensed 2, landing exactly on the cap of 10.
     open(makePal("Anubis", { rank: 5, workAdds: { Handcraft: 2 } }));
     await user.click(screen.getByRole("tab", { name: "Work" }));
     const tile = screen.getByText("Handiwork").closest("div")!;
-    expect(tile).toHaveTextContent("+3");
-    expect(tile).toHaveTextContent("9");
-    expect(tile).toHaveAttribute("title", "species 6 · books +2 · condensed +1");
+    expect(tile).toHaveTextContent("+4");
+    expect(tile).toHaveTextContent("10");
+    expect(tile).toHaveAttribute("title", "species 6 · books +2 · condensed +2");
   });
 
   it("flags a job the player switched off", async () => {
