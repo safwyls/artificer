@@ -61,6 +61,24 @@ describe("PalDetailDialog", () => {
     expect(screen.queryByText("Guardian of the Desert")).not.toBeInTheDocument();
   });
 
+  it("shows effective levels with the earned part called out", async () => {
+    const user = userEvent.setup();
+    // 4-star with two Handiwork books: species 6 + 2 + 1, capped nowhere.
+    open(makePal("Anubis", { rank: 5, workAdds: { Handcraft: 2 } }));
+    await user.click(screen.getByRole("tab", { name: "Work" }));
+    const tile = screen.getByText("Handiwork").closest("div")!;
+    expect(tile).toHaveTextContent("+3");
+    expect(tile).toHaveTextContent("9");
+    expect(tile).toHaveAttribute("title", "species 6 · books +2 · condensed +1");
+  });
+
+  it("flags a job the player switched off", async () => {
+    const user = userEvent.setup();
+    open(makePal("Anubis", { workOff: ["Mining"] }));
+    await user.click(screen.getByRole("tab", { name: "Work" }));
+    expect(screen.getByText("Mining").closest("div")).toHaveTextContent("off");
+  });
+
   it("shows the working traits — night shift and appetite", async () => {
     const user = userEvent.setup();
     open(makePal("BlackPuppy"));

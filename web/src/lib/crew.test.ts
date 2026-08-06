@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { Pal } from "./api";
-import { WORK_TYPES, appetite, crewReport, dedupeSpecies, isNocturnal, topWork, workLevel, type CrewPal } from "./crew";
+import {
+  WORK_TYPES,
+  appetite,
+  crewReport,
+  dedupeSpecies,
+  isNocturnal,
+  topWork,
+  workBreakdown,
+  workLevel,
+  type CrewPal,
+} from "./crew";
 
 function makePal(characterId: string, over: Partial<Pal> = {}): Pal {
   return {
@@ -53,9 +63,58 @@ describe("work catalog reads", () => {
   });
 
   it("lists a pal's suitabilities best first", () => {
-    const top = topWork("Anubis");
+    const top = topWork(makePal("Anubis"));
     expect(top[0].type === "Handcraft" || top[0].type === "Mining").toBe(true);
     expect(top.every((w) => w.level > 0)).toBe(true);
+  });
+});
+
+describe("workBreakdown", () => {
+  it("is just the species table for a fresh catch", () => {
+    const w = workBreakdown(makePal("Penguin"), "Watering");
+    expect(w).toEqual({ base: 1, books: 0, condensed: 0, level: 1, off: false });
+  });
+
+  it("adds the save's work books", () => {
+    const fed = makePal("Anubis", { workAdds: { Handcraft: 2 } });
+    const w = workBreakdown(fed, "Handcraft");
+    expect(w.books).toBe(2);
+    expect(w.level).toBe(w.base + 2);
+  });
+
+  it("books can't conjure a suitability the species lacks", () => {
+    // Anubis can't water; a stray add for it must not invent a level.
+    const odd = makePal("Anubis", { workAdds: { Watering: 1 } });
+    expect(workBreakdown(odd, "Watering").level).toBeGreaterThanOrEqual(0);
+  });
+
+  it("one star boosts only the best suitability, ties in sheet order", () => {
+    // Pengullet's four suitabilities all sit at 1, so the sheet order
+    // decides: Watering comes first and takes the single star's +1.
+    const oneStar = makePal("Penguin", { rank: 2 });
+    expect(workBreakdown(oneStar, "Watering").condensed).toBe(1);
+    expect(workBreakdown(oneStar, "Cool").condensed).toBe(0);
+    expect(workBreakdown(oneStar, "Handcraft").condensed).toBe(0);
+  });
+
+  it("four stars boost every suitability the species has", () => {
+    const maxed = makePal("Penguin", { rank: 5 });
+    for (const type of ["Watering", "Cool", "Handcraft", "Transport"]) {
+      expect(workBreakdown(maxed, type).condensed).toBe(1);
+    }
+    // But never one it doesn't have.
+    expect(workBreakdown(maxed, "Mining").level).toBe(0);
+  });
+
+  it("caps the total at the game's ceiling of 10", () => {
+    const stacked = makePal("Anubis", { rank: 5, workAdds: { Handcraft: 9 } });
+    expect(workBreakdown(stacked, "Handcraft").level).toBe(10);
+  });
+
+  it("reads the player's off-toggle", () => {
+    const benched = makePal("Anubis", { workOff: ["Mining"] });
+    expect(workBreakdown(benched, "Mining").off).toBe(true);
+    expect(workBreakdown(benched, "Handcraft").off).toBe(false);
   });
 });
 
@@ -97,6 +156,26 @@ describe("crewReport", () => {
     expect(handiwork.upgrade?.over).toBe(1);
     // Nobody in the box waters better than Pengullet's 1 — Anubis can't.
     expect(r.rows.find((x) => x.type === "Watering")!.upgrade).toBeUndefined();
+  });
+
+  it("uses effective levels: a condensed hand raises the base's best", () => {
+    // A 4-star Arsox: Kindling 3 -> 4, so the board reads 4.
+    const maxed = [cp("FlameBuffalo", { nickname: "maxed", rank: 5 })];
+    const r = crewReport(maxed, []);
+    expect(r.rows.find((x) => x.type === "EmitFlame")!.best).toBe(4);
+  });
+
+  it("a switched-off job is neither a hand nor a suggestion", () => {
+    const offCrew = [cp("FlameBuffalo", { nickname: "off", workOff: ["EmitFlame"] })];
+    const r = crewReport(offCrew, [cp("Anubis", { nickname: "boxed", baseId: "", workOff: ["Handcraft"] })]);
+    const kindling = r.rows.find((x) => x.type === "EmitFlame")!;
+    // The only kindler has the job switched off: no hands, level 0 —
+    // Lumbering still counts it, since only EmitFlame was toggled.
+    expect(kindling.hands).toHaveLength(0);
+    expect(kindling.best).toBe(0);
+    expect(r.rows.find((x) => x.type === "Deforest")!.hands).toHaveLength(1);
+    // And the boxed Anubis with Handiwork off is never suggested for it.
+    expect(r.rows.find((x) => x.type === "Handcraft")!.upgrade).toBeUndefined();
   });
 
   it("breaks a level tie by combat level when appetites match", () => {

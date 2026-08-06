@@ -6,7 +6,7 @@ import { api, ApiError, type Pal, type PlayerPals } from "../lib/api";
 import { initials, playerColor } from "../lib/palette";
 import { agoLabel } from "../lib/time";
 import { elementColor, palDeckNo, palDeckSortValue, palEntry, palIconUrl, palName, passiveName, rarityTier } from "../lib/paldex";
-import { WORK_TYPES, workLevel } from "../lib/crew";
+import { WORK_TYPES, palWorkLevel } from "../lib/crew";
 import { palEffectiveStats } from "../lib/stats";
 import { TalentTriplet } from "../components/TalentTriplet";
 import { cn } from "../lib/utils";
@@ -29,8 +29,9 @@ import { Select } from "../components/ui/select";
 // ---------------------------------------------------------------------------
 
 type Metric = "iv-total" | "iv-hp" | "iv-atk" | "iv-def" | "eff-hp" | "eff-atk" | "eff-def";
-/** `work-<type>` sorts by a work suitability level — the species' own, so
- * every Digtoise ties and the order within a species holds steady. */
+/** `work-<type>` sorts by a work suitability level — each pal's effective
+ * one, books and condenser stars included, so a maxed Digtoise outranks a
+ * fresh catch of the same species. */
 type SortKey = "name" | "level" | "deck" | Metric | `work-${string}`;
 
 const WORK_LABELS = Object.fromEntries(WORK_TYPES.map((w) => [w.id, w.label]));
@@ -100,7 +101,7 @@ function matchPal(pal: Pal, c: Controls): boolean {
   for (const name of c.passives)
     if (!pal.passives.some((code) => passiveName(code) === name)) return false;
   if (c.minValue > 0 && metricValue(pal, c.minMetric, c.effMap.get(pal.instanceId)) < c.minValue) return false;
-  if (c.workType && workLevel(pal.characterId, c.workType) < Math.max(1, c.workMin)) return false;
+  if (c.workType && palWorkLevel(pal, c.workType) < Math.max(1, c.workMin)) return false;
   return true;
 }
 
@@ -115,7 +116,7 @@ function sortPals(pals: Pal[], c: Controls): Pal[] {
     }
     if (c.sortKey.startsWith("work-")) {
       const type = c.sortKey.slice(5);
-      return dir * (workLevel(a.characterId, type) - workLevel(b.characterId, type));
+      return dir * (palWorkLevel(a, type) - palWorkLevel(b, type));
     }
     // The work- branch above leaves only "level" and the metrics, but
     // startsWith doesn't narrow a template-literal type — hence the cast.
@@ -134,7 +135,7 @@ function PalCard({ pal, onOpen, workBadge }: { pal: Pal; onOpen: () => void; wor
   const tier = rarityTier(entry?.rarity ?? 0);
   // Only while a work sort or filter is on: the number being sorted by has
   // to be visible, or the ordering reads as arbitrary.
-  const workBadgeLevel = workBadge ? workLevel(pal.characterId, workBadge) : 0;
+  const workBadgeLevel = workBadge ? palWorkLevel(pal, workBadge) : 0;
 
   return (
     <button

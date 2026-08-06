@@ -221,6 +221,16 @@ does beyond copying, all worth knowing on refresh:
 The team scorer's weights in `web/src/lib/team.ts` (`W`) are ours, not game
 data — a hand-set model like the inheritance rates, kept in one table.
 
+`palWork.json` carries **species base levels only**. A pal's effective
+level adds two per-pal pieces on top: work-book ranks, which the extractor
+reads from the save (`GotWorkSuitabilityAddRankList` → `workAdds`), and the
+condenser's star bonus, which the save does *not* store — the game derives
+it from Rank at runtime, and `workBreakdown` in `web/src/lib/crew.ts`
+models the same rule (star n boosts the n-th-best suitability; four stars
+boost them all; community-verified against palworld.wiki.gg). Re-check that
+rule if a patch touches condensation. The save's per-pal off-toggles
+(`workOff`) ride along the same way.
+
 ### Why bossFights.json comes from paldb and nowhere else
 
 The guide sites disagree with each other about tower boss levels, and some of

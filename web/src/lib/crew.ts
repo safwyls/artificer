@@ -8,10 +8,12 @@ import type { Pal } from "./api";
  * builds the 12-row work board, and from the guild's boxes it suggests who
  * would do a job better.
  *
- * Levels are species bases from the vendored catalog (palWork.json). The
- * save also records per-pal boosts — work books, and whatever a patch adds
- * next — that the extractor doesn't read yet, so a hand-fed pal can run one
- * level above what this board says. The UI owns that footnote.
+ * A pal's effective level is what the game shows: the species base from the
+ * vendored catalog (palWork.json), plus the work books recorded per-pal in
+ * the save, plus the condenser's star bonus — which the save does NOT
+ * store, so it's modeled from rank here exactly as the game derives it.
+ * Jobs the player switched off for a pal are levels it has but work it
+ * won't take, and the board refuses to count those as hands.
  */
 
 /** The slice the planner reads; the calculators' SavePal satisfies it. */
@@ -43,8 +45,58 @@ export const WORK_TYPES: { id: string; label: string }[] = [
   { id: "MonsterFarm", label: "Farming" },
 ];
 
+/** The species' own level for a type — the catalog table, nothing else.
+ * Almost every caller wants {@link palWorkLevel} instead. */
 export function workLevel(characterId: string, type: string): number {
   return workProfile(characterId)?.w[type] ?? 0;
+}
+
+/**
+ * The suitabilities a condensed pal's star bonus reaches, derived from rank
+ * the way the game does: one star boosts the best suitability by +1, two
+ * stars the second-best as well, three the third; four stars boost every
+ * suitability the species has. "Best" ranks by species level, ties in
+ * sheet order. Community-verified (palworld.wiki.gg, Pal Condensation) —
+ * the save stores no trace of it, so it has to be modeled.
+ */
+function condensedTypes(characterId: string, stars: number): string[] {
+  if (stars <= 0) return [];
+  const owned = WORK_TYPES.map((w, i) => ({ id: w.id, level: workLevel(characterId, w.id), i })).filter(
+    (w) => w.level > 0,
+  );
+  if (stars >= 4) return owned.map((w) => w.id);
+  return owned
+    .sort((a, b) => b.level - a.level || a.i - b.i)
+    .slice(0, stars)
+    .map((w) => w.id);
+}
+
+export interface WorkBreakdown {
+  /** The species' own level. */
+  base: number;
+  /** Ranks added by work books, recorded per-pal in the save. */
+  books: number;
+  /** +1 when the condenser's star bonus reaches this type. */
+  condensed: number;
+  /** What the game shows: base + books + star bonus, capped at 10. */
+  level: number;
+  /** The player switched this job off — the level stands, the work stops. */
+  off: boolean;
+}
+
+export function workBreakdown(pal: Pal, type: string): WorkBreakdown {
+  const base = workLevel(pal.characterId, type);
+  const books = pal.workAdds?.[type] ?? 0;
+  const stars = Math.max(0, Math.min(4, (pal.rank ?? 1) - 1));
+  const condensed = base > 0 && condensedTypes(pal.characterId, stars).includes(type) ? 1 : 0;
+  const level = base + books <= 0 ? 0 : Math.min(10, base + books + condensed);
+  return { base, books, condensed, level, off: pal.workOff?.includes(type) ?? false };
+}
+
+/** The level the game actually shows for this pal: species base, its work
+ * books and its condenser stars together. */
+export function palWorkLevel(pal: Pal, type: string): number {
+  return workBreakdown(pal, type).level;
 }
 
 export function isNocturnal(characterId: string): boolean {
@@ -94,30 +146,33 @@ export interface CrewReport<P extends CrewPal = CrewPal> {
 /**
  * The board for one base. `boxes` is the upgrade pool — the guild's pals
  * not working at any base; pass only those, since poaching another base's
- * crew is its own decision, not a suggestion. A candidate is suggested when
- * it beats the base's best level for a type the base covers, or covers a
- * type nobody does; ties prefer the smaller appetite, then the higher
- * combat level (a stronger pal defends the base it works).
+ * crew is its own decision, not a suggestion. Levels are per-pal effective
+ * levels (books and condenser stars included), and a pal whose job is
+ * switched off is neither a hand for it nor suggested into it. A candidate
+ * is suggested when it beats the base's best level for a type the base
+ * covers, or covers a type nobody does; ties prefer the smaller appetite,
+ * then the higher combat level (a stronger pal defends the base it works).
  */
 export function crewReport<P extends CrewPal>(crew: P[], boxes: P[]): CrewReport<P> {
   const rows: WorkRow<P>[] = WORK_TYPES.map(({ id, label }) => {
     const hands = crew
-      .filter((p) => workLevel(p.characterId, id) > 0)
-      .sort((a, b) => workLevel(b.characterId, id) - workLevel(a.characterId, id));
-    const best = hands.length ? workLevel(hands[0].characterId, id) : 0;
+      .map((p) => ({ p, work: workBreakdown(p.pal, id) }))
+      .filter(({ work }) => work.level > 0 && !work.off)
+      .sort((a, b) => b.work.level - a.work.level);
+    const best = hands.length ? hands[0].work.level : 0;
 
     let upgrade: CrewUpgrade<P> | undefined;
     for (const p of boxes) {
-      const lvl = workLevel(p.characterId, id);
-      if (lvl <= best) continue;
+      const work = workBreakdown(p.pal, id);
+      if (work.off || work.level <= best) continue;
       if (
         !upgrade ||
-        lvl > upgrade.level ||
-        (lvl === upgrade.level &&
+        work.level > upgrade.level ||
+        (work.level === upgrade.level &&
           (appetite(p.characterId) < appetite(upgrade.pal.characterId) ||
             (appetite(p.characterId) === appetite(upgrade.pal.characterId) && p.pal.level > upgrade.pal.pal.level)))
       ) {
-        upgrade = { pal: p, level: lvl, over: best };
+        upgrade = { pal: p, level: work.level, over: best };
       }
     }
 
@@ -125,8 +180,8 @@ export function crewReport<P extends CrewPal>(crew: P[], boxes: P[]): CrewReport
       type: id,
       label,
       best,
-      hands,
-      night: hands.some((p) => isNocturnal(p.characterId)),
+      hands: hands.map(({ p }) => p),
+      night: hands.some(({ p }) => isNocturnal(p.characterId)),
       upgrade,
     };
   });
@@ -148,9 +203,14 @@ export function crewReport<P extends CrewPal>(crew: P[], boxes: P[]): CrewReport
   };
 }
 
-/** A pal's suitabilities, best first — the crew list's per-pal line. */
-export function topWork(characterId: string, max = 3): { type: string; label: string; level: number }[] {
-  return WORK_TYPES.map(({ id, label }) => ({ type: id, label, level: workLevel(characterId, id) }))
+/** A pal's suitabilities at their effective levels, best first — the crew
+ * list's per-pal line. Switched-off jobs stay listed, flagged, so the line
+ * explains why the board doesn't count them. */
+export function topWork(pal: Pal, max = 3): { type: string; label: string; level: number; off: boolean }[] {
+  return WORK_TYPES.map(({ id, label }) => {
+    const { level, off } = workBreakdown(pal, id);
+    return { type: id, label, level, off };
+  })
     .filter((w) => w.level > 0)
     .sort((a, b) => b.level - a.level)
     .slice(0, max);

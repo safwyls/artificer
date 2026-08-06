@@ -359,6 +359,13 @@ export interface Pal {
   sick: string;
   /** Soul upgrades applied, keyed by stat name. */
   souls: Record<string, number>;
+  /** Work-book enhancements from the save: suitability name -> ranks added.
+   * The condenser's star bonus is NOT here — the game derives it from rank
+   * at runtime, and lib/crew.ts does the same. */
+  workAdds?: Record<string, number>;
+  /** Suitabilities the player switched off for this pal: levels it has,
+   * jobs it won't take. */
+  workOff?: string[];
   slotIndex: number;
   /** The base camp a working pal belongs to (matches a guild base's id);
    * empty for pals not working at a base. */

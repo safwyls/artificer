@@ -2177,8 +2177,8 @@ function CrewPlanner({ savePals, guilds, saveStatus }: { savePals?: SavePal[]; g
           })}
         </div>
         <p className="mt-3 text-[11px] text-ink/35">
-          Levels are the species' own, from the game's tables. Work books recorded in the save aren't read yet, so a
-          hand-fed pal can run a level higher than shown.
+          Levels are each pal's own — species tables plus its work books and condenser stars, the same math the game
+          shows. A pal whose job is switched off isn't counted as a hand for it.
         </p>
       </section>
 
@@ -2190,7 +2190,7 @@ function CrewPlanner({ savePals, guilds, saveStatus }: { savePals?: SavePal[]; g
         ) : (
           <div className="mt-3 grid grid-cols-1 gap-1.5 md:grid-cols-2">
             {crew.map((p) => {
-              const works = topWork(p.characterId);
+              const works = topWork(p.pal);
               return (
                 <button
                   key={p.key}
@@ -2209,8 +2209,16 @@ function CrewPlanner({ savePals, guilds, saveStatus }: { savePals?: SavePal[]; g
                     </span>
                     <span className="mt-1 flex flex-wrap gap-1">
                       {works.map((w) => (
-                        <span key={w.type} className="rounded bg-ink/5 px-1.5 py-0.5 text-[10px] font-semibold text-ink/55">
+                        <span
+                          key={w.type}
+                          title={w.off ? "Switched off — has the level, won't take the job" : undefined}
+                          className={cn(
+                            "rounded bg-ink/5 px-1.5 py-0.5 text-[10px] font-semibold text-ink/55",
+                            w.off && "line-through opacity-60",
+                          )}
+                        >
                           {w.label} {w.level}
+                          {w.off ? " · off" : ""}
                         </span>
                       ))}
                       {works.length === 0 && (

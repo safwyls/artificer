@@ -277,6 +277,30 @@ def parse_player_character(param):
     }
 
 
+def work_adds(param):
+    """Work-book enhancements: suitability name -> ranks added, from
+    GotWorkSuitabilityAddRankList. This list is the *only* work bonus the
+    save stores — the condenser's star bonus is derived from Rank by the
+    game at runtime (and by the frontend), and never written here.
+    Verified against a real save: a 4-star pal's list holds just its book
+    ranks, and a never-condensed pal can carry one too."""
+    out = {}
+    for item in v(param, "GotWorkSuitabilityAddRankList", "values", default=None) or []:
+        suit = text(item, "WorkSuitability").split("::")[-1]
+        rank = num(item, "Rank")
+        if suit and rank:
+            out[suit] = out.get(suit, 0) + rank
+    return out
+
+
+def work_off(param):
+    """Suitabilities the player switched off for this pal in the game's
+    work-suitability toggles. The pal still has the levels; it just won't
+    take those jobs — a base view that counts it as a hand is wrong."""
+    values = v(param, "WorkSuitabilityOptionInfo", "OffWorkSuitabilityList", "values", default=None) or []
+    return [str(x).split("::")[-1] for x in values]
+
+
 def parse_pal(param, instance_id, slot_index=None):
     char_id = text(param, "CharacterID")
     gender = text(param, "Gender")
@@ -318,6 +342,8 @@ def parse_pal(param, instance_id, slot_index=None):
         "friendship": num(param, "FriendshipPoint"),
         "sick": sick,
         "souls": soul_ranks(param),
+        "workAdds": work_adds(param),
+        "workOff": work_off(param),
         # Storage sidecars pass their own slot; see storage_slots.
         "slotIndex": num(param, "SlotId", "SlotIndex", default=-1) if slot_index is None else slot_index,
     }

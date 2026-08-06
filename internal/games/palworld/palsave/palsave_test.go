@@ -33,6 +33,19 @@ func assertFixture(t *testing.T, result *Result) {
 	if boss.CharacterID != "BOSS_Anubis" || !boss.IsBoss || boss.TalentHP != 100 {
 		t.Fatalf("unexpected boss pal: %+v", boss)
 	}
+	// Work books land as add-ranks; a switched-off job is listed by name.
+	// The condenser bonus deliberately never appears here — it's derived
+	// from Rank, not stored.
+	if boss.WorkAdds["Handcraft"] != 2 || boss.WorkAdds["Transport"] != 1 || len(boss.WorkAdds) != 2 {
+		t.Fatalf("boss work adds wrong: %+v", boss.WorkAdds)
+	}
+	if len(boss.WorkOff) != 1 || boss.WorkOff[0] != "Mining" {
+		t.Fatalf("boss work off wrong: %+v", boss.WorkOff)
+	}
+	// A pal with no books and no toggles carries empty fields, not noise.
+	if len(kyoshi.Party[0].WorkAdds) != 0 || len(kyoshi.Party[0].WorkOff) != 0 {
+		t.Fatalf("plain pal should have no work extras: %+v", kyoshi.Party[0])
+	}
 	if !kyoshi.Palbox[1].IsLucky {
 		t.Fatalf("Kitsunebi should be lucky: %+v", kyoshi.Palbox[1])
 	}

@@ -86,8 +86,40 @@ def player(uid, nickname, level, party_container, box_container, instance_id):
     })
 
 
+def workadds(pairs):
+    """GotWorkSuitabilityAddRankList: [(suitability, ranks), ...] the way
+    the game writes work-book enhancements."""
+    return {
+        "array_type": "StructProperty",
+        "id": None,
+        "value": {
+            "prop_name": "GotWorkSuitabilityAddRankList",
+            "prop_type": "StructProperty",
+            "values": [
+                {"WorkSuitability": enum("EPalWorkSuitability", f"EPalWorkSuitability::{suit}"), "Rank": i(rank)}
+                for suit, rank in pairs
+            ],
+            "type_name": "PalWorkSuitabilityInfo",
+            "id": ZERO,
+        },
+        "type": "ArrayProperty",
+    }
+
+
+def workoff(suits):
+    """WorkSuitabilityOptionInfo with the player's switched-off jobs."""
+    return sp("PalWorkSuitabilityOption", {
+        "OffWorkSuitabilityList": {
+            "array_type": "EnumProperty",
+            "id": None,
+            "value": {"values": [f"EPalWorkSuitability::{suit}" for suit in suits]},
+            "type": "ArrayProperty",
+        },
+    })
+
+
 def pal(owner, instance_id, char_id, container, slot, level=1, nickname="", gender="EPalGenderType::Female",
-        rank=1, hp=50, shot=50, defense=50, passives=(), lucky=False):
+        rank=1, hp=50, shot=50, defense=50, passives=(), lucky=False, work_adds=(), work_off=()):
     param = {
         "CharacterID": name(char_id),
         "Level": i(level),
@@ -105,6 +137,10 @@ def pal(owner, instance_id, char_id, container, slot, level=1, nickname="", gend
         param["PassiveSkillList"] = namearray(list(passives))
     if lucky:
         param["IsRarePal"] = b(True)
+    if work_adds:
+        param["GotWorkSuitabilityAddRankList"] = workadds(list(work_adds))
+    if work_off:
+        param["WorkSuitabilityOptionInfo"] = workoff(list(work_off))
     return entry(ZERO, instance_id, param)
 
 
@@ -115,7 +151,10 @@ entries = [
     pal(KYOSHI, "10000000-0000-0000-0000-000000000101", "SheepBall", KYOSHI_PARTY, 0, 12, "Fluffy",
         passives=["Brave", "PAL_ALLAttack_up1"]),
     pal(KYOSHI, "10000000-0000-0000-0000-000000000102", "BOSS_Anubis", KYOSHI_PARTY, 1, 47,
-        gender="EPalGenderType::Male", hp=100, shot=93, defense=71, passives=["Legend"]),
+        gender="EPalGenderType::Male", hp=100, shot=93, defense=71, passives=["Legend"],
+        # Two Handiwork books plus one Transporting, and Mining switched
+        # off — the shapes a real save writes (see extract_pals.work_adds).
+        work_adds=[("Handcraft", 2), ("Transport", 1)], work_off=["Mining"]),
     pal(KYOSHI, "10000000-0000-0000-0000-000000000103", "PinkCat", KYOSHI_BOX, 0, 8),
     pal(KYOSHI, "10000000-0000-0000-0000-000000000104", "Kitsunebi", KYOSHI_BOX, 1, 20, lucky=True),
     pal(KYOSHI, "10000000-0000-0000-0000-000000000105", "Penguin", "cccccccc-0000-0000-0000-000000000001", 0, 15),

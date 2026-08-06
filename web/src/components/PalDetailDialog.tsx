@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Moon, Star } from "lucide-react";
 import type { Pal } from "../lib/api";
-import { WORK_TYPES, appetite, isNocturnal, workLevel } from "../lib/crew";
+import { WORK_TYPES, appetite, isNocturnal, workBreakdown, workLevel } from "../lib/crew";
 import {
   elementColor,
   palBaseStats,
@@ -341,11 +341,13 @@ export function PalDetailDialog({
 }
 
 /**
- * The Work tab: the species' full suitability sheet — all twelve types,
- * the unsuited ones dimmed rather than dropped, because "can't water" is an
- * answer too — plus the working traits: night shift, appetite, and the
- * movement figures where they matter (ride speed only for a rideable pal,
- * carry speed only for a transporter).
+ * The Work tab: this pal's full suitability sheet — all twelve types, the
+ * unsuited ones dimmed rather than dropped, because "can't water" is an
+ * answer too. Levels are effective: species base plus the save's work
+ * books plus the condenser's star bonus, with the bonus part called out in
+ * amber so a hand-raised pal reads differently from a fresh catch. Jobs
+ * the player switched off are flagged. Below: the working traits — night
+ * shift, appetite, and the movement figures where they matter.
  */
 function WorkPanel({ pal }: { pal: Pal }) {
   const work = workProfile(pal.characterId);
@@ -359,19 +361,41 @@ function WorkPanel({ pal }: { pal: Pal }) {
     <div role="tabpanel" className="space-y-3">
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
         {WORK_TYPES.map(({ id, label }) => {
-          const lvl = workLevel(pal.characterId, id);
+          const w = workBreakdown(pal, id);
+          const bonus = w.level - w.base;
           return (
             <div
               key={id}
+              title={
+                w.level > 0
+                  ? `species ${w.base}` +
+                    (w.books ? ` · books +${w.books}` : "") +
+                    (w.condensed ? ` · condensed +${w.condensed}` : "") +
+                    (w.off ? " · switched off by the player" : "")
+                  : undefined
+              }
               className={cn(
                 "flex items-center gap-2 rounded-lg border px-2.5 py-2",
-                lvl > 0 ? "border-ink/10 bg-white/60" : "border-ink/5 bg-ink/[0.02] opacity-45",
+                w.level > 0 ? "border-ink/10 bg-white/60" : "border-ink/5 bg-ink/[0.02] opacity-45",
               )}
             >
               <WorkIcon type={id} className="h-4 w-4 shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink/70">{label}</span>
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-xs font-semibold text-ink/70",
+                  w.off && "line-through opacity-60",
+                )}
+              >
+                {label}
+              </span>
+              {w.off && (
+                <span className="rounded bg-destructive/10 px-1 text-[9px] font-bold uppercase text-destructive">
+                  off
+                </span>
+              )}
+              {bonus > 0 && <span className="font-mono text-[10px] font-bold text-brand-amber">+{bonus}</span>}
               <span className="font-mono text-sm font-bold tabular-nums">
-                {lvl > 0 ? lvl : <span className="text-ink/30">—</span>}
+                {w.level > 0 ? w.level : <span className="text-ink/30">—</span>}
               </span>
             </div>
           );
@@ -400,8 +424,8 @@ function WorkPanel({ pal }: { pal: Pal }) {
       </div>
 
       <p className="text-[11px] text-ink/35">
-        Species levels from the game's tables — work books recorded in the save aren't read yet, so a hand-fed pal can
-        run a level higher than shown.
+        Levels as the game shows them: species tables plus this pal's work books and condenser stars. The amber +n is
+        the earned part.
       </p>
     </div>
   );

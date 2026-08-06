@@ -61,7 +61,15 @@ type Pal struct {
 	Friendship int            `json:"friendship"`
 	Sick       string         `json:"sick"`
 	Souls      map[string]int `json:"souls"`
-	SlotIndex  int            `json:"slotIndex"`
+	// WorkAdds are the save's work-book enhancements, suitability name ->
+	// ranks added. The condenser's star bonus is not stored in the save —
+	// the game derives it from Rank at runtime, and the frontend does the
+	// same — so this map carries books only.
+	WorkAdds map[string]int `json:"workAdds,omitempty"`
+	// WorkOff lists suitabilities the player switched off for this pal:
+	// levels it has but jobs it won't take.
+	WorkOff   []string `json:"workOff,omitempty"`
+	SlotIndex int      `json:"slotIndex"`
 	// BaseID is the base camp a working pal belongs to (matches a guild
 	// base's ID); empty for pals not working at a base.
 	BaseID string `json:"baseId"`
