@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/safwyls/palcon/docs"
 	"github.com/safwyls/palcon/internal/advisor"
@@ -467,7 +468,7 @@ func (s *Server) handleAdvisorChat(w http.ResponseWriter, r *http.Request) {
 	if !requireFeature(w, r, srv, store.FeatureCalculators) {
 		return
 	}
-	client, _, err := s.advisorFor(r)
+	client, source, err := s.advisorFor(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -520,6 +521,25 @@ func (s *Server) handleAdvisorChat(w http.ResponseWriter, r *http.Request) {
 	reply, err := client.Chat(r.Context(), asker, req.Context, req.Tools, req.Messages)
 	if errors.Is(err, advisor.ErrRefused) {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	// A quota/rate hit is actionable — say whose key ran dry and how long
+	// to wait, instead of a generic "unavailable". Expected operational
+	// noise on free tiers, so logged as a warning, not an error.
+	var limited *advisor.RateLimitedError
+	if errors.As(err, &limited) {
+		wait := " — try again in a minute"
+		if limited.RetryAfter > 0 {
+			wait = fmt.Sprintf(" — try again in about %s", limited.RetryAfter.Round(time.Second))
+		}
+		msg := "The server's advisor key has hit its usage limit" + wait +
+			". If this keeps happening, an admin may need a higher quota with the provider."
+		if source == "personal" {
+			msg = "Your advisor key has hit its usage limit" + wait +
+				". Check your plan and billing with the provider, or remove your key to use the server's."
+		}
+		s.logger.Warn("advisor rate limited", "server", srv.ID, "source", source, "retryAfter", limited.RetryAfter)
+		writeError(w, http.StatusTooManyRequests, msg)
 		return
 	}
 	if err != nil {

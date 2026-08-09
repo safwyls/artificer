@@ -125,6 +125,12 @@ func (g *Gemini) Chat(ctx context.Context, asker, gameContext string, tools []To
 		MaxOutputTokens: 8192,
 	})
 	if err != nil {
+		// Quota exhaustion (free tiers hit this fast) — actionable for the
+		// key's owner, so it must not drown in "advisor unavailable".
+		var apiErr genai.APIError
+		if errors.As(err, &apiErr) && apiErr.Code == 429 {
+			return Reply{}, rateLimited(err.Error())
+		}
 		return Reply{}, err
 	}
 	// A block can land on the prompt (nothing generated at all) or on the

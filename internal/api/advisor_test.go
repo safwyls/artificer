@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/safwyls/palcon/internal/advisor"
 )
@@ -251,8 +252,19 @@ func TestAdvisorChatUpstreamFailures(t *testing.T) {
 		t.Errorf("refusal: got %d, want 422 (body %s)", rec.Code, rec.Body)
 	}
 
-	app.api.SetEnvAdvisor(&fakeAdvisor{err: fmt.Errorf("api timeout")})
+	// A quota hit names itself, the wait, and (implicitly) whose key —
+	// the one upstream failure a player can actually act on.
+	app.api.SetEnvAdvisor(&fakeAdvisor{err: &advisor.RateLimitedError{RetryAfter: 57 * time.Second}})
 	rec := app.do(t, "POST", path, body, admin)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Errorf("rate limited: got %d, want 429 (body %s)", rec.Code, rec.Body)
+	}
+	if msg, _ := decodeMap(t, rec)["error"].(string); !strings.Contains(msg, "usage limit") || !strings.Contains(msg, "57s") {
+		t.Errorf("rate limit message = %q, want usage limit + wait", msg)
+	}
+
+	app.api.SetEnvAdvisor(&fakeAdvisor{err: fmt.Errorf("api timeout")})
+	rec = app.do(t, "POST", path, body, admin)
 	if rec.Code != http.StatusBadGateway {
 		t.Errorf("upstream error: got %d, want 502 (body %s)", rec.Code, rec.Body)
 	}

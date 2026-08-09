@@ -18,6 +18,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
+	"time"
 )
 
 // Providers, as spelled in config, the store, and the status endpoint.
@@ -169,6 +172,36 @@ type Reply struct {
 // surfaced to the user, rather than a generic upstream error, because a
 // retry won't help and the question is what has to change.
 var ErrRefused = errors.New("the advisor declined to answer this question")
+
+// RateLimitedError reports the provider refusing for quota or rate reasons.
+// Its own type rather than a generic upstream error because it's actionable
+// for whoever owns the key — wait it out, or fix the plan — and the handler
+// words the message differently for a personal key than a shared one.
+type RateLimitedError struct {
+	// RetryAfter is the provider's suggested wait, 0 when it named none.
+	RetryAfter time.Duration
+}
+
+func (e *RateLimitedError) Error() string {
+	if e.RetryAfter > 0 {
+		return fmt.Sprintf("rate limited, retry in %s", e.RetryAfter.Round(time.Second))
+	}
+	return "rate limited"
+}
+
+// Both providers spell the suggested wait inside the message text ("Please
+// retry in 57.05s") more reliably than in typed fields; scrape it, treat a
+// miss as unknown.
+var retryAfterRe = regexp.MustCompile(`(?i)retry in ([0-9]+(?:\.[0-9]+)?)\s*s`)
+
+func rateLimited(message string) *RateLimitedError {
+	if m := retryAfterRe.FindStringSubmatch(message); m != nil {
+		if secs, err := strconv.ParseFloat(m[1], 64); err == nil {
+			return &RateLimitedError{RetryAfter: time.Duration(secs * float64(time.Second))}
+		}
+	}
+	return &RateLimitedError{}
+}
 
 // systemPrompt teaches the model its role, the shape of the data the browser
 // sends, and the handful of game mechanics its recommendations turn on. The

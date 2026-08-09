@@ -131,6 +131,12 @@ func (c *Claude) Chat(ctx context.Context, asker, gameContext string, tools []To
 		Fallbacks: anthropic.BetaFallbacksParamOfDefault(),
 	})
 	if err != nil {
+		// 429 is a quota/rate hit, 529 the API overloaded — both "wait, or
+		// fix the plan", which the key's owner should hear as such.
+		var apierr *anthropic.Error
+		if errors.As(err, &apierr) && (apierr.StatusCode == 429 || apierr.StatusCode == 529) {
+			return Reply{}, rateLimited(err.Error())
+		}
 		return Reply{}, err
 	}
 	if resp.StopReason == anthropic.BetaStopReasonRefusal {
