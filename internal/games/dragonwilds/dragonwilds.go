@@ -15,6 +15,7 @@
 package dragonwilds
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/safwyls/dwcon/internal/game"
@@ -49,11 +50,30 @@ var Definition = &game.Definition{
 
 func init() { game.Register(Definition) }
 
-// CanonicalUID trims a player id and nothing more. The id's wire format is
-// undocumented (recon: "Player identity", UNVERIFIED) and v0 log lines
-// carry names rather than ids, so there are no divergent spellings to
-// reconcile yet. Guessing a normalization (case-folding, dash-stripping)
-// against an unknown format is how a visibility check fails open — the
-// porting doc's warning — so until real ids are captured, identity is the
-// only correct transform.
-func CanonicalUID(uid string) string { return strings.TrimSpace(uid) }
+// playerIDPattern is the shape a real Player ID takes: 32 hex characters,
+// the EOS ProductUserId form. Confirmed against a live account, and
+// matched case-insensitively on purpose — see CanonicalUID.
+var playerIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{32}$`)
+
+// CanonicalUID lowercases a 32-hex player id and trims everything else.
+//
+// The case-folding is not a guess. The game renders the same 32-hex shape
+// in two different cases depending on where it appears: the in-game
+// Settings screen shows a Player ID lowercase, while the values the server
+// writes itself are uppercase (`ServerGuid=6E8B93DD...` in the ini,
+// `WorldSaveGuid` uppercase in the log). An id that arrives from one place
+// and is matched against the other would silently never match — which for
+// a visibility check means failing open, the exact failure the porting doc
+// warns about.
+//
+// Anything that isn't 32 hex characters is only trimmed. Lowercasing hex
+// is lossless and cannot collide two distinct ids; lowercasing an unknown
+// format could, so unrecognised values are left alone rather than mangled
+// into something that matches nothing.
+func CanonicalUID(uid string) string {
+	uid = strings.TrimSpace(uid)
+	if playerIDPattern.MatchString(uid) {
+		return strings.ToLower(uid)
+	}
+	return uid
+}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -186,8 +187,45 @@ func TestNoAgentConfiguredIsDeferredError(t *testing.T) {
 	}
 }
 
-func TestCanonicalUIDIsTrimOnly(t *testing.T) {
-	if got := dragonwilds.CanonicalUID("  AbC-123  "); got != "AbC-123" {
-		t.Fatalf("CanonicalUID = %q", got)
+// The ids below are synthetic but real-shaped (32 hex, EOS ProductUserId
+// form). A live account's id was used to establish the shape; committing
+// someone's actual account identifier into a repo is a different thing
+// entirely, so the fixtures are made up.
+func TestCanonicalUID(t *testing.T) {
+	const lower = "0a1b2c3d4e5f60718293a4b5c6d7e8f9"
+	upper := strings.ToUpper(lower)
+
+	cases := []struct{ name, in, want string }{
+		// The case-folding case is the whole point: the Settings screen
+		// shows a Player ID lowercase, while the values the server writes
+		// itself (ServerGuid, WorldSaveGuid) are uppercase. Both spellings
+		// have to land on the same key or a match silently never happens.
+		{"lowercase id is left alone", lower, lower},
+		{"uppercase id folds to lowercase", upper, lower},
+		{"mixed case folds too", "0A1b2C3d4E5f60718293a4b5c6d7e8f9", lower},
+		{"surrounding space is trimmed", "  " + upper + "  ", lower},
+		// Anything not 32-hex is trimmed and otherwise untouched: folding
+		// an unknown format could collide two distinct ids.
+		{"non-hex is preserved", "Player-Name_42", "Player-Name_42"},
+		{"wrong length is preserved", "0A1B2C3D", "0A1B2C3D"},
+		{"empty stays empty", "   ", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := dragonwilds.CanonicalUID(tc.in); got != tc.want {
+				t.Errorf("CanonicalUID(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// Canonicalizing twice must not change the answer — the collector applies
+// it on every poll, so a non-idempotent transform would drift.
+func TestCanonicalUIDIsIdempotent(t *testing.T) {
+	for _, in := range []string{"0A1B2C3D4E5F60718293A4B5C6D7E8F9", "  Name  ", ""} {
+		once := dragonwilds.CanonicalUID(in)
+		if twice := dragonwilds.CanonicalUID(once); twice != once {
+			t.Errorf("CanonicalUID(%q): %q then %q", in, once, twice)
+		}
 	}
 }

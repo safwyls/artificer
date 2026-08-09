@@ -120,14 +120,14 @@ export function RaiseServerDialog({
               <Input
                 value={ownerId}
                 onChange={(e) => setOwnerId(e.target.value)}
-                placeholder="paste your Player ID"
+                placeholder="0a1b2c3d4e5f60718293a4b5c6d7e8f9"
                 spellCheck={false}
                 className="mt-2 border-wk-edge bg-wk-ink font-mono text-sm text-wk-parchment"
               />
               <p className="mt-2 text-xs text-wk-mist">
                 In game: <span className="text-wk-rune">Settings</span> → bottom-left{" "}
-                <span className="text-wk-rune">My Player ID</span> → copy. The server will not start without it, and
-                this ID becomes the Owner — the only role that can unban.
+                <span className="text-wk-rune">My Player ID</span> → copy. Works the same on Steam or Epic. The server
+                will not start without it, and this ID becomes the Owner — the only role that can unban.
               </p>
             </div>
 

@@ -57,12 +57,18 @@ UNVERIFIED are the gaps a headless server cannot close.
   `libsteam_api.so` and `libEOSSDK-Linux-Shipping.so`, and EOS treats Steam
   as a login provider, so a Steam player has an EOS-backed id and does not
   need a separate Epic account. Whatever that screen shows is the value
-  `OwnerId` wants. **The wire format is undocumented — no source shows a real
-  value.** UNVERIFIED. Consequence: `CanonicalUID` is a trim-only identity
-  function for now; no case-folding or reformatting until we've captured real
-  ids from a live server (the plan's fail-open warning applies — an invented
-  normalization is worse than none). Table-driven tests exist and grow as
-  real spellings arrive.
+  `OwnerId` wants.
+- **Format confirmed against a live account: 32 lowercase hex characters**
+  (the EOS ProductUserId shape), e.g. `0a1b2c3d4e5f60718293a4b5c6d7e8f9`.
+  Examples here and in tests are synthetic — a real account identifier
+  doesn't belong in a repo.
+- **The case differs by context, and that is what `CanonicalUID` is for.**
+  The Settings screen shows the id lowercase, while the same 32-hex shape
+  written by the server itself is uppercase (`ServerGuid=6E8B93DD…` in the
+  ini, `WorldSaveGuid` uppercase in the log). So `CanonicalUID` lowercases
+  a value that matches `^[0-9a-fA-F]{32}$` and only trims anything else:
+  folding hex is lossless, folding an unknown format could collide two
+  distinct ids. Table-driven tests cover both branches.
 
 ### Saves
 - Server world saves: `RSDragonwilds/Saved/SaveGames/*.sav` — but **casing
@@ -246,13 +252,15 @@ as fact.
 lines at all for ten minutes. Liveness must come from the agent's process
 state, never from log activity — which is what the client does.
 
-**Gate 2 — Player ID: partially closed.** `OwnerId` is **not
-format-validated**: the server accepted the literal string `test123` and
-booted normally. So provisioning must not validate the shape, and
-`CanonicalUID` staying trim-only is safe. The true wire format is still
-unknown (`ServerGuid` is 32 hex chars, and `LogPersistence` carries empty
-`OwnerGuid[]`/`OwnerName[]` fields, which *hints* at a guid, but a real id
-still needs the in-game Settings screen).
+**Gate 2 — Player ID: closed.** Two separate facts, and they pull in
+opposite directions. The format is **32 lowercase hex characters** (EOS
+ProductUserId), confirmed against a live account — so the `OwnerGuid[]`
+hint was right. But `OwnerId` is **not format-validated**: the server
+accepted the literal string `test123` and booted normally. So the
+dashboard must *not* reject a value for failing to match the shape — the
+game doesn't — while `CanonicalUID` may safely fold case for values that
+do match it. A wrong-but-well-formed id fails silently: the server starts,
+you simply are not the Owner.
 
 **Gate 3 — shutdown: closed.** SIGTERM to the shipping binary produced a
 clean shutdown in **2 seconds**, exit code **143**, and the world save was
@@ -302,12 +310,13 @@ world is written once at creation.
 ## Still open (need real game clients)
 
 1. **Join/leave log lines** — the last unverified regexes in `dwlog`.
-2. **A real Player ID** — to learn the true format (nothing depends on it
-   today, since the field is not validated).
-3. **Ban list at rest** — whether offline ban/unban can be done by editing
+2. **Ban list at rest** — whether offline ban/unban can be done by editing
    a file, or stays in-game only.
-4. **Autosave trigger** — whether the 5-minute CVar is wall-clock once
+3. **Autosave trigger** — whether the 5-minute CVar is wall-clock once
    players are present.
+4. **Whether a second well-known UDP port opens** once a player connects
+   (only 7777 plus an ephemeral port was seen idle).
 
-All four need the paid game on a machine that can run the client; none can
-be closed from a headless server alone.
+All four need a player actually in the world; none can be closed from a
+headless server alone. (The Player ID gate is now closed — see "Player
+identity".)
