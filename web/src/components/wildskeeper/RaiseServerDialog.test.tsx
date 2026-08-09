@@ -29,7 +29,7 @@ describe("RaiseServerDialog", () => {
     const raise = screen.getByRole("button", { name: /raise the server/i });
     expect(raise).toBeDisabled();
 
-    await user.type(screen.getByPlaceholderText(/player id/i), "owner-abc");
+    await user.type(screen.getByLabelText(/owner id/i), "owner-abc");
     await waitFor(() => expect(raise).toBeEnabled());
     await user.click(raise);
     await waitFor(() => expect(provision).toHaveBeenCalled());
@@ -72,7 +72,7 @@ describe("RaiseServerDialog", () => {
 
     await waitFor(() => expect(api.provisionDefaults).toHaveBeenCalled());
     await user.type(screen.getByPlaceholderText("Grimwood Bastion"), "Keep");
-    await user.type(screen.getByPlaceholderText(/player id/i), "owner-abc");
+    await user.type(screen.getByLabelText(/owner id/i), "owner-abc");
     await user.click(screen.getByRole("button", { name: /raise the server/i }));
 
     await screen.findByText(/is rising/i);

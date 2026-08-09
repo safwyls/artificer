@@ -116,8 +116,11 @@ export function RaiseServerDialog({
 
             {/* The prerequisite, given the room it earns. */}
             <div className="wk-corners rounded-md border border-wk-brass bg-gradient-to-br from-wk-raise to-[#131a24] px-5 py-4">
-              <Label className="font-wkdisplay text-sm tracking-[0.06em] text-wk-brasshi">Owner ID</Label>
+              <Label htmlFor="raise-owner-id" className="font-wkdisplay text-sm tracking-[0.06em] text-wk-brasshi">
+                Owner ID
+              </Label>
               <Input
+                id="raise-owner-id"
                 value={ownerId}
                 onChange={(e) => setOwnerId(e.target.value)}
                 placeholder="0a1b2c3d4e5f60718293a4b5c6d7e8f9"
