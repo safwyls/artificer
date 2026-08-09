@@ -1,0 +1,107 @@
+name: Docker
+
+# Pushes to main publish :latest; pushes to beta publish :beta (the
+# metadata action's branch tag), giving a test channel that real
+# deployments can pull without touching :latest.
+on:
+  push:
+    branches: [main, beta]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # Fast fail before paying for the full multi-stage Docker build: same
+  # checks run manually in local dev (go build/vet, npm run build).
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Frontend build & tests
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+
+      - name: Go build & vet
+        run: |
+          go build ./...
+          go vet ./...
+
+      # self-skip, so install it to exercise the full suite.
+      - name: Install save-tools for palsave tests
+
+      - name: Go tests
+        run: go test ./...
+
+  # Two images from one repo: the dashboard (Dockerfile) and the palagent
+  # sidecar (Dockerfile.palagent, docs/sidecar-agent.md). Same tag scheme
+  # for both so a compose stack can pin one channel across the pair.
+  docker:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: dwcon
+            dockerfile: Dockerfile
+          - image: palagent
+            dockerfile: Dockerfile.palagent
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Separate cache scopes — the two images share go module layers
+          # conceptually but must not overwrite each other's buildx cache.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=min,scope=${{ matrix.image }}

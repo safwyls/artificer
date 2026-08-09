@@ -1,0 +1,46 @@
+/data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.env
+app.yaml
+
+# Go
+/bin/
+*.exe
+# Local `go build -o` outputs at the repo root (30MB apiece)
+/dwcon
+/palagent
+dwcon.log
+# The palcon reference checkout symlinked beside this repo
+/palcon
+
+# Node / frontend
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
+# Static demo build (CI builds it fresh for GitHub Pages)
+web/dist-demo/
+*.tsbuildinfo
+# vitest --coverage output, regenerated on every run
+web/coverage/
+
+# UI screenshots taken while developing (Claude's headless-browser passes
+# land here so they're viewable in the editor). Never committed.
+/screenshots/
+
+# Real game saves used for local debugging. They hold player names and
+# platform account IDs, and are far too big for the repo — committed
+# fixtures stay synthetic instead.
+/localsaves/
+
+# Python bytecode from the save extractor
+__pycache__/
+*.pyc
+
+# Editor
+.vscode/
+.idea/
+*.swp
+

@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wildskeeper — Ashenfall Server Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#10141a;
+  --bg-raise:#161c24;
+  --panel:#1b2330;
+  --panel-edge:#232d3d;
+  --brass:#8a6f3a;
+  --brass-hi:#c9a24b;
+  --rune:#52d8d0;
+  --rune-dim:#2b6f6c;
+  --ember:#e0704a;
+  --ember-dim:#7a3d2c;
+  --parchment:#e6dcc4;
+  --mist:#8e9688;
+  --ink:#0b0e12;
+  --ok:#7fc46a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scrollbar-color:var(--brass) var(--bg)}
+body{
+  background:var(--bg);
+  background-image:
+    radial-gradient(ellipse 900px 500px at 75% -10%, rgba(82,216,208,.06), transparent),
+    radial-gradient(ellipse 700px 600px at -10% 110%, rgba(201,162,75,.05), transparent);
+  color:var(--parchment);
+  font-family:"Alegreya Sans",system-ui,sans-serif;
+  font-size:15px;
+  min-height:100vh;
+}
+::selection{background:var(--rune-dim);color:var(--parchment)}
+
+/* ---------- shell ---------- */
+.shell{display:grid;grid-template-columns:218px 1fr;min-height:100vh}
+@media (max-width:900px){.shell{grid-template-columns:1fr}}
+
+/* ---------- sidebar ---------- */
+.rail{
+  background:linear-gradient(180deg,#141a22,#10141a);
+  border-right:1px solid var(--panel-edge);
+  padding:22px 0;
+  display:flex;flex-direction:column;gap:4px;
+}
+.brand{padding:0 20px 18px;border-bottom:1px solid var(--panel-edge);margin-bottom:14px}
+.brand h1{
+  font-family:Cinzel,serif;font-size:19px;font-weight:700;letter-spacing:.06em;
+  color:var(--brass-hi);
+}
+.brand .sub{font-size:11.5px;color:var(--mist);letter-spacing:.14em;text-transform:uppercase;margin-top:3px}
+.nav a{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 20px;color:var(--mist);text-decoration:none;font-weight:500;
+  border-left:2px solid transparent;transition:color .15s,background .15s;
+}
+.nav a:hover{color:var(--parchment);background:rgba(201,162,75,.04)}
+.nav a.active{
+  color:var(--parchment);border-left-color:var(--brass-hi);
+  background:linear-gradient(90deg,rgba(201,162,75,.09),transparent);
+}
+.nav a:focus-visible{outline:2px solid var(--rune);outline-offset:-2px}
+.nav svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.rail .foot{margin-top:auto;padding:16px 20px 0;font-size:12px;color:var(--mist);border-top:1px solid var(--panel-edge)}
+.rail .foot code{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--rune)}
+@media (max-width:900px){
+  .rail{flex-direction:row;align-items:center;overflow-x:auto;padding:10px 8px;border-right:none;border-bottom:1px solid var(--panel-edge)}
+  .brand{border:none;margin:0;padding:0 14px}
+  .brand .sub{display:none}
+  .nav{display:flex}
+  .nav a{border-left:none;border-bottom:2px solid transparent;white-space:nowrap;padding:8px 12px}
+  .nav a.active{border-bottom-color:var(--brass-hi)}
+  .rail .foot{display:none}
+}
+
+/* ---------- main ---------- */
+.main{padding:26px 30px 40px;max-width:1180px}
+@media (max-width:900px){.main{padding:18px 14px 32px}}
+
+/* hero band */
+.hero{
+  display:grid;grid-template-columns:132px 1fr auto;gap:24px;align-items:center;
+  background:linear-gradient(135deg,#1b2330 0%,#161d28 60%,#131a24 100%);
+  border:1px solid var(--brass);border-radius:6px;
+  padding:20px 26px;position:relative;overflow:hidden;
+}
+.hero::before,.hero::after{
+  content:"";position:absolute;width:14px;height:14px;
+  border:2px solid var(--brass-hi);
+}
+.hero::before{top:6px;left:6px;border-right:none;border-bottom:none}
+.hero::after{bottom:6px;right:6px;border-left:none;border-top:none}
+@media (max-width:760px){.hero{grid-template-columns:110px 1fr;gap:16px}}
+
+/* signature: the rune sigil — 6 ring segments = 6 player slots */
+.sigil{width:132px;height:132px}
+@media (max-width:760px){.sigil{width:110px;height:110px}}
+.sigil .slot{stroke:var(--panel-edge);stroke-width:7;fill:none;stroke-linecap:round}
+.sigil .slot.lit{stroke:var(--rune);filter:drop-shadow(0 0 4px rgba(82,216,208,.55))}
+.sigil .core{fill:#0d1218;stroke:var(--brass);stroke-width:1.5}
+.sigil .eye{fill:var(--rune);animation:pulse 3.2s ease-in-out infinite}
+.sigil .glyph{stroke:var(--brass-hi);stroke-width:1.3;fill:none;opacity:.85}
+@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.sigil .eye{animation:none;opacity:.9}.logline{animation:none!important}}
+
+.hero h2{font-family:Cinzel,serif;font-size:24px;font-weight:600;letter-spacing:.04em;color:var(--parchment)}
+.hero .worldline{color:var(--mist);margin-top:4px;font-size:14px}
+.hero .worldline b{color:var(--brass-hi);font-weight:500}
+.badges{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.badge{
+  font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 10px;border-radius:3px;border:1px solid var(--panel-edge);color:var(--mist);
+}
+.badge.online{border-color:var(--rune-dim);color:var(--rune)}
+.badge.ver{font-family:"JetBrains Mono",monospace;text-transform:none;letter-spacing:0}
+.controls{display:flex;flex-direction:column;gap:8px}
+@media (max-width:760px){.controls{grid-column:1/-1;flex-direction:row;flex-wrap:wrap}}
+.btn{
+  font-family:"Alegreya Sans",sans-serif;font-size:13.5px;font-weight:700;letter-spacing:.05em;
+  padding:8px 18px;border-radius:4px;cursor:pointer;transition:filter .15s,transform .05s;
+  border:1px solid var(--brass);background:linear-gradient(180deg,#2a2416,#1e1a10);color:var(--brass-hi);
+}
+.btn:hover{filter:brightness(1.2)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--rune);outline-offset:2px}
+.btn.danger{border-color:var(--ember-dim);background:linear-gradient(180deg,#2a1812,#1e120d);color:var(--ember)}
+.btn.ghost{border-color:var(--panel-edge);background:transparent;color:var(--mist)}
+
+/* stat row */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}
+@media (max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{
+  background:var(--panel);border:1px solid var(--panel-edge);border-radius:6px;
+  padding:14px 16px 12px;position:relative;
+}
+.stat .label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mist)}
+.stat .value{font-family:Cinzel,serif;font-size:26px;font-weight:600;color:var(--parchment);margin-top:6px}
+.stat .value small{font-size:14px;color:var(--mist);font-family:"Alegreya Sans",sans-serif;font-weight:400}
+.stat .hint{font-size:12px;color:var(--mist);margin-top:2px}
+.meter{height:5px;border-radius:3px;background:var(--ink);margin-top:10px;overflow:hidden}
+.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--rune-dim),var(--rune))}
+.meter i.warm{background:linear-gradient(90deg,#6e5a2a,var(--brass-hi))}
+.spark{margin-top:8px;width:100%;height:28px}
+.spark polyline{fill:none;stroke:var(--rune);stroke-width:1.5;opacity:.9}
+.spark polygon{fill:rgba(82,216,208,.08);stroke:none}
+
+/* panels grid */
+.grid{display:grid;grid-template-columns:3fr 2fr;gap:14px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--panel-edge);border-radius:6px;margin-bottom:14px;overflow:hidden}
+.panel-h{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:12px 16px;border-bottom:1px solid var(--panel-edge);
+  background:linear-gradient(180deg,rgba(201,162,75,.05),transparent);
+}
+.panel-h h3{font-family:Cinzel,serif;font-size:14.5px;font-weight:600;letter-spacing:.08em;color:var(--brass-hi)}
+.panel-h .meta{font-size:12px;color:var(--mist)}
+.panel-b{padding:14px 16px}
+
+/* adventurers table */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mist);text-align:left;padding:4px 10px 8px;font-weight:500}
+td{padding:9px 10px;border-top:1px solid var(--panel-edge);vertical-align:middle}
+.pname{font-weight:700;color:var(--parchment)}
+.pid{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--mist)}
+.role{font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:3px;border:1px solid}
+.role.owner{color:var(--brass-hi);border-color:var(--brass)}
+.role.admin{color:var(--rune);border-color:var(--rune-dim)}
+.role.std{color:var(--mist);border-color:var(--panel-edge)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.dot.on{background:var(--ok);box-shadow:0 0 5px rgba(127,196,106,.6)}
+.dot.off{background:#3a4148}
+.rowbtn{
+  font-size:12px;padding:3px 10px;border-radius:3px;cursor:pointer;
+  border:1px solid var(--panel-edge);background:transparent;color:var(--mist);
+  font-family:"Alegreya Sans",sans-serif;
+}
+.rowbtn:hover{color:var(--ember);border-color:var(--ember-dim)}
+.rowbtn:disabled{opacity:.35;cursor:not-allowed}
+.rowbtn:disabled:hover{color:var(--mist);border-color:var(--panel-edge)}
+.offline-name{color:var(--mist)}
+td .cause{font-size:12px;color:var(--mist)}
+
+/* log panel */
+.log{
+  font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.75;
+  background:var(--ink);border-radius:4px;padding:12px 14px;max-height:264px;overflow-y:auto;
+}
+.log .t{color:#4d5866}
+.log .lvl-info{color:var(--rune)}
+.log .lvl-warn{color:var(--brass-hi)}
+.log .lvl-save{color:var(--ok)}
+.log .lvl-err{color:var(--ember)}
+.logline{animation:fadein .4s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.log-note{font-size:12px;color:var(--mist);margin-top:10px;font-style:italic}
+.log-note code{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--rune);font-style:normal}
+
+/* saves */
+.save{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--panel-edge)}
+.save:first-child{border-top:none;padding-top:0}
+.save .nm{font-family:"JetBrains Mono",monospace;font-size:12.5px;color:var(--parchment)}
+.save .when{font-size:12px;color:var(--mist)}
+.tagauto{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--rune);border:1px solid var(--rune-dim);border-radius:3px;padding:1px 6px;margin-left:8px}
+
+/* config */
+.cfg{font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.8;background:var(--ink);border-radius:4px;padding:12px 14px;overflow-x:auto}
+.cfg .k{color:var(--rune)}
+.cfg .v{color:var(--parchment)}
+.cfg .c{color:#4d5866}
+.cfg .redact{color:var(--ember);letter-spacing:2px}
+
+/* dragon threat strip */
+.threat{
+  display:flex;align-items:center;gap:14px;
+  border:1px solid var(--ember-dim);border-radius:6px;background:linear-gradient(90deg,rgba(224,112,74,.08),transparent 60%);
+  padding:10px 16px;margin-bottom:14px;
+}
+.threat .flame{width:22px;height:22px;flex:none}
+.threat b{color:var(--ember);font-family:Cinzel,serif;font-weight:600;letter-spacing:.06em;font-size:13px}
+.threat span{color:var(--mist);font-size:13.5px}
+
+/* toast */
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:#1e1a10;border:1px solid var(--brass);color:var(--brass-hi);
+  padding:10px 20px;border-radius:4px;font-size:13.5px;letter-spacing:.03em;
+  transition:transform .25s ease;z-index:50;pointer-events:none;
+}
+.toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ============ RAIL ============ -->
+  <aside class="rail">
+    <div class="brand">
+      <h1>WILDSKEEPER</h1>
+      <div class="sub">Ashenfall Server Steward</div>
+    </div>
+    <nav class="nav" aria-label="Dashboard sections">
+      <a href="#" class="active"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/></svg>Overview</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/></svg>Adventurers</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M4 4h16v6H4zM4 14h16v6H4z"/><path d="M8 7h.01M8 17h.01"/></svg>World Saves</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>Configuration</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h6M9 16h6"/></svg>Logs</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3 4 7v6c0 5 3.5 7.5 8 8 4.5-.5 8-3 8-8V7z"/></svg>Bans &amp; Access</a>
+    </nav>
+    <div class="foot">
+      Host: <code>messier</code><br>
+      Container: <code>dragonwilds-srv</code><br>
+      Port: <code>7777/udp</code>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+
+    <!-- HERO -->
+    <section class="hero" aria-label="Server status">
+      <svg class="sigil" viewBox="0 0 132 132" role="img" aria-label="4 of 6 adventurer slots occupied, server online">
+        <!-- 6 ring segments = 6 player slots; lit = occupied -->
+        <g transform="rotate(-90 66 66)">
+          <circle class="slot lit"  cx="66" cy="66" r="56" stroke-dasharray="50 302" stroke-dashoffset="0"/>
+          <circle class="slot lit"  cx="66" cy="66" r="56" stroke-dasharray="50 302" stroke-dashoffset="-58.6"/>
+          <circle class="slot lit"  cx="66" cy="66" r="56" stroke-dasharray="50 302" stroke-dashoffset="-117.2"/>
+          <circle class="slot lit"  cx="66" cy="66" r="56" stroke-dasharray="50 302" stroke-dashoffset="-175.8"/>
+          <circle class="slot"      cx="66" cy="66" r="56" stroke-dasharray="50 302" stroke-dashoffset="-234.4"/>
+          <circle class="slot"      cx="66" cy="66" r="56" stroke-dasharray="50 302" stroke-dashoffset="-293"/>
+        </g>
+        <circle class="core" cx="66" cy="66" r="40"/>
+        <!-- dragon-eye status gem -->
+        <path class="eye" d="M46 66q20-16 40 0q-20 16-40 0z"/>
+        <ellipse cx="66" cy="66" rx="4" ry="9" fill="#0b0e12"/>
+        <!-- brass glyph ring -->
+        <path class="glyph" d="M66 30v8M66 94v8M30 66h8M94 66h8M41 41l5 5M86 86l5 5M91 41l-5 5M46 86l-5 5"/>
+      </svg>
+
+      <div>
+        <h2>Grimwood Bastion</h2>
+        <div class="worldline">World <b>Ashenfall-Prime</b> · Standard rules · Day <b>212</b> · Uptime <b>11d 6h</b></div>
+        <div class="badges">
+          <span class="badge online">◈ Online</span>
+          <span class="badge ver">v0.11.3</span>
+          <span class="badge">Epic auth</span>
+          <span class="badge">Autosave 10 min</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn" data-toast="Server restart queued — warning sent to adventurers">Restart</button>
+        <button class="btn danger" data-toast="Stop requested — world will save first">Stop</button>
+        <button class="btn ghost" data-toast="Manual save written to Savegames/">Save now</button>
+      </div>
+    </section>
+
+    <!-- STATS -->
+    <section class="stats" aria-label="Vitals">
+      <div class="stat">
+        <div class="label">Adventurers</div>
+        <div class="value">4 <small>/ 6</small></div>
+        <div class="hint">2 slots open</div>
+        <div class="meter"><i style="width:66%"></i></div>
+      </div>
+      <div class="stat">
+        <div class="label">Memory</div>
+        <div class="value">5.4 <small>GB / 8</small></div>
+        <div class="hint">2 GB base + 1 GB × player</div>
+        <div class="meter"><i class="warm" style="width:67%"></i></div>
+      </div>
+      <div class="stat">
+        <div class="label">CPU · last hour</div>
+        <div class="value">31<small>%</small></div>
+        <svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+          <polygon points="0,28 0,20 8,18 16,21 24,15 32,17 40,10 48,13 56,9 64,14 72,8 80,12 88,7 100,11 100,28"/>
+          <polyline points="0,20 8,18 16,21 24,15 32,17 40,10 48,13 56,9 64,14 72,8 80,12 88,7 100,11"/>
+        </svg>
+      </div>
+      <div class="stat">
+        <div class="label">Autosave</div>
+        <div class="value">3<small> min ago</small></div>
+        <div class="hint">Next in ~7 min · 48 kept</div>
+        <div class="meter"><i style="width:30%"></i></div>
+      </div>
+    </section>
+
+    <!-- DRAGON THREAT -->
+    <div class="threat" role="status">
+      <svg class="flame" viewBox="0 0 24 24" fill="none" stroke="var(--ember)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2c1 4-3 5-3 9a5 5 0 0 0 10 0c0-2-1-3-2-4 0 2-1 3-2 3 1-3-1-6-3-8z"/>
+      </svg>
+      <div><b>DRAGON ASSAULT · 22:40</b> <span>Last raid struck the east palisade — 2 wall segments destroyed, no deaths. Vault of the Dragonkin unlocked by Kaelith.</span></div>
+    </div>
+
+    <div class="grid">
+      <div><!-- LEFT COLUMN -->
+
+        <!-- ADVENTURERS -->
+        <section class="panel">
+          <div class="panel-h">
+            <h3>Adventurers</h3>
+            <span class="meta">Roles from DedicatedServer.ini · admins are password-session based</span>
+          </div>
+          <div class="panel-b" style="padding-top:8px">
+            <table>
+              <thead><tr><th>Name</th><th>Role</th><th>Level</th><th>Session</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="dot on"></span><span class="pname">Vexmarrow</span><br><span class="pid">P-88F2…A41C</span></td>
+                  <td><span class="role owner">Owner</span></td>
+                  <td>Rune 41 · Cmb 38</td>
+                  <td>6h 12m</td>
+                  <td><button class="rowbtn" disabled title="The Owner cannot be kicked">Kick</button></td>
+                </tr>
+                <tr>
+                  <td><span class="dot on"></span><span class="pname">Kaelith</span><br><span class="pid">P-3C09…77DE</span></td>
+                  <td><span class="role admin">Admin</span></td>
+                  <td>Rune 36 · Cmb 40</td>
+                  <td>4h 55m</td>
+                  <td><button class="rowbtn" data-toast="Kaelith removed from session">Kick</button></td>
+                </tr>
+                <tr>
+                  <td><span class="dot on"></span><span class="pname">Bramblejaw</span><br><span class="pid">P-D1B4…0F2A</span></td>
+                  <td><span class="role std">Standard</span></td>
+                  <td>Rune 22 · Cmb 25</td>
+                  <td>1h 03m</td>
+                  <td><button class="rowbtn" data-toast="Bramblejaw removed from session">Kick</button>
+                      <button class="rowbtn" data-toast="Bramblejaw banned (online ban)">Ban</button></td>
+                </tr>
+                <tr>
+                  <td><span class="dot on"></span><span class="pname">Sorrel</span><br><span class="pid">P-9A6E…B803</span></td>
+                  <td><span class="role std">Standard</span></td>
+                  <td>Rune 30 · Cmb 27</td>
+                  <td>2h 41m</td>
+                  <td><button class="rowbtn" data-toast="Sorrel removed from session">Kick</button>
+                      <button class="rowbtn" data-toast="Sorrel banned (online ban)">Ban</button></td>
+                </tr>
+                <tr>
+                  <td><span class="dot off"></span><span class="pname offline-name">Thistledown</span><br><span class="pid">P-42AA…C915</span></td>
+                  <td><span class="role std">Standard</span></td>
+                  <td>Rune 18 · Cmb 20</td>
+                  <td><span class="cause">Last seen yesterday</span></td>
+                  <td><button class="rowbtn" data-toast="Offline ban issued by Owner">Ban</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- LOG -->
+        <section class="panel">
+          <div class="panel-h">
+            <h3>Server Log</h3>
+            <span class="meta">tailing RSDragonwilds/Saved/Logs</span>
+          </div>
+          <div class="panel-b">
+            <div class="log" id="log" aria-live="polite">
+              <div class="logline"><span class="t">22:31:04</span> <span class="lvl-save">[SAVE]</span> Autosave complete → Ashenfall-Prime_0212_2231.sav (41.2 MB)</div>
+              <div class="logline"><span class="t">22:33:19</span> <span class="lvl-info">[JOIN]</span> Bramblejaw connected via Epic (ping 34 ms)</div>
+              <div class="logline"><span class="t">22:40:02</span> <span class="lvl-warn">[EVENT]</span> Dragon assault triggered — east palisade</div>
+              <div class="logline"><span class="t">22:44:57</span> <span class="lvl-warn">[WORLD]</span> Structure destroyed: Reinforced Wall ×2 (owner: Vexmarrow)</div>
+              <div class="logline"><span class="t">22:51:38</span> <span class="lvl-info">[QUEST]</span> Vault of the Dragonkin unlocked by Kaelith</div>
+              <div class="logline"><span class="t">23:01:04</span> <span class="lvl-save">[SAVE]</span> Autosave complete → Ashenfall-Prime_0212_2301.sav (41.5 MB)</div>
+            </div>
+            <div class="log-note">No native console — command execution requires a UE4SS bridge (<code>F10</code> Lua console) on the server build. Everything above is log-tail + config-driven.</div>
+          </div>
+        </section>
+
+      </div>
+      <div><!-- RIGHT COLUMN -->
+
+        <!-- SAVES -->
+        <section class="panel">
+          <div class="panel-h">
+            <h3>World Saves</h3>
+            <span class="meta">Savegames/ · ZFS snapshots nightly</span>
+          </div>
+          <div class="panel-b">
+            <div class="save">
+              <div><span class="nm">…_0212_2301.sav</span><span class="tagauto">auto</span><br><span class="when">3 min ago · 41.5 MB</span></div>
+              <button class="rowbtn" data-toast="Save downloaded">Get</button>
+            </div>
+            <div class="save">
+              <div><span class="nm">…_0212_2251.sav</span><span class="tagauto">auto</span><br><span class="when">13 min ago · 41.4 MB</span></div>
+              <button class="rowbtn" data-toast="Save downloaded">Get</button>
+            </div>
+            <div class="save">
+              <div><span class="nm">pre-raid-manual.sav</span><br><span class="when">Yesterday 21:14 · 40.9 MB</span></div>
+              <button class="rowbtn" data-toast="Rollback staged — restart required">Restore</button>
+            </div>
+            <div class="save">
+              <div><span class="nm">weekly-snapshot.sav</span><br><span class="when">Aug 3 · 38.7 MB</span></div>
+              <button class="rowbtn" data-toast="Rollback staged — restart required">Restore</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- CONFIG -->
+        <section class="panel">
+          <div class="panel-h">
+            <h3>DedicatedServer.ini</h3>
+            <span class="meta">restart to apply</span>
+          </div>
+          <div class="panel-b">
+            <div class="cfg">
+<span class="c">; Config/LinuxServer/</span><br>
+<span class="k">ServerName</span>=<span class="v">Grimwood Bastion</span><br>
+<span class="k">DefaultWorldName</span>=<span class="v">Ashenfall-Prime</span><br>
+<span class="k">OwnerID</span>=<span class="v">P-88F2…A41C</span><br>
+<span class="k">AdminPassword</span>=<span class="redact">••••••••</span><br>
+<span class="k">MaxPlayers</span>=<span class="v">6</span><br>
+<span class="k">Port</span>=<span class="v">7777</span><br>
+<span class="k">AutosaveInterval</span>=<span class="v">600</span>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn ghost" style="font-size:12.5px;padding:6px 14px" data-toast="Editor opened (mock)">Edit config</button>
+              <button class="btn ghost" style="font-size:12.5px;padding:6px 14px" data-toast="Admin password rotated — active admin sessions revoked">Rotate admin password</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- BANS -->
+        <section class="panel">
+          <div class="panel-h">
+            <h3>Ban Ledger</h3>
+            <span class="meta">Owner may unban · Admins may not</span>
+          </div>
+          <div class="panel-b">
+            <div class="save">
+              <div><span class="pname">Grubfinger</span><br><span class="when">Banned Jul 28 · griefing base storage</span></div>
+              <button class="rowbtn" data-toast="Grubfinger unbanned (Owner action)">Unban</button>
+            </div>
+            <div class="save">
+              <div><span class="pname">xX_DragonSlayr_Xx</span><br><span class="when">Banned Jul 12 · duping exploit</span></div>
+              <button class="rowbtn" data-toast="Unbanned (Owner action)">Unban</button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+// toast on any mock action
+const toast=document.getElementById('toast');let tt;
+document.querySelectorAll('[data-toast]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    toast.textContent=b.dataset.toast;
+    toast.classList.add('show');
+    clearTimeout(tt);tt=setTimeout(()=>toast.classList.remove('show'),2600);
+  });
+});
+
+// fake live log ticker
+const log=document.getElementById('log');
+const lines=[
+  ['lvl-info','[CHAT]','Sorrel: anyone have spare ashenwood planks?'],
+  ['lvl-warn','[WORLD]','Weather shift: Storm rolling over the Whispering Swamp'],
+  ['lvl-info','[CRAFT]','Vexmarrow forged Rune-Etched Battleaxe'],
+  ['lvl-save','[SAVE]','Autosave complete → Ashenfall-Prime.sav'],
+  ['lvl-info','[QUEST]','Bramblejaw discovered a Lodestone waypoint'],
+  ['lvl-warn','[EVENT]','Goblin warband sighted near the north ridge'],
+];
+let i=0;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+setInterval(()=>{
+  const [cls,tag,msg]=lines[i++%lines.length];
+  const d=new Date(),t=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+  const el=document.createElement('div');
+  el.className=reduce?'':'logline';
+  el.innerHTML=`<span class="t">${t}</span> <span class="${cls}">${tag}</span> ${msg}`;
+  log.appendChild(el);
+  if(log.children.length>14)log.removeChild(log.firstChild);
+  log.scrollTop=log.scrollHeight;
+},7000);
+</script>
+</body>
+</html>

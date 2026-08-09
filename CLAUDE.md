@@ -1,0 +1,25 @@
+For any UI/frontend task, always produce a written design plan (palette, type, layout, signature) and self-critique it against generic AI-design defaults before writing code — per the frontend-design skill.
+
+# Wildskeeper (dwcon)
+
+A standalone Dragonwilds server console built on palcon's reusable base
+(sibling repo; architecture kept structurally identical on purpose). One
+game is registered: `internal/games/dragonwilds/` — client derived via the
+palagent sidecar, `dwconfig` ini editor, `dwlog` log tracker. Frontend is
+Wildskeeper throughout (design source: `mocks/dragonwilds-dashboard.html`;
+theme tokens are the `wk.*` literals in `web/tailwind.config.js`, mirrored
+onto shadcn semantic vars in `web/src/index.css`).
+
+Read `docs/dragonwilds-recon.md` before touching parsers or capability
+decisions — facts marked UNVERIFIED there (log line shapes, player-id
+format, save format, SIGTERM save behavior, on-disk ban list) must not be
+assumed. Steam app id 4019830 (dedicated server tool), native Linux build,
+no RCON/REST/query — command methods return `game.UnsupportedError`
+(HTTP 501) until the dwbridge UE4SS mod exists.
+
+Shared-layer tests use the test-only game in `internal/game/gametest`
+(a REST-shaped client over httptest fakes) so they don't need a fake agent
+and synthetic logs; production code must never import it.
+
+Tests: `go test ./...` and `cd web && npm test`. Production build:
+`cd web && npm run build` then `go build ./cmd/dwcon` (embeds the bundle).
