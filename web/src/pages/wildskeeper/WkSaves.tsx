@@ -1,14 +1,63 @@
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "../../lib/api";
+import { api, type WorldInfo } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
+import { agoLabel } from "../../lib/time";
 import { WkNote, WkPanel } from "../../components/wildskeeper/WkPanel";
 
 function sizeLabel(bytes: number): string {
   if (bytes >= 1 << 30) return `${(bytes / (1 << 30)).toFixed(1)} GB`;
   if (bytes >= 1 << 20) return `${(bytes / (1 << 20)).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/** One fact in the world ledger: a small-caps label over a plain value. */
+function WorldFact({ label, value, title }: { label: string; value: React.ReactNode; title?: string }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-[0.14em] text-wk-mist">{label}</div>
+      <div className="mt-0.5 text-sm text-wk-parchment" title={title}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/** The world as the save file records it: nameplate, ledger, and the raw
+ * header values the recon has no verified labels for, kept as-recorded. */
+function WorldPanel({ world }: { world: WorldInfo }) {
+  return (
+    <WkPanel title="The world" meta={<span className="font-mono">{world.file}</span>}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="font-wkdisplay text-2xl font-semibold text-wk-parchment">{world.worldName}</div>
+          <div className="mt-1 text-xs text-wk-mist">
+            {world.mapName}
+            {world.ownerName && <> · kept by {world.ownerName}</>}
+          </div>
+          <div className="mt-1.5 font-mono text-[11px] tracking-[0.06em] text-wk-mist" title="WorldSaveGuid — the id this world goes by in the server's own log">
+            {world.saveGuid}
+          </div>
+        </div>
+        <div className="grid shrink-0 grid-cols-2 gap-x-8 gap-y-3 sm:text-right">
+          <WorldFact
+            label="Last written"
+            value={agoLabel(world.modTime)}
+            title={new Date(world.modTime).toLocaleString()}
+          />
+          <WorldFact label="Save revision" value={world.saveFileRevision} title="Counts up with every save the game makes" />
+          <WorldFact label="Friendly fire" value={world.friendlyFire ? "On" : "Off"} />
+          <WorldFact label="Crossplay" value={world.crossplayEnabled ? "On" : "Off"} />
+        </div>
+      </div>
+      <div className="mt-3.5 rounded-sm bg-wk-ink px-3 py-2 font-mono text-[11px] text-wk-mist">
+        as recorded in the save header · difficulty {world.survivalDifficulty} · hardcore {world.hardcoreState} ·
+        privacy {world.sessionPrivacy} · {world.hasSessionPassword ? "password set" : "no password"} ·{" "}
+        {world.levels.length} level {world.levels.length === 1 ? "chunk" : "chunks"}
+      </div>
+    </WkPanel>
+  );
 }
 
 export function WkSaves() {
@@ -20,6 +69,14 @@ export function WkSaves() {
   const backupsQuery = useQuery({
     queryKey: ["backups", id],
     queryFn: () => api.listBackups(id),
+    enabled: isAdmin,
+    refetchInterval: 30_000,
+  });
+  // The game autosaves every ~5 minutes; 30s keeps "last written" honest
+  // without outpacing the parse cache behind the endpoint.
+  const worldQuery = useQuery({
+    queryKey: ["world", id],
+    queryFn: () => api.getWorld(id),
     enabled: isAdmin,
     refetchInterval: 30_000,
   });
@@ -58,9 +115,19 @@ export function WkSaves() {
 
   const backups = backupsQuery.data;
 
+  const world = worldQuery.data?.available ? worldQuery.data.world : undefined;
+
   return (
     <div className="wildskeeper min-h-full font-wkbody">
       <div className="mx-auto max-w-[1180px] space-y-3.5 p-4 lg:p-7">
+        {world && <WorldPanel world={world} />}
+        {worldQuery.isError && (
+          <WkPanel title="The world">
+            <p className="text-sm text-wk-mist">
+              The save is there but could not be read — {(worldQuery.error as Error).message}
+            </p>
+          </WkPanel>
+        )}
         <WkPanel
           title="World saves"
           meta={

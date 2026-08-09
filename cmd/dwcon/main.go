@@ -23,7 +23,9 @@ import (
 	"github.com/safwyls/dwcon/internal/crypto"
 	"github.com/safwyls/dwcon/internal/db"
 	"github.com/safwyls/dwcon/internal/dockerctl"
+	"github.com/safwyls/dwcon/internal/games/dragonwilds/dwsave"
 	"github.com/safwyls/dwcon/internal/notify"
+	"github.com/safwyls/dwcon/internal/savecache"
 	"github.com/safwyls/dwcon/internal/sched"
 	"github.com/safwyls/dwcon/internal/store"
 	"github.com/safwyls/dwcon/internal/watchdog"
@@ -91,9 +93,11 @@ func run(logger *slog.Logger) error {
 	files := agentfiles.New(cfg.DataDir, logger)
 
 	// For agent-backed servers this loop drives the save sync that backups
-	// snapshot. The nil reader is the Phase 3 gate: no Dragonwilds save
-	// parser exists yet, so there is no cache to warm.
-	go collector.NewSaveRefresher(st, nil, files, logger).Run(ctx)
+	// snapshot, and keeps the world-metadata parse warm so the Saves page
+	// opens onto a cache hit. The reader is dwsave, the Phase 3 SPUD
+	// parser; savecache adds the mtime keying and stale-serving around it.
+	worlds := savecache.New[dwsave.World](dwsave.Source{})
+	go collector.NewSaveRefresher(st, worlds, files, logger).Run(ctx)
 
 	// Optional: without DOCKER_HOST, power control is simply absent.
 	var docker *dockerctl.Client
@@ -121,6 +125,8 @@ func run(logger *slog.Logger) error {
 
 	apiServer := api.New(st, cfg.JWTSecret, logger, docker, notifier, backups, files)
 	apiServer.CookieSecure = cfg.CookieSecure
+	// The same cache the refresher warms serves GET /servers/{id}/world.
+	apiServer.Worlds = worlds
 	// Optional: the pal advisor rides whichever model key is set, Anthropic
 	// first when both are — a deterministic pick beats erroring on a config
 	// most operators set by copying one line from .env.example.

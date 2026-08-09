@@ -550,6 +550,39 @@ export interface BackupSnapshot {
   bytes: number;
 }
 
+/** World metadata parsed from the server's save file (Dragonwilds SPUD). */
+export interface WorldInfo {
+  worldName: string;
+  mapName: string;
+  /** Rendered as the server logs it (WorldSaveGuid, uppercase hex). */
+  saveGuid: string;
+  version: number;
+  /** Bumped by the game on every save — the autosave odometer. */
+  saveFileRevision: number;
+  friendlyFire: boolean;
+  survivalDifficulty: number;
+  hardcoreState: number;
+  crossplayEnabled: boolean;
+  sessionPrivacy: number;
+  hasSessionPassword: boolean;
+  ownerId: string;
+  ownerName: string;
+  lastSavedBy: string;
+  headerStamp: string;
+  timeOfSave: string;
+  levels: string[];
+  chunks: { id: string; bytes: number }[];
+  file: string;
+  /** When the save file was last written — the trustworthy freshness stamp. */
+  modTime: string;
+}
+
+export interface WorldResult {
+  /** False when nothing can be read: no save path, or a game with no reader. */
+  available: boolean;
+  world?: WorldInfo;
+}
+
 export interface BackupsResult {
   /** False when the server has no save path to snapshot. */
   available: boolean;
@@ -843,6 +876,9 @@ export const api = {
       body: JSON.stringify({ enabled }),
     }),
   publicStatus: (token: string) => request<PublicStatus>(`/public/status/${token}`),
+
+  // The world as its save file tells it — admin-only, like the vault it sits above.
+  getWorld: (id: number) => request<WorldResult>(`/servers/${id}/world`),
 
   // Save backups — admin-only end to end (a snapshot is the whole world).
   listBackups: (id: number) => request<BackupsResult>(`/servers/${id}/backups`),

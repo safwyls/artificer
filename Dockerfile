@@ -20,10 +20,9 @@ RUN CGO_ENABLED=0 go build -o /out/dwcon ./cmd/dwcon
 
 # ---- runtime ----
 FROM alpine:3.22
-# python3 stays for a future Dragonwilds save reader (the Phase 3 gate in
-# docs/dragonwilds-recon.md expects to shell out to a Python GVAS tool);
-# no save-parsing packages are installed until that reader exists.
-RUN apk add --no-cache python3
+# No python3: the plan expected the save reader to shell out to a Python
+# GVAS tool, but the format turned out to be SPUD and the reader (dwsave)
+# is pure Go inside the binary.
 RUN adduser -D -u 1000 dwcon
 WORKDIR /app
 COPY --from=backend /out/dwcon ./dwcon

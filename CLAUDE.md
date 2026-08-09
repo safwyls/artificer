@@ -9,7 +9,8 @@ still guessed, and what to do next.
 A standalone Dragonwilds server console built on palcon's reusable base
 (sibling repo; architecture kept structurally identical on purpose). One
 game is registered: `internal/games/dragonwilds/` — client derived via the
-palagent sidecar, `dwconfig` ini editor, `dwlog` log tracker. Frontend is
+palagent sidecar, `dwconfig` ini editor, `dwlog` log tracker, `dwsave`
+world-save reader (SPUD header metadata, served at `/servers/{id}/world`). Frontend is
 Wildskeeper throughout (design source: `mocks/dragonwilds-dashboard.html`;
 theme tokens are the `wk.*` literals in `web/tailwind.config.js`, mirrored
 onto shadcn semantic vars in `web/src/index.css`).

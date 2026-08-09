@@ -117,7 +117,10 @@ window that stops a half-written save being read — is
 
 Palworld shells out to Python because the community GVAS tooling lives there.
 Nothing requires that: Conan Exiles and Project Zomboid keep their saves in
-SQLite, so `Parse` would just be a query.
+SQLite, so `Parse` would just be a query, and Dragonwilds' reader
+([`dwsave`](../internal/games/dragonwilds/dwsave/dwsave.go)) is a pure-Go
+chunk walker — a worked `Source` example in-tree, including the wiring in
+`cmd/dwcon/main.go` and the `/world` endpoint in `internal/api/world.go`.
 
 ### 4. Frontend labels
 

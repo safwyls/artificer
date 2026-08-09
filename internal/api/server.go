@@ -16,7 +16,9 @@ import (
 	"github.com/safwyls/dwcon/internal/agentfiles"
 	"github.com/safwyls/dwcon/internal/backup"
 	"github.com/safwyls/dwcon/internal/dockerctl"
+	"github.com/safwyls/dwcon/internal/games/dragonwilds/dwsave"
 	"github.com/safwyls/dwcon/internal/notify"
+	"github.com/safwyls/dwcon/internal/savecache"
 	"github.com/safwyls/dwcon/internal/store"
 )
 
@@ -42,6 +44,11 @@ type Server struct {
 	// the new-server wizard deploy stacks itself via a provisioner-mode
 	// palagent instead of handing the operator a file.
 	Provisioner *agentctl.Client
+	// Worlds, when set (assigned after New, like Provisioner), is the
+	// Dragonwilds save-reader cache behind GET /servers/{id}/world. Nil
+	// means the endpoint reports the world as unavailable — the pre-Phase-3
+	// behavior, and what api tests that don't care about saves get.
+	Worlds *savecache.Cache[dwsave.World]
 	// The pal advisor has two possible sources, resolved in advisor():
 	// a key saved through the admin UI (uiAdvisor, encrypted in the store)
 	// wins over one from the environment (envAdvisor, set by main). Both
@@ -169,6 +176,10 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.With(s.requireAdmin).Post("/discord/test", s.handleTestDiscord)
 				r.With(s.requireAdmin).Put("/watchdog", s.handleUpdateWatchdog)
 				r.With(s.requireAdmin).Put("/public", s.handleUpdatePublicStatus)
+
+				// The world as the save file tells it — see world.go for
+				// why it shares the backups' admin-only gate.
+				r.With(s.requireAdmin).Get("/world", s.handleServerWorld)
 
 				// Save backups: the archive is the whole world, so even
 				// listing is admin-only.

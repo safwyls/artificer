@@ -38,15 +38,17 @@ rather than "the server is unreachable".
 
 ## Where things stand
 
-Eight commits, working tree clean, `go test ./...` (17 packages) and
-`cd web && npm test` (79 tests) green, production build fine.
+`go test ./...` and `cd web && npm test` green, production build fine.
 
 **Done:** Phase 0 (recon), Phase 1 (game package + client + config + log
 tracker), Phase 2 (agent launch profile + provisioning + Raise-a-server
-wizard), Phase 5 (the Wildskeeper frontend).
+wizard), Phase 3 (the `dwsave` save reader — world *metadata*, see below),
+Phase 5 (the Wildskeeper frontend).
 
-**Not done:** Phase 3 (save reader) and Phase 4 (the dwbridge UE4SS mod
-that would unlock the command tier).
+**Not done:** Phase 4 (the dwbridge UE4SS mod that would unlock the
+command tier), and everything in the save beyond the header — `dwsave`
+reads the INFO chunk and level names, not players or inventories, so the
+visibility roster still reports unavailable.
 
 ### Verified by hand against a real server
 
@@ -62,6 +64,13 @@ aren't assumptions:
 - Log tail, the ini editor, admin-password rotation, and a real backup of
   an actual SPUD save all work. Stop is clean and reports `stopped`, not
   `crashed`.
+- `dwsave` (Phase 3) parses both the committed fixture and the live,
+  five-autosaves-later world from the same install, and the GUID it
+  renders is byte-for-byte the `WorldSaveGuid` the server writes in its
+  own log — the decode is checked against the game, not just itself. Two
+  clock facts worth knowing: the header's Z-suffixed timestamps actually
+  record host-local time (trust the file's mtime instead), and
+  `Meta_SaveFileRevision` counts up once per save — an autosave odometer.
 
 ## Things that will waste your time if you don't know them
 
@@ -141,11 +150,13 @@ is unresolved and is what currently blocks closing the four gaps above.
 
 1. **Get a client connected** (see above) and capture join/leave lines.
    Everything else about the player list is blocked on this.
-2. **Phase 3: the save reader.** Now unblocked and easier than planned —
-   SPUD is open source, the container is readable, and there's a real
-   fixture committed, so a Go-native reader needs no Python and no Oodle.
-   Wire it as a `savecache.Source`; `cmd/dwcon/main.go` currently passes
-   **nil** to `collector.NewSaveRefresher`, so only the sync half runs.
+2. **Deepen the save reader if it earns it.** Phase 3 shipped as world
+   metadata: `dwsave` implements `savecache.Source`, the refresher warms
+   it, `GET /servers/{id}/world` serves it, and the Saves page shows the
+   world panel. Player/inventory state lives in the GLOB/LVLS property
+   chunks `dwsave` inventories but does not decode — worth attempting only
+   once a real client has written player data into a save to verify
+   against (same blocker as the log lines).
 3. **Before deploying to the NAS**, build both images —
    neither `Dockerfile` nor `Dockerfile.palagent` has ever been built,
    and the game has never run inside a container. Analysis says it will

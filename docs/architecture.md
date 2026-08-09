@@ -44,7 +44,7 @@ only transport.
 | Auth | golang-jwt v5 (HS256, pinned), bcrypt via `x/crypto` | JWT in an HttpOnly cookie; no server-side session table |
 | Database | SQLite via `modernc.org/sqlite` (pure Go) | No cgo → `CGO_ENABLED=0` builds and an alpine runtime with no glibc; one file in `DATA_DIR` (still named `palcon.db` — the inherited filename, kept so an upgraded deployment finds its data) |
 | Secrets at rest | AES-256-GCM (`internal/crypto`) | Agent tokens — and the inherited RCON/REST password columns no game fills today — encrypted in the DB |
-| Save parsing | **None yet** | Dragonwilds' save format is unparsed (Phase 3 gate in [`dragonwilds-recon.md`](dragonwilds-recon.md)). `internal/savecache` sits in the tree with no game supplying a `Source`, and the runtime image carries `python3` for the reader that will come |
+| Save parsing | `dwsave` (pure Go) | Reads the world metadata out of the SPUD container (`internal/games/dragonwilds/dwsave`), verified against a real capture. Object-level state (players, inventories) is still unparsed — the reader covers the INFO header and level names, not the world's contents |
 | Frontend | React 18 + TypeScript 5.5, Vite 5 | SPA embedded into the Go binary via `go:embed` |
 | Server state | TanStack Query v5 — the only state manager | REST + polling everywhere; no websockets, no SSE, no Redux |
 | Styling | Tailwind 3.4 + shadcn-style components over Radix primitives | One Wildskeeper theme (deep night, brass, rune-cyan) with no light/dark toggle; installable PWA (manifest-only, no service worker) |
@@ -165,7 +165,7 @@ flowchart TB
         dockerctl["internal/dockerctl<br/>docker API client (proxy-shaped)"]
         agentctl["internal/agentctl<br/>palagent client"]
         agentfiles["internal/agentfiles<br/>save/config path resolver + sync cache"]
-        savecache["internal/savecache<br/>mtime-keyed parse cache<br/><i>no Source: unwired</i>"]
+        savecache["internal/savecache<br/>mtime-keyed parse cache<br/>Source: dwsave"]
         rcon["internal/rcon<br/>Source RCON wire protocol<br/><i>no importer</i>"]
         steamcmd["internal/steamcmd<br/>cache clear + update args"]
         advisor["internal/advisor<br/>hosted-model chat<br/><i>server-side leftover</i>"]
@@ -205,11 +205,11 @@ every server, and that is the honest state of the abstraction (tracked in
 [`porting-to-another-game.md`](porting-to-another-game.md)).
 `store/gameclient.go` is deliberately the **one** place a server row becomes
 a live `game.Client` — the API handlers, collector and scheduler previously
-each did it themselves and drifted. And two core packages are currently
-inert: `internal/rcon` is imported only by its own tests, and
-`internal/savecache` compiles with no game supplying a `Source`. Both are
-kept, not deleted: they are the shared base's transport and cache for
-whatever game lands next.
+each did it themselves and drifted. One core package is currently inert:
+`internal/rcon` is imported only by its own tests — kept, not deleted, as
+the shared base's transport for whatever game lands next.
+(`internal/savecache` found its first `Source` in `dwsave`, the
+Dragonwilds world-metadata reader.)
 
 ## Startup wiring & background loops
 
@@ -225,7 +225,7 @@ no signalling channel between the API and the loops.
 | Loop | Package | Tick | What it does |
 |---|---|---|---|
 | Collector | `internal/collector` | 30s sample / 1h prune | Fans out per server (10s per-server timeout): health sample for the charts, player join/leave sessions, reachability-change notifications. Prunes metrics (7d), player events (90d), audit (365d) |
-| Save refresher | `internal/collector` | 15s poll, 45s per-server floor | Mirrors each agent-backed server's save directory locally, which is what the backup runner snapshots. `main` passes a **nil** `SaveReader` (the Phase 3 gate — no Dragonwilds parser exists), so only the sync half runs; the cache-warming half is dead code until a reader arrives |
+| Save refresher | `internal/collector` | 15s poll, 45s per-server floor | Mirrors each agent-backed server's save directory locally, which is what the backup runner snapshots — and keeps the `dwsave` world-metadata parse warm in `savecache`, so the Saves page's world panel opens onto a cache hit |
 | Scheduler | `internal/sched` | 20s | Scheduled restarts with in-game warnings; a 2-minute stale window so a missed slot isn't replayed after the host wakes from sleep |
 | Watchdog | `internal/watchdog` | 30s | Revives watched containers after an unclean exit; 5min cooldown, 3 strikes, strikes clear after 10min healthy. Only runs when docker control is configured |
 | Backup | `internal/backup` | 60s | Zip snapshots of the save directory into `DATA_DIR`, per-server interval and retention |
@@ -428,12 +428,13 @@ Two rules the store enforces:
 
 ## The save pipeline
 
-Half of this pipeline is built and half is a gate. The world files are
-**synced and archived** today; nothing **reads** them, because the
-Dragonwilds save format is unparsed (Phase 3 in the recon doc's open
-gates). So the World saves view is a list of snapshots, not a list of
-characters — and the visibility page's per-player roster is honestly
-reported as unavailable rather than shown as an empty table.
+The world files are **synced, archived, and header-read** today. `dwsave`
+(Phase 3) parses the save's INFO chunk — world name, save GUID, revision,
+the header settings — which is what the World saves view shows above its
+snapshot list. Object-level state is still unparsed: no characters,
+inventories or bases come out of the save, so the visibility page's
+per-player roster is honestly reported as unavailable rather than shown as
+an empty table.
 
 ```mermaid
 sequenceDiagram
@@ -456,7 +457,7 @@ sequenceDiagram
         end
         AF-->>L: DATA_DIR/agentfiles/{id}/save
     end
-    Note over L: reader == nil (Phase 3 gate)<br/>no parse is attempted
+    Note over L: dwsave parses the world header<br/>into savecache (mtime-keyed)
     BK->>AF: SavePath(server)
     BK->>BK: zip → DATA_DIR/backups/{id}/
     B->>API: GET /servers/{id}/backups (admin)
@@ -471,20 +472,28 @@ The pieces:
   10s per server; extraction is guarded against traversal, size and file
   count. On a sync failure with a cached copy present it serves the cache
   with a warning — a briefly-down agent shouldn't blank a view.
-- **The save refresher loop** drives that sync. Its second job — keeping a
-  parse cache warm — is inert: `main` passes a nil `SaveReader`, so the loop
-  resolves the path, spaces the next attempt, and stops there.
+- **The save refresher loop** drives that sync, then keeps the parse cache
+  warm: `main` passes the `dwsave`-backed `savecache`, so a changed save is
+  re-read within a poll and the world panel never waits on the parser.
 - **The backup runner** zips the resolved save directory into `DATA_DIR` on
   each server's own interval and retention, and is what the World saves
   view lists, downloads and deletes.
-- **`savecache`** is in the tree, game-agnostic and unused: mtime-keyed
-  entries, a global one-parse-at-a-time lock (each parse would hold a whole
-  decompressed world), double-checked after lock acquisition so queued
-  requests reuse the winner's result, an 8-entry bound evicting the
-  stalest, and a 3s write-settle so a file mid-autosave is never parsed.
-  `ReadServeStale` returns stale data instantly and refreshes behind the
-  request. All of that design survives from palcon and is why the Phase 3
-  work is a `Source` implementation rather than a pipeline.
+- **`savecache`** is game-agnostic and now carries its first `Source`
+  (`dwsave`): mtime-keyed entries, a global one-parse-at-a-time lock (each
+  parse would hold a whole decompressed world), double-checked after lock
+  acquisition so queued requests reuse the winner's result, an 8-entry
+  bound evicting the stalest, and a 3s write-settle so a file mid-autosave
+  is never parsed. `ReadServeStale` returns stale data instantly and
+  refreshes behind the request. All of that design survives from palcon
+  and is why Phase 3 was a `Source` implementation rather than a pipeline.
+- **`dwsave`** (`internal/games/dragonwilds/dwsave`) is that `Source`: a
+  pure-Go reader for the SPUD container's INFO header — world name, map,
+  save GUID (rendered exactly as the server logs `WorldSaveGuid`), save
+  revision, the header settings — plus the LVLS level names. It decodes
+  fields by name so a newer game build degrades to missing values, and it
+  fails loudly on truncation so a mid-write file errors instead of
+  half-parsing. `GET /servers/{id}/world` (admin) serves the cached parse
+  stale-tolerantly; the Saves page's world panel reads it.
 
 ## Power control & the stop sequence
 
@@ -609,8 +618,9 @@ Users, Automation, Activity, public status) they share the base with.
   by the same feature keys the backend registry serves.
 - **No code splitting today**: the console ships no game catalogs, so the
   bundle is small enough that `lazy()` boundaries would buy nothing. The
-  save-backed views that justified them in palcon do not exist here yet
-  (Phase 3 in the recon doc's open gates).
+  heavy save-backed views that justified them in palcon do not exist here —
+  the world panel Phase 3 added reads a few hundred bytes of header
+  metadata, not a catalog.
 - **Per-game presentation** mirrors the backend registry: a `GameProfile`
   supplies labels and blurbs per feature key, so only vocabulary is
   per-game; route segments are part of the URL contract and stay stable.
@@ -642,7 +652,7 @@ flowchart LR
     end
 
     subgraph build["docker.yml — matrix build"]
-        d1["Dockerfile<br/>node → go → alpine+python3"]
+        d1["Dockerfile<br/>node → go → alpine"]
         d2["Dockerfile.palagent<br/>go → steamcmd/debian-12"]
     end
 
@@ -666,11 +676,12 @@ Notes that matter operationally:
   compose stack pins one channel (`:latest`, `:beta`, or a semver) across
   the dwcon/palagent pair. `beta` is a real test channel deployments can
   pull without touching `:latest`.
-- The dwcon runtime image is alpine + python3, running as a non-root user
+- The dwcon runtime image is plain alpine, running as a non-root user
   with `DATA_DIR=/data` set in the image (the default `./data` isn't
-  creatable by that user, which failed confusingly). `python3` is there for
-  the save reader the Phase 3 gate expects to shell out to; no parsing
-  packages are installed until it exists. The palagent image is based on
+  creatable by that user, which failed confusingly). It used to carry
+  `python3` for a save reader expected to shell out to Python GVAS
+  tooling; the format turned out to be SPUD and the reader (`dwsave`) is
+  pure Go inside the binary. The palagent image is based on
   `steamcmd/steamcmd:debian-12` because SteamCMD needs 32-bit glibc, and
   the binary is its own healthcheck probe (the base ships neither wget nor
   curl).
@@ -681,9 +692,9 @@ Patterns that hold everywhere and explain most local decisions:
 
 1. **Saves are read-only, structurally.** Read-only mounts (kernel-
    enforced, including a nested `:ro` inside the companion agent), a sync
-   that only pulls, backups that only copy — and, for now, no reader at
-   all. There is no code path that writes a save; restore is a deliberate
-   manual act. The config mount is the one deliberate exception, mounted
+   that only pulls, backups that only copy, and a reader (`dwsave`) that
+   only parses. There is no code path that writes a save; restore is a
+   deliberate manual act. The config mount is the one deliberate exception, mounted
    separately and read-write precisely so the two can't be confused.
 2. **Least privilege at every hop, expressed as fixed verbs.** Docker
    socket → scoped proxy → five operations. Agent → a closed verb list,

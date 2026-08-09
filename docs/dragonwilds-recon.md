@@ -314,7 +314,11 @@ assumed**: `uesave` and GVAS walkers will not work, but SPUD is open source
 and documented, the container is uncompressed enough to read field names
 directly, and world metadata sits in the header rather than behind an
 opaque blob. A Go-native reader is realistic for Phase 3 — no Python
-dependency, no Oodle.
+dependency, no Oodle. (That reader now exists:
+`internal/games/dragonwilds/dwsave`, which also mapped the layout further —
+the container is RIFF-style FourCC chunks, the INFO header carries a
+name/offset/values field table, and the GUID quads render `%08X` each into
+exactly the `WorldSaveGuid` the server logs.)
 
 Save-file behaviour confirmed: the directory is `SaveGames` (capital G),
 the file is named for `DefaultWorldName` (`World-75058.sav`), and a fresh
