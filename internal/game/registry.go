@@ -19,11 +19,11 @@ const DefaultID = "dragonwilds"
 // own package uses belongs in that package, not here — a Definition field
 // with a single reader is a coupling with no payoff, and one with no reader
 // is a promise nothing keeps. Facts that used to live here and lost their
-// readers moved to their consumers: the Steam app id is palworld.AppID (and
+// readers moved to their consumers: the Steam app id is dragonwilds.AppID (and
 // palagent's DefaultAppID, agreement test-enforced), and save staleness is
 // the savecache Source's Locate.
 type Definition struct {
-	// ID is the stable key stored on the servers row ("palworld", "ark").
+	// ID is the stable key stored on the servers row ("dragonwilds").
 	ID string
 	// Name is the human label ("Palworld").
 	Name string

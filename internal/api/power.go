@@ -21,7 +21,7 @@ import (
 // which half is missing.
 func (s *Server) containerFor(w http.ResponseWriter, srv *store.Server) (string, bool) {
 	if s.docker == nil {
-		writeError(w, http.StatusBadRequest, "docker control is not configured on this Palcon instance")
+		writeError(w, http.StatusBadRequest, "docker control is not configured on this Wildskeeper instance")
 		return "", false
 	}
 	if srv.ContainerName == "" {

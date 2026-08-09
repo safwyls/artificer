@@ -343,8 +343,7 @@ single `OptionSettings=(...)` line — and copies palconfig's write policy
 deliberately: the file as written is the only schema, so edits never add or
 remove keys, each new value is validated against the type inferred from the
 existing one, a key appearing twice is shown read-only rather than guessed
-at, a one-level `.palcon.bak` is kept (the suffix is inherited verbatim),
-and the swap is atomic. It resolves
+at, a one-level `.dwcon.bak` is kept, and the swap is atomic. It resolves
 the configured path whether it points at the file, the platform folder, or
 the `Config` folder above it.
 
@@ -380,9 +379,10 @@ Login is rate-limited on both IP and username keys.
 repairing a broken grant never depends on the grants. Deliberate choices:
 
 - **Viewing is not a permission.** Any signed-in user reads dashboards,
-  map and save-derived data; per-server *visibility switches* (admin-set)
-  are the privacy control, not per-user grants. See
-  [`visibility.md`](visibility.md).
+  the online roster and join/leave history; per-server *visibility
+  switches* (admin-set) are the privacy control, not per-user grants. See
+  [`visibility.md`](visibility.md). The log viewer is the one exception,
+  and it is gated on content rather than on viewing as such.
 - `shutdown` is split from `power` so someone can bounce a container
   without being allowed to boot everyone mid-session.
 - `settings` gates *reading* the config too — `DedicatedServer.ini`
@@ -534,9 +534,11 @@ toward the watchdog's restart backoff.
 ## palagent: the sidecar
 
 Full design in [`sidecar-agent.md`](sidecar-agent.md); the shape in brief.
-The package and binary keep the inherited name — `cmd/palagent`,
-`internal/palagent`, `ghcr.io/safwyls/palagent` — because the same image
-serves both consoles. Every file-and-process capability dwcon can't have
+The package, binary and image keep the inherited name — `cmd/palagent`,
+`internal/palagent`, `ghcr.io/safwyls/palagent` — even though this repo's
+build of it is Dragonwilds-shaped throughout: app id 4019830, install dir
+`/dragonwilds`, `DedicatedServer.ini` seeding. The name is the one thing
+that didn't need changing. Every file-and-process capability dwcon can't have
 without bind mounts moves into a small trusted container sitting *next to*
 each game server. One agent per server, fixed dashboard-shaped verbs (never
 exec, never an arbitrary path parameter), bearer-token auth (constant-time

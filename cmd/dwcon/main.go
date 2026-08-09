@@ -1,5 +1,5 @@
-// Command palcon is a self-hosted RCON/REST management server for
-// Palworld dedicated servers.
+// Command dwcon is Wildskeeper: a self-hosted management console for
+// RuneScape: Dragonwilds dedicated servers.
 package main
 
 import (
