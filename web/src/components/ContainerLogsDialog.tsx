@@ -9,10 +9,11 @@ import { Select } from "./ui/select";
 const TAILS = [200, 500, 1000];
 
 /**
- * The game logs every successful REST call — and palcon's own metrics
- * polling makes one every few seconds, so these lines can outnumber
- * everything a person actually opened the log to read. Only the `OK` form
- * is treated as noise: a failing REST access is signal, and stays.
+ * Inherited from palcon, where the game logged every successful REST call
+ * and the dashboard's own polling drowned the log in them. Dragonwilds has
+ * no REST interface, so nothing matches this today — kept because the
+ * filter costs one regex and a companion-mode server running some other
+ * build may still produce these lines.
  */
 const REST_NOISE = /REST accessed endpoint \S+ OK\s*$/;
 

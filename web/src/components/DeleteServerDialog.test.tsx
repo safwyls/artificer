@@ -37,7 +37,7 @@ describe("DeleteServerDialog", () => {
     vi.spyOn(api, "provisionDefaults").mockResolvedValue({ available: false });
     open(makeServer({ containerName: "palagent-palhalla" }));
 
-    await screen.findByText(/only removes it from Palcon/i);
+    await screen.findByText(/only removes it from Wildskeeper/i);
     // Give the defaults query a chance to resolve before asserting absence,
     // or this passes for the wrong reason.
     await waitFor(() => expect(api.provisionDefaults).toHaveBeenCalled());

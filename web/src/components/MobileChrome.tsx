@@ -10,6 +10,7 @@ import { canSeeFeature } from "../lib/visibility";
 import { cn, copyText, joinAddressFor } from "../lib/utils";
 import { WkServerRune } from "./wildskeeper/WkServerRune";
 import { ServerFormDialog } from "./ServerFormDialog";
+import { RaiseServerDialog } from "./wildskeeper/RaiseServerDialog";
 import { DeleteServerDialog } from "./DeleteServerDialog";
 import { ShutdownDialog } from "./ServerActionDialogs";
 
@@ -259,6 +260,7 @@ export function MobileBottomRail({ servers, activeServerId }: { servers: Server[
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
+  const [raiseOpen, setRaiseOpen] = useState(false);
 
   const goToServer = (id: number) => navigate(`/servers/${id}`);
 
@@ -280,7 +282,16 @@ export function MobileBottomRail({ servers, activeServerId }: { servers: Server[
           >
             <Plus className="h-4 w-4" />
           </button>
-          <ServerFormDialog open={addOpen} onOpenChange={setAddOpen} mode="create" />
+          <ServerFormDialog
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            mode="create"
+            onProvision={() => {
+              setAddOpen(false);
+              setRaiseOpen(true);
+            }}
+          />
+          <RaiseServerDialog open={raiseOpen} onOpenChange={setRaiseOpen} />
         </>
       )}
     </div>

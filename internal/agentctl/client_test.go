@@ -36,7 +36,7 @@ func newProvisioner(t *testing.T) (*agentctl.Client, string) {
 			// discovery and refused by destroy.
 			io.WriteString(w, `[{"Id":"cafe","Names":["/palagent-main"],
 			  "Image":"ghcr.io/safwyls/palagent:latest","State":"running",
-			  "Labels":{"palcon.provisioned":"true","palcon.slug":"main"},
+			  "Labels":{"dwcon.provisioned":"true","dwcon.slug":"main"},
 			  "Ports":[{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"}]},
 			 {"Id":"beef","Names":["/nginx"],"Image":"nginx:latest",
 			  "State":"running","Labels":{},"Ports":[]}]`)
@@ -86,7 +86,7 @@ func TestProvisionDiscoverAdoptDestroy(t *testing.T) {
 		Slug: "palhalla", ImageTag: "latest",
 		Token: "new-agent-token-0123456789abcdef", AdminPassword: "pw12345",
 		ServerName: "Palhalla", RunAs: "568:568",
-		GamePort: 8211, RESTPort: 8212, RCONPort: 25575, AgentPort: 8811,
+		OwnerID: "owner-abc", GamePort: 7777, AgentPort: 8811,
 	})
 	if err != nil {
 		t.Fatalf("Provision: %v", err)

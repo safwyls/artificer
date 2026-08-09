@@ -18,7 +18,10 @@ COPY --from=build /out/palagent /usr/local/bin/palagent
 ENV PALAGENT_INSTALL_DIR=/dragonwilds \
     PALAGENT_STEAMCMD=steamcmd \
     PALAGENT_ADDR=:8811
-EXPOSE 8811
+# 8811 is the agent API; 7777-7778/udp is the game itself, which the agent
+# supervises in-container. The game uses the port above its own, so the
+# pair is exposed together.
+EXPOSE 8811 7777/udp 7778/udp
 # The steamcmd base ships neither wget nor curl; the agent binary probes
 # its own /healthz instead.
 HEALTHCHECK --interval=30s --timeout=5s \

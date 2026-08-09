@@ -89,7 +89,7 @@ export function PublicStatus() {
           </>
         ) : null}
       </main>
-      <p className="mt-4 font-mono text-[11px] text-wk-parchment/35">powered by Palcon</p>
+      <p className="mt-4 font-mono text-[11px] text-wk-parchment/35">powered by Wildskeeper</p>
     </div>
   );
 }

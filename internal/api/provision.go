@@ -19,13 +19,16 @@ import (
 )
 
 // Provisioning ("new server from the dashboard", docs/sidecar-agent.md
-// phase 4): palcon deliberately holds no docker create rights, so this
+// phase 4): dwcon deliberately holds no docker create rights, so this
 // endpoint does everything short of the paste — it registers a fully
-// wired server row (host, ports, REST/RCON password, agent URL + token)
-// and generates the matching supervisor-mode stack file. The human
-// deploys the stack; the agent installs the game on first boot and the
-// server comes up already manageable (PALAGENT_ADMIN_PASSWORD enforces
-// the REST/RCON interfaces on).
+// wired server row (host, game port, agent URL + token) and generates the
+// matching supervisor-mode stack file. The human deploys the stack; the
+// agent installs the game on first boot, seeds DedicatedServer.ini with
+// the owner id, and starts it.
+//
+// The owner id is the one field with no Palworld analogue and no default:
+// the game refuses to start without it, so it is required here rather than
+// discovered later by a confused operator reading crash logs.
 
 type provisionRequest struct {
 	Name string `json:"name"`
@@ -34,21 +37,24 @@ type provisionRequest struct {
 	Host string `json:"host"`
 	// DataPath is the host directory mounted as the install volume.
 	DataPath string `json:"dataPath"`
-	// Published host ports; the in-container ports stay at the game's
-	// defaults (8211/8212/25575) and the agent's 8811.
+	// GamePort is the published UDP port; the game also uses the port
+	// above it, and both are published. In-container they stay at the
+	// game's own default, and the agent's API at 8811.
 	GamePort  int `json:"gamePort"`
-	RESTPort  int `json:"restPort"`
-	RCONPort  int `json:"rconPort"`
 	AgentPort int `json:"agentPort"`
 	// ImageTag selects the palagent channel; default latest.
 	ImageTag string `json:"imageTag"`
 	// AdminPassword is generated when blank.
 	AdminPassword string `json:"adminPassword"`
-	// ServerName/ServerDesc become the in-game ServerName and
-	// ServerDescription (MOTD), seeded once on first boot — later edits in
-	// the settings editor stick. Name defaults to the palcon display name.
+	// OwnerID is the Player ID that owns the server (in-game: Settings,
+	// bottom-left "My Player ID"). Required — the game will not start
+	// without it.
+	OwnerID string `json:"ownerId"`
+	// ServerName is the in-game server name, enforced on every start;
+	// WorldName names the world created on first boot. ServerName
+	// defaults to the dashboard display name.
 	ServerName string `json:"serverName"`
-	ServerDesc string `json:"serverDesc"`
+	WorldName  string `json:"worldName"`
 	// RunAs is the container user:group; defaults to the TrueNAS apps
 	// user 568:568. Empty string is normalized to the default; "root"
 	// omits the user line entirely.
@@ -56,6 +62,16 @@ type provisionRequest struct {
 }
 
 var runAsPattern = regexp.MustCompile(`^\d{1,7}:\d{1,7}$`)
+
+// controlChars matches anything that would break out of the line it is
+// written on. The generated stack interpolates operator-supplied strings,
+// and the result is pasted into `docker compose` on a host — so a name
+// carrying a newline could append services of its own. Values that reach
+// YAML as *values* are %q-quoted, which handles this; the display name
+// also reaches the header comment, where quoting isn't available. Rejecting
+// control characters outright is simpler than escaping per destination, and
+// costs nothing real: they are meaningless in every field that has one.
+var controlChars = regexp.MustCompile(`[\x00-\x1f\x7f]`)
 
 // imageTagPattern is docker's tag grammar; anything looser could inject
 // lines into the generated stack yaml.
@@ -76,12 +92,20 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Host = strings.TrimSpace(req.Host)
 	req.DataPath = strings.TrimSpace(req.DataPath)
+	req.OwnerID = strings.TrimSpace(req.OwnerID)
 	switch {
 	case req.Name == "":
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	case req.Host == "":
-		writeError(w, http.StatusBadRequest, "host is required — the address palcon will reach the server on")
+		writeError(w, http.StatusBadRequest, "host is required — the address Wildskeeper will reach the server on")
+		return
+	case req.OwnerID == "":
+		writeError(w, http.StatusBadRequest,
+			`owner id is required — the game will not start without one (in-game: Settings, bottom-left "My Player ID")`)
+		return
+	case controlChars.MatchString(req.Name + req.Host + req.OwnerID + req.ServerName + req.WorldName + req.DataPath):
+		writeError(w, http.StatusBadRequest, "names, paths and ids cannot contain line breaks or control characters")
 		return
 	// With a provisioner configured the data path is its call (<data
 	// root>/<slug>) and the wizard doesn't even ask; a paste-flow deploy
@@ -104,24 +128,25 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 		req.DataPath = filepath.Join(health.Provision.DataRoot, slug)
 	}
 	if req.GamePort == 0 {
-		req.GamePort = 8211
-	}
-	if req.RESTPort == 0 {
-		req.RESTPort = 8212
-	}
-	if req.RCONPort == 0 {
-		req.RCONPort = 25575
+		req.GamePort = palagent.DefaultGamePort
 	}
 	if req.AgentPort == 0 {
 		req.AgentPort = 8811
 	}
-	seen := map[int]bool{}
-	for _, p := range []int{req.GamePort, req.RESTPort, req.RCONPort, req.AgentPort} {
-		if p < 1 || p > 65535 || seen[p] {
-			writeError(w, http.StatusBadRequest, "ports must be distinct and in 1-65535")
-			return
-		}
-		seen[p] = true
+	// The game binds GamePort and GamePort+1, so the pair has to fit and
+	// the agent must sit outside it.
+	if req.GamePort < 1 || req.GamePort > 65534 {
+		writeError(w, http.StatusBadRequest, "game port must be in 1-65534 — the game also uses the port above it")
+		return
+	}
+	if req.AgentPort < 1 || req.AgentPort > 65535 {
+		writeError(w, http.StatusBadRequest, "agent port must be in 1-65535")
+		return
+	}
+	if req.AgentPort == req.GamePort || req.AgentPort == req.GamePort+1 {
+		writeError(w, http.StatusBadRequest,
+			fmt.Sprintf("agent port %d collides with the game's port pair (%d-%d)", req.AgentPort, req.GamePort, req.GamePort+1))
+		return
 	}
 	if req.ImageTag == "" {
 		req.ImageTag = "latest"
@@ -171,14 +196,15 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 `, req.RunAs)
 	}
 	identityEnv := fmt.Sprintf("      PALAGENT_SERVER_NAME: %q\n", req.ServerName)
-	if req.ServerDesc != "" {
-		identityEnv += fmt.Sprintf("      PALAGENT_SERVER_DESC: %q\n", req.ServerDesc)
+	if req.WorldName != "" {
+		identityEnv += fmt.Sprintf("      PALAGENT_WORLD_NAME: %q\n", req.WorldName)
 	}
 
-	stack := fmt.Sprintf(`# %s — Palworld server supervised by palagent, generated by palcon.
-# Deploy as its own stack (TrueNAS custom app / docker compose). On first
-# boot the agent installs the game via SteamCMD — watch progress from the
-# server's dashboard card — and starts it already wired for REST/RCON.
+	stack := fmt.Sprintf(`# %s — RuneScape: Dragonwilds server supervised by palagent,
+# generated by Wildskeeper. Deploy as its own stack (TrueNAS custom app /
+# docker compose). On first boot the agent installs the game via SteamCMD —
+# watch progress from the server's dashboard card — seeds
+# DedicatedServer.ini with the owner id below, and starts the server.
 services:
   palagent:
     image: ghcr.io/safwyls/palagent:%s
@@ -188,16 +214,19 @@ services:
       PALAGENT_MODE: supervisor
       PALAGENT_TOKEN: %s
       PALAGENT_ADMIN_PASSWORD: %s
+      # The game refuses to start without an owner id.
+      PALAGENT_OWNER_ID: %q
 %s    ports:
-      - "%d:8211/udp"   # game
-      - "%d:8212"       # REST (dashboard)
-      - "%d:25575"      # RCON (dashboard fallback)
-      - "%d:8811"       # palagent API
+      - "%d:%d/udp"   # game
+      - "%d:%d/udp"   # game (the server uses the port above its own)
+      - "%d:8811"     # palagent API — the dashboard's only channel
     volumes:
-      - %s:/palworld
+      - %s:/dragonwilds
     restart: unless-stopped
-`, req.Name, req.ImageTag, userLine, token, req.AdminPassword, identityEnv,
-		req.GamePort, req.RESTPort, req.RCONPort, req.AgentPort, req.DataPath)
+`, req.Name, req.ImageTag, userLine, token, req.AdminPassword, req.OwnerID, identityEnv,
+		req.GamePort, palagent.DefaultGamePort,
+		req.GamePort+1, palagent.DefaultGamePort+1,
+		req.AgentPort, req.DataPath)
 
 	// One-click (phase 5): when a provisioner is configured, deploy the
 	// stack now — before registering, so a deploy that never made anything
@@ -217,12 +246,11 @@ services:
 			ImageTag:      req.ImageTag,
 			Token:         token,
 			AdminPassword: req.AdminPassword,
+			OwnerID:       req.OwnerID,
 			ServerName:    req.ServerName,
-			ServerDesc:    req.ServerDesc,
+			WorldName:     req.WorldName,
 			RunAs:         req.RunAs,
 			GamePort:      req.GamePort,
-			RESTPort:      req.RESTPort,
-			RCONPort:      req.RCONPort,
 			AgentPort:     req.AgentPort,
 		})
 		switch {
@@ -246,11 +274,11 @@ services:
 	}
 
 	srv := &store.Server{
+		// No RCON or REST ports: the game has neither, and everything the
+		// dashboard reads arrives through the agent.
 		Name: req.Name, Host: req.Host,
-		RCONPort: req.RCONPort, RCONPassword: req.AdminPassword,
-		RESTPort: req.RESTPort, RESTPassword: req.AdminPassword,
-		GamePort: req.GamePort,
-		UseREST:  true, Enabled: true,
+		GamePort:   req.GamePort,
+		Enabled:    true,
 		AgentURL:   fmt.Sprintf("http://%s:%d", req.Host, req.AgentPort),
 		AgentToken: token,
 		// Recorded only when the provisioner actually made it: this is the
@@ -320,7 +348,7 @@ func (s *Server) handleProvisionDefaults(w http.ResponseWriter, r *http.Request)
 	var containerPorts []int
 	if found, err := s.Provisioner.Discover(r.Context()); err == nil {
 		for _, f := range found {
-			containerPorts = append(containerPorts, f.GamePort, f.RESTPort, f.RCONPort, f.AgentPort)
+			containerPorts = append(containerPorts, f.GamePort, f.AgentPort)
 		}
 	}
 
@@ -362,15 +390,15 @@ func (s *Server) inferHost(declared string, servers []*store.Server) string {
 	return best
 }
 
-// proposePorts finds the first offset where none of the four default
-// ports collide with any port palcon tracks or the host's containers
-// hold.
+// proposePorts finds the first offset where the game's port pair and the
+// agent's port are all free of anything dwcon tracks or the host's
+// containers hold. The pair moves together because the game binds both.
 func proposePorts(servers []*store.Server, containerPorts []int) map[string]int {
 	used := map[int]bool{}
 	for _, srv := range servers {
+		// A game port implies its neighbour is spoken for too.
 		used[srv.GamePort] = true
-		used[srv.RESTPort] = true
-		used[srv.RCONPort] = true
+		used[srv.GamePort+1] = true
 		if u, err := url.Parse(srv.AgentURL); err == nil {
 			if p, err := strconv.Atoi(u.Port()); err == nil {
 				used[p] = true
@@ -380,19 +408,20 @@ func proposePorts(servers []*store.Server, containerPorts []int) map[string]int 
 	for _, p := range containerPorts {
 		if p != 0 {
 			used[p] = true
+			used[p+1] = true
 		}
 	}
 	for offset := 0; offset < 1000; offset++ {
-		game, rest, rcon, agent := 8211+offset, 8212+offset, 25575+offset, 8811+offset
-		if !used[game] && !used[rest] && !used[rcon] && !used[agent] && game != rest {
-			return map[string]int{"game": game, "rest": rest, "rcon": rcon, "agent": agent}
+		game, agent := palagent.DefaultGamePort+(offset*2), 8811+offset
+		if !used[game] && !used[game+1] && !used[agent] {
+			return map[string]int{"game": game, "agent": agent}
 		}
 	}
-	return map[string]int{"game": 8211, "rest": 8212, "rcon": 25575, "agent": 8811}
+	return map[string]int{"game": palagent.DefaultGamePort, "agent": 8811}
 }
 
-// handleProvisionDiscover surfaces Palworld-shaped containers already on
-// the provisioner's host, marking the ones palcon knows about so the add
+// handleProvisionDiscover surfaces palagent containers already on the
+// provisioner's host, marking the ones dwcon knows about so the add
 // dialog offers only genuine adoptees prominently.
 func (s *Server) handleProvisionDiscover(w http.ResponseWriter, r *http.Request) {
 	if s.Provisioner == nil {
@@ -484,10 +513,8 @@ func (s *Server) handleAdoptServer(w http.ResponseWriter, r *http.Request) {
 	}
 	srv := &store.Server{
 		Name: name, Host: host,
-		RCONPort: adopted.RCONPort, RCONPassword: adopted.AdminPassword,
-		RESTPort: adopted.RESTPort, RESTPassword: adopted.AdminPassword,
-		GamePort: adopted.GamePort,
-		UseREST:  true, Enabled: true,
+		GamePort:      adopted.GamePort,
+		Enabled:       true,
 		AgentURL:      fmt.Sprintf("http://%s:%d", host, adopted.AgentPort),
 		AgentToken:    adopted.Token,
 		ContainerName: adopted.Name,
@@ -509,7 +536,7 @@ func slugify(name string) string {
 	slug = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(slug, "-")
 	slug = strings.Trim(slug, "-")
 	if slug == "" {
-		slug = "palworld"
+		slug = "dragonwilds"
 	}
 	if len(slug) > 40 {
 		slug = slug[:40]

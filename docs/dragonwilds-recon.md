@@ -79,9 +79,9 @@ still need a live server to close, with the interim engineering stance noted.
   committed corpus yet. Consequence: `dwlog`'s v0 parser table matches the two
   markers above and extracts a trailing player name where present, is
   versioned so a corpus can replace it wholesale, and treats every unmatched
-  line as noise. `internal/games/dragonwilds/dwlog/testdata/logs/` holds
-  synthetic lines built from the two verified markers, clearly labeled; the
-  first real capture replaces them (plan §2.3 still stands).
+  line as noise. The tests use synthetic lines built from the two verified
+  markers, declared as constants and labelled as such; a real capture
+  should replace them with committed fixtures (plan §2.3 still stands).
 - Autosave and chat log formats: NOT FOUND. No save/chat events in v0.
 
 ### Shutdown, bans, admin
@@ -99,22 +99,24 @@ still need a live server to close, with the interim engineering stance noted.
   on Win64 (post-0.12 needs the `version.dll` proxy — the `dwmapi.dll` one
   stopped loading), and has no practical Linux path.
 
-## Codebase deltas (verified against this repo)
+## Codebase deltas (verified against palcon before the split)
 
-The plan's §0 decision — second in-binary game — holds: `game.Definition` +
-`game.Register`, `internal/games/games.go`, feature gating, and
-`0019_game.sql` all exist as described. Corrections and gaps found:
+Recorded while the port was still a branch inside palcon. The plan's §0
+decision — a second in-binary game — was later overridden by the
+maintainer in favour of this standalone repo, so the notes below describe
+the base as it was inherited, not the current layout. Corrections and gaps
+found:
 
-- Next migration number is **0022** (0020/0021 exist), not 0020.
+- Next free migration number is **0022** (0020/0021 exist).
 - **No typed unsupported-capability error existed.** Added in this change:
   `game.UnsupportedError` (internal/game/client.go), mapped to HTTP 501 by
   `writeClientError` (internal/api/actions.go), so "this game can't" is
   distinguishable from 502 "server didn't answer".
-- **The frontend has no per-game page dispatch** — App.tsx hardcodes Palworld
-  page components; `FeatureGate` decides whether to render, never which
-  component. The Wildskeeper pages therefore come with a small game→component
-  dispatch layer. `AppShell` also unconditionally preloads Palworld map
-  textures — gate on game id.
+- **The frontend had no per-game page dispatch** — App.tsx hardcoded the
+  Palworld page components and `FeatureGate` only decided *whether* to
+  render, never *which* component. That mattered while two games shared a
+  binary; in this single-game repo the routes point straight at the
+  Wildskeeper pages, and a second game would reintroduce a dispatch layer.
 - Feature keys are two hand-maintained parallel lists (Go
   `internal/game/registry.go`, TS `web/src/lib/api.ts`) — additions touch both.
 - `game.Conn` carries only host/ports/passwords. Dragonwilds' state is
@@ -123,13 +125,52 @@ The plan's §0 decision — second in-binary game — holds: `game.Definition` +
   client as first reader. The agent's `/v1/health` already reports
   `Game.StartedAt`, which is the tracker's restart-reset key; `/v1/power/logs`
   serves the stdout ring (2000 lines, pull-based — no streaming exists).
-- palagent's launch half is env-overridable (`PALAGENT_GAME_CMD/ARGS`) but
-  its config seeding, `configRelPath`, and `PalServer-Linux` process lookup
-  are Palworld-hardcoded — that's the Phase 2 surface, now known to target
-  the **native Linux** build:
-  `PALAGENT_GAME_CMD=./RSDragonwildsServer.sh`, app id 4019830.
+- palagent's launch half was Palworld-hardcoded; retargeted in Phase 2 to
+  the native Linux build (see "Phase 2 decisions" below).
 - `internal/agentfiles` is the base-side syncer; the agent-side file service
   is `internal/palagent/files.go` (plan's naming was loose).
+
+## Phase 2 decisions (agent + provisioning)
+
+Built on the facts above; recorded here because each one is a place a
+wrong guess would be expensive.
+
+- **Launch line.** `./RSDragonwildsServer.sh -log -Port=<port>`. `-log` is
+  load-bearing rather than cosmetic: it puts the game's log on stdout,
+  which is the stream the supervisor's ring buffer captures and the only
+  source `dwlog` derives players from. The port is a command-line flag
+  because the ini has no port key.
+- **Port pair.** The game binds `Port` and `Port+1` (7777/7778 by
+  default), so ports are allocated, validated and published in pairs
+  everywhere: the provisioner template, the compose generator, and the
+  wizard's free-port proposal (which steps by 2).
+- **In-container port is fixed.** Every provisioned container binds 7777
+  internally and varies only the host side of the mapping, so the
+  template stays one shape.
+- **No REST/RCON anywhere in the deployment.** Provisioned rows are
+  created with no RCON/REST ports or passwords, the compose file
+  publishes neither, and the add-server form no longer asks. The agent
+  port is the only management port.
+- **Owner id is required to provision.** The game writes its own
+  `DedicatedServer.ini` on first run but refuses to start until `OwnerId`
+  has a value, so an unattended install would loop. The agent therefore
+  *seeds* a minimal ini when the install has none and an owner id is
+  configured (`PALAGENT_OWNER_ID`), and the provisioning API rejects a
+  request without one. Seeding never overwrites an existing file.
+  **This is the one place the port leans on unverified detail**: the
+  section name and key spellings come from the multi-source-but-not-
+  empirically-verified table above. Kept minimal (owner id, server name,
+  admin password, optional world name) so the game can add its own keys;
+  if a spelling turns out wrong the symptom is "server still won't
+  start", and the fix is one string.
+- **Identity enforcement.** ServerName / AdminPassword / OwnerId are
+  re-applied to an existing ini on every start under dwconfig's never-add
+  policy, so the password the dashboard shows is the one the in-game menu
+  accepts.
+- **Save layout.** The agent locates saves by trying both `SaveGames` and
+  `Savegames`, and the backup runner archives the newest `*.sav` (the
+  game's own load rule) with a truncation-only sanity check — no magic
+  bytes, because the format is unverified.
 
 ## Open gates (need a live server)
 

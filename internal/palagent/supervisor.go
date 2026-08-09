@@ -58,8 +58,12 @@ type supervisor struct {
 	args          []string
 	adminPassword string
 	serverName    string
-	serverDesc    string
-	grace         time.Duration
+	// ownerID is the Player ID the game treats as Owner. Without it the
+	// game refuses to start, so it is also what makes seeding a config
+	// worthwhile — see prepareRuntime.
+	ownerID   string
+	worldName string
+	grace     time.Duration
 	// backoffFloor is the first crash-restart delay (doubles per failure);
 	// tests shrink it.
 	backoffFloor time.Duration
@@ -87,10 +91,18 @@ type exitInfo struct {
 }
 
 func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
+	port := cfg.GamePort
+	if port <= 0 {
+		port = DefaultGamePort
+	}
 	args := cfg.GameArgs
 	if len(args) == 0 {
-		// The flags every serious dedicated-server setup passes.
-		args = []string{"-useperfthreads", "-NoAsyncLoadingThread", "-UseMultithreadForDS"}
+		// -log is load-bearing, not cosmetic: it puts the game's log on
+		// stdout, which is the stream the ring buffer captures and the
+		// only source the player list is derived from. The port is passed
+		// on the command line because the ini has no key for it
+		// (docs/dragonwilds-recon.md, "Config").
+		args = []string{"-log", fmt.Sprintf("-Port=%d", port)}
 	}
 	grace := cfg.StopGrace
 	if grace <= 0 {
@@ -110,7 +122,8 @@ func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
 		args:          args,
 		adminPassword: cfg.AdminPassword,
 		serverName:    cfg.ServerName,
-		serverDesc:    cfg.ServerDesc,
+		ownerID:       cfg.OwnerID,
+		worldName:     cfg.WorldName,
 		grace:         grace,
 		backoffFloor:  backoff,
 		logger:        cfg.Logger,
@@ -390,16 +403,30 @@ func (s *supervisor) Logs(tail int) []string {
 	return append([]string(nil), s.log[len(s.log)-tail:]...)
 }
 
-// prepareRuntime covers what a server image would do before launch. The
-// game writes DedicatedServer.ini itself on first run and refuses to start
-// until OwnerId is filled in, so there is nothing safe to seed from nothing
-// (no shipped default ini exists to copy — docs/dragonwilds-recon.md).
-// What can be enforced on an existing file is enforced every start: the
-// operator-configured server name and admin password.
+// iniRelPath is where the game keeps its settings, relative to the install
+// dir. Linux-only: this agent supervises the native Linux server build.
+var iniRelPath = filepath.Join("RSDragonwilds", "Saved", "Config", "LinuxServer", "DedicatedServer.ini")
+
+// prepareRuntime makes a freshly installed server bootable, then keeps the
+// operator's identity settings authoritative.
+//
+// The awkward part is a genuine property of the game: it writes
+// DedicatedServer.ini itself on first run, but refuses to start until
+// OwnerId has a value — so an unattended install would loop, writing a
+// config it then rejects. When the file is absent and an owner id is
+// configured, this seeds a minimal one so the first start is also a
+// working start. Key names and the section come from
+// docs/dragonwilds-recon.md ("Config"), which is multi-source but not
+// empirically verified — hence *minimal*: only the keys we were told
+// exist, letting the game add its own on top.
+//
+// Seeding never overwrites: an existing file is the operator's (or the
+// game's), and only the explicitly configured identity keys are enforced
+// into it on each start, under dwconfig's never-add policy.
 func (s *supervisor) prepareRuntime() {
-	ini := filepath.Join(s.installDir, "RSDragonwilds", "Saved", "Config", "LinuxServer", "DedicatedServer.ini")
+	ini := filepath.Join(s.installDir, iniRelPath)
 	if _, err := os.Stat(ini); err != nil {
-		s.logger.Info("DedicatedServer.ini not found yet; the game creates it on first run, and will not start until OwnerId is set", "path", ini)
+		s.seedConfig(ini)
 	} else {
 		enforce := map[string]string{}
 		if s.serverName != "" {
@@ -408,11 +435,14 @@ func (s *supervisor) prepareRuntime() {
 		if s.adminPassword != "" {
 			enforce["AdminPassword"] = s.adminPassword
 		}
+		if s.ownerID != "" {
+			enforce["OwnerId"] = s.ownerID
+		}
 		if len(enforce) > 0 {
 			// Never-add policy: a key the game hasn't written yet is a
 			// warn, not an append — inventing keys risks an unbootable ini.
 			if err := dwconfig.Write(ini, enforce); err != nil {
-				s.logger.Warn("could not enforce server name/admin password", "error", err)
+				s.logger.Warn("could not enforce identity settings", "error", err)
 			}
 		}
 	}
@@ -440,4 +470,42 @@ func (s *supervisor) prepareRuntime() {
 			return
 		}
 	}
+}
+
+// seedConfig writes a minimal DedicatedServer.ini so a freshly installed
+// server can reach its first successful start.
+//
+// Without an owner id there is nothing worth writing — the game rejects a
+// config that has none, so a seed would only replace one unbootable state
+// with another. That case logs the reason instead, because "installed but
+// won't start" is otherwise a silent, confusing outcome.
+func (s *supervisor) seedConfig(ini string) {
+	if s.ownerID == "" {
+		s.logger.Warn("no owner id configured: the game will write its own DedicatedServer.ini and refuse to start until OwnerId is filled in",
+			"path", ini, "fix", "set PALAGENT_OWNER_ID (in-game: Settings, bottom-left 'My Player ID')")
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(ini), 0o755); err != nil {
+		s.logger.Warn("could not create the config directory", "error", err)
+		return
+	}
+	var b strings.Builder
+	b.WriteString("; Seeded by palagent on first install. The game owns this file from\n")
+	b.WriteString("; here — edit it from the dashboard's Configuration view.\n")
+	b.WriteString("[/Script/Dominion.DedicatedServerSettings]\n")
+	b.WriteString("OwnerId=" + s.ownerID + "\n")
+	if s.serverName != "" {
+		b.WriteString("ServerName=" + s.serverName + "\n")
+	}
+	if s.adminPassword != "" {
+		b.WriteString("AdminPassword=" + s.adminPassword + "\n")
+	}
+	if s.worldName != "" {
+		b.WriteString("DefaultWorldName=" + s.worldName + "\n")
+	}
+	if err := os.WriteFile(ini, []byte(b.String()), 0o644); err != nil {
+		s.logger.Warn("could not seed DedicatedServer.ini", "error", err)
+		return
+	}
+	s.logger.Info("seeded DedicatedServer.ini", "path", ini)
 }

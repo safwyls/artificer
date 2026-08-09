@@ -1,7 +1,7 @@
 // Command palagent is the per-server sidecar agent: it sits next to one
-// Palworld game server container, holding the install volume and SteamCMD,
-// and exposes a narrow authenticated API for palcon to drive. See
-// docs/sidecar-agent.md for the design.
+// Dragonwilds game server (or supervises it directly), holding the install
+// volume and SteamCMD, and exposes a narrow authenticated API for dwcon to
+// drive. See docs/sidecar-agent.md for the design.
 package main
 
 import (
@@ -56,6 +56,17 @@ func main() {
 		}
 		stopGrace = d
 	}
+	gamePort := 0
+	if v := os.Getenv("PALAGENT_GAME_PORT"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 65534 {
+			// 65535 is excluded on purpose: the game also uses port+1.
+			logger.Error("invalid PALAGENT_GAME_PORT", "value", v)
+			os.Exit(1)
+		}
+		gamePort = n
+	}
+
 	var autostart *bool
 	if v := os.Getenv("PALAGENT_AUTOSTART"); v != "" {
 		b := v == "true" || v == "1"
@@ -63,25 +74,27 @@ func main() {
 	}
 
 	agent, err := palagent.New(palagent.Config{
-		Token:       os.Getenv("PALAGENT_TOKEN"),
-		InstallDir:  envOr("PALAGENT_INSTALL_DIR", "/dragonwilds"),
-		SteamCmd:    envOr("PALAGENT_STEAMCMD", "steamcmd"),
-		AppID:       appID,
-		Mode:          envOr("PALAGENT_MODE", "companion"),
-		GameCommand:   os.Getenv("PALAGENT_GAME_CMD"),
-		GameArgs:      strings.Fields(os.Getenv("PALAGENT_GAME_ARGS")),
-		StopGrace:     stopGrace,
-		AdminPassword: os.Getenv("PALAGENT_ADMIN_PASSWORD"),
-		ServerName:    os.Getenv("PALAGENT_SERVER_NAME"),
-		ServerDesc:    os.Getenv("PALAGENT_SERVER_DESC"),
+		Token:           os.Getenv("PALAGENT_TOKEN"),
+		InstallDir:      envOr("PALAGENT_INSTALL_DIR", "/dragonwilds"),
+		SteamCmd:        envOr("PALAGENT_STEAMCMD", "steamcmd"),
+		AppID:           appID,
+		Mode:            envOr("PALAGENT_MODE", "companion"),
+		GameCommand:     os.Getenv("PALAGENT_GAME_CMD"),
+		GameArgs:        strings.Fields(os.Getenv("PALAGENT_GAME_ARGS")),
+		GamePort:        gamePort,
+		StopGrace:       stopGrace,
+		AdminPassword:   os.Getenv("PALAGENT_ADMIN_PASSWORD"),
+		OwnerID:         os.Getenv("PALAGENT_OWNER_ID"),
+		ServerName:      os.Getenv("PALAGENT_SERVER_NAME"),
+		WorldName:       os.Getenv("PALAGENT_WORLD_NAME"),
 		DockerHost:      os.Getenv("PALAGENT_DOCKER_HOST"),
 		DataRoot:        os.Getenv("PALAGENT_DATA_ROOT"),
 		PublicHost:      os.Getenv("PALAGENT_PUBLIC_HOST"),
 		DefaultRunAs:    os.Getenv("PALAGENT_DEFAULT_RUN_AS"),
 		DefaultImageTag: os.Getenv("PALAGENT_DEFAULT_IMAGE_TAG"),
-		Autostart:   autostart,
-		Version:     version,
-		Logger:      logger,
+		Autostart:       autostart,
+		Version:         version,
+		Logger:          logger,
 	})
 	if err != nil {
 		logger.Error("invalid configuration", "error", err)

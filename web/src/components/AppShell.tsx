@@ -47,9 +47,6 @@ export function AppShell() {
           <MobileBottomRail servers={servers} activeServerId={activeServerId} />
         </div>
       </div>
-
-      {/* The advisor follows the active server; outside a server route it
-          falls back to the first server, so "any view" includes home. */}
     </div>
   );
 }

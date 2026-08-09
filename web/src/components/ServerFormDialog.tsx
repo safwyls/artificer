@@ -7,7 +7,6 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { NumberField } from "./ui/number-field";
 import { Label } from "./ui/label";
-import { Switch } from "./ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 
 /** How the game is deployed. These are the agent's own `PALAGENT_MODE`
@@ -23,19 +22,14 @@ const KIND_BLURB: Record<Kind, string> = {
   supervised:
     "One palagent container runs the game itself. Power, updates, saves and settings all flow through the agent — no container name, no path mounts.",
   companion:
-    "The game runs in its own container. Power goes through the docker proxy, and files come from a palagent beside it — or from three paths mounted into palcon.",
+    "The game runs in its own container. Power goes through the docker proxy, and files come from a palagent beside it — or from three paths mounted into Wildskeeper.",
 };
 
 const emptyForm: ServerWriteInput = {
   name: "",
   host: "",
-  rconPort: 25575,
-  rconPassword: "",
-  restPort: 8212,
-  restPassword: "",
-  gamePort: 8211,
+  gamePort: 7777,
   joinAddress: "",
-  useRest: true,
   enabled: true,
   savePath: "",
   configPath: "",
@@ -50,13 +44,8 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
     return {
       name: server.name,
       host: server.host,
-      rconPort: server.rconPort,
-      rconPassword: "",
-      restPort: server.restPort,
-      restPassword: "",
       gamePort: server.gamePort,
       joinAddress: server.joinAddress,
-      useRest: server.useRest,
       enabled: server.enabled,
       savePath: server.savePath,
       configPath: server.configPath,
@@ -253,7 +242,7 @@ export function ServerFormDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>{mode === "create" ? "Add a Palworld server" : `Edit "${server?.name}"`}</DialogTitle>
+            <DialogTitle>{mode === "create" ? "Add an existing server" : `Edit "${server?.name}"`}</DialogTitle>
             <DialogDescription>
               Credentials come from your server's <code>PalWorldSettings.ini</code>.
               {mode === "edit" && " Leave a password blank to keep the current one."}
@@ -267,7 +256,7 @@ export function ServerFormDialog({
               className="mt-3 w-full rounded-xl border border-dashed border-wk-ember/50 px-3 py-2 text-left text-xs text-wk-parchment/60 transition hover:border-wk-ember hover:bg-wk-ember/5"
             >
               Starting from scratch? <span className="font-semibold text-wk-ember">Provision a new server</span> —
-              palcon generates the whole deployment for you.
+              Wildskeeper generates the whole deployment for you.
             </button>
           )}
 
@@ -304,28 +293,6 @@ export function ServerFormDialog({
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
                 <Field label="Host" value={form.host} onChange={(v) => setForm({ ...form, host: v })} />
-                <div className="space-y-1.5">
-                  <Label>REST port</Label>
-                  <NumberField value={form.restPort} onChange={(v) => setForm({ ...form, restPort: v })} min={0} />
-                </div>
-                <Field
-                  label="REST password"
-                  value={form.restPassword ?? ""}
-                  onChange={(v) => setForm({ ...form, restPassword: v })}
-                  type="password"
-                  placeholder={mode === "edit" && server?.hasRestPassword ? "unchanged" : undefined}
-                />
-                <div className="space-y-1.5">
-                  <Label>RCON port</Label>
-                  <NumberField value={form.rconPort} onChange={(v) => setForm({ ...form, rconPort: v })} min={0} />
-                </div>
-                <Field
-                  label="RCON password"
-                  value={form.rconPassword ?? ""}
-                  onChange={(v) => setForm({ ...form, rconPassword: v })}
-                  type="password"
-                  placeholder={mode === "edit" && server?.hasRconPassword ? "unchanged" : undefined}
-                />
                 <div className="space-y-1.5">
                   <Label>Game port (players)</Label>
                   <NumberField value={form.gamePort} onChange={(v) => setForm({ ...form, gamePort: v })} min={1} />
@@ -452,16 +419,6 @@ export function ServerFormDialog({
             )}
           </div>
 
-          <div className="mt-5 flex items-center gap-2">
-            <Switch
-              id="use-rest"
-              checked={form.useRest}
-              onCheckedChange={(checked) => setForm({ ...form, useRest: checked })}
-            />
-            <Label htmlFor="use-rest" className="text-foreground">
-              Prefer REST API (falls back to RCON)
-            </Label>
-          </div>
 
           <DialogFooter className="mt-6">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

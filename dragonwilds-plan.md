@@ -27,17 +27,21 @@
 >   until real ids are captured.
 > - §1's premises that palcon already had per-method capability
 >   degradation and per-game frontend page replacement were wrong — both
->   were built as shared-layer work (`game.UnsupportedError` → HTTP 501;
->   `GamePage` dispatch in the frontend). Next free migration is 0022, and
->   build/test commands live in README.md, not CLAUDE.md.
+>   were built as shared-layer work (`game.UnsupportedError` → HTTP 501).
+>   Next free migration is 0022, and build/test commands live in README.md.
 > - v1 feature set is pals/saves/logs (new canonical `saves` and `logs`
 >   view keys). A Bans page is deferred until a ban data source exists —
 >   a ledger with nothing real behind it would violate the mock's own
 >   capability-honesty rule.
 >
-> Remaining: Phase 2 (palagent Dragonwilds launch profile), Phase 3 (save
-> reader, gated on the parse probe), Phase 4 (dwbridge), plus the recon
-> doc's five open empirical gates.
+> **Phase 2 is also done** (2026-08-09): the agent launches
+> `./RSDragonwildsServer.sh -log -Port=`, seeds `DedicatedServer.ini` with
+> a required Owner ID, and provisioning stands a server up end to end —
+> Dragonwilds container template (7777/7778 udp pair, `/dragonwilds` bind,
+> no REST/RCON), generated compose stack, and a Raise-a-server wizard.
+>
+> Remaining: Phase 3 (save reader, gated on the parse probe), Phase 4
+> (dwbridge), plus the recon doc's five open empirical gates.
 
 **Audience:** Claude Code, working in this repo (originally written for `safwyls/palcon`).
 **Goal:** A fully featured management console for a self-hosted RuneScape: Dragonwilds

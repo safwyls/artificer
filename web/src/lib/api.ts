@@ -168,13 +168,8 @@ export interface VisibilityInput {
 export interface ServerWriteInput {
   name: string;
   host: string;
-  rconPort: number;
-  rconPassword?: string;
-  restPort: number;
-  restPassword?: string;
   gamePort: number;
   joinAddress: string;
-  useRest: boolean;
   enabled: boolean;
   savePath: string;
   configPath: string;
@@ -212,17 +207,20 @@ export interface ProvisionInput {
   name: string;
   host: string;
   dataPath: string;
+  /** Published UDP port. The game also uses the port above it, and both
+   * are published — so a proposal has to keep the pair free. */
   gamePort: number;
-  restPort: number;
-  rconPort: number;
   agentPort: number;
   imageTag: string;
+  /** The Player ID that owns the server. Required: the game refuses to
+   * start without one. */
+  ownerId: string;
   /** Blank = generated server-side. */
   adminPassword?: string;
-  /** In-game ServerName; blank = the palcon display name. */
+  /** In-game ServerName; blank = the dashboard display name. */
   serverName?: string;
-  /** In-game ServerDescription (MOTD). */
-  serverDesc?: string;
+  /** Names the world created on the server's first boot. */
+  worldName?: string;
   /** Container user:group; blank = 568:568, "root" = image default. */
   runAs?: string;
 }
@@ -254,20 +252,18 @@ export interface ProvisionDefaults {
   dataRoot?: string;
   runAs?: string;
   imageTag?: string;
-  ports?: { game: number; rest: number; rcon: number; agent: number };
+  ports?: { game: number; agent: number };
 }
 
-/** A Palworld-shaped container found on the provisioner's host. */
+/** A palagent container found on the provisioner's host. */
 export interface DiscoveredServer {
   name: string;
   image: string;
   mode: string;
   running: boolean;
   gamePort?: number;
-  restPort?: number;
-  rconPort?: number;
   agentPort?: number;
-  /** Already known to palcon (matched by agent port). */
+  /** Already registered here (matched by agent port). */
   registered: boolean;
 }
 
@@ -275,7 +271,9 @@ export interface ServerInfo {
   servername: string;
   version: string;
   playerCount: number;
-  transport: "rest" | "rcon";
+  /** Which transport answered. Always "agent" for Dragonwilds — the game
+   * has no query protocol of its own. */
+  transport: string;
 }
 
 export interface Player {

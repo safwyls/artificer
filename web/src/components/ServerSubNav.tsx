@@ -41,7 +41,9 @@ export function ServerSubNav({ server }: { server: Server }) {
   });
 
   const transport = infoQuery.data?.transport;
-  const port = server.useRest ? server.restPort : server.rconPort;
+  // The game port is what a player would type; there is no admin port to
+  // show, since the dashboard reaches this game through its agent.
+  const port = server.gamePort;
 
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-black/20 bg-wk-raise text-wk-parchment">
@@ -81,12 +83,7 @@ export function ServerSubNav({ server }: { server: Server }) {
           {transport && (
             <Badge
               variant="outline"
-              className={cn(
-                "px-1 py-0 font-mono text-[10px]",
-                transport === "rest"
-                  ? "border-wk-rune/40 bg-wk-rune/15 text-wk-rune"
-                  : "border-wk-brasshi/40 bg-wk-brasshi/15 text-wk-brasshi",
-              )}
+              className="border-wk-rune/40 bg-wk-rune/15 px-1 py-0 font-mono text-[10px] text-wk-rune"
             >
               {transport.toUpperCase()}
             </Badge>

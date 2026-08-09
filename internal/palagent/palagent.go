@@ -1,12 +1,17 @@
-// Package palagent is the sidecar agent that sits next to one Palworld
-// game server, holding the install volume and the SteamCMD tooling so
-// palcon can stay a pure control plane. See docs/sidecar-agent.md.
+// Package palagent is the sidecar agent that runs (or sits beside) one
+// Dragonwilds game server, holding the install volume and the SteamCMD
+// tooling so the control plane can stay pure. See docs/sidecar-agent.md.
+//
+// For this game the agent is not an optional convenience: Dragonwilds has
+// no RCON, no REST API and no query protocol, so the agent's health and
+// log endpoints are the only source the dashboard has for whether a server
+// is up and who is on it.
 //
 // The API is a fixed set of dashboard-shaped verbs — never a generic exec
-// or an arbitrary path parameter — so a compromised palcon (or a leaked
-// token) can repair one game server and nothing else. Long-running work
-// runs as a job: POST starts it and returns immediately, palcon polls; a
-// palcon restart mid-job orphans nothing.
+// or an arbitrary path parameter — so a compromised control plane (or a
+// leaked token) can repair one game server and nothing else. Long-running
+// work runs as a job: POST starts it and returns immediately, the caller
+// polls; a control-plane restart mid-job orphans nothing.
 package palagent
 
 import (
@@ -31,32 +36,38 @@ import (
 	"github.com/safwyls/dwcon/internal/steamcmd"
 )
 
-// APIVersion is reported in /v1/health so palcon can refuse to drive an
-// agent it doesn't understand (and vice versa) instead of failing weirdly.
+// APIVersion is reported in /v1/health so the control plane can refuse to
+// drive an agent it doesn't understand (and vice versa) instead of failing weirdly.
 // 1 = steam verbs; 2 adds the file verbs (save bundle, config); 3 adds
 // supervisor mode's power verbs and game status.
 const APIVersion = 3
 
 // DefaultAppID is the Steam app the agent updates when none is configured:
-// the Palworld dedicated server, which is what every existing deployment
-// expects. Set PALAGENT_APPID to point the agent at a different one.
+// the RuneScape: Dragonwilds dedicated server tool. Set PALAGENT_APP_ID to
+// point the agent at a different one.
 //
 // Spelled out here rather than read from internal/games/dragonwilds, on purpose.
 // The agent is a thin sidecar — file access, process control, SteamCMD — and
 // importing a game package for one integer would link the game registry and
-// the RCON client it never speaks into every agent binary, and run a
-// registration nothing here queries. A Steam app id is a fixed number, so the
+// its client into every agent binary, and run a registration nothing here
+// queries. A Steam app id is a fixed number, so the
 // duplication cannot drift.
 const DefaultAppID = 4019830
+
+// DefaultGamePort is the UDP port the game binds by default. The server
+// also uses the port immediately above it, so a deployment publishing
+// these must reserve the pair (docs/dragonwilds-recon.md, "Steam /
+// install").
+const DefaultGamePort = 7777
 
 // minTokenLen is the floor for the shared token; the agent refuses to
 // start below it rather than run guessably authenticated.
 const minTokenLen = 16
 
 type Config struct {
-	// Token is the shared bearer token palcon presents. Required.
+	// Token is the shared bearer token the control plane presents. Required.
 	Token string
-	// InstallDir is the Palworld install root (the directory holding
+	// InstallDir is the game install root (the directory holding
 	// steamapps/), shared with the game server container via the volume.
 	InstallDir string
 	// SteamCmd is the steamcmd binary to exec for update jobs.
@@ -70,25 +81,34 @@ type Config struct {
 	// GameCommand is the launcher relative to InstallDir; defaults to
 	// ./RSDragonwildsServer.sh. Supervisor mode only.
 	GameCommand string
-	// GameArgs are the launcher's flags; defaults to the standard
-	// dedicated-server set. Supervisor mode only.
+	// GameArgs are the launcher's flags; defaults to -log plus the
+	// configured port. Supervisor mode only.
 	GameArgs []string
 	// StopGrace is how long a SIGTERM'd game gets before SIGKILL;
 	// defaults to 30s.
 	StopGrace time.Duration
-	// AdminPassword, when set, is enforced into PalWorldSettings.ini
-	// before every game start — along with RCONEnabled/RESTAPIEnabled —
-	// so a supervised server is manageable by construction. Palworld
-	// ships with both interfaces disabled, which otherwise leaves a
-	// freshly provisioned server running but deaf to the dashboard.
-	// Authoritative: an ini edit to these three keys is re-applied from
-	// here on the next start. Supervisor mode only.
+	// GamePort is the UDP port the game binds inside the container,
+	// passed as -Port= (the ini has no port key). The container port is
+	// normally left at DefaultGamePort and remapped on publish; this
+	// exists for host-network deployments. Supervisor mode only.
+	GamePort int
+	// AdminPassword, when set, is enforced into DedicatedServer.ini
+	// before every game start, so the password the dashboard shows is the
+	// one the in-game Server Management menu accepts. Authoritative: an
+	// ini edit to this key is re-applied from here on the next start.
+	// Supervisor mode only.
 	AdminPassword string
-	// ServerName/ServerDesc seed the in-game ServerName and
-	// ServerDescription (MOTD) — applied only when the ini is first
-	// created, so later settings-editor edits stick. Supervisor mode only.
+	// OwnerID is the Player ID that becomes the server's Owner. The game
+	// refuses to start without one, so the agent seeds a config with it
+	// when the install has none yet — see supervisor.prepareRuntime.
+	// Supervisor mode only.
+	OwnerID string
+	// ServerName seeds and then enforces the in-game server name;
+	// WorldName seeds DefaultWorldName, which only has an effect on the
+	// very first boot (it names the world the game creates). Supervisor
+	// mode only.
 	ServerName string
-	ServerDesc string
+	WorldName  string
 	// Autostart starts the game on agent boot when no persisted desired
 	// state exists yet (a fresh provision). Defaults true in supervisor
 	// mode; a persisted "stopped" always wins.
@@ -102,7 +122,7 @@ type Config struct {
 	DockerHost string
 	DataRoot   string
 	// PublicHost/DefaultRunAs/DefaultImageTag are the provisioner's
-	// wizard defaults, reported in /v1/health so palcon can prefill
+	// wizard defaults, reported in /v1/health so the wizard can prefill
 	// instead of asking. Provisioner mode only.
 	PublicHost      string
 	DefaultRunAs    string

@@ -21,5 +21,13 @@ Shared-layer tests use the test-only game in `internal/game/gametest`
 (a REST-shaped client over httptest fakes) so they don't need a fake agent
 and synthetic logs; production code must never import it.
 
+The agent (`cmd/palagent`, name kept from palcon) supervises the game
+directly: `./RSDragonwildsServer.sh -log -Port=7777`, publishing the
+7777/7778 UDP pair the game binds. `PALAGENT_OWNER_ID` is effectively
+required — the game refuses to start without an owner, so the agent seeds
+`DedicatedServer.ini` with it when an install has none. Provisioning
+(`internal/palagent/provisioner.go` + `internal/api/provision.go`) makes
+that whole stack from the Raise-a-server wizard.
+
 Tests: `go test ./...` and `cd web && npm test`. Production build:
 `cd web && npm run build` then `go build ./cmd/dwcon` (embeds the bundle).

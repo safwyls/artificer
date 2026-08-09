@@ -1,18 +1,23 @@
-# Palcon architecture
+# Wildskeeper architecture
 
 This is the map of the system: what the pieces are, how they talk to each
 other, and where the boundaries are drawn. It cross-references the deeper
 docs where they exist — [`sidecar-agent.md`](sidecar-agent.md) for the agent
 design, [`porting-to-another-game.md`](porting-to-another-game.md) for the
 game abstraction's edges, [`visibility.md`](visibility.md) for the privacy
-model, [`vendored-game-data.md`](vendored-game-data.md) for the shipped
-catalogs.
+model, [`dragonwilds-recon.md`](dragonwilds-recon.md) for the verified game
+facts every parser and capability decision rests on.
 
-In one sentence: **palcon is a single Go binary acting as a pure control
+In one sentence: **dwcon is a single Go binary acting as a pure control
 plane** — it holds no docker socket, never writes a game save, and reaches
-game servers only over their own admin interfaces (REST/RCON), a scoped
-docker proxy, or an optional per-server sidecar agent — serving an embedded
-React SPA that polls a JSON API.
+game servers only through a per-server sidecar agent or a scoped docker
+proxy — serving an embedded React SPA that polls a JSON API.
+
+Inherited from palcon, its Palworld sibling, and kept structurally
+identical so fixes can travel between them. Where this document says
+something game-shaped, Dragonwilds is the game: no RCON, no REST, no query
+protocol, so the agent is not an optional convenience here — it is the
+only transport.
 
 ## Contents
 
@@ -23,7 +28,7 @@ React SPA that polls a JSON API.
 - [The game abstraction](#the-game-abstraction)
 - [API layer: auth & permissions](#api-layer-auth--permissions)
 - [Data layer](#data-layer)
-- [The save-reading pipeline](#the-save-reading-pipeline)
+- [The save pipeline](#the-save-pipeline)
 - [Power control & the stop sequence](#power-control--the-stop-sequence)
 - [palagent: the sidecar](#palagent-the-sidecar)
 - [Frontend](#frontend)
@@ -34,31 +39,32 @@ React SPA that polls a JSON API.
 
 | Layer | Choice | Why |
 |---|---|---|
-| Backend | Go 1.26, one module, **two binaries** (`cmd/palcon`, `cmd/palagent`) | Single static binary per role; shared internal packages so file operations behave identically whichever side executes them |
+| Backend | Go 1.26, one module, **two binaries** (`cmd/dwcon`, `cmd/palagent`) | Single static binary per role; shared internal packages so file operations behave identically whichever side executes them |
 | HTTP router | chi v5 | Small, stdlib-shaped |
 | Auth | golang-jwt v5 (HS256, pinned), bcrypt via `x/crypto` | JWT in an HttpOnly cookie; no server-side session table |
-| Database | SQLite via `modernc.org/sqlite` (pure Go) | No cgo → `CGO_ENABLED=0` builds and an alpine runtime with no glibc; one file in `DATA_DIR` |
-| Secrets at rest | AES-256-GCM (`internal/crypto`) | RCON/REST passwords and agent tokens encrypted in the DB |
-| Save parsing | Embedded Python (`palworld-save-tools` + `pyooz`), invoked as a subprocess | The community GVAS parser is the standard; deliberately not reimplemented in Go. `pyooz` is decompress-only — it structurally cannot write a save |
+| Database | SQLite via `modernc.org/sqlite` (pure Go) | No cgo → `CGO_ENABLED=0` builds and an alpine runtime with no glibc; one file in `DATA_DIR` (still named `palcon.db` — the inherited filename, kept so an upgraded deployment finds its data) |
+| Secrets at rest | AES-256-GCM (`internal/crypto`) | Agent tokens — and the inherited RCON/REST password columns no game fills today — encrypted in the DB |
+| Save parsing | **None yet** | Dragonwilds' save format is unparsed (Phase 3 gate in [`dragonwilds-recon.md`](dragonwilds-recon.md)). `internal/savecache` sits in the tree with no game supplying a `Source`, and the runtime image carries `python3` for the reader that will come |
 | Frontend | React 18 + TypeScript 5.5, Vite 5 | SPA embedded into the Go binary via `go:embed` |
 | Server state | TanStack Query v5 — the only state manager | REST + polling everywhere; no websockets, no SSE, no Redux |
-| Styling | Tailwind 3.4 + shadcn-style components over Radix primitives | One Palworld-branded light theme; installable PWA (manifest-only, no service worker) |
-| Game transports | Palworld REST (HTTP Basic) with Source RCON fallback (`internal/rcon`) | REST preferred where enabled; RCON covers the rest |
-| Container control | Docker Engine HTTP API via `tecnativa/docker-socket-proxy` | Palcon never holds the socket; the proxy allows exactly inspect + start/stop/restart |
-| Images | `ghcr.io/safwyls/palcon` (alpine) and `ghcr.io/safwyls/palagent` (steamcmd/debian) | Two images, one repo, same tag scheme |
-| Site & demo | Static `site/` + the real frontend built with `VITE_DEMO=1`, on GitHub Pages | The demo answers every API call from a bundled fixture |
+| Styling | Tailwind 3.4 + shadcn-style components over Radix primitives | One Wildskeeper theme (deep night, brass, rune-cyan) with no light/dark toggle; installable PWA (manifest-only, no service worker) |
+| Game transports | The palagent sidecar, and nothing else | Dragonwilds has no RCON, no REST and no query protocol. `internal/rcon` (with its `rcontest` fake) still ships, imported by nothing but its own tests — the inherited transport, kept for the next game rather than deleted |
+| Container control | Docker Engine HTTP API via `tecnativa/docker-socket-proxy` | dwcon never holds the socket; the proxy allows exactly inspect + start/stop/restart |
+| Images | `ghcr.io/safwyls/dwcon` (alpine) and `ghcr.io/safwyls/palagent` (steamcmd/debian) | Two images, one repo, same tag scheme |
 
-Go direct dependencies number five: chi, golang-jwt, `x/crypto`, and
-modernc.org/sqlite (plus its transitive tooling). Everything else is stdlib.
+Go direct dependencies number six: chi, golang-jwt, `x/crypto`,
+modernc.org/sqlite, and the two model SDKs (`anthropic-sdk-go`,
+`google.golang.org/genai`) that only `internal/advisor` uses. Everything else
+is stdlib.
 
 ## System context & deployment
 
 The reference deployment is compose stacks on one Docker host (TrueNAS Scale
 being the documented case), but each game server's stack can equally live on
 a **different host** — that is what the agent exists for. The structural
-rule from `sidecar-agent.md`: palcon's stack and each game server's stack
+rule from `sidecar-agent.md`: dwcon's stack and each game server's stack
 are separate compose files joined by a shared external network, so
-`docker compose down` on palcon can never take a game server with it.
+`docker compose down` on dwcon can never take a game server with it.
 
 ```mermaid
 flowchart TB
@@ -67,24 +73,24 @@ flowchart TB
         pub["Anyone with the<br/>public status link"]
     end
 
-    subgraph palconStack["palcon stack (compose)"]
-        palcon["<b>palcon</b><br/>Go binary + embedded React SPA<br/>:8080"]
+    subgraph dwconStack["dwcon stack (compose)"]
+        dwcon["<b>dwcon</b><br/>Go binary + embedded React SPA<br/>:8080"]
         proxy["docker-socket-proxy<br/>CONTAINERS=1, POST=1<br/><i>only container holding the socket</i>"]
-        data[("DATA_DIR volume<br/>palcon.db · backups ·<br/>agentfiles cache · extractor")]
-        palcon --- data
+        data[("DATA_DIR volume<br/>palcon.db · backups ·<br/>agentfiles cache")]
+        dwcon --- data
     end
 
     subgraph gameStack1["game server stack — companion mode"]
-        game1["Palworld server container<br/>:8211/udp game · :8212 REST · :25575 RCON"]
+        game1["Dragonwilds server container<br/>:7777-7778/udp · no admin port"]
         agent1["palagent (companion)<br/>:8811"]
-        vol1[("shared /palworld volume<br/>SaveGames nested :ro in agent")]
+        vol1[("shared /dragonwilds volume<br/>SaveGames nested :ro in agent")]
         game1 --- vol1
         agent1 --- vol1
     end
 
     subgraph gameStack2["game server stack — supervisor mode"]
-        agent2["palagent (supervisor) :8811<br/>runs PalServer.sh as child process<br/>game REST/RCON listen here"]
-        vol2[("own /palworld volume<br/>game writes its own saves")]
+        agent2["palagent (supervisor) :8811<br/>runs the game as a child process<br/>:7777-7778/udp"]
+        vol2[("own /dragonwilds volume<br/>game writes its own saves")]
         agent2 --- vol2
     end
 
@@ -92,45 +98,56 @@ flowchart TB
     sock["/var/run/docker.sock"]
     discord["Discord webhook<br/><i>the only outbound call</i>"]
 
-    browser -->|"HTTPS/HTTP · JWT cookie"| palcon
-    pub -->|"GET /api/public/status/{token}"| palcon
-    palcon -->|"REST :8212 (fallback RCON :25575)"| game1
-    palcon -->|"REST/RCON (inside the agent container)"| agent2
-    palcon -->|"bearer token · files + steam verbs"| agent1
-    palcon -->|"bearer token · power + files + steam"| agent2
-    palcon -->|"start/stop/restart · inspect · logs"| proxy
-    palcon -.->|"provision / discover / adopt / destroy"| prov
-    palcon -.->|notifications| discord
+    browser -->|"HTTPS/HTTP · JWT cookie"| dwcon
+    pub -->|"GET /api/public/status/{token}"| dwcon
+    dwcon -->|"bearer token · files + steam verbs<br/><i>no derived state: needs supervisor</i>"| agent1
+    dwcon -->|"bearer token · health + log tail<br/>power + files + steam"| agent2
+    dwcon -->|"start/stop/restart · inspect · logs"| proxy
+    dwcon -.->|"provision / discover / adopt / destroy"| prov
+    dwcon -.->|notifications| discord
     proxy -->|":ro"| sock
     prov -->|"root, by design"| sock
     proxy -->|"bounce"| game1
     prov -.->|"creates"| gameStack2
 ```
 
-Reading the trust gradient left to right: the browser gets a cookie; palcon
+The game binds one UDP port and the port immediately above it — 7777 and
+7778 by default — and nothing else. There is no admin port to publish,
+which is exactly why every arrow into a game stack goes through the agent's
+:8811 instead.
+
+Companion mode is a real but *partial* mode here: it serves files and
+SteamCMD verbs, and power still runs through the docker proxy, but the
+Dragonwilds client refuses it outright — with no process to observe, the
+agent's health reports no game and there is nothing to derive liveness or a
+player list from. Supervisor mode is what lights the dashboard up.
+
+Reading the trust gradient left to right: the browser gets a cookie; dwcon
 gets fixed verbs on the proxy and on each agent; only the proxy and the
 optional provisioner ever touch the docker socket, and the proxy holds it
-read-only with two API classes enabled. A fully compromised palcon can
+read-only with two API classes enabled. A fully compromised dwcon can
 bounce game servers and touch agent-scoped files — it cannot create
 containers, mount volumes, or reach host root. The provisioner is the
 documented, deliberate exception ([`sidecar-agent.md`](sidecar-agent.md)
 covers the risk model; it degrades to a copy-paste flow when absent).
 
-Bind mounts remain a fully supported degraded mode for same-host setups:
-save directory mounted read-only, config directory mounted read-write as a
-deliberately separate mount, no agent involved.
+Bind mounts remain a fully supported mode for same-host setups, but only
+for *files*: save directory mounted read-only, config directory mounted
+read-write as a deliberately separate mount. Backups and the ini editor
+work off those with no agent involved. Liveness and the player list still
+cannot — they have no source but the agent.
 
 ## Backend component architecture
 
 The repo is split into a **game-agnostic core** — none of it knows what
-Palworld is — and **per-game implementations** that plug in through a
+Dragonwilds is — and **per-game implementations** that plug in through a
 registry. The moderation, power, metrics, scheduling and watchdog paths are
 written purely against the `internal/game` contracts.
 
 ```mermaid
 flowchart TB
     subgraph entry["entrypoints"]
-        cmdpalcon["cmd/palcon"]
+        cmddwcon["cmd/dwcon"]
         cmdpalagent["cmd/palagent"]
     end
 
@@ -148,51 +165,58 @@ flowchart TB
         dockerctl["internal/dockerctl<br/>docker API client (proxy-shaped)"]
         agentctl["internal/agentctl<br/>palagent client"]
         agentfiles["internal/agentfiles<br/>save/config path resolver + sync cache"]
-        savecache["internal/savecache<br/>mtime-keyed parse cache"]
-        rcon["internal/rcon<br/>Source RCON wire protocol"]
+        savecache["internal/savecache<br/>mtime-keyed parse cache<br/><i>no Source: unwired</i>"]
+        rcon["internal/rcon<br/>Source RCON wire protocol<br/><i>no importer</i>"]
         steamcmd["internal/steamcmd<br/>cache clear + update args"]
+        advisor["internal/advisor<br/>hosted-model chat<br/><i>server-side leftover</i>"]
         config["internal/config"]
     end
 
     subgraph pergame["per-game implementations"]
         games["internal/games<br/>registry import list"]
-        palworld["internal/games/palworld<br/>REST + RCON clients · fallback · uid canon"]
-        palsave["…/palworld/palsave<br/>save reading (Python extractor + Go runner)"]
-        palconfig["…/palworld/palconfig<br/>PalWorldSettings.ini parse + edit"]
+        dw["internal/games/dragonwilds<br/>agent-derived client · uid canon"]
+        dwlog["…/dragonwilds/dwlog<br/>join/leave state machine over the log tail"]
+        dwconfig["…/dragonwilds/dwconfig<br/>DedicatedServer.ini parse + edit"]
     end
 
     palagent["internal/palagent<br/>companion · supervisor · provisioner"]
     web["web/ (React SPA)<br/>embedded via go:embed"]
 
-    cmdpalcon --> api & collector & sched & watchdog & backup
+    cmddwcon --> api & collector & sched & watchdog & backup & advisor
     cmdpalagent --> palagent
-    api --> store & savecache & dockerctl & agentctl & agentfiles & notify
-    api -.->|"save/config views<br/>(still Palworld-shaped)"| palsave & palconfig
+    api --> store & dockerctl & agentctl & agentfiles & notify
+    api -.->|"config view<br/>(behind a configCodec seam)"| dwconfig
     store --> db & crypto & gamepkg
     collector & sched & watchdog --> store
-    palworld -->|"game.Register()"| gamepkg
-    games -.->|blank import| palworld
-    palworld --> rcon
-    palagent --> steamcmd & palconfig & dockerctl
+    dw -->|"game.Register()"| gamepkg
+    games -.->|blank import| dw
+    dw --> agentctl & dwlog
+    palagent --> steamcmd & dwconfig & dockerctl
     agentfiles --> agentctl
-    savecache --> palsave
-    web -.->|"embedded into"| cmdpalcon
+    web -.->|"embedded into"| cmddwcon
 ```
 
-Two honesty notes the code itself makes: the save/config views in
-`internal/api` still import `games/palworld` directly (the abstraction is
-the *goal*, tracked in `porting-to-another-game.md`, not a finished fact),
-and `store/gameclient.go` is deliberately the **one** place a server row
-becomes a live `game.Client` — the API handlers, collector and scheduler
-previously each did it themselves and drifted.
+Three honesty notes the code itself makes. `internal/api/config.go` is the
+one handler that names a game package, and it does so through a
+`configCodec` struct — filename, read, write, optional
+`rotateAdminPassword` — so the handlers stay game-blind even with a single
+codec behind the seam; `codecFor` today returns the Dragonwilds codec for
+every server, and that is the honest state of the abstraction (tracked in
+[`porting-to-another-game.md`](porting-to-another-game.md)).
+`store/gameclient.go` is deliberately the **one** place a server row becomes
+a live `game.Client` — the API handlers, collector and scheduler previously
+each did it themselves and drifted. And two core packages are currently
+inert: `internal/rcon` is imported only by its own tests, and
+`internal/savecache` compiles with no game supplying a `Source`. Both are
+kept, not deleted: they are the shared base's transport and cache for
+whatever game lands next.
 
 ## Startup wiring & background loops
 
-`cmd/palcon/main.go` is the entire composition root — a flat sequence, no
+`cmd/dwcon/main.go` is the entire composition root — a flat sequence, no
 DI framework: load env config → open SQLite (single connection, inline
 migrations) → build the AES-GCM box and the store around it → bootstrap the
-admin user (first run only) → materialize the embedded Python extractor
-into `DATA_DIR` → start the background loops → serve HTTP.
+admin user (first run only) → start the background loops → serve HTTP.
 
 Every loop is ticker-driven and stateless against the DB: each tick
 re-reads the server rows, so a UI edit takes effect on the next tick with
@@ -201,54 +225,30 @@ no signalling channel between the API and the loops.
 | Loop | Package | Tick | What it does |
 |---|---|---|---|
 | Collector | `internal/collector` | 30s sample / 1h prune | Fans out per server (10s per-server timeout): health sample for the charts, player join/leave sessions, reachability-change notifications. Prunes metrics (7d), player events (90d), audit (365d) |
-| Save refresher | `internal/collector` | 15s poll, 45s per-server parse floor | Keeps the save-parse cache warm across autosaves; for agent-backed servers this same loop drives the file sync. Sequential on purpose — each parse holds a decompressed world in memory |
+| Save refresher | `internal/collector` | 15s poll, 45s per-server floor | Mirrors each agent-backed server's save directory locally, which is what the backup runner snapshots. `main` passes a **nil** `SaveReader` (the Phase 3 gate — no Dragonwilds parser exists), so only the sync half runs; the cache-warming half is dead code until a reader arrives |
 | Scheduler | `internal/sched` | 20s | Scheduled restarts with in-game warnings; a 2-minute stale window so a missed slot isn't replayed after the host wakes from sleep |
 | Watchdog | `internal/watchdog` | 30s | Revives watched containers after an unclean exit; 5min cooldown, 3 strikes, strikes clear after 10min healthy. Only runs when docker control is configured |
 | Backup | `internal/backup` | 60s | Zip snapshots of the save directory into `DATA_DIR`, per-server interval and retention |
 
 Optionality is wiring, not error handling: without `DOCKER_HOST` the
 `dockerctl` client is `nil` and power control is *absent*; without
-`PROVISIONER_URL` the one-click wizard degrades to handing you a stack file;
-without a model API key from any source, the advisor ("Ask Anubis" — the
-floating chat bubble on every authed view, `internal/advisor`) answers
-nobody, and its panel offers key setup instead. The same nil-means-off
-pattern recurs at every optional edge.
+`PROVISIONER_URL` the one-click wizard degrades to handing you a stack
+file. The same nil-means-off pattern recurs at every optional edge.
 
-The advisor serves Anthropic or Google behind one interface, and a key
-carries its owner's model choice — validated against a curated,
-GA-models-only list that the status endpoint also serves to the UI's
-picker, so the picker can never offer what the server would reject. Keys
-resolve per request, most specific first: a user's personal key
-(`user_advisor_keys`, one encrypted row per account, dies with it)
-shadows the shared one — their questions, their billing, invisible to
-everyone else — then an admin's UI-saved key (`app_settings`, same box as
-server credentials, never echoed back, hot-swapped without a restart),
-then the environment. The status endpoint reports each user's own view:
-whose API, and which model, their questions actually run on.
-
-The advisor also inherits the client/server data split rather than fighting
-it: every derived number (effective work levels, condenser math, stat
-estimates) and every vendored catalog lives in the browser's calculators,
-so the browser builds a compact JSON summary of what it already computed —
-from the same `/pals` payload it renders, visibility hides included — and
-sends it with each question. The Go side wraps that in the system prompt,
-injects the asking user's username from the session — so the model can
-guess which in-game player it's advising, and asks when the guess is
-ambiguous — and holds the API key, which the browser never sees.
-
-The same split shapes the advisor's tool use. The calculators are exposed
-to the model as tools (breeding outcomes, parent pairs, inheritance odds,
-stat estimates), alongside a search over these embedded docs (served once
-by `/api/docs`) and the Palworld wiki (queried from the browser through
-the Fandom API's CORS support, so the Go server never grows an
-outbound-fetch surface). Tools execute in the browser: definitions ride in
-with each request from `web/src/lib/advisor-tools.ts`, the model's calls
-come back out in the chat response, the browser runs the real calculator
-and re-submits with the results. The loop driver is the browser, bounded
-by an admin-tunable round cap; the last permitted round carries an
-answer-now note so a budget hit ends in a best-effort answer rather than
-discarded work. The server stays stateless per request, and the Go binary
-still never learns what a breeding table is.
+**The advisor is a leftover, and worth naming as one.** `internal/advisor`
+and `internal/api/advisor.go` are still wired from `main`: two providers
+(Anthropic, Google) behind one interface, per-request key resolution most
+specific first — a user's personal key (`user_advisor_keys`, one encrypted
+row per account) shadows an admin's UI-saved key (`app_settings`, same box
+as server credentials, never echoed back), which shadows the environment —
+a curated GA-models-only list the status endpoint also serves, an
+admin-tunable tool-round cap, and `/api/docs` serving these embedded
+markdown files for a docs-search tool. What is gone is the entire browser
+half: the chat panel, the calculators it exposed as tools, the vendored
+catalogs those calculators read, and the `/pals` payload they summarized.
+`web/src/lib/api.ts` still declares the client methods, but no component
+calls them, so the endpoints answer only whatever reaches them directly.
+Treat this paragraph as inventory, not as a feature.
 
 Shutdown: `signal.NotifyContext` cancels one context shared by every loop;
 the HTTP server gets 10 seconds; the collector alone is *awaited*, because
@@ -266,51 +266,108 @@ identity.
 - **`game.Client`** — 8 methods: `Info`, `Players`, `Broadcast`, `Kick`,
   `Ban`, `Unban`, `Save`, `Shutdown`.
 - **`game.ExtendedClient`** — `Settings` and `Metrics`, which plain RCON
-  cannot serve. Callers type-assert and **degrade rather than fail**; the
-  collector silently skips metrics for RCON-only servers.
+  cannot serve. Callers type-assert and **degrade rather than fail**; a
+  client that doesn't implement it has its metrics silently skipped.
+- **`game.UnsupportedError`** — `{Op, Reason}`, returned by a client that
+  cannot perform an operation *at all*, as distinct from failing to reach a
+  server that could. This is the capability-degradation mechanism; see
+  below.
 - **`game.Definition`** — what the registry stores per game: `ID`, `Name`,
   `DefaultGamePort`, `NewClient(Conn) Client`, `CanonicalUID(string) string`,
   and `Features` — the dashboard views this game can fill.
 - **Registry** — package-level map; implementations `Register` from `init`,
-  and `internal/games` blank-imports every one so `cmd/palcon` wires them
+  and `internal/games` blank-imports every one so `cmd/dwcon` wires them
   all with a single side-effect import. Duplicate or malformed
   registrations panic at startup rather than surfacing later as an
-  unreachable server.
+  unreachable server. `DefaultID` is `"dragonwilds"`, so a row written
+  before the game column existed still resolves.
 
 Feature keys (`map`, `pals`, `inventory`, `storage`, `paldex`,
-`achievements`, `guilds`, `calculators`) deliberately name *dashboard
-views*, not game concepts — a hypothetical ARK port reuses `pals` for
-tames and `paldex` for the dino dex rather than inventing synonyms. They
-double as the admin's per-server visibility switches.
+`achievements`, `guilds`, `calculators`, `saves`, `logs`) deliberately name
+*dashboard views*, not game concepts — Dragonwilds reuses `pals` for
+Adventurers and `paldex` for a bestiary rather than inventing synonyms,
+and `saves`/`logs` arrived with it because a world-save list and a live log
+tail are first-class views here rather than dialogs. They double as the
+admin's per-server visibility switches. Dragonwilds claims exactly three:
+`pals`, `saves`, `logs`.
 
-The Palworld implementation supplies three transport pieces:
+`AllFeatures()` is deliberately *not* narrowed to what's registered: it
+validates stored visibility switches, and keeping a key no game offers
+costs nothing while dropping one silently erases an admin's setting.
 
-- **`RESTClient`** — the game's HTTP admin API, Basic auth, 5s timeout
-  (kept short *because* the fallback sits behind it).
-- **`RCONClient`** — Palworld's command vocabulary over the generic Source
-  RCON transport in `internal/rcon` (which ships `rcontest`, a fake server,
-  for tests).
-- **`fallbackClient`** — the subtle part. It falls back to RCON only on
-  *transport-level* failure (connection refused, timeout — i.e. the REST
-  API is disabled). An HTTP-status error proves REST is up, so a wrong
-  REST password surfaces as a REST auth error instead of being masked by
-  an RCON retry. When both fail, both causes are reported.
+The Dragonwilds implementation supplies one client, and it has no transport
+of its own. Everything is derived through the server's palagent sidecar:
 
-`CanonicalUID` normalizes the three spellings of a player id (REST's
-undashed hex, RCON's decimal integer, the save file's dashed guid) into
-the save-file form. Getting this wrong fails silently — a mismatched id
-never matches, which for a visibility check means failing open — hence it
-lives on the Definition rather than being each caller's problem.
+- **`refresh`** is the single poll behind every read. `GET /v1/health`
+  gives process state and `startedAt`; if the process is running,
+  `GET /v1/power/logs?tail=2000` gives the ring buffer, which is fed to a
+  `dwlog.Tracker`. A health response with no supervised game (companion
+  mode) is an error naming that, not an empty result.
+- **`Info` / `Players` / `Metrics`** read off that tracker: player count and
+  the session list, plus uptime from `startedAt` and the hard six-slot cap
+  (`MaxPlayers = 6`, a game constant with no config key). A stopped or
+  crashed process is returned as an error, because "unreachable" is the
+  truthful rendering and the agent-backed power panel stays available
+  beside it.
+- **`dwlog`** is the state machine: versioned rule tables (`RulesV0`, written
+  against community captures of game 0.12) match join and leave markers,
+  everything else is noise. Trackers are process-global, keyed by agent URL,
+  because clients are rebuilt from the row on every API call and the session
+  state has to outlive them. A changed process start time resets the tracker
+  outright — a reloaded world ends every prior session whether or not a
+  leave line said so.
+- **The command tier** — `Broadcast`, `Kick`, `Ban`, `Unban`, `Save`,
+  `Shutdown` — returns `*game.UnsupportedError` with the real constraint in
+  `Reason` (no native console; bans are in-game only; no save command). So
+  does `Settings`, whose answer is the ini editor rather than a live query.
+
+That last point is the load-bearing one. `internal/api/actions.go` splits
+client failures in exactly one place: `writeClientError` maps an
+`UnsupportedError` to **501** carrying the client's own wording, and
+everything else to **502**. The UI can therefore say "this game can't"
+instead of "the server is down", and a command lights up the day a
+transport for it exists — no handler changes, just a client that stops
+returning the sentinel.
+
+`CanonicalUID` trims whitespace and nothing more. The id's wire format is
+unverified and v0 log lines carry names rather than ids, so there are no
+divergent spellings to reconcile yet. Guessing a normalization against an
+unknown format is how a visibility check fails open — a mismatched id
+simply never matches — hence it lives on the Definition rather than being
+each caller's problem, and stays identity until a real corpus arrives.
+
+Configuration sits beside the client rather than inside it, because the ini
+is read at rest and the game can't be asked about it. `dwconfig` parses
+`DedicatedServer.ini` — a conventional line-based UE ini, unlike Palworld's
+single `OptionSettings=(...)` line — and copies palconfig's write policy
+deliberately: the file as written is the only schema, so edits never add or
+remove keys, each new value is validated against the type inferred from the
+existing one, a key appearing twice is shown read-only rather than guessed
+at, a one-level `.palcon.bak` is kept (the suffix is inherited verbatim),
+and the swap is atomic. It resolves
+the configured path whether it points at the file, the platform folder, or
+the `Config` folder above it.
+
+Above that, `internal/api/config.go` holds it behind the `configCodec`
+seam described earlier, adding one game-specific verb: **rotate admin
+password**. It generates a fresh value, writes it to the ini, returns it
+exactly once, and audits the fact but never the value. That endpoint exists
+because for this game the admin password *is* the remote-admin lever —
+changing it revokes every password-session admin on restart — which makes
+it the closest thing to a moderation command Wildskeeper can actually
+perform.
 
 ## API layer: auth & permissions
 
 Router: chi, one `Routes(staticFS)` builder. Middleware stack: request id,
-real IP, logging, panic recovery, compression (the pals payload is tens of
-MB and compresses ~10×); under `/api`, a 1 MiB body cap and JSON 404s. The
-router's `NotFound` is the SPA handler: try the embedded file, else serve
-`index.html` so client-side deep links survive refresh.
+real IP, logging, panic recovery, compression (inherited for a multi-MB
+pals payload that no longer exists here — it still earns its place on the
+JS bundles and on a 2000-line log tail); under `/api`, a 1 MiB body cap and
+JSON 404s. The router's `NotFound` is the SPA handler: try the embedded
+file, else serve `index.html` so client-side deep links survive refresh.
 
-**Auth** is a JWT in an HttpOnly cookie (`palcon_session`, 7 days,
+**Auth** is a JWT in an HttpOnly cookie (`palcon_session` — another kept
+inherited name, so existing sessions survive the rename; 7 days,
 `SameSite=Lax`, `Secure` behind `COOKIE_SECURE`), HS256 with the algorithm
 pinned server-side. Claims carry the **user id, not the username**, so
 renames don't invalidate sessions — and `requireAuth` re-reads the user
@@ -328,13 +385,16 @@ repairing a broken grant never depends on the grants. Deliberate choices:
   [`visibility.md`](visibility.md).
 - `shutdown` is split from `power` so someone can bounce a container
   without being allowed to boot everyone mid-session.
-- `settings` gates *reading* the config too — `PalWorldSettings.ini`
-  holds passwords in the clear.
+- `settings` gates *reading* the config too — `DedicatedServer.ini`
+  holds the admin and join passwords in the clear.
+- `power` also gates the log viewer, and that is not an accident: the
+  server log carries chat and player identities, which is
+  container-management territory rather than general viewing.
 - Backups are admin-only in both directions; the archive is the whole
   world.
 
 The only unauthenticated data endpoint is `GET /api/public/status/{token}`
-— token-gated, read-only, and served entirely from palcon's own DB so
+— token-gated, read-only, and served entirely from dwcon's own DB so
 public traffic can never probe or load the game server.
 
 **There are no websockets and no SSE anywhere.** Every live view is REST
@@ -352,39 +412,41 @@ external tool, no down migrations.
 The `servers` table is the wide central row; around it sit `users`,
 `restart_schedules`, `discord_webhooks`, `player_events`,
 `player_sessions`, `server_metrics`, `server_watch`, `audit_log`,
-`player_visibility`, and friends.
+`player_visibility`, `app_settings`, `user_advisor_keys`, and friends.
 
 Two rules the store enforces:
 
-- **Secrets never leave it decrypted-by-accident.** RCON/REST passwords
-  and agent tokens are AES-GCM blobs; the API serializes `hasRconPassword`
-  booleans, never values. The encryption box is constructed once in
-  `main` and lives inside the store.
+- **Secrets never leave it decrypted-by-accident.** Agent tokens — and the
+  RCON/REST password columns inherited from palcon, which no game fills
+  today — are AES-GCM blobs; the API serializes `hasRconPassword` /
+  `hasAgentToken` booleans, never values. The encryption box is constructed
+  once in `main` and lives inside the store.
 - **The edit form can't clobber what it doesn't carry.** Watchdog state,
   the public-status token, and backup settings each have their own setter
   outside `UpdateServer`, so saving the server form can never silently
   switch the watchdog off.
 
-## The save-reading pipeline
+## The save pipeline
 
-Everything the game's admin APIs don't expose — pals, IVs, inventories,
-storage, guilds, paldex, records — comes from parsing `Level.sav`
-directly. The pipeline is layered so that the expensive part almost never
-blocks a request:
+Half of this pipeline is built and half is a gate. The world files are
+**synced and archived** today; nothing **reads** them, because the
+Dragonwilds save format is unparsed (Phase 3 in the recon doc's open
+gates). So the World saves view is a list of snapshots, not a list of
+characters — and the visibility page's per-player roster is honestly
+reported as unavailable rather than shown as an empty table.
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser
-    participant API as internal/api
-    participant SC as savecache
+    participant L as save refresher (15s)
     participant AF as agentfiles
     participant AG as palagent sidecar
-    participant PY as python3 extractor
+    participant BK as backup runner (60s)
+    participant API as internal/api
+    participant B as Browser
 
-    B->>API: GET /servers/{id}/pals
-    API->>AF: SavePath(server)
+    L->>AF: SavePath(server)
     alt bind mount configured
-        AF-->>API: local path, verbatim
+        AF-->>L: local path, verbatim
     else agent-backed
         AF->>AG: GET /v1/files/save (If-None-Match: etag)
         alt unchanged
@@ -392,46 +454,37 @@ sequenceDiagram
         else changed
             AG-->>AF: tar stream → extract to .sync-tmp → atomic rename
         end
-        AF-->>API: DATA_DIR/agentfiles/{id}/save
+        AF-->>L: DATA_DIR/agentfiles/{id}/save
     end
-    API->>SC: ReadServeStale(path)
-    alt cache fresh (mtime match)
-        SC-->>API: parsed result
-    else cache stale
-        SC-->>API: stale result immediately
-        SC->>PY: background re-parse (deduped, detached ctx)
-        PY-->>SC: JSON world → cached
-    else no entry
-        SC->>PY: parse (one at a time, globally)
-        PY-->>SC: JSON world
-        SC-->>API: result
-    end
-    API-->>B: gzip JSON (ParsedAt + SaveModTime attached)
+    Note over L: reader == nil (Phase 3 gate)<br/>no parse is attempted
+    BK->>AF: SavePath(server)
+    BK->>BK: zip → DATA_DIR/backups/{id}/
+    B->>API: GET /servers/{id}/backups (admin)
+    API-->>B: snapshot list · download · delete
 ```
 
 The pieces:
 
-- **`palsave`** owns only Palworld's schema and the extractor: two
-  embedded Python scripts materialized into `DATA_DIR` at startup and run
-  as `python3 extract_pals.py <Level.sav>` with JSON on stdout. Runtime
-  dependencies (`palworld-save-tools`, `pyooz`) live in the Docker image.
-  Everything is read-only by construction — the published `pyooz` wheel is
-  decompress-only and cannot write a save.
-- **`savecache`** is game-agnostic: mtime-keyed entries, a global
-  one-parse-at-a-time lock (each parse holds a whole decompressed world),
-  double-checked after lock acquisition so queued requests reuse the
-  winner's result, an 8-entry bound evicting the stalest, and a 3s
-  write-settle so a file mid-autosave is never parsed. `ReadServeStale` —
-  what every human-facing handler uses — returns stale data instantly and
-  refreshes in the background, so the pals pages never wait on a
-  multi-second parse.
-- **The save refresher loop** keeps the cache warm between requests, and
-  for agent-backed servers is also what drives the file sync.
 - **`agentfiles`** is the seam that keeps the rest of the system agnostic:
-  the parser, backup archiver and ini editor work on local paths and never
-  learn agents exist. On a sync failure with a cached copy present it
-  serves the cache with a warning — a briefly-down agent shouldn't blank
-  the pals pages.
+  the backup archiver and the ini editor work on local paths and never
+  learn agents exist. A conditional GET per poll, bounded to one check per
+  10s per server; extraction is guarded against traversal, size and file
+  count. On a sync failure with a cached copy present it serves the cache
+  with a warning — a briefly-down agent shouldn't blank a view.
+- **The save refresher loop** drives that sync. Its second job — keeping a
+  parse cache warm — is inert: `main` passes a nil `SaveReader`, so the loop
+  resolves the path, spaces the next attempt, and stops there.
+- **The backup runner** zips the resolved save directory into `DATA_DIR` on
+  each server's own interval and retention, and is what the World saves
+  view lists, downloads and deletes.
+- **`savecache`** is in the tree, game-agnostic and unused: mtime-keyed
+  entries, a global one-parse-at-a-time lock (each parse would hold a whole
+  decompressed world), double-checked after lock acquisition so queued
+  requests reuse the winner's result, an 8-entry bound evicting the
+  stalest, and a 3s write-settle so a file mid-autosave is never parsed.
+  `ReadServeStale` returns stale data instantly and refreshes behind the
+  request. All of that design survives from palcon and is why the Phase 3
+  work is a `Source` implementation rather than a pipeline.
 
 ## Power control & the stop sequence
 
@@ -450,17 +503,28 @@ flowchart TD
 ```
 
 The stop sequence is the same in both modes and is deliberately
-choreographed — Palworld's container images swallow SIGTERM, so a bare
-`docker stop` ends in SIGKILL and an exit code that Docker, TrueNAS and
-the watchdog all read (accurately) as a crash:
+choreographed, because game server images commonly swallow SIGTERM: a bare
+`docker stop` then ends in SIGKILL and an exit code that Docker, TrueNAS
+and the watchdog all read (accurately) as a crash:
 
-1. Save the world over REST/RCON.
+1. Save the world through the game client.
 2. Ask the game to shut itself down in-game (`Shutdown(1s, …)`).
-3. Only then stop the container / signal the process. In supervisor mode
-   palcon passes `?graceful=20s` so the agent waits out the in-flight
-   self-exit before escalating SIGTERM → grace → SIGKILL to the process
-   *group* — signalling only `PalServer.sh` would leave the engine
-   running.
+3. Only then stop the container / signal the process. When step 2 was
+   *accepted*, supervisor-mode stops pass `?graceful=20s` so the agent
+   waits out the in-flight self-exit before escalating SIGTERM → grace →
+   SIGKILL to the process *group* — signalling only the launch script would
+   leave the engine running.
+
+For Dragonwilds, steps 1 and 2 currently both return
+`game.UnsupportedError`. `prepareForStop` treats that like any other
+failure — every step is best-effort, since a server that's already
+unresponsive can't save either — logs a warning, and reports that no
+self-exit is in flight, so the graceful window is skipped and the agent
+signals the process directly. The choreography is intact and unused; it
+starts working the day a command bridge exists, with no change to this
+path. What does the real work today is the agent's own stop: SIGTERM to
+the process group, a grace period, then SIGKILL, with exit code 143
+recognized as a clean stop rather than a crash.
 
 The whole sequence runs on `context.WithoutCancel`, so closing the browser
 tab after clicking Stop cannot strand it half-done. An operator stop is
@@ -470,25 +534,45 @@ toward the watchdog's restart backoff.
 ## palagent: the sidecar
 
 Full design in [`sidecar-agent.md`](sidecar-agent.md); the shape in brief.
-Every file-and-process capability palcon can't have without bind mounts
-moves into a small trusted container sitting *next to* each game server.
-One agent per server, fixed dashboard-shaped verbs (never exec, never an
-arbitrary path parameter), bearer-token auth (constant-time compare,
-16-char minimum), long work modelled as **jobs** — POST returns
-immediately, palcon polls, and `/v1/health` reports the current-or-last
-job so palcon rediscovers in-flight work after its own restart. `/v1/health`
+The package and binary keep the inherited name — `cmd/palagent`,
+`internal/palagent`, `ghcr.io/safwyls/palagent` — because the same image
+serves both consoles. Every file-and-process capability dwcon can't have
+without bind mounts moves into a small trusted container sitting *next to*
+each game server. One agent per server, fixed dashboard-shaped verbs (never
+exec, never an arbitrary path parameter), bearer-token auth (constant-time
+compare, 16-char minimum), long work modelled as **jobs** — POST returns
+immediately, dwcon polls, and `/v1/health` reports the current-or-last
+job so dwcon rediscovers in-flight work after its own restart. `/v1/health`
 also reports `apiVersion` (3: 1 = steam verbs, 2 = file verbs, 3 =
-supervisor), so an old agent keeps working with a new palcon.
+supervisor), so an old agent keeps working with a new dwcon.
+
+Here the agent is not an optional convenience: with no RCON, REST or query
+protocol, `/v1/health` and `/v1/power/logs` *are* the admin interface.
 
 | Mode | Owns | Power control | Typical use |
 |---|---|---|---|
-| **companion** | The game's volume, alongside the existing game image: SteamCMD repair/update, save bundle (ETag/304), config GET/PUT | Still the docker proxy | Retrofit onto an existing server; the compatibility path |
-| **supervisor** | *Is* the server container: installs the game on first boot, runs `PalServer.sh` as a child process, crash restarts with backoff, desired-state persisted so a recreated container resumes what the operator asked | Agent verbs; docker proxy not required | New servers, remote hosts |
+| **companion** | The game's volume, alongside the existing game image: SteamCMD repair/update, save bundle (ETag/304), config GET/PUT | Still the docker proxy | Retrofit onto an existing server; the compatibility path. No derived state — the Dragonwilds client needs a supervised process to observe |
+| **supervisor** | *Is* the server container: installs the game on first boot, seeds `DedicatedServer.ini` with the Owner ID, runs the server binary as a child process with `-log` and `-Port=`, keeps its output in a ring buffer, crash restarts with backoff, desired-state persisted so a recreated container resumes what the operator asked | Agent verbs; docker proxy not required | New servers, remote hosts — and the only mode with a full dashboard |
 | **provisioner** | Docker **create** rights, deliberately — one locked in-code template, slug-validated paths, destroy gated on the label create writes | n/a | Optional one-click "new server from the dashboard" |
 
-The file sync is worth knowing about because it's what lets the whole save
+`-log` is load-bearing rather than cosmetic: it puts the engine's log on
+stdout, which is the stream the ring buffer captures — and that ring buffer
+is what `dwlog` turns into the player list. The whole live view of the
+server hangs off one process's stdout.
+
+The provisioner's template is Dragonwilds-shaped throughout: it publishes
+`gamePort`, `gamePort+1` and the agent port and nothing else (there is no
+admin port to expose), binds the per-slug data directory at
+`/dragonwilds`, labels what it creates `dwcon.provisioned=true` and
+`dwcon.slug=<slug>`, and **requires** an `ownerId` — the game refuses to
+start without one, so a deploy that omitted it could only ever produce a
+container that fails. Destroy is gated on `dwcon.provisioned`, written in
+exactly one place, so it can only unmake what provision made; the data
+directory is never removed.
+
+The file sync is worth knowing about because it's what lets the save
 pipeline stay local-path-shaped: the agent computes an ETag over each save
-file's path, size and mtime; palcon syncs with `If-None-Match`, so an
+file's path, size and mtime; dwcon syncs with `If-None-Match`, so an
 unchanged poll transfers nothing; changed bundles stream as tar, extract
 to a temp dir and atomically rename into place, with traversal, size and
 file-count guards on extraction. Config PUTs write atomically and refuse
@@ -496,10 +580,10 @@ to *create* the file — a missing ini means a wrong install dir, and
 creating one would mask that.
 
 Lifecycle coupling is minimized by construction: the agent is not a child
-of palcon and holds no live connection; palcon restarts never touch game
+of dwcon and holds no live connection; dwcon restarts never touch game
 servers in either mode. Supervisor mode couples the game's uptime to the
 *agent image* only — so the agent stays small and boring and updates a few
-times a year while palcon updates weekly.
+times a year while dwcon updates weekly.
 
 ## Frontend
 
@@ -507,34 +591,42 @@ React 18 SPA in `web/`, embedded into the Go binary
 (`//go:embed all:dist` in `web/embed.go`) and served as the router's
 fallback, so one container serves everything.
 
+Pages live in `web/src/pages/wildskeeper/` — Overview, Adventurers, World
+saves, Server log, Configuration — beside the game-agnostic pages (Login,
+Users, Automation, Activity, public status) they share the base with.
+
 - **State**: TanStack Query is the only state manager; the sole React
   context is auth. Poll intervals are tuned per data cost — players 10s,
-  metrics 15s, backups 30s (dropping to 2s while one runs), the heavy
-  save-derived pages on a user-configurable refresh. A module-level 401
-  hook logs the session out once, centrally, instead of every query
+  metrics and power 15s, backups 30s, the log tail 5s while following and
+  not at all when not, jobs dropping to 2s while one runs. A module-level
+  401 hook logs the session out once, centrally, instead of every query
   handling it.
 - **Routing**: react-router 6; the active server comes from the URL, not
   selection state, so deep links and back/forward just work. `RequireAuth`
   / `RequireAdmin` wrappers plus a `FeatureGate` per optional view, driven
   by the same feature keys the backend registry serves.
-- **Code splitting is data-driven**: each `lazy()` boundary defers a named
-  payload — the ~190 KB pal catalogs behind Players/Paldex/Guilds, the
-  ~550 KB item catalog behind Inventory, breeding tables behind
-  Calculators. Dashboard and map users download none of it. The catalogs
-  themselves are vendored game data ([`vendored-game-data.md`](vendored-game-data.md)).
+- **No code splitting today**: the console ships no game catalogs, so the
+  bundle is small enough that `lazy()` boundaries would buy nothing. The
+  save-backed views that justified them in palcon do not exist here yet
+  (Phase 3 in the recon doc's open gates).
 - **Per-game presentation** mirrors the backend registry: a `GameProfile`
   supplies labels and blurbs per feature key, so only vocabulary is
   per-game; route segments are part of the URL contract and stay stable.
+- **Theme**: one Wildskeeper palette (deep night ground, brass structure,
+  rune-cyan for live state, ember for danger, parchment text) defined once
+  as HSL against shadcn's semantic tokens, so shared components need no
+  per-component work. There is no light/dark toggle — `:root` and
+  `.wildskeeper` are the same declarations, the second kept as an alias so
+  page code can name the theme intentionally.
 - **PWA**: manifest-only (installable, standalone, safe-area aware); no
   service worker, deliberately — stale offline data about a live server
   misleads.
-- **Demo mode**: `VITE_DEMO=1` swaps in a fixture-backed mock of the whole
-  API (dynamic import, so normal builds tree-shake it out) and
-  `HashRouter` (static Pages hosting would 404 refreshed deep links).
-  This is the [live demo](https://safwyls.github.io/palcon/demo/) — the
-  real frontend, no backend at all.
+- **No demo build**: the `site/` directory, the Pages workflow and the
+  fixture-backed API mock did not come across from palcon. One vestige
+  remains — `main.tsx` still selects `HashRouter` when `VITE_DEMO=1` — and
+  it is inert, because nothing else in the tree reads that variable.
 
-Dev loop: `go run ./cmd/palcon` on :8080, `npm run dev` with Vite proxying
+Dev loop: `go run ./cmd/dwcon` on :8080, `npm run dev` with Vite proxying
 `/api` — no CORS involved.
 
 ## Build, CI & publishing
@@ -544,76 +636,79 @@ flowchart LR
     trig["push to main / beta / v* tag"]
 
     subgraph verify["docker.yml — verify job"]
-        v1["npm ci · build · test"] --> v2["go build · vet"] --> v3["pip install save-tools<br/>go test ./..."]
+        v1["npm ci · build · test"] --> v2["go build · vet"] --> v3["go test ./..."]
     end
 
     subgraph build["docker.yml — matrix build"]
-        d1["Dockerfile<br/>node → go → alpine+python"]
+        d1["Dockerfile<br/>node → go → alpine+python3"]
         d2["Dockerfile.palagent<br/>go → steamcmd/debian-12"]
     end
 
-    subgraph pages["pages.yml (main, site/ or web/ changed)"]
-        p1["VITE_DEMO=1 vite build"] --> p2["site/* + demo → _pages"]
-    end
-
-    ghcr1[("ghcr.io/safwyls/palcon<br/>:latest :beta :semver :sha")]
+    ghcr1[("ghcr.io/safwyls/dwcon<br/>:latest :beta :semver :sha")]
     ghcr2[("ghcr.io/safwyls/palagent<br/>same tag scheme")]
-    gp["GitHub Pages<br/>homepage · docs · live demo"]
 
     trig --> verify --> build
     d1 --> ghcr1
     d2 --> ghcr2
-    trig --> pages
-    p2 --> gp
 ```
+
+`docker.yml` is the only workflow; there is no Pages job, because there is
+no site or demo to publish.
 
 Notes that matter operationally:
 
-- The `verify` job fast-fails before paying for the multi-stage build, and
-  installs `palworld-save-tools` so the extractor tests run instead of
-  self-skipping.
+- The `verify` job fast-fails before paying for the multi-stage build:
+  frontend build and vitest, then `go build`/`go vet`, then `go test ./...`.
+  No Python packages are installed — nothing in the suite parses saves yet.
 - Two images publish from one repo with the **same tag scheme**, so a
   compose stack pins one channel (`:latest`, `:beta`, or a semver) across
-  the palcon/palagent pair. `beta` is a real test channel deployments can
+  the dwcon/palagent pair. `beta` is a real test channel deployments can
   pull without touching `:latest`.
-- The palcon runtime image is alpine + python3 + the two save-tools
-  packages, running as a non-root user; the palagent image is based on
+- The dwcon runtime image is alpine + python3, running as a non-root user
+  with `DATA_DIR=/data` set in the image (the default `./data` isn't
+  creatable by that user, which failed confusingly). `python3` is there for
+  the save reader the Phase 3 gate expects to shell out to; no parsing
+  packages are installed until it exists. The palagent image is based on
   `steamcmd/steamcmd:debian-12` because SteamCMD needs 32-bit glibc, and
   the binary is its own healthcheck probe (the base ships neither wget nor
   curl).
-- Pages rebuilds only when `site/` or `web/` change; the demo is the real
-  frontend compiled against the fixture.
 
 ## Cross-cutting design rules
 
 Patterns that hold everywhere and explain most local decisions:
 
 1. **Saves are read-only, structurally.** Read-only mounts (kernel-
-   enforced, including a nested `:ro` inside the companion agent), a
-   decompress-only unwrapper, an extractor that only reads, backups that
-   only copy. There is no code path that writes a save; restore is a
-   deliberate manual act.
+   enforced, including a nested `:ro` inside the companion agent), a sync
+   that only pulls, backups that only copy — and, for now, no reader at
+   all. There is no code path that writes a save; restore is a deliberate
+   manual act. The config mount is the one deliberate exception, mounted
+   separately and read-write precisely so the two can't be confused.
 2. **Least privilege at every hop, expressed as fixed verbs.** Docker
    socket → scoped proxy → five operations. Agent → a closed verb list,
    no exec, no path parameters. Provisioner → one locked template, and its
    destroy verb can only unmake what the same provisioner made. Data
    directories are never deleted by any verb.
 3. **Optional means absent, never broken.** No `DOCKER_HOST` → no power
-   controls. No agent → bind-mount mode. No provisioner → paste flow.
-   RCON-only → metrics quietly skipped. Each degradation has a distinct
-   user-facing message rather than an error.
+   controls. No agent → bind-mount mode. No provisioner → paste flow. No
+   command transport → 501 with the reason, not a dead button. No save
+   reader → the roster says "unavailable" rather than showing an empty
+   table. Each degradation has a distinct user-facing message rather than
+   an error.
 4. **Sentinel errors per boundary, mapped once at the API edge.**
    `agentctl`, `dockerctl`, `savecache`, `store` and `game` each export a
    small error vocabulary that the handlers translate to specific HTTP
-   statuses (including 501 for "this build doesn't know that game").
+   statuses — most importantly `game.UnsupportedError` → 501 ("this game
+   can't") against everything else → 502 ("the server is unreachable"),
+   plus 501 for a row naming a game this build doesn't have.
 5. **Detached contexts for must-finish work.** Stop sequences and
-   session-closing use `context.WithoutCancel`; background re-parses use
-   `context.Background()` — a closed tab or a palcon restart mid-job
-   strands nothing, and agent jobs outlive palcon by design.
-6. **Polling over push, everywhere.** Client↔palcon, palcon↔agent,
-   palcon↔docker: bounded request/response with ETags and tuned
+   session-closing use `context.WithoutCancel` — a closed tab or a dwcon
+   restart mid-job strands nothing, and agent jobs outlive dwcon by design.
+6. **Polling over push, everywhere.** Client↔dwcon, dwcon↔agent,
+   dwcon↔docker: bounded request/response with ETags and tuned
    intervals, no held-open connections. This is what makes the
-   no-lifecycle-coupling rule cheap to keep.
+   no-lifecycle-coupling rule cheap to keep. The live player list is the
+   sharpest case: a browser poll that makes the server re-read a log ring
+   buffer, not a stream at either hop.
 7. **The comments are the design record.** Non-obvious decisions carry
    the rejected alternative and, often, the bug that motivated them; the
    long-form docs in `docs/` hold the arguments too big for a comment.

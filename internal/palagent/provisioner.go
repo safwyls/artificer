@@ -16,11 +16,17 @@ import (
 
 // Provisioner mode (docs/sidecar-agent.md phase 5): the one component in
 // the system allowed to hold docker create rights, exposing exactly one
-// verb — instantiate the locked Palworld supervisor template. The
-// template lives here in code: a compromised palcon (or leaked
-// provisioner token) can stamp out more Palworld servers under the
-// configured data root, and nothing else — no arbitrary images, mounts,
-// or privileges are expressible through this API.
+// verb — instantiate the locked Dragonwilds supervisor template. The
+// template lives here in code: a compromised dwcon (or leaked provisioner
+// token) can stamp out more Dragonwilds servers under the configured data
+// root, and nothing else — no arbitrary images, mounts, or privileges are
+// expressible through this API.
+
+// defaultContainerGamePort is the port the game binds *inside* every
+// provisioned container. Fixed on purpose: only the host side of the
+// mapping varies, so the template stays one shape and the agent's
+// -Port= argument never has to be threaded through provisioning.
+const defaultContainerGamePort = DefaultGamePort
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`)
 var provRunAsPattern = regexp.MustCompile(`^\d{1,7}:\d{1,7}$`)
@@ -38,18 +44,22 @@ type ProvisionRequest struct {
 	Slug string `json:"slug"`
 	// ImageTag selects the palagent channel for the new server.
 	ImageTag string `json:"imageTag"`
-	// Token is the new agent's bearer token (palcon generated it).
+	// Token is the new agent's bearer token (dwcon generated it).
 	Token string `json:"token"`
-	// AdminPassword wires the game's REST/RCON (PALAGENT_ADMIN_PASSWORD).
+	// AdminPassword becomes the in-game admin password
+	// (PALAGENT_ADMIN_PASSWORD), enforced into DedicatedServer.ini.
 	AdminPassword string `json:"adminPassword"`
-	ServerName    string `json:"serverName"`
-	ServerDesc    string `json:"serverDesc"`
+	// OwnerID is the Player ID that owns the server. Required: the game
+	// refuses to start without one, so a deploy that omitted it would
+	// produce a container that can only ever fail.
+	OwnerID    string `json:"ownerId"`
+	ServerName string `json:"serverName"`
+	WorldName  string `json:"worldName"`
 	// RunAs is uid:gid for the container ("" = image default/root).
 	RunAs string `json:"runAs"`
-	// Published host ports.
+	// GamePort is the published UDP port; the game also uses the port
+	// immediately above it, and both are published as a pair.
 	GamePort  int `json:"gamePort"`
-	RESTPort  int `json:"restPort"`
-	RCONPort  int `json:"rconPort"`
 	AgentPort int `json:"agentPort"`
 }
 
@@ -73,6 +83,9 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 	case req.AdminPassword == "":
 		writeError(w, http.StatusBadRequest, "admin password is required")
 		return
+	case strings.TrimSpace(req.OwnerID) == "":
+		writeError(w, http.StatusBadRequest, "owner id is required — the game will not start without one")
+		return
 	case req.RunAs != "" && !provRunAsPattern.MatchString(req.RunAs):
 		writeError(w, http.StatusBadRequest, "runAs must be numeric uid:gid")
 		return
@@ -84,13 +97,19 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "image tag must match docker tag grammar")
 		return
 	}
-	seen := map[int]bool{}
-	for _, p := range []int{req.GamePort, req.RESTPort, req.RCONPort, req.AgentPort} {
-		if p < 1 || p > 65535 || seen[p] {
-			writeError(w, http.StatusBadRequest, "ports must be distinct and in 1-65535")
-			return
-		}
-		seen[p] = true
+	// The game binds GamePort and GamePort+1, so the pair must fit and
+	// must not collide with the agent's port.
+	if req.GamePort < 1 || req.GamePort > 65534 {
+		writeError(w, http.StatusBadRequest, "game port must be in 1-65534 (the game also uses the port above it)")
+		return
+	}
+	if req.AgentPort < 1 || req.AgentPort > 65535 {
+		writeError(w, http.StatusBadRequest, "agent port must be in 1-65535")
+		return
+	}
+	if req.AgentPort == req.GamePort || req.AgentPort == req.GamePort+1 {
+		writeError(w, http.StatusBadRequest, "agent port collides with the game's port pair")
+		return
 	}
 
 	name := "palagent-" + req.Slug
@@ -138,26 +157,29 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 		"PALAGENT_MODE=supervisor",
 		"PALAGENT_TOKEN=" + req.Token,
 		"PALAGENT_ADMIN_PASSWORD=" + req.AdminPassword,
+		"PALAGENT_OWNER_ID=" + strings.TrimSpace(req.OwnerID),
 	}
 	if req.ServerName != "" {
 		env = append(env, "PALAGENT_SERVER_NAME="+req.ServerName)
 	}
-	if req.ServerDesc != "" {
-		env = append(env, "PALAGENT_SERVER_DESC="+req.ServerDesc)
+	if req.WorldName != "" {
+		env = append(env, "PALAGENT_WORLD_NAME="+req.WorldName)
 	}
 	id, err := a.docker.ContainerCreate(r.Context(), dockerctl.ContainerSpec{
 		Name:  name,
 		Image: image,
 		User:  req.RunAs,
 		Env:   env,
-		Binds: []string{dataDir + ":/palworld"},
+		Binds: []string{dataDir + ":/dragonwilds"},
+		// The container-side ports are fixed; only the host side varies.
+		// The game has no RCON or REST interface to publish — everything
+		// the dashboard reads comes through the agent's own port.
 		Ports: map[int]string{
-			req.GamePort:  "8211/udp",
-			req.RESTPort:  "8212/tcp",
-			req.RCONPort:  "25575/tcp",
-			req.AgentPort: "8811/tcp",
+			req.GamePort:     fmt.Sprintf("%d/udp", defaultContainerGamePort),
+			req.GamePort + 1: fmt.Sprintf("%d/udp", defaultContainerGamePort+1),
+			req.AgentPort:    "8811/tcp",
 		},
-		Labels:               map[string]string{"palcon.provisioned": "true", "palcon.slug": req.Slug},
+		Labels:               map[string]string{"dwcon.provisioned": "true", "dwcon.slug": req.Slug},
 		RestartUnlessStopped: true,
 	})
 	if err != nil {
@@ -189,7 +211,7 @@ type ProvisionDefaults struct {
 	ImageTag   string `json:"imageTag"`
 }
 
-// DiscoveredServer is one Palworld-shaped container found on the host.
+// DiscoveredServer is one palagent-shaped container found on the host.
 // Deliberately free of environment values: a container's env carries its
 // token and admin password, and those never leave the provisioner.
 type DiscoveredServer struct {
@@ -199,8 +221,6 @@ type DiscoveredServer struct {
 	Running bool   `json:"running"`
 	// Published host ports for the well-known container ports.
 	GamePort  int `json:"gamePort,omitempty"`
-	RESTPort  int `json:"restPort,omitempty"`
-	RCONPort  int `json:"rconPort,omitempty"`
 	AgentPort int `json:"agentPort,omitempty"`
 }
 
@@ -218,7 +238,7 @@ func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	}
 	var out []DiscoveredServer
 	for _, c := range containers {
-		if !strings.Contains(c.Image, "palagent") && c.Labels["palcon.provisioned"] != "true" {
+		if !strings.Contains(c.Image, "palagent") && c.Labels["dwcon.provisioned"] != "true" {
 			continue
 		}
 		mode := ""
@@ -241,9 +261,7 @@ func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
 			Image:     c.Image,
 			Mode:      mode,
 			Running:   c.State == "running",
-			GamePort:  c.Ports["8211/udp"],
-			RESTPort:  c.Ports["8212/tcp"],
-			RCONPort:  c.Ports["25575/tcp"],
+			GamePort:  c.Ports[fmt.Sprintf("%d/udp", defaultContainerGamePort)],
 			AgentPort: c.Ports["8811/tcp"],
 		})
 	}
@@ -262,9 +280,8 @@ type AdoptResult struct {
 	ServerName    string `json:"serverName,omitempty"`
 	Token         string `json:"token"`
 	AdminPassword string `json:"adminPassword"`
+	OwnerID       string `json:"ownerId,omitempty"`
 	GamePort      int    `json:"gamePort,omitempty"`
-	RESTPort      int    `json:"restPort,omitempty"`
-	RCONPort      int    `json:"rconPort,omitempty"`
 	AgentPort     int    `json:"agentPort,omitempty"`
 }
 
@@ -292,7 +309,7 @@ func (a *Agent) handleAdopt(w http.ResponseWriter, r *http.Request) {
 		if c.Name != req.Container {
 			continue
 		}
-		if !strings.Contains(c.Image, "palagent") && c.Labels["palcon.provisioned"] != "true" {
+		if !strings.Contains(c.Image, "palagent") && c.Labels["dwcon.provisioned"] != "true" {
 			writeError(w, http.StatusBadRequest, "not a palagent container")
 			return
 		}
@@ -304,9 +321,7 @@ func (a *Agent) handleAdopt(w http.ResponseWriter, r *http.Request) {
 		res := AdoptResult{
 			Name:      c.Name,
 			Mode:      "companion",
-			GamePort:  c.Ports["8211/udp"],
-			RESTPort:  c.Ports["8212/tcp"],
-			RCONPort:  c.Ports["25575/tcp"],
+			GamePort:  c.Ports[fmt.Sprintf("%d/udp", defaultContainerGamePort)],
 			AgentPort: c.Ports["8811/tcp"],
 		}
 		for _, e := range env {
@@ -344,7 +359,7 @@ type DestroyResult struct {
 
 // handleDestroy removes a container this provisioner created.
 //
-// The label gate is the whole security argument. `palcon.provisioned=true`
+// The label gate is the whole security argument. `dwcon.provisioned=true`
 // is written in exactly one place — handleProvision — so destroy can only
 // ever unmake what provision made. That is deliberately narrower than
 // discover/adopt, which also match on the palagent image name: a
@@ -379,7 +394,7 @@ func (a *Agent) handleDestroy(w http.ResponseWriter, r *http.Request) {
 		if c.Name != name {
 			continue
 		}
-		if c.Labels["palcon.provisioned"] != "true" {
+		if c.Labels["dwcon.provisioned"] != "true" {
 			writeError(w, http.StatusBadRequest,
 				"that container was not created by this provisioner — remove it wherever it was deployed")
 			return
@@ -398,7 +413,7 @@ func (a *Agent) handleDestroy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		dataDir := ""
-		if slug := c.Labels["palcon.slug"]; slug != "" {
+		if slug := c.Labels["dwcon.slug"]; slug != "" {
 			dataDir = filepath.Join(a.cfg.DataRoot, slug)
 		}
 		a.cfg.Logger.Info("destroyed server", "container", name, "dataKept", dataDir)

@@ -71,7 +71,7 @@ export function DeleteServerDialog({
         <DialogHeader>
           <DialogTitle>Remove "{server.name}"?</DialogTitle>
           <DialogDescription>
-            This only removes it from Palcon — it does not affect the actual game server.
+            This only removes it from Wildskeeper — it does not affect the actual game server.
           </DialogDescription>
         </DialogHeader>
 

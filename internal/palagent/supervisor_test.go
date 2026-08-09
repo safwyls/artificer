@@ -395,3 +395,86 @@ func waitGameStateWithin(t *testing.T, srv *httptest.Server, want string, within
 	t.Fatalf("game never reached state %q", want)
 	return nil
 }
+
+// The game writes its own config but refuses to start until OwnerId has a
+// value, so an unattended install would loop. Seeding is what makes the
+// first start also a working start — and it must never clobber a config
+// that already exists.
+func TestSupervisorSeedsConfigForAFreshInstall(t *testing.T) {
+	install := t.TempDir()
+	writeGame(t, install, steadyGame)
+	agent, err := palagent.New(palagent.Config{
+		Token: testToken, InstallDir: install, SteamCmd: "/bin/true", Version: "test",
+		Mode: "supervisor", StopGrace: 500 * time.Millisecond,
+		AdminPassword: "hunter2-but-longer",
+		OwnerID:       "P-88F2A41C",
+		ServerName:    "Grimwood Bastion",
+		WorldName:     "Ashenfall-Prime",
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(agent.Handler())
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() {
+		req, _ := http.NewRequest("POST", srv.URL+"/v1/power/stop", nil)
+		req.Header.Set("Authorization", "Bearer "+testToken)
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			resp.Body.Close()
+		}
+	})
+
+	do(t, srv, "POST", "/v1/power/start", testToken, nil)
+	waitGameState(t, srv, "running")
+
+	ini := filepath.Join(install, "RSDragonwilds", "Saved", "Config", "LinuxServer", "DedicatedServer.ini")
+	data, err := os.ReadFile(ini)
+	if err != nil {
+		t.Fatalf("no config was seeded: %v", err)
+	}
+	for _, want := range []string{
+		"[/Script/Dominion.DedicatedServerSettings]",
+		"OwnerId=P-88F2A41C",
+		"ServerName=Grimwood Bastion",
+		"AdminPassword=hunter2-but-longer",
+		"DefaultWorldName=Ashenfall-Prime",
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("seeded config missing %q:\n%s", want, data)
+		}
+	}
+}
+
+// Without an owner id there is nothing worth seeding — writing a config
+// the game rejects would only swap one unbootable state for another.
+func TestSupervisorSeedsNothingWithoutAnOwnerID(t *testing.T) {
+	install := t.TempDir()
+	writeGame(t, install, steadyGame)
+	agent, err := palagent.New(palagent.Config{
+		Token: testToken, InstallDir: install, SteamCmd: "/bin/true", Version: "test",
+		Mode: "supervisor", StopGrace: 500 * time.Millisecond,
+		AdminPassword: "hunter2-but-longer",
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(agent.Handler())
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() {
+		req, _ := http.NewRequest("POST", srv.URL+"/v1/power/stop", nil)
+		req.Header.Set("Authorization", "Bearer "+testToken)
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			resp.Body.Close()
+		}
+	})
+
+	do(t, srv, "POST", "/v1/power/start", testToken, nil)
+	waitGameState(t, srv, "running")
+
+	ini := filepath.Join(install, "RSDragonwilds", "Saved", "Config", "LinuxServer", "DedicatedServer.ini")
+	if _, err := os.Stat(ini); err == nil {
+		t.Error("a config was seeded with no owner id to put in it")
+	}
+}

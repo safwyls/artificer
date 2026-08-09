@@ -183,7 +183,7 @@ export function WkConfig() {
               <WkNote>
                 Edits apply on the next restart; the game overwrites live edits. Only existing keys can change, values
                 are checked against their current type, and the previous file is kept one level deep as{" "}
-                <code className="font-mono not-italic text-wk-rune">.palcon.bak</code>. Rotating the admin password
+                <code className="font-mono not-italic text-wk-rune">.dwcon.bak</code>. Rotating the admin password
                 revokes every active admin session once the server restarts.
               </WkNote>
             </>

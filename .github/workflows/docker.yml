@@ -48,9 +48,6 @@ jobs:
           go build ./...
           go vet ./...
 
-      # self-skip, so install it to exercise the full suite.
-      - name: Install save-tools for palsave tests
-
       - name: Go tests
         run: go test ./...
 

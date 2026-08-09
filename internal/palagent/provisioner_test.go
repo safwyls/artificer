@@ -35,8 +35,8 @@ func (f *fakeDockerAPI) handler() http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`[
 			  {"Id":"c1","Names":["/palagent-main"],"Image":"ghcr.io/safwyls/palagent:beta","State":"running",
-			   "Labels":{"palcon.provisioned":"true","palcon.slug":"main"},
-			   "Ports":[{"PrivatePort":8211,"PublicPort":9211,"Type":"udp"},{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"},{"PrivatePort":8212,"PublicPort":9212,"Type":"tcp"}]},
+			   "Labels":{"dwcon.provisioned":"true","dwcon.slug":"main"},
+			   "Ports":[{"PrivatePort":7777,"PublicPort":9211,"Type":"udp"},{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"}]},
 			  {"Id":"c2","Names":["/palprovisioner"],"Image":"ghcr.io/safwyls/palagent:beta","State":"running","Ports":[]},
 			  {"Id":"c3","Names":["/nginx"],"Image":"nginx:latest","State":"running","Ports":[]}
 			]`))
@@ -74,7 +74,7 @@ func TestProvisionerCreatesServer(t *testing.T) {
 
 	resp, m := do(t, srv, "POST", "/v1/provision", testToken, map[string]any{
 		"slug": "palhalla-2", "imageTag": "beta",
-		"token": "new-agent-token-0123456789abcdef", "adminPassword": "pw12345",
+		"token": "new-agent-token-0123456789abcdef", "adminPassword": "pw12345", "ownerId": "owner-abc",
 		"serverName": "Palhalla II", "serverDesc": "chill server", "runAs": "568:568",
 		"gamePort": 9211, "restPort": 9212, "rconPort": 9575, "agentPort": 9811,
 	})
@@ -113,7 +113,7 @@ func TestProvisionerRefusesNameInUse(t *testing.T) {
 	srv, fake, dataRoot := newProvisioner(t)
 
 	resp, m := do(t, srv, "POST", "/v1/provision", testToken, map[string]any{
-		"slug": "main", "token": "new-agent-token-0123456789abcdef", "adminPassword": "pw12345",
+		"slug": "main", "token": "new-agent-token-0123456789abcdef", "adminPassword": "pw12345", "ownerId": "owner-abc",
 		"gamePort": 9211, "restPort": 9212, "rconPort": 9575, "agentPort": 9811,
 	})
 	if resp.StatusCode != http.StatusConflict {
@@ -256,13 +256,21 @@ func TestNonProvisionerRefusesDestroy(t *testing.T) {
 
 func TestProvisionerValidation(t *testing.T) {
 	srv, _, _ := newProvisioner(t)
+	const tok = "long-enough-token-123456"
 	cases := []map[string]any{
-		{"slug": "../evil", "token": "long-enough-token-123456", "adminPassword": "x", "gamePort": 1, "restPort": 2, "rconPort": 3, "agentPort": 4},
-		{"slug": "ok", "token": "short", "adminPassword": "x", "gamePort": 1, "restPort": 2, "rconPort": 3, "agentPort": 4},
-		{"slug": "ok", "token": "long-enough-token-123456", "adminPassword": "", "gamePort": 1, "restPort": 2, "rconPort": 3, "agentPort": 4},
-		{"slug": "ok", "token": "long-enough-token-123456", "adminPassword": "x", "runAs": "steam", "gamePort": 1, "restPort": 2, "rconPort": 3, "agentPort": 4},
-		{"slug": "ok", "token": "long-enough-token-123456", "adminPassword": "x", "gamePort": 5, "restPort": 5, "rconPort": 3, "agentPort": 4},
-		{"slug": "ok", "token": "long-enough-token-123456", "adminPassword": "x", "imageTag": "beta@sha256:junk", "gamePort": 1, "restPort": 2, "rconPort": 3, "agentPort": 4},
+		{"slug": "../evil", "token": tok, "adminPassword": "x", "ownerId": "o", "gamePort": 1, "agentPort": 4},
+		{"slug": "ok", "token": "short", "adminPassword": "x", "ownerId": "o", "gamePort": 1, "agentPort": 4},
+		{"slug": "ok", "token": tok, "adminPassword": "", "ownerId": "o", "gamePort": 1, "agentPort": 4},
+		// The game will not start without an owner id, so a deploy that
+		// omits one can only ever produce a broken container.
+		{"slug": "ok", "token": tok, "adminPassword": "x", "gamePort": 1, "agentPort": 4},
+		{"slug": "ok", "token": tok, "adminPassword": "x", "ownerId": "  ", "gamePort": 1, "agentPort": 4},
+		{"slug": "ok", "token": tok, "adminPassword": "x", "ownerId": "o", "runAs": "steam", "gamePort": 1, "agentPort": 4},
+		// The game binds gamePort and gamePort+1, so 65535 leaves no room
+		// and an agent port inside the pair collides.
+		{"slug": "ok", "token": tok, "adminPassword": "x", "ownerId": "o", "gamePort": 65535, "agentPort": 4},
+		{"slug": "ok", "token": tok, "adminPassword": "x", "ownerId": "o", "gamePort": 5, "agentPort": 6},
+		{"slug": "ok", "token": tok, "adminPassword": "x", "ownerId": "o", "imageTag": "beta@sha256:junk", "gamePort": 1, "agentPort": 4},
 	}
 	for i, body := range cases {
 		if resp, m := do(t, srv, "POST", "/v1/provision", testToken, body); resp.StatusCode != http.StatusBadRequest {

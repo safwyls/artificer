@@ -19,8 +19,8 @@ func TestProvisionServer(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
-		"name": "Palhalla II", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/palworld-p2",
-		"gamePort": 9211, "restPort": 9212, "rconPort": 9575, "agentPort": 9811,
+		"name": "Grimwood II", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/dw-g2",
+		"gamePort": 7877, "agentPort": 9811, "ownerId": "owner-abc",
 		"imageTag": "beta",
 	}, admin)
 	if rec.Code != http.StatusCreated {
@@ -30,10 +30,9 @@ func TestProvisionServer(t *testing.T) {
 		Server struct {
 			ID            int64  `json:"id"`
 			Host          string `json:"host"`
-			RESTPort      int    `json:"restPort"`
+			GamePort      int    `json:"gamePort"`
 			AgentURL      string `json:"agentUrl"`
 			HasAgentToken bool   `json:"hasAgentToken"`
-			UseREST       bool   `json:"useRest"`
 		} `json:"server"`
 		AdminPassword string `json:"adminPassword"`
 		AgentToken    string `json:"agentToken"`
@@ -43,15 +42,18 @@ func TestProvisionServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The row is fully wired: reachable host/ports, agent URL + token,
-	// REST password = the admin password.
-	if res.Server.Host != "10.0.0.9" || res.Server.RESTPort != 9212 ||
-		res.Server.AgentURL != "http://10.0.0.9:9811" || !res.Server.HasAgentToken || !res.Server.UseREST {
+	// The row is wired for the only channel this game has: the agent.
+	if res.Server.Host != "10.0.0.9" || res.Server.GamePort != 7877 ||
+		res.Server.AgentURL != "http://10.0.0.9:9811" || !res.Server.HasAgentToken {
 		t.Errorf("server row = %+v", res.Server)
 	}
 	srv, err := app.store.GetServer(t.Context(), res.Server.ID)
-	if err != nil || srv.RESTPassword != res.AdminPassword || srv.AgentToken != res.AgentToken {
+	if err != nil || srv.AgentToken != res.AgentToken {
 		t.Errorf("stored credentials don't match the response (err %v)", err)
+	}
+	// No dead transport ports: the game has neither RCON nor REST.
+	if srv.RCONPort != 0 || srv.RESTPort != 0 {
+		t.Errorf("row carries phantom transport ports: rcon %d rest %d", srv.RCONPort, srv.RESTPort)
 	}
 	if len(res.AdminPassword) < 16 || len(res.AgentToken) < 32 {
 		t.Errorf("weak generated credentials: pw %d chars, token %d", len(res.AdminPassword), len(res.AgentToken))
@@ -65,8 +67,9 @@ func TestProvisionServer(t *testing.T) {
 		"PALAGENT_MODE: supervisor",
 		"PALAGENT_TOKEN: " + res.AgentToken,
 		"PALAGENT_ADMIN_PASSWORD: " + res.AdminPassword,
-		`"9211:8211/udp"`, `"9212:8212"`, `"9575:25575"`, `"9811:8811"`,
-		"/mnt/pool/apps/palworld-p2:/palworld",
+		`PALAGENT_OWNER_ID: "owner-abc"`,
+		`"7877:7777/udp"`, `"7878:7778/udp"`, `"9811:8811"`,
+		"/mnt/pool/apps/dw-g2:/dragonwilds",
 	} {
 		if !strings.Contains(res.Stack, want) {
 			t.Errorf("stack missing %q:\n%s", want, res.Stack)
@@ -114,8 +117,7 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	// No dataPath: the one-click wizard doesn't ask — the provisioner's
 	// data root decides, and the reference stack must reflect it.
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
-		"name": "One Click", "host": "10.0.0.9",
-		"serverDesc": "motd here",
+		"name": "One Click", "host": "10.0.0.9", "ownerId": "owner-abc",
 	}, admin)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("provision: %d (body %s)", rec.Code, rec.Body)
@@ -135,11 +137,11 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	if !res.Deployed || res.DataDir != filepath.Join(dataRoot, "one-click") {
 		t.Errorf("result = %+v, want deployed into one-click", res)
 	}
-	if !strings.Contains(res.Stack, filepath.Join(dataRoot, "one-click")+":/palworld") {
+	if !strings.Contains(res.Stack, filepath.Join(dataRoot, "one-click")+":/dragonwilds") {
 		t.Errorf("stack volume line missing the resolved data dir:\n%s", res.Stack)
 	}
-	if res.Server.GamePort != 8211 {
-		t.Errorf("gamePort = %d, want default 8211", res.Server.GamePort)
+	if res.Server.GamePort != 7777 {
+		t.Errorf("gamePort = %d, want default 7777", res.Server.GamePort)
 	}
 	joined := strings.Join(dockerCalls, " ")
 	if !strings.Contains(joined, "/containers/create") || !strings.Contains(joined, "/start") {
@@ -166,7 +168,7 @@ func TestDeleteServerDestroysContainerWhenAsked(t *testing.T) {
 		if r.URL.Path == "/containers/json" {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`[{"Id":"cafe","Names":["/palagent-doomed"],"Image":"ghcr.io/safwyls/palagent:latest",
-			  "State":"running","Labels":{"palcon.provisioned":"true","palcon.slug":"doomed"},"Ports":[]}]`))
+			  "State":"running","Labels":{"dwcon.provisioned":"true","dwcon.slug":"doomed"},"Ports":[]}]`))
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -191,8 +193,7 @@ func TestDeleteServerDestroysContainerWhenAsked(t *testing.T) {
 	newServer := func(t *testing.T, container string) string {
 		t.Helper()
 		rec := app.do(t, "POST", "/api/servers", map[string]any{
-			"name": "Doomed", "host": "10.0.0.9", "rconPort": 25575, "restPort": 8212,
-			"useRest": true, "enabled": true, "containerName": container,
+			"name": "Doomed", "host": "10.0.0.9", "enabled": true, "containerName": container,
 		}, admin)
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("create server: %d (body %s)", rec.Code, rec.Body)
@@ -247,7 +248,7 @@ func TestDeleteServerDestroysContainerWhenAsked(t *testing.T) {
 func TestDeleteServerKeepsRowWhenDestroyRefused(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
-	// A palagent container with no palcon.provisioned label — deployed by
+	// A palagent container with no dwcon.provisioned label — deployed by
 	// hand, so the provisioner won't unmake it.
 	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/containers/json" {
@@ -275,8 +276,7 @@ func TestDeleteServerKeepsRowWhenDestroyRefused(t *testing.T) {
 	}
 
 	rec := app.do(t, "POST", "/api/servers", map[string]any{
-		"name": "By Hand", "host": "10.0.0.9", "rconPort": 25575, "restPort": 8212,
-		"useRest": true, "enabled": true, "containerName": "palagent-byhand",
+		"name": "By Hand", "host": "10.0.0.9", "enabled": true, "containerName": "palagent-byhand",
 	}, admin)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create server: %d (body %s)", rec.Code, rec.Body)
@@ -354,7 +354,7 @@ func TestProvisionNameConflictRegistersNothing(t *testing.T) {
 	}
 
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
-		"name": "Taken", "host": "10.0.0.9",
+		"name": "Taken", "host": "10.0.0.9", "ownerId": "owner-abc",
 	}, admin)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("provision onto a taken name: %d, want 409 (body %s)", rec.Code, rec.Body)
@@ -390,6 +390,7 @@ func TestProvisionKeepsRowWhenProvisionerUnreachable(t *testing.T) {
 
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
 		"name": "Fallback", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/fallback",
+		"ownerId": "owner-abc",
 	}, admin)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("provision: %d, want 201 (body %s)", rec.Code, rec.Body)
@@ -454,8 +455,8 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 	// candidate's agent port) forces the proposal to a free offset and
 	// marks the candidate registered.
 	if _, err := app.store.CreateServer(t.Context(), &store.Server{
-		Name: "existing", Host: "10.99.0.5", RCONPort: 25575, RESTPort: 8212, GamePort: 8211,
-		UseREST: true, Enabled: true, AgentURL: "http://10.99.0.5:9811", AgentToken: agentToken,
+		Name: "existing", Host: "10.99.0.5", GamePort: 7777,
+		Enabled: true, AgentURL: "http://10.99.0.5:9811", AgentToken: agentToken,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -477,12 +478,17 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 		t.Errorf("defaults = %+v, want declared host + run-as", defs)
 	}
 	// Rows AND containers hold ports — the ghost container on 9911 has no
-	// row, and the proposal must still avoid it.
-	used := map[int]bool{8211: true, 8212: true, 25575: true, 9811: true, 9212: true, 9911: true}
+	// row, and the proposal must still avoid it. 7778 is in the set
+	// because the existing row's 7777 implies its neighbour.
+	used := map[int]bool{7777: true, 7778: true, 9811: true, 9911: true}
 	for _, p := range defs.Ports {
 		if used[p] {
 			t.Errorf("proposed ports collide with tracked/container ones: %v", defs.Ports)
 		}
+	}
+	// The game binds a pair, so the proposal's neighbour must be free too.
+	if used[defs.Ports["game"]+1] {
+		t.Errorf("proposed game port %d has a taken neighbour: %v", defs.Ports["game"], defs.Ports)
 	}
 
 	rec = app.do(t, "GET", "/api/servers/provision/discover", nil, admin)
@@ -528,7 +534,7 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 		t.Errorf("adopted row = %+v", adopted.Server)
 	}
 	row, err := app.store.GetServer(t.Context(), adopted.Server.ID)
-	if err != nil || row.AgentToken != "adopted-token-0123456789abcdef" || row.RESTPassword != "adopted-pw" {
+	if err != nil || row.AgentToken != "adopted-token-0123456789abcdef" {
 		t.Errorf("adopted credentials wrong (err %v)", err)
 	}
 }
@@ -536,13 +542,16 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 func TestProvisionValidation(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 	cases := []map[string]any{
-		{"host": "h", "dataPath": "/x"},                                                  // no name
-		{"name": "n", "dataPath": "/x"},                                                  // no host
-		{"name": "n", "host": "h"},                                                       // no data path, no provisioner
-		{"name": "n", "host": "h", "dataPath": "relative/path"},                          // non-absolute path
-		{"name": "n", "host": "h", "dataPath": "/x", "gamePort": 80, "restPort": 80},     // duplicate ports
-		{"name": "n", "host": "h", "dataPath": "/x", "imageTag": "beta\n    evil: true"}, // yaml injection via tag
-		{"name": "n", "host": "h", "dataPath": "/x", "imageTag": "beta beta"},            // not a docker tag
+		{"host": "h", "dataPath": "/x", "ownerId": "o"},                                                  // no name
+		{"name": "n", "dataPath": "/x", "ownerId": "o"},                                                  // no host
+		{"name": "n", "host": "h", "dataPath": "/x"},                                                     // no owner id
+		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "   "},                                   // blank owner id
+		{"name": "n", "host": "h", "ownerId": "o"},                                                       // no data path, no provisioner
+		{"name": "n", "host": "h", "dataPath": "relative/path", "ownerId": "o"},                          // non-absolute path
+		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "o", "gamePort": 65535},                  // no room for the port pair
+		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "o", "gamePort": 8811},                   // game pair swallows the agent port
+		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "o", "imageTag": "beta\n    evil: true"}, // yaml injection via tag
+		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "o", "imageTag": "beta beta"},            // not a docker tag
 	}
 	for i, body := range cases {
 		if rec := app.do(t, "POST", "/api/servers/provision", body, admin); rec.Code != http.StatusBadRequest {
