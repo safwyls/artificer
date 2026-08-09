@@ -22,6 +22,13 @@ type fakeAgent struct {
 	state     string
 	startedAt time.Time
 	lines     []string
+	// bridge, when set, is reported in health as the bridge object; nil
+	// means no bridge (the no-mod case). bridgeStatus/bridgeBody let a test
+	// script the command endpoint's reply.
+	bridge       map[string]any
+	bridgeStatus int
+	bridgeBody   map[string]any
+	lastCommand  map[string]any
 }
 
 func newFakeAgent(t *testing.T) (*fakeAgent, string) {
@@ -33,13 +40,31 @@ func newFakeAgent(t *testing.T) (*fakeAgent, string) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/v1/health":
-			json.NewEncoder(w).Encode(map[string]any{
+			h := map[string]any{
 				"agent": "palagent", "apiVersion": 1, "mode": "supervisor",
 				"game": map[string]any{"state": f.state, "startedAt": f.startedAt},
 				"job":  nil,
-			})
+			}
+			if f.bridge != nil {
+				h["bridge"] = f.bridge
+			}
+			json.NewEncoder(w).Encode(h)
 		case "/v1/power/logs":
 			json.NewEncoder(w).Encode(map[string]any{"lines": f.lines})
+		case "/v1/bridge/command":
+			var in map[string]any
+			json.NewDecoder(r.Body).Decode(&in)
+			f.lastCommand = in
+			status := f.bridgeStatus
+			if status == 0 {
+				status = http.StatusOK
+			}
+			w.WriteHeader(status)
+			if f.bridgeBody != nil {
+				json.NewEncoder(w).Encode(f.bridgeBody)
+			} else {
+				json.NewEncoder(w).Encode(map[string]any{"ok": true})
+			}
 		default:
 			http.NotFound(w, r)
 		}
@@ -227,5 +252,113 @@ func TestCanonicalUIDIsIdempotent(t *testing.T) {
 		if twice := dragonwilds.CanonicalUID(once); twice != once {
 			t.Errorf("CanonicalUID(%q): %q then %q", in, once, twice)
 		}
+	}
+}
+
+// setBridge configures the health bridge object the fake agent reports.
+func (f *fakeAgent) setBridge(available bool, commands ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.bridge = map[string]any{"available": available, "version": "dwbridge/test", "commands": toAnySlice(commands)}
+}
+
+func toAnySlice(ss []string) []any {
+	out := make([]any, len(ss))
+	for i, s := range ss {
+		out[i] = s
+	}
+	return out
+}
+
+// TestCommandsWithoutBridgeAreUnsupported: with no bridge in health, every
+// command is a capability gap (UnsupportedError → 501), not a fault.
+func TestCommandsWithoutBridgeAreUnsupported(t *testing.T) {
+	agent, url := newFakeAgent(t)
+	agent.set("running")
+	c := newClient(t, url)
+
+	calls := map[string]func() error{
+		"broadcast": func() error { return c.Broadcast(context.Background(), "hi") },
+		"kick":      func() error { return c.Kick(context.Background(), "id", "") },
+		"ban":       func() error { return c.Ban(context.Background(), "id", "") },
+		"unban":     func() error { return c.Unban(context.Background(), "id") },
+		"save":      func() error { return c.Save(context.Background()) },
+	}
+	for name, call := range calls {
+		err := call()
+		var unsupported *game.UnsupportedError
+		if !errors.As(err, &unsupported) {
+			t.Errorf("%s without bridge: err = %v, want UnsupportedError", name, err)
+		}
+	}
+}
+
+// TestSaveRoutesThroughBridge: with a live bridge offering "save", the
+// command reaches the agent's bridge endpoint and succeeds.
+func TestSaveRoutesThroughBridge(t *testing.T) {
+	agent, url := newFakeAgent(t)
+	agent.set("running")
+	agent.setBridge(true, "ping", "save")
+	c := newClient(t, url)
+
+	if err := c.Save(context.Background()); err != nil {
+		t.Fatalf("Save with bridge: %v", err)
+	}
+	if agent.lastCommand["command"] != "save" {
+		t.Errorf("agent saw command %v, want save", agent.lastCommand["command"])
+	}
+}
+
+// TestUnimplementedBridgeCommandIsUnsupported: a live bridge that offers
+// only "save" must report kick as an honest capability gap, distinct from
+// "no bridge" but still an UnsupportedError.
+func TestUnimplementedBridgeCommandIsUnsupported(t *testing.T) {
+	agent, url := newFakeAgent(t)
+	agent.set("running")
+	agent.setBridge(true, "save")
+	c := newClient(t, url)
+
+	err := c.Kick(context.Background(), "id", "")
+	var unsupported *game.UnsupportedError
+	if !errors.As(err, &unsupported) {
+		t.Fatalf("kick against a save-only bridge: err = %v, want UnsupportedError", err)
+	}
+	if !strings.Contains(err.Error(), "kick") {
+		t.Errorf("error should name the missing command: %v", err)
+	}
+}
+
+// TestBridgeCommandFailureIsFault: a live bridge that returns an error (503
+// from the agent) is a fault, not a capability gap — a plain error, not
+// UnsupportedError, so the UI says "unreachable" rather than "can't".
+func TestBridgeCommandFailureIsFault(t *testing.T) {
+	agent, url := newFakeAgent(t)
+	agent.set("running")
+	agent.setBridge(true, "save")
+	agent.mu.Lock()
+	agent.bridgeStatus = http.StatusServiceUnavailable
+	agent.bridgeBody = map[string]any{"error": "dwbridge mod is not responding"}
+	agent.mu.Unlock()
+	c := newClient(t, url)
+
+	err := c.Save(context.Background())
+	var unsupported *game.UnsupportedError
+	if err == nil || errors.As(err, &unsupported) {
+		t.Fatalf("Save against a down bridge: err = %v, want a plain fault error", err)
+	}
+}
+
+// Shutdown stays unsupported by design: stopping the process is the agent's
+// job, not the mod's.
+func TestShutdownStaysUnsupported(t *testing.T) {
+	agent, url := newFakeAgent(t)
+	agent.set("running")
+	agent.setBridge(true, "save", "shutdown") // even if a mod offered it
+	c := newClient(t, url)
+
+	err := c.Shutdown(context.Background(), 30, "")
+	var unsupported *game.UnsupportedError
+	if !errors.As(err, &unsupported) {
+		t.Errorf("Shutdown: err = %v, want UnsupportedError (agent power controls own this)", err)
 	}
 }

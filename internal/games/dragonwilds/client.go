@@ -141,31 +141,92 @@ func (c *Client) Players(ctx context.Context) ([]game.Player, error) {
 	return players, nil
 }
 
-// The command tier. Every reason names the real constraint so the 501
-// surfaces in the UI as capability truth, not a fault.
+// The command tier. Dragonwilds has no native command protocol, so these
+// route through the dwbridge UE4SS mod when it is present and running
+// (docs/dragonwilds-recon.md, "Command surface"). Without a live mod each
+// returns a *game.UnsupportedError, which the API maps to 501 — capability
+// truth ("this server has no bridge"), not a fault. A bridge that is present
+// but unreachable, or a command the mod refuses, returns a plain error (502)
+// instead: that is a fault, and the difference is what lets the UI say the
+// right thing.
+
+// bridgeCommand runs op through the mod, translating the two failure shapes.
+// A missing or mod-less bridge, or a command the running mod does not
+// implement, is an UnsupportedError; anything else (bridge down mid-call,
+// handler error) is returned as-is. reason is the UnsupportedError text used
+// when there is no bridge to carry the command at all.
+func (c *Client) bridgeCommand(ctx context.Context, op, reason string, args map[string]string) error {
+	if c.agentErr != nil {
+		// No agent is configured at all, so no bridge can exist: that's a
+		// stable capability answer (501), not a transient fault. It differs
+		// from Info/Players, which return the raw 502 because they need the
+		// agent to derive live data — a command needs it to find a bridge,
+		// and a server with no agent simply has none.
+		return &game.UnsupportedError{Op: op, Reason: reason}
+	}
+	h, err := c.agent.Health(ctx)
+	if err != nil {
+		return fmt.Errorf("agent health: %w", err)
+	}
+	if h.Bridge == nil || !h.Bridge.Available {
+		// No command channel exists (no mod), or it exists but is down. The
+		// former is a capability gap; report it as one with the honest
+		// reason. (A down-but-present bridge is rare and also best surfaced
+		// as "can't right now" rather than a scary gateway error.)
+		return &game.UnsupportedError{Op: op, Reason: reason}
+	}
+	if !containsString(h.Bridge.Commands, op) {
+		return &game.UnsupportedError{Op: op, Reason: "the dwbridge mod on this server does not implement " + op + " yet"}
+	}
+	if _, err := c.agent.BridgeCommand(ctx, op, args); err != nil {
+		return fmt.Errorf("dwbridge %s: %w", op, err)
+	}
+	return nil
+}
+
+const (
+	reasonNoBridge = "commands need the dwbridge UE4SS mod; this server has none running (see docs/dragonwilds-recon.md)"
+	reasonModerate = "kicking and banning need the dwbridge UE4SS mod running on the server"
+)
 
 func (c *Client) Broadcast(ctx context.Context, message string) error {
-	return &game.UnsupportedError{Op: "broadcast", Reason: "the game has no native console; in-game messages need the dwbridge mod"}
+	return c.bridgeCommand(ctx, "broadcast", reasonNoBridge, map[string]string{"message": message})
 }
 
 func (c *Client) Kick(ctx context.Context, playerUID, message string) error {
-	return &game.UnsupportedError{Op: "kick", Reason: "the game has no native console; kicking needs the dwbridge mod or the in-game Server Management menu"}
+	return c.bridgeCommand(ctx, "kick", reasonModerate, map[string]string{"playerId": playerUID, "message": message})
 }
 
 func (c *Client) Ban(ctx context.Context, playerUID, message string) error {
-	return &game.UnsupportedError{Op: "ban", Reason: "bans are managed in-game via Server Management; no on-disk ban list is known to edit"}
+	return c.bridgeCommand(ctx, "ban", reasonModerate, map[string]string{"playerId": playerUID, "message": message})
 }
 
 func (c *Client) Unban(ctx context.Context, playerUID string) error {
-	return &game.UnsupportedError{Op: "unban", Reason: "only the server Owner can unban, in-game via Server Management"}
+	return c.bridgeCommand(ctx, "unban", reasonModerate, map[string]string{"playerId": playerUID})
 }
 
+// Save asks the mod to write the world now. This is the one command verified
+// to work headless: the mod calls PersistenceSubsystem:SaveGame, the same
+// path the game's own autosave takes, with no player connected.
 func (c *Client) Save(ctx context.Context) error {
-	return &game.UnsupportedError{Op: "save", Reason: "the game exposes no save command; autosave covers running servers and backups snapshot the save directory"}
+	return c.bridgeCommand(ctx, "save", "an on-demand save needs the dwbridge mod; without it, autosave covers running servers and backups snapshot the save directory", nil)
 }
 
+// Shutdown is not a bridge command: stopping the process is the agent's job,
+// and it already does it with a grace period through the power controls. A
+// mod-driven in-game shutdown would be strictly worse (it can't stop a hung
+// game), so this stays pointed at the real mechanism.
 func (c *Client) Shutdown(ctx context.Context, waitSeconds int, message string) error {
 	return &game.UnsupportedError{Op: "shutdown", Reason: "no in-game shutdown exists; stop the server through the agent power controls, which allow a grace period"}
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // Metrics lets the collector chart what the derived view does know: player

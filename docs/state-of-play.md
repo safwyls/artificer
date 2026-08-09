@@ -30,11 +30,15 @@ way to ask the game anything. Every piece of live state is *derived*:
 | Saves | files on disk, synced through the agent |
 
 So **the agent is not optional here** — it is the only transport. Anything
-that bypasses it isn't testing the real path. Commands that have nowhere to
-go (`Broadcast`, `Kick`, `Ban`, `Unban`, `Save`, `Shutdown`) return
-`*game.UnsupportedError`, which `internal/api/actions.go` maps to **HTTP
-501** — deliberately distinct from 502, so the UI can say "this game can't"
-rather than "the server is unreachable".
+that bypasses it isn't testing the real path. Commands reach the game
+through the **dwbridge** mod when it's running (Phase 4, below): `Save` is
+live end to end, and the client routes each command through the bridge only
+when the mod's heartbeat lists it. A command with nowhere to go — no bridge,
+or a verb the mod hasn't implemented — returns `*game.UnsupportedError`,
+which `internal/api/actions.go` maps to **HTTP 501**, deliberately distinct
+from 502 so the UI can say "this game can't" rather than "the server is
+unreachable". (`Shutdown` stays 501 by design: the agent's power controls
+own stopping the process.)
 
 ## Where things stand
 
@@ -43,12 +47,16 @@ rather than "the server is unreachable".
 **Done:** Phase 0 (recon), Phase 1 (game package + client + config + log
 tracker), Phase 2 (agent launch profile + provisioning + Raise-a-server
 wizard), Phase 3 (the `dwsave` save reader — world *metadata*, see below),
-Phase 5 (the Wildskeeper frontend).
+Phase 4 (the dwbridge command channel — its `save` verb works end to end;
+see below), Phase 5 (the Wildskeeper frontend).
 
-**Not done:** Phase 4 (the dwbridge UE4SS mod that would unlock the
-command tier), and everything in the save beyond the header — `dwsave`
-reads the INFO chunk and level names, not players or inventories, so the
-visibility roster still reports unavailable.
+**Partial:** Phase 4's command surface. The bridge exists and `save` is
+proven through the whole stack; `kick`/`ban`/`unban`/`broadcast` are
+mapped to real game functions (recon doc, "Command surface") but not yet
+implemented in the mod — they need a connected client to build against
+safely. Also unfinished: everything in the save beyond the header —
+`dwsave` reads the INFO chunk and level names, not players or inventories,
+so the visibility roster still reports unavailable.
 
 ### Verified by hand against a real server
 
@@ -60,7 +68,9 @@ aren't assumptions:
   `WorldPassword` and the `;METADATA` comment alone.
 - `info` / `players` / `metrics` derive correctly (`transport: agent`,
   `maxplayernum: 6`, real uptime).
-- All six commands answer 501 with their real reasons.
+- Before the bridge, all six commands answered 501 with their real
+  reasons; now `Save` runs through dwbridge (verified — see Phase 4) and the
+  rest answer 501 until the mod implements them.
 - Log tail, the ini editor, admin-password rotation, and a real backup of
   an actual SPUD save all work. Stop is clean and reports `stopped`, not
   `crashed`.
@@ -124,13 +134,33 @@ the recon doc's "Closed 2026-08-09" section):
 
 Still open: the second UDP port question, ban *enforcement*, chat lines.
 
-## Phase 4 is unblocked: UE4SS runs under Wine
+## Phase 4: the command channel exists, and `save` works end to end
 
-Tested end to end on this box (recon doc, "Phase 4 unblocked"): the
-Windows server build runs headless under plain Wine 11, the UE4SS nightly
-injects via a `version.dll` shim (`tools/ue4ss-wine-shim/` — the server
-imports no dwmapi, on any OS), its scanner handles UE 5.6.1, and a Lua
-probe reached the live GameMode. dwbridge is now a mod-authoring task.
+The dwbridge mod (`tools/dwbridge`) is real, and one command is proven
+through the whole stack: `POST /api/servers/{id}/save` in the console wrote
+the world on a headless server with no player connected —
+dwcon → palagent `/v1/bridge/command` → file IPC → the UE4SS Lua mod →
+`PersistenceSubsystem:SaveGame`, `Save completed SUCCESSFULLY` in the game
+log, save file rewritten.
+
+The pieces, all committed:
+- **`tools/dwbridge`** — the Lua mod. Heartbeat + single-flight file IPC
+  (`request.json`/`response.json`; fixed names because `io.popen` and
+  rename-over-existing are unreliable under Wine). Commands: `ping`, `save`.
+- **`tools/ue4ss-wine-shim`** — how the modded Windows build runs under Wine
+  (the server imports no dwmapi, so UE4SS loads via a `version.dll` shim).
+- **palagent** — `bridge.go`: the file IPC's other half, `POST
+  /v1/bridge/command`, and `health.bridge` (heartbeat freshness + command
+  list). Supervisor mode only.
+- **dragonwilds client** — commands route through the bridge when the
+  heartbeat lists them; otherwise the honest 501 stands. `save` is live;
+  the rest map to real functions but await the mod implementing them.
+
+What's left in Phase 4: implement `kick`/`ban`/`unban`/`broadcast` in the
+mod (they need a connected client to build against — see the recon doc's
+"Command surface"), and a palagent launch profile that runs the Windows
+build under Wine (today it's `GAME_CMD`/`GAME_ARGS` config; the e2e ran the
+game by hand while a real agent drove the bridge over the shared dir).
 
 ## Running it locally
 
@@ -160,11 +190,12 @@ at least once; the note stays for whoever hits it fresh.)
 
 ## Suggested next steps
 
-1. **The dwbridge mod itself.** The platform risk is retired (UE4SS runs
-   under Wine, Lua reaches the GameMode); what remains is designing the
-   mod — command surface (broadcast/kick/ban/save/shutdown), an IPC the
-   agent can call (localhost HTTP from Lua, or a command file), and a
-   palagent launch profile for wine + the Windows build. Pin the UE4SS
+1. **Finish the dwbridge command set.** The channel and `save` are done;
+   what remains is `kick`/`ban`/`unban`/`broadcast` in the mod. These need
+   a connected client to build against (the admin RPC wants a player
+   controller; the struct params want a real value to copy), and a
+   palagent launch profile that runs the Windows build under Wine so the
+   agent supervises the modded process directly. Pin the UE4SS
    nightly that works; expect churn at 1.0.
 2. **Deepen the save reader.** Now unblocked for real: a played world
    save exists locally, and player state turns out to be JSON embedded in

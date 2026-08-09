@@ -406,6 +406,49 @@ costs it brings: the game must run as the Windows build under Wine (a
 palagent launch-profile variant), and the 1.0 launch (expected
 2026-09-15) may shift signatures — pin the UE4SS build that works.
 
+## Command surface (mapped live via UE4SS, 2026-08-09)
+
+Enumerated by dumping UFunctions and signatures from inside the running
+server. This is what the dwbridge mod calls (or will call):
+
+- **save — implemented and verified headless.**
+  `PersistenceSubsystem:SaveGame(bAdditionalLogging: bool)` is a subsystem
+  method, so it runs with no player connected. Calling it from Lua wrote the
+  world and logged `Save completed SUCCESSFULLY` — the same path autosave
+  takes. `SpudSubsystem:SaveGame(SlotName, Title, ...)` sits under it; the
+  Persistence wrapper is the right level to call.
+- **kick / ban / unkick / unban — mapped, not yet implemented.**
+  `DominionPlayerController:Server_RequestAdminAction(Action, UserId)` where
+  `Action` is the enum `EAdminAction { Kick=0, Ban=1, Unkick=2, Unban=3 }`
+  and `UserId` is an `FUniqueNetIdRepl` struct. Two real constraints: it is a
+  *player controller* RPC (needs a connected admin's controller — a headless
+  server has none until someone joins), and the struct parameter is awkward to
+  build from Lua. `Server_SubmitAdminPassword(EnteredPassword)` authenticates
+  first. Bans also surface at rest in the ini `KnownPlayerList` (`bIsBanned`),
+  so offline ban/unban may be a dwconfig edit rather than a bridge call — to
+  be settled against a connected client.
+- **broadcast — mapped, not yet implemented.**
+  `PlayerChatComponent:Server_SendChatMessage(ChatMessageData: struct)` and
+  `Client_ReceiveSystemMessage(Tag: struct)`; per-player components with
+  struct params. Only meaningful with players online (nobody to hear
+  otherwise), so it too waits for a live client to build against.
+- **shutdown — not a bridge command.** Stopping the process is the agent's
+  supervisor job, with a grace period; a mod-driven shutdown would be
+  strictly worse (it can't stop a hung game). Left pointed at the agent.
+
+### The bridge transport
+
+The mod (`tools/dwbridge`) and palagent share a directory
+(`<install>/dwbridge/`); the mod writes a heartbeat there and answers
+`request.json` with `response.json`. Single-flight, fixed filenames — a
+management console issues one command at a time, and it dodges the fact that
+`io.popen('dir')` and rename-over-existing are both unreliable under Wine
+(the mod removes a file before renaming onto it, or the heartbeat freezes at
+its first value). palagent exposes it as `POST /v1/bridge/command`, reports
+freshness as `health.bridge`, and the dragonwilds client routes a command
+through it only when the heartbeat lists that command — otherwise the honest
+501 stands.
+
 ## Still open
 
 1. **Autosave interval with players present** — a leave triggers a save

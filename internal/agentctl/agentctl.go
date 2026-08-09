@@ -197,3 +197,21 @@ func (c *Client) Job(ctx context.Context, id string) (*Job, error) {
 	}
 	return res.Job, nil
 }
+
+// BridgeCommand relays a dwbridge command to the agent, returning the mod's
+// data payload (which may be nil). The error vocabulary is the shared one:
+// ErrRejected when the mod doesn't implement the command (the agent's 400),
+// and a plain error carrying the agent's message on 503 when the bridge is
+// down. The timeout is generous because the far end is a game tick, not an
+// HTTP handler — the agent applies its own tighter bound on the mod round
+// trip and this only needs to outlast it.
+func (c *Client) BridgeCommand(ctx context.Context, command string, args map[string]string) (json.RawMessage, error) {
+	var res struct {
+		Data json.RawMessage `json:"data"`
+	}
+	body := map[string]any{"command": command, "args": args}
+	if err := c.do(ctx, http.MethodPost, "/v1/bridge/command", body, &res, 30*time.Second); err != nil {
+		return nil, err
+	}
+	return res.Data, nil
+}

@@ -19,11 +19,15 @@ Read `docs/dragonwilds-recon.md` before touching parsers or capability
 decisions. Its "Empirical findings" section is measured on a real server
 and outranks the web-sourced sections above it — notably: the save format
 is **SPUD, not GVAS**; the server does **not** save on shutdown (clean stop
-~2 s, exit 143); `OwnerId` is not format-validated. Still unverified, and
-not to be assumed: the join/leave log lines, the real player-id format, and
-where bans live on disk — all need real game clients. Steam app id 4019830 (dedicated server tool), native Linux build,
-no RCON/REST/query — command methods return `game.UnsupportedError`
-(HTTP 501) until the dwbridge UE4SS mod exists.
+~2 s, exit 143); `OwnerId` is not format-validated. A real client joined on
+2026-08-09, so the join/leave log lines (`dwlog` RulesV1), player id shape,
+and ban location (ini `KnownPlayerList`) are now verified — see the recon
+doc's "Closed 2026-08-09" section. Steam app id 4019830 (dedicated server
+tool), native Linux build, no RCON/REST/query — commands reach the game
+through the **dwbridge** UE4SS mod (`tools/dwbridge`, Phase 4): `Save` works
+end to end, the rest return `game.UnsupportedError` (HTTP 501) until the mod
+implements them. See the recon doc's "Command surface" for the mapped game
+functions.
 
 Shared-layer tests use the test-only game in `internal/game/gametest`
 (a REST-shaped client over httptest fakes) so they don't need a fake agent

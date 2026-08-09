@@ -138,6 +138,10 @@ type Agent struct {
 	jobs *jobRunner
 	// game is non-nil only in supervisor mode.
 	game *supervisor
+	// bridge is the dwbridge command channel, non-nil only in supervisor
+	// mode. It works off a shared directory whether or not this agent
+	// launched the modded game.
+	bridge *bridge
 	// docker is non-nil only in provisioner mode.
 	docker *dockerctl.Client
 }
@@ -173,6 +177,7 @@ func New(cfg Config) (*Agent, error) {
 			cur := a.jobs.current()
 			return cur != nil && cur.State == "running"
 		})
+		a.bridge = newBridge(cfg.InstallDir)
 	}
 	if cfg.Mode == "provisioner" {
 		docker, err := validateProvisionerConfig(&a.cfg)
@@ -249,6 +254,10 @@ func (a *Agent) Handler() http.Handler {
 		// answer 400 so palcon falls back to the docker proxy.
 		r.Post("/power/{action}", a.handlePower)
 		r.Get("/power/logs", a.handleGameLogs)
+		// Phase 4 — the dwbridge command channel. Supervisor mode only;
+		// nil bridge (companion/provisioner) answers 400 like the power
+		// verbs, since there is no game to command.
+		r.Post("/bridge/command", a.handleBridgeCommand)
 		// Phase 5 — provisioner mode: the create verb, read-only
 		// discovery, and adoption (secret recovery for palagent
 		// containers the control plane lost track of).
@@ -295,6 +304,11 @@ type Health struct {
 	DiskFreeBytes uint64 `json:"diskFreeBytes"`
 	// Game is the supervised process's state; nil in companion mode.
 	Game *GameStatus `json:"game,omitempty"`
+	// Bridge reports the dwbridge command channel; nil when there is no
+	// bridge directory at all (the common no-mod case), so the control
+	// plane can tell "no command channel exists" from "one exists but is
+	// down".
+	Bridge *BridgeStatus `json:"bridge,omitempty"`
 	// Provision carries the wizard defaults; nil outside provisioner mode.
 	Provision *ProvisionDefaults `json:"provision,omitempty"`
 	// Job is the running job if there is one, else the most recently
@@ -325,6 +339,9 @@ func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	if a.game != nil {
 		st := a.game.Status()
 		h.Game = &st
+	}
+	if a.bridge != nil {
+		h.Bridge = a.bridge.Status()
 	}
 	if a.cfg.Mode == "provisioner" {
 		h.Provision = &ProvisionDefaults{
@@ -456,6 +473,48 @@ func (a *Agent) handleGameLogs(w http.ResponseWriter, r *http.Request) {
 		tail = min(n, gameLogTail)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"lines": a.game.Logs(tail)})
+}
+
+// handleBridgeCommand relays one command to the dwbridge mod. The body is
+// {"command": "...", "args": {...}}; the response is the mod's data payload,
+// or an error mapped to the status the caller can act on: 400 for a command
+// the mod doesn't implement (a capability gap the UI states, not a fault),
+// 503 for a bridge that's absent or unresponsive (retry once the mod is up).
+func (a *Agent) handleBridgeCommand(w http.ResponseWriter, r *http.Request) {
+	if a.bridge == nil {
+		writeError(w, http.StatusBadRequest, "agent is not supervising a game — the dwbridge channel needs supervisor mode")
+		return
+	}
+	var in struct {
+		Command string            `json:"command"`
+		Args    map[string]string `json:"args"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if in.Command == "" {
+		writeError(w, http.StatusBadRequest, "command is required")
+		return
+	}
+
+	data, err := a.bridge.Command(r.Context(), in.Command, in.Args)
+	switch {
+	case errors.Is(err, errBridgeUnavailable):
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	case err != nil:
+		// A command the mod rejected (unknown verb, or a handler error like
+		// "no world loaded") is the caller's to interpret, not a gateway
+		// failure — 400 keeps it out of the "server unreachable" bucket.
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	out := map[string]any{"ok": true}
+	if len(data) > 0 {
+		out["data"] = json.RawMessage(data)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
