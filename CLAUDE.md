@@ -2,6 +2,10 @@ For any UI/frontend task, always produce a written design plan (palette, type, l
 
 # Wildskeeper (dwcon)
 
+**Picking this up mid-flight? Read `docs/state-of-play.md` first** — it is
+the handoff: what's done, what's verified against a real server, what is
+still guessed, and what to do next.
+
 A standalone Dragonwilds server console built on palcon's reusable base
 (sibling repo; architecture kept structurally identical on purpose). One
 game is registered: `internal/games/dragonwilds/` — client derived via the
