@@ -1,6 +1,9 @@
 package dwlog
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -108,5 +111,58 @@ func TestJoinIsIdempotentAndKeepsFirstSeenAt(t *testing.T) {
 	tr.Update(t0, []string{joinVex, noise, joinVex})
 	if got := tr.Sessions(); len(got) != 1 || !got[0].SeenAt.Equal(first) {
 		t.Fatalf("sessions = %+v, want one with original SeenAt", got)
+	}
+}
+
+// The corpus is real server output (testdata/server-lifecycle.log, captured
+// 2026-08-09). These assertions are what stop the parser from drifting away
+// from the shapes the game actually emits — the synthetic lines above only
+// prove the state machine, not the vocabulary.
+func TestRulesV0AgainstRealCapture(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "server-lifecycle.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(data), "\n")
+
+	var saves []string
+	for _, line := range lines {
+		if slot, ok := RulesV0.Save(line); ok {
+			saves = append(saves, slot)
+		}
+		// Nothing in an idle-server capture may look like a session event:
+		// a false join would invent a player nobody can see.
+		if name, ok := RulesV0.Join(line); ok {
+			t.Errorf("join matched a non-join line: %q -> %q", line, name)
+		}
+		if _, ok := RulesV0.Leave(line); ok {
+			t.Errorf("leave matched a non-leave line: %q", line)
+		}
+	}
+	if len(saves) == 0 {
+		t.Fatal("no save lines recognised in the real capture")
+	}
+	for _, slot := range saves {
+		if slot != "World-75058" {
+			t.Errorf("save slot = %q, want the world name from the capture", slot)
+		}
+	}
+}
+
+// Every UE line in the capture must survive the tracker untouched: the
+// tracker's contract is that unknown lines are noise, not errors.
+func TestRealCaptureLeavesNoPhantomPlayers(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "server-lifecycle.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr := NewTracker(RulesV0)
+	tr.Update(t0, strings.Split(string(data), "\n"))
+	if got := tr.Sessions(); len(got) != 0 {
+		t.Errorf("idle-server capture produced %d session(s): %+v", len(got), got)
+	}
+	at, slot := tr.LastSave()
+	if at.IsZero() || slot != "World-75058" {
+		t.Errorf("LastSave = (%v, %q), want the capture's save", at, slot)
 	}
 }

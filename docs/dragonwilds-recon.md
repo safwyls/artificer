@@ -1,10 +1,14 @@
 # Dragonwilds recon (Phase 0)
 
-Findings that gate the Dragonwilds port, per `dragonwilds-plan.md` (kept in the
-wildskeeper workspace beside this repo). Where this document and that plan
-disagree, this document wins — it is the verified layer. Facts below are dated
-2026-08-09 and sourced; items marked **UNVERIFIED** are the empirical gaps that
-still need a live server to close, with the interim engineering stance noted.
+Findings that gate the Dragonwilds port. Where this document and
+`dragonwilds-plan.md` disagree, this document wins — it is the verified
+layer.
+
+Two tiers, both dated 2026-08-09. The first sections are **web-sourced**
+(cited, but second-hand). "Empirical findings" near the end is **observed
+on a real server** and supersedes anything above it that it contradicts —
+notably the save format, which the sources got wrong. Items still marked
+UNVERIFIED are the gaps a headless server cannot close.
 
 ## External facts (web-verified)
 
@@ -64,9 +68,9 @@ still need a live server to close, with the interim engineering stance noted.
   folder creates a fresh world; **the filename must exactly match the world
   name** or the server starts a new world — restore tooling must preserve
   names, not invent them.
-- Format: UE5 `.sav`; standard-GVAS parse **UNVERIFIED** (community editor
-  Elleandria/RS-Dragonwilds-Editor and trumank/uesave are the candidate
-  tools). Phase 3 stays gated on an actual parse probe.
+- Format: sources assumed UE5 GVAS. **This turned out to be wrong** — see
+  Gate 5 under "Empirical findings": it is the SPUD plugin's chunked
+  format, and GVAS tools will not read it.
 
 ### Logs
 - `RSDragonwilds/Saved/Logs/RSDragonwilds.log`; with `-log` the same stream
@@ -85,11 +89,9 @@ still need a live server to close, with the interim engineering stance noted.
 - Autosave and chat log formats: NOT FOUND. No save/chat events in v0.
 
 ### Shutdown, bans, admin
-- **Save-on-SIGTERM is unverified.** No official statement; community images
-  stop with a plain kill and a ~30 s grace window. Stance: `Client.Save` and
-  `Client.Shutdown` return the typed unsupported error; power stop/restart
-  goes through the agent with a generous grace period, and backups cover the
-  gap. Revisit after empirical testing (plan §2.2 gate).
+- Save-on-SIGTERM was unverified in the sources. **Now measured**: the
+  server does *not* save on shutdown, and stops cleanly in ~2 s with exit
+  143 — see Gate 3 under "Empirical findings".
 - Roles confirmed: Owner (id matches `OwnerId`), Admin (password session,
   revoked by rotating `AdminPassword` + restart), Regular. Owner may ban/unban
   anyone incl. offline; Admins ban online regulars only and cannot unban.
@@ -172,14 +174,124 @@ wrong guess would be expensive.
   game's own load rule) with a truncation-only sanity check — no magic
   bytes, because the format is unverified.
 
-## Open gates (need a live server)
+## Empirical findings (live server, 2026-08-09)
 
-1. Log corpus capture → replaces `dwlog`'s v0 synthetic fixtures; unlocks
-   name/id extraction, save/chat events, world-day if logged.
-2. Real Player ID samples → decides whether `CanonicalUID` needs more than
-   trim; feeds the uid test table.
-3. SIGTERM save behavior + clean-stop duration → decides `Save`/`Shutdown`
-   via signals vs bridge-only, and the watchdog stop timeout.
-4. Ban-list-at-rest hunt (diff the install/save tree around a ban) → decides
-   file-edit ban/unban vs bridge/in-game-only.
-5. Save parse probe (uesave / gvas / RS-Dragonwilds-Editor) → gates Phase 3.
+A throwaway server was stood up from app 4019830 (5.0 GB installed, Linux
+depot) and run on an idle world. Everything below is observed, not sourced
+— where it contradicts the web-verified section above, this wins.
+
+**Confirmed as written.** The launcher is `RSDragonwildsServer.sh`, whose
+last line is `.../RSDragonwildsServer-Linux-Shipping RSDragonwilds "$@"` —
+so the agent's `-log -Port=<n>` lands exactly as intended. `libEOSSDK-Linux-
+Shipping.so` sits beside it (Epic auth confirmed). Steam's own app metadata
+reports `oslist: windows,linux`, confirming the native Linux build.
+
+**The config the game writes itself**, verbatim, on first boot:
+
+```ini
+;METADATA=(Diff=true, UseCommands=true)
+[/Script/Dominion.DedicatedServerSettings]
+AdminPassword=0H9Q8K8DX6M2KYPJ
+OwnerId=
+ServerGuid=6E8B93DDB72D4F9E95D04A5E31ED22B8
+ServerName=Server-3955
+WorldPassword=
+DefaultWorldName=World-75058
+```
+
+Section, `;METADATA` header and every key name match the recon. There is no
+`Port` or `MaxPlayers` key, as expected. `Public` was **not** written — it
+was single-sourced and may not exist. The game generates its own admin
+password, server name and world name, so a seeded config only has to supply
+what it can't invent.
+
+**Gate 1 — log corpus: mostly closed.** The UE line shape is confirmed
+exactly as the synthetic fixtures assumed:
+`[2026.08.09-19.37.07:655][120]LogSpudSubsystem: Save to slot ...`. A
+sanitized capture is committed at
+`internal/games/dragonwilds/dwlog/testdata/server-lifecycle.log` and is now
+asserted against in tests. Newly discovered, previously NOT FOUND:
+
+- save: `LogPersistence: [DedicatedServer] SaveGame() : Starting save (Guid[..] WorldName[..] SlotName[..] ...)`,
+  then `LogSpudSubsystem: Save to slot <name>: Success`, then
+  `LogPersistence: [DedicatedServer] operator()() : Save completed SUCCESSFULLY (slot: <name>)`.
+  `dwlog` now recognises the last of these; it is the only verified
+  vocabulary in the table.
+- shutdown: `LogDomServerSettings: Shutdown detected, do not save contents to disk`,
+  then `LogExit: Exiting.` and `RequestExit(bForce=false, ReturnCode=143)`.
+- refusal banner (not UE-formatted) when `OwnerId` is empty.
+
+**Still open:** join and leave lines. Producing them needs real game
+clients (paid game, Epic account, a GUI machine), so the two community
+markers `dwlog` matches remain unverified — the one part of the parser
+still resting on someone else's report.
+
+**An idle server is completely silent.** After world load it emitted no log
+lines at all for ten minutes. Liveness must come from the agent's process
+state, never from log activity — which is what the client does.
+
+**Gate 2 — Player ID: partially closed.** `OwnerId` is **not
+format-validated**: the server accepted the literal string `test123` and
+booted normally. So provisioning must not validate the shape, and
+`CanonicalUID` staying trim-only is safe. The true wire format is still
+unknown (`ServerGuid` is 32 hex chars, and `LogPersistence` carries empty
+`OwnerGuid[]`/`OwnerName[]` fields, which *hints* at a guid, but a real id
+still needs the in-game Settings screen).
+
+**Gate 3 — shutdown: closed.** SIGTERM to the shipping binary produced a
+clean shutdown in **2 seconds**, exit code **143**, and the world save was
+**byte-identical before and after** (same md5, mtime and size). The server
+does not save on shutdown. Caveats worth keeping: the world was idle, so
+"never saves" and "skips a clean world" cannot be told apart here — but the
+conservative reading is the same, and the log line above says so in the
+game's own words. Consequences already applied to the code: the 30 s stop
+grace is generous rather than necessary, exit 143 is correctly read as
+clean, and the UI no longer claims a restart saves the world.
+
+Also found: `dom.StateSaveFrequencyMins:5`, alongside `dom.EnablePersistence`
+and `dom.PersistenceStrictMode` — CVars, not ini keys, which is why the
+autosave interval was never found in config documentation. **No autosave
+fired in ten idle minutes**, so the timer is evidently tied to activity or
+dirty state rather than wall clock. Untestable further without players.
+
+**Gate 4 — ban list: not closable here.** Banning requires a second player
+in-game. The install tree after boot holds only `Saved/Config`,
+`Saved/Logs`, `Saved/SaveGames` and `Saved/PersistentDownloadDir/EOSCache`
+— no ban-shaped file exists before anyone is banned, so the hunt has to
+happen around a real ban.
+
+**Gate 5 — save format: closed, and the recon was wrong.** The world save
+is **not GVAS**. It is the SPUD plugin's chunked format
+(`LogPluginManager: Mounting Project plugin SPUD`), magic `SAVE`:
+
+```
+53 41 56 45 | 93 de 00 00 | 49 4e 46 4f | 28 02 00 00 ...
+ S  A  V  E |   version?   |  I  N  F  O |  chunk length
+```
+
+Inside are length-prefixed UE strings — an ISO timestamp, then `VERSION`,
+`GUID_A..D`, `WorldName`, `WorldMapName`, `FriendlyFire`,
+`SurvivalDifficulty`, `HardcoreState`, `TimeOfSave`, `SessionPrivacy`,
+`SessionPasswd`, `CrossplayEnabled`. This is **better news than the plan
+assumed**: `uesave` and GVAS walkers will not work, but SPUD is open source
+and documented, the container is uncompressed enough to read field names
+directly, and world metadata sits in the header rather than behind an
+opaque blob. A Go-native reader is realistic for Phase 3 — no Python
+dependency, no Oodle.
+
+Save-file behaviour confirmed: the directory is `SaveGames` (capital G),
+the file is named for `DefaultWorldName` (`World-75058.sav`), and a fresh
+world is written once at creation.
+
+## Still open (need real game clients)
+
+1. **Join/leave log lines** — the last unverified regexes in `dwlog`.
+2. **A real Player ID** — to learn the true format (nothing depends on it
+   today, since the field is not validated).
+3. **Ban list at rest** — whether offline ban/unban can be done by editing
+   a file, or stays in-game only.
+4. **Autosave trigger** — whether the 5-minute CVar is wall-clock once
+   players are present.
+
+All four need the paid game on a machine that can run the client; none can
+be closed from a headless server alone.

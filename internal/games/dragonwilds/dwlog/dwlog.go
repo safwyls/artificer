@@ -40,6 +40,10 @@ type Rules struct {
 	// understands, and the tracker will try to attribute it to a tracked
 	// name appearing in the line.
 	Leave func(line string) (name string, ok bool)
+	// Save reports that the world was written to disk, returning the slot
+	// (world) name. Unlike join/leave this one is verified against a real
+	// capture — see testdata/server-lifecycle.log.
+	Save func(line string) (slot string, ok bool)
 }
 
 // v0 markers, verified only as substrings (recon doc, "Logs"):
@@ -49,6 +53,9 @@ type Rules struct {
 const (
 	joinMarkerV0  = "LogNet: Join succeeded:"
 	leaveMarkerV0 = "LogDominionPlayerController: ClientRequestDisconnect"
+	// saveMarkerV0 is verified: the server emits it on every autosave and
+	// on world creation. The slot name follows in parentheses.
+	saveMarkerV0 = "Save completed SUCCESSFULLY (slot: "
 )
 
 // RulesV0 is written against game 0.12.1.4 community captures, not a corpus
@@ -73,6 +80,18 @@ var RulesV0 = Rules{
 		}
 		return "", true
 	},
+	Save: func(line string) (string, bool) {
+		i := strings.Index(line, saveMarkerV0)
+		if i < 0 {
+			return "", false
+		}
+		rest := line[i+len(saveMarkerV0):]
+		end := strings.IndexByte(rest, ')')
+		if end < 0 {
+			return "", false
+		}
+		return strings.TrimSpace(rest[:end]), true
+	},
 }
 
 // Session is one tracked player. Name doubles as the identity until a
@@ -93,6 +112,12 @@ type Tracker struct {
 	startedAt time.Time
 	prevLast  string // last line of the previous tail, the merge anchor
 	sessions  map[string]Session
+	// lastSave is when this tracker last saw the server report a completed
+	// save, and which world slot it named. Zero until one is observed —
+	// the game does not save on shutdown, so "when did it last save" is
+	// the only honest answer to "how much would a restart cost".
+	lastSave     time.Time
+	lastSaveSlot string
 }
 
 // NewTracker builds a tracker over the given rules table.
@@ -117,6 +142,7 @@ func (t *Tracker) Update(startedAt time.Time, tail []string) {
 		t.startedAt = startedAt
 		t.prevLast = ""
 		t.sessions = map[string]Session{}
+		t.lastSave, t.lastSaveSlot = time.Time{}, ""
 	}
 
 	lines := tail
@@ -144,6 +170,10 @@ func (t *Tracker) apply(line string, now time.Time) {
 		if _, tracked := t.sessions[name]; !tracked {
 			t.sessions[name] = Session{Name: name, SeenAt: now}
 		}
+		return
+	}
+	if slot, ok := t.rules.Save(line); ok {
+		t.lastSave, t.lastSaveSlot = now, slot
 		return
 	}
 	if name, ok := t.rules.Leave(line); ok {
@@ -175,6 +205,16 @@ func (t *Tracker) attribute(line string) string {
 		}
 	}
 	return ""
+}
+
+// LastSave reports when the server last confirmed a completed world save
+// during this process lifetime, and the slot it wrote. A zero time means
+// none has been seen yet — not that none happened, since the tail only
+// reaches back so far.
+func (t *Tracker) LastSave() (time.Time, string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastSave, t.lastSaveSlot
 }
 
 // Sessions returns the current players, sorted by name for stable output.

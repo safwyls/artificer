@@ -296,7 +296,7 @@ function SchedulesCard({
           <p className="text-sm text-wk-parchment/60">No restart schedules yet.</p>
           {canEdit && (
             <p className="mt-1 text-sm text-wk-parchment/60">
-              Add one and Wildskeeper warns players in-game, saves the world, then restarts the server.
+              Add one and Wildskeeper restarts the server on schedule. The game has no save command and does not save on shutdown, so a restart loses anything since the last autosave.
             </p>
           )}
         </div>
@@ -354,7 +354,7 @@ function SchedulesCard({
 
       <div className="space-y-1 border-t border-wk-edge px-5 py-3 text-xs text-wk-parchment/50">
         <p>
-          Times are {data.timezone} (Wildskeeper's clock). The world is saved before every restart.
+          Times are {data.timezone} (Wildskeeper's clock). The world is not saved before a restart — the game only autosaves on its own timer.
         </p>
         {!data.dockerRestart && (
           <p className="text-wk-parchment/60">
@@ -420,7 +420,7 @@ function ScheduleDialog({
         <DialogHeader>
           <DialogTitle>{schedule ? "Edit schedule" : "Add restart schedule"}</DialogTitle>
           <DialogDescription>
-            Players are warned in-game at each lead time, then the world is saved and the server restarts.
+            Each lead time is when a warning would be sent once a command bridge exists. The server then restarts; the game does not save on shutdown.
           </DialogDescription>
         </DialogHeader>
 

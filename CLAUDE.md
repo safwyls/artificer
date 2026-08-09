@@ -11,9 +11,12 @@ theme tokens are the `wk.*` literals in `web/tailwind.config.js`, mirrored
 onto shadcn semantic vars in `web/src/index.css`).
 
 Read `docs/dragonwilds-recon.md` before touching parsers or capability
-decisions — facts marked UNVERIFIED there (log line shapes, player-id
-format, save format, SIGTERM save behavior, on-disk ban list) must not be
-assumed. Steam app id 4019830 (dedicated server tool), native Linux build,
+decisions. Its "Empirical findings" section is measured on a real server
+and outranks the web-sourced sections above it — notably: the save format
+is **SPUD, not GVAS**; the server does **not** save on shutdown (clean stop
+~2 s, exit 143); `OwnerId` is not format-validated. Still unverified, and
+not to be assumed: the join/leave log lines, the real player-id format, and
+where bans live on disk — all need real game clients. Steam app id 4019830 (dedicated server tool), native Linux build,
 no RCON/REST/query — command methods return `game.UnsupportedError`
 (HTTP 501) until the dwbridge UE4SS mod exists.
 

@@ -23,7 +23,7 @@ const CONFIRM: Record<Action, { title: string; body: string; verb: string }> = {
   start: { title: "Start the server?", body: "The container will boot and players can connect once it's up.", verb: "Start" },
   stop: {
     title: "Stop the server?",
-    body: "Anyone playing will be disconnected. The container is asked to stop gracefully, so the world is saved first.",
+    body: "Anyone playing will be disconnected. The stop is graceful, but the game does not save on shutdown — anything since the last autosave is lost.",
     verb: "Stop",
   },
   restart: {

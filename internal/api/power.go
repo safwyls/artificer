@@ -60,7 +60,7 @@ func gameToContainerState(health *agentctl.Health) *dockerctl.State {
 	return st
 }
 
-// prepareForStop saves the world and asks the game to exit on its own,
+// prepareForStop asks the game to save and to exit on its own,
 // before the container is stopped.
 //
 // Palworld server images commonly ignore SIGTERM, so `docker stop` alone

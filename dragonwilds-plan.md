@@ -40,8 +40,17 @@
 > Dragonwilds container template (7777/7778 udp pair, `/dragonwilds` bind,
 > no REST/RCON), generated compose stack, and a Raise-a-server wizard.
 >
-> Remaining: Phase 3 (save reader, gated on the parse probe), Phase 4
-> (dwbridge), plus the recon doc's five open empirical gates.
+> **The parse probe is done** (2026-08-09, on a real server): the save is
+> the SPUD plugin's chunked `SAVE` format, **not GVAS** — so §5's plan to
+> use `uesave` or a Python `gvas` library is void, but the news is good:
+> SPUD is open source and world metadata is readable in the header, so a
+> Go-native reader with no Python dependency is realistic. Also measured:
+> the server does not save on shutdown, and `OwnerId` is not format-
+> validated. See the recon doc's "Empirical findings".
+>
+> Remaining: Phase 3 (save reader, now unblocked), Phase 4 (dwbridge), and
+> four gaps that need real game clients — join/leave log lines, a real
+> player id, the ban list at rest, and the autosave trigger.
 
 **Audience:** Claude Code, working in this repo (originally written for `safwyls/palcon`).
 **Goal:** A fully featured management console for a self-hosted RuneScape: Dragonwilds
