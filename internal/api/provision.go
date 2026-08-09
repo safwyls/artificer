@@ -221,6 +221,8 @@ services:
       - "%d:%d/udp"   # game (the server uses the port above its own)
       - "%d:8811"     # palagent API — the dashboard's only channel
     volumes:
+      # Must be writable by the container user — uid 1000 unless user:
+      # overrides it. Never run as root: the game refuses to boot.
       - %s:/dragonwilds
     restart: unless-stopped
 `, req.Name, req.ImageTag, userLine, token, req.AdminPassword, req.OwnerID, identityEnv,

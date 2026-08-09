@@ -157,12 +157,21 @@ is unresolved and is what currently blocks closing the four gaps above.
    chunks `dwsave` inventories but does not decode — worth attempting only
    once a real client has written player data into a save to verify
    against (same blocker as the log lines).
-3. **Before deploying to the NAS**, build both images —
-   neither `Dockerfile` nor `Dockerfile.palagent` has ever been built,
-   and the game has never run inside a container. Analysis says it will
-   (needs only glibc ≤2.28 plus its bundled SDKs, no X11), but that is not
-   the same as having done it. The provisioner has also never touched a
-   real Docker daemon, only a fake API in tests.
+3. ~~Build both images before deploying to the NAS.~~ **Done, and the
+   doubt was warranted.** Both images now build (first fix: FROM
+   references needed registry qualification — podman-style engines
+   enforce short-name resolution), and the whole stack ran containerized
+   under rootless podman: agent healthy, **game boots and loads the world
+   in-container**, metrics/world/logs derive across the container
+   network, clean stop in ~1 s. The catch found on the very first run:
+   **the game refuses to boot as root** ("Refusing to run with the root
+   privileges", exit 134 crash loop), so `Dockerfile.palagent` now bakes
+   a `palagent` user (uid 1000) and the generated compose warns that the
+   `/dragonwilds` volume must be writable by that uid. The `-healthz`
+   healthcheck is verified under docker-format builds (OCI builds drop
+   HEALTHCHECK silently). Still untouched by real infrastructure: the
+   provisioner (fake API in tests only) and an actual SteamCMD install
+   from inside the container (the test bind-mounted the existing one).
 
 ## Loose ends
 

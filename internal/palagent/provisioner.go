@@ -55,7 +55,8 @@ type ProvisionRequest struct {
 	OwnerID    string `json:"ownerId"`
 	ServerName string `json:"serverName"`
 	WorldName  string `json:"worldName"`
-	// RunAs is uid:gid for the container ("" = image default/root).
+	// RunAs is uid:gid for the container ("" = the image's own user,
+	// palagent/uid 1000 — never root, which the game refuses to boot as).
 	RunAs string `json:"runAs"`
 	// GamePort is the published UDP port. The port above it is published
 	// too — sources say the server uses both; testing saw only this one

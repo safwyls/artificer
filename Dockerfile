@@ -1,5 +1,5 @@
 # ---- frontend build ----
-FROM node:24-alpine AS frontend
+FROM docker.io/library/node:24-alpine AS frontend
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
 RUN npm install
@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 # ---- backend build ----
-FROM golang:1.26-alpine AS backend
+FROM docker.io/library/golang:1.26-alpine AS backend
 WORKDIR /app
 # Download modules against the committed go.mod/go.sum before copying
 # sources, so source-only changes reuse the cached module layer and the
@@ -19,7 +19,7 @@ COPY --from=frontend /app/web/dist ./web/dist
 RUN CGO_ENABLED=0 go build -o /out/dwcon ./cmd/dwcon
 
 # ---- runtime ----
-FROM alpine:3.22
+FROM docker.io/library/alpine:3.22
 # No python3: the plan expected the save reader to shell out to a Python
 # GVAS tool, but the format turned out to be SPUD and the reader (dwsave)
 # is pure Go inside the binary.

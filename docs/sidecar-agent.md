@@ -296,13 +296,16 @@ spinning up a new Dragonwilds server from the dashboard — lands in two steps:
   its row carried credentials the running container had never seen.
 
   Provisioner stack (deliberately privileged — the ONE component that
-  touches the docker socket; run as root, no `user:` line, since it
-  chowns data dirs and drives docker):
+  touches the docker socket; run as root, since it chowns data dirs and
+  drives docker. The `user:` line is now required: the image itself runs
+  as an unprivileged user because the *game* refuses to boot as root, and
+  this is the one mode that must override that):
 
   ```yaml
   services:
     palprovisioner:
       image: ghcr.io/safwyls/palagent:latest
+      user: "0:0"
       environment:
         - PALAGENT_MODE=provisioner
         - PALAGENT_TOKEN=${PROVISIONER_TOKEN}

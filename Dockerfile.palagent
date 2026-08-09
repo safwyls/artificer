@@ -3,7 +3,7 @@
 # volume; dwcon drives it over HTTP with a bearer token.
 
 # ---- build ----
-FROM golang:1.26-alpine AS build
+FROM docker.io/library/golang:1.26-alpine AS build
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -13,9 +13,17 @@ RUN CGO_ENABLED=0 go build -o /out/palagent ./cmd/palagent
 # ---- runtime ----
 # steamcmd needs 32-bit glibc, so the runtime base is the maintained
 # steamcmd image (Debian) rather than alpine like dwcon's.
-FROM steamcmd/steamcmd:debian-12
+FROM docker.io/steamcmd/steamcmd:debian-12
 COPY --from=build /out/palagent /usr/local/bin/palagent
-ENV PALAGENT_INSTALL_DIR=/dragonwilds \
+# The game refuses to boot as root ("Refusing to run with the root
+# privileges", exit 134 — found on the first real container run), so the
+# whole container runs as an unprivileged user. The /dragonwilds volume
+# must be owned by uid 1000 on the host; steamcmd also needs the writable
+# home this user gets.
+RUN useradd -m -u 1000 palagent
+USER palagent
+ENV HOME=/home/palagent \
+    PALAGENT_INSTALL_DIR=/dragonwilds \
     PALAGENT_STEAMCMD=steamcmd \
     PALAGENT_ADDR=:8811
 # 8811 is the agent API; 7777-7778/udp is the game itself, which the agent

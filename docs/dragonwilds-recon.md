@@ -276,6 +276,15 @@ Also found: `dom.StateSaveFrequencyMins:5`, alongside `dom.EnablePersistence`
 and `dom.PersistenceStrictMode` — CVars, not ini keys, which is why the
 autosave interval was never found in config documentation.
 
+**The server refuses to run as root.** Found on the first containerized
+run: as uid 0 the binary prints `Refusing to run with the root privileges`
+and aborts (exit 134) before touching config or saves — a crash loop under
+a supervisor. As any unprivileged uid it boots normally. This is why
+`Dockerfile.palagent` bakes a non-root user and the provisioner's compose
+warns about volume ownership; the same world then loaded, served, and
+stopped cleanly inside the container, so containerized deployment itself
+is confirmed viable.
+
 **Autosave is wall-clock, and a later run caught it.** A world-load save at
 `21:19:17` was followed by another at `21:24:17` — exactly five minutes,
 on a server with nobody connected and nothing happening but EOS session
