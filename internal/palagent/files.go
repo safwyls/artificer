@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // The file verbs serve exactly two things, both at fixed locations under
@@ -133,7 +134,11 @@ func (a *Agent) handleGetSave(w http.ResponseWriter, r *http.Request) {
 		// Header sizes come from the listing; a file rewritten mid-stream
 		// is copied at exactly the promised length so the archive stays
 		// well-formed (the ETag the client stored still tells on it).
-		hdr := &tar.Header{Name: e.rel, Mode: 0o644, Size: e.size}
+		// ModTime rides along so the mirror can keep the save's true write
+		// time — it is what the console's save cache keys on, and what the
+		// world panel reports as "last written". PAX, because USTAR rounds
+		// times to whole seconds.
+		hdr := &tar.Header{Name: e.rel, Mode: 0o644, Size: e.size, ModTime: time.Unix(0, e.mod), Format: tar.FormatPAX}
 		if err := tw.WriteHeader(hdr); err != nil {
 			f.Close()
 			return

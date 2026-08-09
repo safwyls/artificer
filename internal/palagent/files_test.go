@@ -87,6 +87,27 @@ func TestAgentSaveBundle(t *testing.T) {
 		t.Error("bundle includes the game's own backup folder")
 	}
 
+	// Headers carry each file's real mtime: the console's mirror restores
+	// them, so its save cache and "last written" reporting see when the
+	// game saved, not when the sync ran.
+	onDisk, err := os.Stat(filepath.Join(install, "RSDragonwilds", "Saved", "SaveGames", "Level.sav"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr := tar.NewReader(bytes.NewReader(body))
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			t.Fatal("Level.sav not found in bundle headers")
+		}
+		if hdr.Name == "Level.sav" {
+			if !hdr.ModTime.Equal(onDisk.ModTime()) {
+				t.Errorf("bundle mtime = %v, want the file's %v", hdr.ModTime, onDisk.ModTime())
+			}
+			break
+		}
+	}
+
 	// Unchanged: 304 on the returned etag, no body.
 	etag := resp.Header.Get("ETag")
 	if etag == "" {

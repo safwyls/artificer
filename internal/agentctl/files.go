@@ -157,8 +157,20 @@ func extractTar(r io.Reader, dir string) error {
 		if err != nil {
 			return err
 		}
+		// Keep the file's real write time: the save cache keys on it, and
+		// the UI reports it as when the game last saved. The floor guards
+		// against bundles from agents that didn't set ModTime, whose tar
+		// headers decode as the epoch. Best-effort — a filesystem that
+		// refuses is no reason to fail the sync.
+		if hdr.ModTime.After(mtimeFloor) {
+			_ = os.Chtimes(dest, hdr.ModTime, hdr.ModTime)
+		}
 	}
 }
+
+// mtimeFloor is the oldest bundle timestamp taken at face value; nothing
+// this console syncs was written before it.
+var mtimeFloor = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
 // GetConfig fetches the raw PalWorldSettings.ini.
 func (c *Client) GetConfig(ctx context.Context) ([]byte, error) {
