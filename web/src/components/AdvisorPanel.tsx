@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { Maximize2, Minimize2, RotateCcw, X } from "lucide-react";
 import { api, ApiError, type AdvisorMessage, type AdvisorStatus } from "../lib/api";
 import { buildAdvisorContext } from "../lib/advisor";
 import { ADVISOR_TOOLS, describeToolCall, runAdvisorTool } from "../lib/advisor-tools";
@@ -186,16 +186,27 @@ function AdvisorKeyForm({
   );
 }
 
+// Mirrors the server's conversation cap. Checked here, before sending, so
+// a full conversation reads as "context is full, start fresh" rather than
+// the server's raw validation error.
+const MAX_TURNS = 40;
+const CONTEXT_FULL =
+  "This conversation has reached its maximum context. Start a new chat to keep asking — the advisor reads the save fresh every question, so nothing is lost.";
+
 export function AdvisorPanel({
   serverId,
   status,
   onStatusChange,
   onClose,
+  expanded,
+  onToggleExpand,
 }: {
   serverId: number;
   status: AdvisorStatus;
   onStatusChange: (status: AdvisorStatus) => void;
   onClose: () => void;
+  expanded: boolean;
+  onToggleExpand: () => void;
 }) {
   const [turns, setTurns] = useState<AdvisorMessage[]>([]);
   const [input, setInput] = useState("");
@@ -238,9 +249,18 @@ export function AdvisorPanel({
   const maxRounds = Math.max(1, status.maxToolRounds || 8);
   const NUDGE =
     "[palcon] That was the last tool round for this question. Answer now with what you already have — do not request more tools.";
+  const newChat = () => {
+    setTurns([]);
+    setError(null);
+  };
+
   const ask = async (question: string) => {
     const q = question.trim();
     if (!q || sending) return;
+    if (turns.length + 1 > MAX_TURNS) {
+      setError(CONTEXT_FULL);
+      return;
+    }
     let next: AdvisorMessage[] = [...turns, { role: "user", content: q }];
     setTurns(next);
     setInput("");
@@ -248,6 +268,12 @@ export function AdvisorPanel({
     setError(null);
     try {
       for (let round = 0; ; round++) {
+        // Tool rounds add two turns each, so a long question can fill the
+        // context mid-loop — stop with the same message either way.
+        if (next.length > MAX_TURNS) {
+          setError(CONTEXT_FULL);
+          break;
+        }
         const res = await api.advisorChat(serverId, ctx.json, next, ADVISOR_TOOLS);
         if (!res.toolCalls?.length) {
           setTurns([...next, { role: "assistant", content: res.reply ?? "" }]);
@@ -285,7 +311,10 @@ export function AdvisorPanel({
   return (
     <section
       aria-label="Advisor chat"
-      className="flex h-[min(38rem,calc(100dvh-10rem))] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-ink/15 bg-paper shadow-2xl"
+      className={cn(
+        "flex flex-col overflow-hidden rounded-2xl border border-ink/15 bg-paper shadow-2xl",
+        expanded ? "h-full w-full max-w-3xl" : "h-[min(38rem,calc(100dvh-10rem))] w-[calc(100vw-2rem)] max-w-sm",
+      )}
     >
       <header className="flex items-center gap-2.5 border-b border-ink/10 bg-white/70 px-4 py-3">
         <img
@@ -301,6 +330,24 @@ export function AdvisorPanel({
               : "not set up yet"}
           </p>
         </div>
+        {turns.length > 0 && (
+          <button
+            onClick={newChat}
+            aria-label="Start a new chat"
+            title="Start a new chat"
+            className="rounded-lg p-1.5 text-ink/40 transition hover:bg-ink/5 hover:text-ink"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          onClick={onToggleExpand}
+          aria-label={expanded ? "Shrink the chat" : "Expand the chat"}
+          title={expanded ? "Shrink the chat" : "Expand the chat"}
+          className="rounded-lg p-1.5 text-ink/40 transition hover:bg-ink/5 hover:text-ink"
+        >
+          {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
         <button onClick={onClose} aria-label="Close the advisor" className="rounded-lg p-1.5 text-ink/40 transition hover:bg-ink/5 hover:text-ink">
           <X className="h-4 w-4" />
         </button>
@@ -335,7 +382,7 @@ export function AdvisorPanel({
         </div>
       ) : (
         <>
-          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+          <div ref={scrollRef} className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3", !expanded && "max-h-[55vh]")}>
             {turns.length === 0 && (
               <div className="py-2">
                 <p className="text-sm text-muted-foreground">
@@ -391,6 +438,14 @@ export function AdvisorPanel({
               </div>
             )}
             {error && <p className="text-sm text-destructive">{error}</p>}
+            {error === CONTEXT_FULL && (
+              <button
+                onClick={newChat}
+                className="rounded-xl bg-brand-red px-3.5 py-1.5 text-sm font-bold text-paper transition hover:bg-brand-red/90"
+              >
+                Start a new chat
+              </button>
+            )}
           </div>
 
           <form

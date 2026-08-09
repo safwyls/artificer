@@ -74,7 +74,7 @@ const MODEL_OPTIONS = {
   ],
 };
 
-function open(status: Partial<AdvisorStatus> = {}, onStatusChange = () => {}) {
+function open(status: Partial<AdvisorStatus> = {}, onStatusChange = () => {}, onToggleExpand = () => {}) {
   const full: AdvisorStatus = {
     enabled: true,
     provider: "anthropic",
@@ -87,7 +87,14 @@ function open(status: Partial<AdvisorStatus> = {}, onStatusChange = () => {}) {
     ...status,
   };
   return renderWithProviders(
-    <AdvisorPanel serverId={1} status={full} onStatusChange={onStatusChange} onClose={() => {}} />,
+    <AdvisorPanel
+      serverId={1}
+      status={full}
+      onStatusChange={onStatusChange}
+      onClose={() => {}}
+      expanded={false}
+      onToggleExpand={onToggleExpand}
+    />,
   );
 }
 
@@ -179,6 +186,51 @@ describe("AdvisorPanel", () => {
     // The last tool turn carried the answer-now note.
     const toolTurn = chat.mock.calls[1][2].find((m) => m.role === "tool");
     expect(toolTurn?.content).toMatch(/Answer now/);
+  });
+
+  it("starts a fresh chat from the header button", async () => {
+    vi.spyOn(api, "advisorChat").mockResolvedValue({ reply: "Condense your Pengullets." });
+    const user = userEvent.setup();
+    open();
+
+    await user.type(screen.getByRole("textbox", { name: /Ask the advisor/ }), "hello");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(screen.getByText("Condense your Pengullets.")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Start a new chat" }));
+    expect(screen.queryByText("Condense your Pengullets.")).not.toBeInTheDocument();
+    // The empty-state invitations come back for the fresh conversation.
+    expect(screen.getByText(/start from what the save shows/i)).toBeInTheDocument();
+  });
+
+  it("stops at the context cap with a start-new-chat prompt, not a server error", async () => {
+    // The model keeps calling tools forever; each round adds two turns, so
+    // the conversation fills the 40-turn context before the round cap.
+    vi.spyOn(api, "advisorChat").mockResolvedValue({
+      content: "",
+      toolCalls: [{ id: "1", name: "breed_child", args: { parentA: "Relaxaurus", parentB: "Sparkit" } }],
+    });
+    const user = userEvent.setup();
+    open({ maxToolRounds: 20 });
+
+    await user.type(screen.getByRole("textbox", { name: /Ask the advisor/ }), "everything about breeding");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() => expect(screen.getByText(/reached its maximum context/)).toBeInTheDocument(), {
+      timeout: 10_000,
+    });
+    // The recovery is one click, right under the message.
+    const buttons = screen.getAllByRole("button", { name: "Start a new chat" });
+    await user.click(buttons[buttons.length - 1]);
+    expect(screen.queryByText(/reached its maximum context/)).not.toBeInTheDocument();
+  });
+
+  it("offers the expand toggle", async () => {
+    const onToggleExpand = vi.fn();
+    const user = userEvent.setup();
+    open({}, () => {}, onToggleExpand);
+    await user.click(screen.getByRole("button", { name: "Expand the chat" }));
+    expect(onToggleExpand).toHaveBeenCalled();
   });
 
   it("names the provider questions are sent to", async () => {

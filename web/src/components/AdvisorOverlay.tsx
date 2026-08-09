@@ -21,6 +21,9 @@ const AdvisorPanel = lazy(() => import("./AdvisorPanel").then((m) => ({ default:
 
 export function AdvisorOverlay({ serverId }: { serverId: number | null }) {
   const [open, setOpen] = useState(false);
+  // Expanded turns the floating window into a centered review pane over a
+  // dimmed backdrop — for reading back a long conversation.
+  const [expanded, setExpanded] = useState(false);
   // Once opened, the panel stays mounted (hidden) so closing the bubble
   // doesn't discard the conversation.
   const [everOpened, setEverOpened] = useState(false);
@@ -43,7 +46,19 @@ export function AdvisorOverlay({ serverId }: { serverId: number | null }) {
   return (
     <>
       {everOpened && (
-        <div className={cn("fixed bottom-36 right-4 z-40 lg:bottom-[5.5rem] lg:right-6", !open && "hidden")}>
+        <div
+          className={cn(
+            expanded
+              ? "fixed inset-0 z-40 flex items-center justify-center bg-ink/30 p-3 lg:p-10"
+              : "fixed bottom-36 right-4 z-40 lg:bottom-[5.5rem] lg:right-6",
+            !open && "hidden",
+          )}
+          onClick={
+            // Clicking the dimmed backdrop shrinks back to the floating
+            // window — it doesn't close the chat.
+            expanded ? (e) => e.target === e.currentTarget && setExpanded(false) : undefined
+          }
+        >
           <Suspense fallback={null}>
             {/* Keyed by server: a different server is a different roster,
                 so the conversation starts over. */}
@@ -52,7 +67,12 @@ export function AdvisorOverlay({ serverId }: { serverId: number | null }) {
               serverId={serverId}
               status={status}
               onStatusChange={(s) => queryClient.setQueryData(["advisor-status", serverId], s)}
-              onClose={() => setOpen(false)}
+              onClose={() => {
+                setOpen(false);
+                setExpanded(false);
+              }}
+              expanded={expanded}
+              onToggleExpand={() => setExpanded((x) => !x)}
             />
           </Suspense>
         </div>
