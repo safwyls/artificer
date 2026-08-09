@@ -28,9 +28,26 @@ import { ADVISOR_AVATAR } from "./AdvisorOverlay";
  * answers in the app's own voice rather than a formatted document's.
  */
 
+// Request limits belong to the KEY (its account/project and tier), not the
+// model — Google stopped publishing per-model numbers entirely, and
+// Anthropic's vary by usage tier — so the picker shows an honest per-
+// provider note and links to the dashboard that knows the real numbers,
+// rather than figures that would be wrong for most keys.
 const PROVIDERS = [
-  { id: "anthropic", label: "Anthropic Claude", apiLabel: "the Anthropic API" },
-  { id: "gemini", label: "Google Gemini", apiLabel: "the Google Gemini API" },
+  {
+    id: "anthropic",
+    label: "Anthropic Claude",
+    apiLabel: "the Anthropic API",
+    limitsNote: "Requests/min depend on the key's usage tier (entry tier: 1,000/min per model, no daily cap).",
+    limitsUrl: "https://platform.claude.com/settings/limits",
+  },
+  {
+    id: "gemini",
+    label: "Google Gemini",
+    apiLabel: "the Google Gemini API",
+    limitsNote: "Quotas are per Google project — free-tier keys have small per-model daily caps.",
+    limitsUrl: "https://aistudio.google.com/rate-limit",
+  },
 ];
 
 function apiLabel(provider?: string): string {
@@ -125,6 +142,22 @@ function AdvisorKeyForm({
           ))}
         </Select>
       )}
+      {(() => {
+        const p = PROVIDERS.find((x) => x.id === provider);
+        return p ? (
+          <p className="text-[10px] leading-relaxed text-ink/40">
+            {p.limitsNote}{" "}
+            <a
+              href={p.limitsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-ink/55 underline decoration-ink/20 transition hover:text-ink"
+            >
+              Check this key's limits
+            </a>
+          </p>
+        ) : null;
+      })()}
       <input
         type="password"
         value={key}

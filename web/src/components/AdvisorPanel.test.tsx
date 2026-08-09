@@ -202,6 +202,13 @@ describe("AdvisorPanel", () => {
     open({ enabled: false, provider: "", source: "", canConfigure: true }, onStatusChange);
 
     await user.selectOptions(screen.getByRole("combobox", { name: /Model provider/ }), "gemini");
+    // The picker carries the provider's honest limits note — quotas belong
+    // to the key, so it links the dashboard instead of quoting numbers.
+    expect(screen.getByText(/free-tier keys have small per-model daily caps/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Check this key's limits/ })).toHaveAttribute(
+      "href",
+      "https://aistudio.google.com/rate-limit",
+    );
     // Switching provider resets the model list; a non-default pick sticks.
     await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), "gemini-3.6-flash");
     await user.type(screen.getByLabelText("API key"), "AIza-test");
