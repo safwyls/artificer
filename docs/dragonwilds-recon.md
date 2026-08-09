@@ -274,9 +274,22 @@ clean, and the UI no longer claims a restart saves the world.
 
 Also found: `dom.StateSaveFrequencyMins:5`, alongside `dom.EnablePersistence`
 and `dom.PersistenceStrictMode` — CVars, not ini keys, which is why the
-autosave interval was never found in config documentation. **No autosave
-fired in ten idle minutes**, so the timer is evidently tied to activity or
-dirty state rather than wall clock. Untestable further without players.
+autosave interval was never found in config documentation.
+
+**Autosave is wall-clock, and a later run caught it.** A world-load save at
+`21:19:17` was followed by another at `21:24:17` — exactly five minutes,
+on a server with nobody connected and nothing happening but EOS session
+heartbeats. An earlier run saw no save in a comparable window and this
+document briefly claimed the timer was activity-driven; that was wrong,
+and the corrected reading is the simpler one: it fires on the interval.
+The discrepancy in the earlier run is unexplained (possibly no initial
+save to start the timer from, since it loaded rather than created a
+world), so treat five minutes as the expected interval rather than a
+guarantee.
+
+Practical effect: a stop or restart costs **up to about five minutes** of
+play — bounded and predictable, which is better than the earlier reading
+implied, but still real given the server never saves on the way out.
 
 **Gate 4 — ban list: not closable here.** Banning requires a second player
 in-game. The install tree after boot holds only `Saved/Config`,
@@ -312,8 +325,8 @@ world is written once at creation.
 1. **Join/leave log lines** — the last unverified regexes in `dwlog`.
 2. **Ban list at rest** — whether offline ban/unban can be done by editing
    a file, or stays in-game only.
-3. **Autosave trigger** — whether the 5-minute CVar is wall-clock once
-   players are present.
+3. **Autosave with players present** — the 5-minute interval is confirmed
+   on an idle server; whether player activity changes it is untested.
 4. **Whether a second well-known UDP port opens** once a player connects
    (only 7777 plus an ephemeral port was seen idle).
 

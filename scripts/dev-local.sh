@@ -38,8 +38,26 @@ AGENT="http://127.0.0.1:$AGENT_PORT"
 COOKIES="$RUN_DIR/cookies.txt"
 repo_root() { cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd; }
 
-agent_curl() { curl -sS -H "Authorization: Bearer $AGENT_TOKEN" "$@"; }
-api() { curl -sS -b "$COOKIES" "$@"; }
+# Short timeouts on purpose: these all talk to loopback, so anything slow
+# is something being down, not something being busy. Without them a stopped
+# agent takes two minutes to report a connection refusal.
+agent_curl() {
+  curl -sS --connect-timeout 3 --max-time 120 \
+    -H "Authorization: Bearer $AGENT_TOKEN" "$@"
+}
+api() { curl -sS --connect-timeout 3 --max-time 120 -b "$COOKIES" "$@"; }
+
+# The stack runs as plain background processes, so a WSL restart, a reboot,
+# or a `down` leaves nothing behind. Every verb that needs the agent checks
+# first and says which thing to run, rather than surfacing a curl error.
+require_agent() {
+  if ! curl -sS --connect-timeout 2 -o /dev/null "$AGENT/healthz" 2>/dev/null; then
+    echo "The palagent isn't listening on $AGENT." >&2
+    echo "It runs as a background process, so a WSL restart or reboot stops it." >&2
+    echo "Start the stack with:  $0 up" >&2
+    exit 1
+  fi
+}
 
 login() {
   mkdir -p "$RUN_DIR"
@@ -110,10 +128,11 @@ up)
   echo "    next      : $0 start"
   ;;
 
-start) agent_curl -X POST "$AGENT/v1/power/start" | python3 -m json.tool ;;
-stop)  agent_curl -X POST "$AGENT/v1/power/stop"  | python3 -m json.tool ;;
+start) require_agent; agent_curl -X POST "$AGENT/v1/power/start" | python3 -m json.tool ;;
+stop)  require_agent; agent_curl -X POST "$AGENT/v1/power/stop"  | python3 -m json.tool ;;
 
 status)
+  require_agent
   login
   echo "--- agent health ---"; agent_curl "$AGENT/v1/health" | python3 -m json.tool
   echo "--- info ---";    api "$BASE/api/servers/1/info"
@@ -122,6 +141,7 @@ status)
   ;;
 
 logs)
+  require_agent
   agent_curl "$AGENT/v1/power/logs?tail=${2:-40}" |
     python3 -c 'import json,sys;[print(l) for l in json.load(sys.stdin)["lines"]]'
   ;;

@@ -71,8 +71,10 @@ aren't assumptions:
    `internal/games/dragonwilds/testdata/world-empty.sav`.
 2. **The game does not save on shutdown.** Clean stop is ~2 s, exit 143,
    world file byte-identical. Autosave is a CVar
-   (`dom.StateSaveFrequencyMins:5`), not an ini key. Every restart can lose
-   progress — the UI says so, and it must keep saying so.
+   (`dom.StateSaveFrequencyMins:5`), not an ini key, and was observed
+   firing exactly five minutes after a world-load save on an idle server.
+   So a restart costs up to ~5 minutes of play — the UI says so, and it
+   must keep saying so.
 3. **`OwnerId` is required to boot but not validated.** The server refuses
    to start with it empty, yet boots happily on the literal string
    `test123`. So never reject an id for failing the shape.
@@ -81,8 +83,9 @@ aren't assumptions:
    (`ServerGuid`, `WorldSaveGuid`). `CanonicalUID` folds case for
    `^[0-9a-fA-F]{32}$` and only trims anything else. Getting this wrong
    fails *open* on visibility checks.
-5. **An idle server logs nothing at all** — for ten minutes straight.
-   Liveness must never be inferred from log activity.
+5. **An idle server logs almost nothing** — an EOS session heartbeat every
+   ~30 s and an autosave every 5 min, and that is all. Liveness must never
+   be inferred from log activity.
 6. **`RSDragonwildsServer.sh` is only a wrapper.** Killing it leaves the
    binary running; signals go to the process group.
 7. **Steam and Epic both work.** The binary links both SDKs and EOS
@@ -99,8 +102,8 @@ produce them:
    list may show nothing even when people are online. Highest-value gap.
 2. **Where bans live on disk** — decides whether offline ban/unban can be
    a file edit or stays in-game only.
-3. **The autosave trigger** — whether the 5-minute CVar is wall-clock once
-   players are present.
+3. **Autosave with players present** — the 5-minute interval is confirmed
+   idle; whether activity changes it is untested.
 4. **Whether a second well-known UDP port opens.** Idle, the server binds
    only 7777 plus an *ephemeral* port — never the 7778 the sources claim.
    Provisioning still reserves the pair defensively; the docs no longer
