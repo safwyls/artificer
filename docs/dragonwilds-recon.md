@@ -53,7 +53,11 @@ UNVERIFIED are the gaps a headless server cannot close.
 
 ### Player identity
 - A player's id is shown in-game at Settings → bottom-left "My Player ID"
-  (copy button). **The wire format is undocumented — no source shows a real
+  (copy button). **This is platform-agnostic**: the game links both
+  `libsteam_api.so` and `libEOSSDK-Linux-Shipping.so`, and EOS treats Steam
+  as a login provider, so a Steam player has an EOS-backed id and does not
+  need a separate Epic account. Whatever that screen shows is the value
+  `OwnerId` wants. **The wire format is undocumented — no source shows a real
   value.** UNVERIFIED. Consequence: `CanonicalUID` is a trim-only identity
   function for now; no case-folding or reformatting until we've captured real
   ids from a live server (the plan's fail-open warning applies — an invented
@@ -222,7 +226,8 @@ asserted against in tests. Newly discovered, previously NOT FOUND:
 - refusal banner (not UE-formatted) when `OwnerId` is empty.
 
 **Still open:** join and leave lines. Producing them needs real game
-clients (paid game, Epic account, a GUI machine), so the two community
+clients (the paid game on a machine that can run it — Steam or Epic, since
+Steam logins are federated into EOS), so the two community
 markers `dwlog` matches remain unverified — the one part of the parser
 still resting on someone else's report.
 
