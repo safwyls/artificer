@@ -32,7 +32,7 @@ func trackerFor(agentURL string) *dwlog.Tracker {
 	defer trackersMu.Unlock()
 	t, ok := trackers[agentURL]
 	if !ok {
-		t = dwlog.NewTracker(dwlog.RulesV0)
+		t = dwlog.NewTracker(dwlog.RulesV1)
 		trackers[agentURL] = t
 	}
 	return t
@@ -111,11 +111,12 @@ func (c *Client) Info(ctx context.Context) (*game.ServerInfo, error) {
 	}, nil
 }
 
-// Players is the log-derived session list. v0 identity is the player name
-// for all three id fields — the only identity the verified log lines carry.
-// The collector keys sessions by UserID, so it must be stable and unique
-// per player, which names are on a six-slot friends server; real ids take
-// over when a log corpus provides them (recon: open gate 1).
+// Players is the log-derived session list. With the v1 rules the log lines
+// carry the real player id, which becomes PlayerUID/UserID in canonical
+// spelling so it matches ids from any other source (ini KnownPlayerList,
+// save data). A session without an id — v0 rules, or a line that only
+// named the player — falls back to the name, which is stable and unique in
+// practice on a six-slot friends server.
 func (c *Client) Players(ctx context.Context) ([]game.Player, error) {
 	st, err := c.refresh(ctx)
 	if err != nil {
@@ -127,10 +128,14 @@ func (c *Client) Players(ctx context.Context) ([]game.Player, error) {
 	sessions := c.tracker.Sessions()
 	players := make([]game.Player, 0, len(sessions))
 	for _, s := range sessions {
+		uid := s.Name
+		if s.ID != "" {
+			uid = CanonicalUID(s.ID)
+		}
 		players = append(players, game.Player{
 			Name:      s.Name,
-			PlayerUID: s.Name,
-			UserID:    s.Name,
+			PlayerUID: uid,
+			UserID:    uid,
 		})
 	}
 	return players, nil

@@ -101,25 +101,36 @@ aren't assumptions:
    federates Steam logins, so "Epic auth" does not mean "needs an Epic
    account".
 
-## Still unknown, and why
+## A real client joined (2026-08-09), and most gaps closed
 
-All four need **a player actually in the world** — a headless server cannot
-produce them:
+A player joined and left the local server. What that settled (details in
+the recon doc's "Closed 2026-08-09" section):
 
-1. **Join/leave log lines.** The last regexes in `dwlog` resting on
-   community report rather than observation. Consequence: the Adventurers
-   list may show nothing even when people are online. Highest-value gap.
-2. **Where bans live on disk** — decides whether offline ban/unban can be
-   a file edit or stays in-game only.
-3. **Autosave with players present** — the 5-minute interval is confirmed
-   idle; whether activity changes it is untested.
-4. **Whether a second well-known UDP port opens.** Idle, the server binds
-   only 7777 plus an *ephemeral* port — never the 7778 the sources claim.
-   Provisioning still reserves the pair defensively; the docs no longer
-   state it as fact.
+1. **Join/leave lines: verified.** `dwlog` RulesV1 is written from the
+   capture (committed corpus with synthetic ids), keys sessions by the
+   real player id, and the Adventurers list now carries real ids through
+   `CanonicalUID`.
+2. **Bans: located.** The ini's `KnownPlayerList` holds id, name,
+   privileges and a `bIsBanned` flag per known player. Whether the server
+   honors a hand-edited flag is still untested.
+3. **A leave writes state** — `PlayerStateSave result[true]` plus a world
+   save at the same instant. The autosave *interval* under activity is
+   still unmeasured.
+4. **Player state in the save is JSON** (char record keyed by a character
+   guid; the EOS id appears nowhere in the save, so identity always routes
+   through log/ini). A played world save exists at
+   `~/dwtest/server/.../World-75058.sav` for the deeper-parse work; it is
+   deliberately not committed since it holds the maintainer's real ids.
 
-Capture them by getting a client connected and running
-`./scripts/dev-local.sh logs 200`.
+Still open: the second UDP port question, ban *enforcement*, chat lines.
+
+## Phase 4 is unblocked: UE4SS runs under Wine
+
+Tested end to end on this box (recon doc, "Phase 4 unblocked"): the
+Windows server build runs headless under plain Wine 11, the UE4SS nightly
+injects via a `version.dll` shim (`tools/ue4ss-wine-shim/` — the server
+imports no dwmapi, on any OS), its scanner handles UE 5.6.1, and a Lua
+probe reached the live GameMode. dwbridge is now a mod-authoring task.
 
 ## Running it locally
 
@@ -143,20 +154,23 @@ reports "needs to be online" and gives up.
 **A Windows game client cannot reach this server at `127.0.0.1`.** WSL2 in
 default NAT mode forwards TCP only, and the game is UDP. Either set
 `networkingMode=mirrored` in `C:\Users\<user>\.wslconfig` and
-`wsl --shutdown`, or install the Windows depot (`4019831`) natively. This
-is unresolved and is what currently blocks closing the four gaps above.
+`wsl --shutdown`, or install the Windows depot (`4019831`) natively.
+(A client **did** join on 2026-08-09 — see above — so this was overcome
+at least once; the note stays for whoever hits it fresh.)
 
 ## Suggested next steps
 
-1. **Get a client connected** (see above) and capture join/leave lines.
-   Everything else about the player list is blocked on this.
-2. **Deepen the save reader if it earns it.** Phase 3 shipped as world
-   metadata: `dwsave` implements `savecache.Source`, the refresher warms
-   it, `GET /servers/{id}/world` serves it, and the Saves page shows the
-   world panel. Player/inventory state lives in the GLOB/LVLS property
-   chunks `dwsave` inventories but does not decode — worth attempting only
-   once a real client has written player data into a save to verify
-   against (same blocker as the log lines).
+1. **The dwbridge mod itself.** The platform risk is retired (UE4SS runs
+   under Wine, Lua reaches the GameMode); what remains is designing the
+   mod — command surface (broadcast/kick/ban/save/shutdown), an IPC the
+   agent can call (localhost HTTP from Lua, or a command file), and a
+   palagent launch profile for wine + the Windows build. Pin the UE4SS
+   nightly that works; expect churn at 1.0.
+2. **Deepen the save reader.** Now unblocked for real: a played world
+   save exists locally, and player state turns out to be JSON embedded in
+   SPUD properties — find the property values, `json.Unmarshal`, done.
+   Keyed by char guid, not EOS id, so the roster still routes identity
+   through dwlog/ini.
 3. ~~Build both images before deploying to the NAS.~~ **Done, and the
    doubt was warranted.** Both images now build (first fix: FROM
    references needed registry qualification — podman-style engines

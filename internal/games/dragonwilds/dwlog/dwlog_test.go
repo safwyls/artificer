@@ -166,3 +166,77 @@ func TestRealCaptureLeavesNoPhantomPlayers(t *testing.T) {
 		t.Errorf("LastSave = (%v, %q), want the capture's save", at, slot)
 	}
 }
+
+// TestRulesV1AgainstPlayerCapture replays the real player-session capture
+// (shapes real, ids and names synthetic — see the file header comment in
+// dwlog.go). The full replay must end empty; stopping before the leave
+// lines must show exactly one session carrying the real id.
+func TestRulesV1AgainstPlayerCapture(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "player-session.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(data), "\n")
+
+	// Find where the disconnect sequence starts.
+	leaveAt := -1
+	for i, line := range lines {
+		if strings.Contains(line, "ClientRequestDisconnect") {
+			leaveAt = i
+			break
+		}
+	}
+	if leaveAt < 0 {
+		t.Fatal("capture has no disconnect line")
+	}
+
+	tr := NewTracker(RulesV1)
+	tr.Update(t0, lines[:leaveAt])
+	sessions := tr.Sessions()
+	if len(sessions) != 1 {
+		t.Fatalf("mid-session: %d session(s): %+v", len(sessions), sessions)
+	}
+	if sessions[0].Name != "Bramblejaw" || sessions[0].ID != "0123456789abcdef0123456789abcdef" {
+		t.Errorf("session = %+v, want the capture's id and name", sessions[0])
+	}
+	at, slot := tr.LastSave()
+	if at.IsZero() || slot != "World-75058" {
+		t.Errorf("LastSave = (%v, %q)", at, slot)
+	}
+
+	tr2 := NewTracker(RulesV1)
+	tr2.Update(t0, lines)
+	if got := tr2.Sessions(); len(got) != 0 {
+		t.Errorf("full replay left %d session(s): %+v", len(got), got)
+	}
+}
+
+// TestRulesV1JoinNotDoubled: the capture emits both "Player ADDED" and
+// "Join succeeded" for one join, 1 ms apart. v1 must produce one session,
+// keyed by id, not one per pattern.
+func TestRulesV1JoinNotDoubled(t *testing.T) {
+	tr := NewTracker(RulesV1)
+	tr.Update(t0, []string{
+		"[x][5]LogDomMatcherSession: Player ADDED to session [aaaa000000000000000000000000aaaa]-[Vexmarrow]",
+		"[x][5]LogNet: Join succeeded: Vexmarrow",
+	})
+	sessions := tr.Sessions()
+	if len(sessions) != 1 || sessions[0].ID != "aaaa000000000000000000000000aaaa" {
+		t.Fatalf("sessions = %+v, want exactly one keyed by id", sessions)
+	}
+}
+
+// TestRulesV1DisconnectAloneCloses: a crash path might emit the
+// ClientRequestDisconnect shape without the Removed line. Its Account id
+// (platform-tagged "XP:<id>") must land on the same key the ADDED line
+// opened.
+func TestRulesV1DisconnectAloneCloses(t *testing.T) {
+	tr := NewTracker(RulesV1)
+	tr.Update(t0, []string{
+		"[x][5]LogDomMatcherSession: Player ADDED to session [aaaa000000000000000000000000aaaa]-[Vexmarrow]",
+		"[x][9]LogDominionPlayerController: ClientRequestDisconnect : DisconnectMe : PlayerStateSave result[true] - state saved for Account[XP:aaaa000000000000000000000000aaaa] Character Name[Vexmarrow] Guid[DCG:BBBB000000000000000000000000BBBB] Type[0]",
+	})
+	if got := tr.Sessions(); len(got) != 0 {
+		t.Fatalf("sessions = %+v, want none after disconnect", got)
+	}
+}

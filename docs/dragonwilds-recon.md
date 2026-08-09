@@ -24,9 +24,10 @@ UNVERIFIED are the gaps a headless server cannot close.
   `RSDragonwilds/Binaries/Linux/RSDragonwildsServer-Linux-Shipping`, run as
   `./RSDragonwildsServer-Linux-Shipping RSDragonwilds -log -Port=<port>`.
   This resolves the plan's Win64-vs-Linux ambiguity for the *base* server:
-  **run native Linux**. The Win64-under-Proton route is only needed if/when
+  **run native Linux**. The Win64-under-Wine route is only needed if/when
   the UE4SS command bridge (Phase 4) happens, because UE4SS is Win64-only in
-  practice (no usable Linux port for this game).
+  practice (no usable Linux port for this game) — and that route is now
+  **proven to work**; see "Phase 4 unblocked" below.
 - Current game version 0.12.1.4 (2026-08-05). Community sources expect a 1.0
   launch 2026-09-15 — assume format churn around it.
 
@@ -89,14 +90,24 @@ UNVERIFIED are the gaps a headless server cannot close.
   players):
   - join: lines containing `LogNet: Join succeeded:`
   - leave: lines containing `LogDominionPlayerController: ClientRequestDisconnect`
-- **The full line shapes (name/id fields, timestamps) are UNVERIFIED** — no
-  committed corpus yet. Consequence: `dwlog`'s v0 parser table matches the two
-  markers above and extracts a trailing player name where present, is
-  versioned so a corpus can replace it wholesale, and treats every unmatched
-  line as noise. The tests use synthetic lines built from the two verified
-  markers, declared as constants and labelled as such; a real capture
-  should replace them with committed fixtures (plan §2.3 still stands).
-- Autosave and chat log formats: NOT FOUND. No save/chat events in v0.
+- **Line shapes now VERIFIED against a real join/leave** (2026-08-09, a
+  client on this LAN; see the closed gate below). The best lines are the
+  session pair, which carry the player id and name symmetrically:
+  - `LogDomMatcherSession: Player ADDED to session [<32hex>]-[<name>]`
+  - `LogDomMatcherSession: Player Removed from session [<32hex>]-[<name>]`
+    (the ADDED/Removed case difference is the game's own)
+  - the disconnect line also identifies the player:
+    `ClientRequestDisconnect : DisconnectMe : PlayerStateSave result[true] -
+    state saved for Account[XP:<32hex>] Character Name[<name>]
+    Guid[DCG:<32HEX>]` — note `PlayerStateSave result[true]`: **a leave
+    writes state**, and a world `Save completed SUCCESSFULLY` fired at the
+    same instant.
+  Both v0 markers also fired ("Join succeeded" 1 ms after ADDED), so a
+  parser must not treat them as separate joins. `dwlog`'s RulesV1 is
+  written from this capture (committed corpus:
+  `dwlog/testdata/player-session.log`, real shapes with synthetic
+  ids/names) and keys sessions by the real player id.
+- Chat log format: NOT FOUND (no chat happened in the capture).
 
 ### Shutdown, bans, admin
 - Save-on-SIGTERM was unverified in the sources. **Now measured**: the
@@ -333,16 +344,76 @@ Save-file behaviour confirmed: the directory is `SaveGames` (capital G),
 the file is named for `DefaultWorldName` (`World-75058.sav`), and a fresh
 world is written once at creation.
 
-## Still open (need real game clients)
+## Closed 2026-08-09: a real client joined
 
-1. **Join/leave log lines** — the last unverified regexes in `dwlog`.
-2. **Ban list at rest** — whether offline ban/unban can be done by editing
-   a file, or stays in-game only.
-3. **Autosave with players present** — the 5-minute interval is confirmed
-   on an idle server; whether player activity changes it is untested.
-4. **Whether a second well-known UDP port opens** once a player connects
-   (only 7777 plus an ephemeral port was seen idle).
+A player joined and left the local server, which closed most of what was
+blocked on "needs a real client":
 
-All four need a player actually in the world; none can be closed from a
-headless server alone. (The Player ID gate is now closed — see "Player
-identity".)
+**Join/leave lines: closed.** The shapes are in the Logs section above and
+in `dwlog`'s committed corpus; `dwlog` RulesV1 parses them and carries the
+real player id into the player list.
+
+**Bans at rest: located, enforcement untested.** After the join,
+`DedicatedServer.ini` gained a `KnownPlayerList` entry:
+
+```
+KnownPlayerList=(UserId=<32hex lowercase>,UserName="<name>",Privileges=(PrivilegeMask=14),LastAdminPassword="",bIsBanned=False)
+```
+
+So the player roster — id, name, privileges, and a `bIsBanned` flag — is
+an ini line. That makes an offline ban *plausibly* a config edit, but
+whether the server honors a hand-set `bIsBanned=True` (and when it re-reads
+the file) is untested. The log also shows a second, EOS-side layer: on
+connect the server runs a `SanctionCheck` ("Checking to see if user has
+any BAN sanctions"), which is Epic's service, not this file. dwconfig's
+never-add-never-remove policy already preserves the KnownPlayerList line.
+
+**Player state in the world save: located.** The save now embeds a JSON
+character record — `"char_guid"` (the `DCG:` guid from the disconnect
+line), `"char_name"`, `"worlds_playtime"` keyed by the world's save GUID,
+`"SaveCount"`, `"Customization"`. The **EOS player id appears nowhere in
+the save**: the id↔character mapping lives in the ini's KnownPlayerList
+and the log lines, so save-side identity matching must route through
+those (which is what dwlog v1 + CanonicalUID provide).
+
+## Phase 4 unblocked: UE4SS runs under Wine (2026-08-09)
+
+The dwbridge feasibility chain was tested end to end on the WSL2 box and
+every link held:
+
+1. **The Windows server runs headless under plain Wine** (`wine-core`
+   11.0, no Proton, no display tricks): same app id via
+   `+@sSteamCmdForcePlatformType windows`, boots to a loaded world with
+   EOS sessions registered and heartbeating. Only noise: `LogNNERuntimeORT`
+   failing to create a D3D12 device, harmlessly.
+2. **UE4SS's stock injection does not fire — on any OS.** The server exe
+   imports no `dwmapi.dll` (checked in its PE import table; servers have
+   no window manager), so the shipped proxy never loads. `version.dll` is
+   imported, and a minimal version.dll shim that loads UE4SS from DllMain
+   works — build and usage in `tools/ue4ss-wine-shim/`, run with
+   `WINEDLLOVERRIDES="version=n,b"`.
+3. **The UE4SS nightly handles UE 5.6.1.** The 2026-08-08
+   `experimental-latest` build (v3.0.1-1021-g1c1a1497) detects Wine
+   ("local disabled due to wine"), and its pattern scan finds every core
+   signature — GUObjectArray, GMalloc, FName, StaticConstructObject,
+   ConsoleManager, GameEngineTick — in ~250 ms.
+4. **Lua mods reach live game state.** A probe mod resolved the running
+   `World` and the `BP_GameMode_C` instance from inside the server —
+   the handles a dwbridge mod would drive kick/ban/broadcast through.
+
+Phase 4 is therefore a mod-authoring task, not a platform gamble. The
+costs it brings: the game must run as the Windows build under Wine (a
+palagent launch-profile variant), and the 1.0 launch (expected
+2026-09-15) may shift signatures — pin the UE4SS build that works.
+
+## Still open
+
+1. **Autosave interval with players present** — a leave triggers a save
+   (verified), but whether activity changes the 5-minute idle cadence is
+   untested.
+2. **Whether a second well-known UDP port opens** once a player connects
+   (only 7777 plus an ephemeral port was seen idle; the join capture
+   wasn't instrumented for ports).
+3. **Ban enforcement** — does the server honor a hand-edited
+   `bIsBanned=True`, and does it re-read the ini to see it?
+4. **Chat log lines** — no chat has been captured.

@@ -63,9 +63,9 @@ func newClient(t *testing.T, url string) game.Client {
 func TestInfoAndPlayersDeriveFromAgent(t *testing.T) {
 	agent, url := newFakeAgent(t)
 	agent.set("running",
-		"[x][1]LogNet: Join succeeded: Vexmarrow",
-		"[x][2]LogNet: Join succeeded: Kaelith",
-		"[x][3]LogDominionPlayerController: ClientRequestDisconnect Kaelith",
+		"[x][1]LogDomMatcherSession: Player ADDED to session [aaaa000000000000000000000000aaaa]-[Vexmarrow]",
+		"[x][2]LogDomMatcherSession: Player ADDED to session [bbbb000000000000000000000000bbbb]-[Kaelith]",
+		"[x][3]LogDomMatcherSession: Player Removed from session [bbbb000000000000000000000000bbbb]-[Kaelith]",
 	)
 	c := newClient(t, url)
 	info, err := c.Info(context.Background())
@@ -79,7 +79,7 @@ func TestInfoAndPlayersDeriveFromAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(players) != 1 || players[0].Name != "Vexmarrow" || players[0].UserID != "Vexmarrow" {
+	if len(players) != 1 || players[0].Name != "Vexmarrow" || players[0].UserID != "aaaa000000000000000000000000aaaa" {
 		t.Fatalf("players = %+v", players)
 	}
 }
@@ -100,7 +100,7 @@ func TestStoppedProcessReadsAsUnreachableNotUnsupported(t *testing.T) {
 
 func TestTrackerSurvivesClientRebuilds(t *testing.T) {
 	agent, url := newFakeAgent(t)
-	agent.set("running", "[x][1]LogNet: Join succeeded: Vexmarrow")
+	agent.set("running", "[x][1]LogDomMatcherSession: Player ADDED to session [aaaa000000000000000000000000aaaa]-[Vexmarrow]")
 	if _, err := newClient(t, url).Players(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestTrackerSurvivesClientRebuilds(t *testing.T) {
 
 func TestRestartResetsSessions(t *testing.T) {
 	agent, url := newFakeAgent(t)
-	agent.set("running", "[x][1]LogNet: Join succeeded: Vexmarrow")
+	agent.set("running", "[x][1]LogDomMatcherSession: Player ADDED to session [aaaa000000000000000000000000aaaa]-[Vexmarrow]")
 	c := newClient(t, url)
 	if _, err := c.Players(context.Background()); err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestCommandsReturnTypedUnsupported(t *testing.T) {
 
 func TestMetricsReportHonestSubset(t *testing.T) {
 	agent, url := newFakeAgent(t)
-	agent.set("running", "[x][1]LogNet: Join succeeded: Vexmarrow")
+	agent.set("running", "[x][1]LogDomMatcherSession: Player ADDED to session [aaaa000000000000000000000000aaaa]-[Vexmarrow]")
 	ext, ok := newClient(t, url).(game.ExtendedClient)
 	if !ok {
 		t.Fatal("client should implement ExtendedClient for metrics")

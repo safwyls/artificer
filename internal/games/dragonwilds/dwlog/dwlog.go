@@ -5,15 +5,14 @@
 // This package is a small state machine over that tail: join and leave lines
 // open and close sessions, everything else is noise by design.
 //
-// Rules are versioned tables (see RulesV0) so a game patch that changes the
+// Rules are versioned tables (see RulesV1) so a game patch that changes the
 // log format breaks one table, not the package: write the next table from a
-// fresh capture, leave the old one for older installs. The v0 markers come
-// from docs/dragonwilds-recon.md — two patterns verified in production by
-// community tooling, with the full line shapes (ids, timestamps) still
-// unverified. Consequences v0 lives with, until a committed corpus upgrades
-// it: players are keyed by name (no id appears in a verified line), and a
-// leave line is attributed by searching it for a tracked name — one that
-// names nobody we know closes nothing rather than guessing.
+// fresh capture, leave the old one for older installs. v0 was written from
+// community report before any real player had joined; v1 is written from a
+// real capture (2026-08-09, game 0.12.1.4 / UE 5.6.1) of a client joining
+// and leaving, whose lines carry both the player id and the name. The
+// committed corpus keeps the real line shapes with synthetic ids and names
+// substituted in — real player ids never enter the repo.
 //
 // The tracker never accumulates across process lifetimes: a changed process
 // start time resets it, because the server loads a world fresh and every
@@ -30,19 +29,27 @@ import (
 // Rules is one version of the log vocabulary. Matchers work on raw lines and
 // return ok=false for lines that are not theirs; no rule failure is ever
 // fatal to the tracker.
+// Event is one player identified by a log line. ID is the 32-hex EOS
+// ProductUserId when the line carries one, empty when it doesn't; Name is
+// the display name. Either may be empty, not both.
+type Event struct {
+	ID   string
+	Name string
+}
+
 type Rules struct {
 	// Version names the capture this table was written against.
 	Version string
-	// Join returns the joining player's name.
-	Join func(line string) (name string, ok bool)
-	// Leave reports that a line is a disconnect. The name is best-effort:
-	// empty means the line doesn't identify the player in a form this table
-	// understands, and the tracker will try to attribute it to a tracked
-	// name appearing in the line.
-	Leave func(line string) (name string, ok bool)
+	// Join returns the joining player.
+	Join func(line string) (Event, bool)
+	// Leave reports that a line is a disconnect. The event is best-effort:
+	// an empty one means the line doesn't identify the player in a form
+	// this table understands, and the tracker will try to attribute it to
+	// a tracked name appearing in the line.
+	Leave func(line string) (Event, bool)
 	// Save reports that the world was written to disk, returning the slot
-	// (world) name. Unlike join/leave this one is verified against a real
-	// capture — see testdata/server-lifecycle.log.
+	// (world) name. Verified against a real capture in both tables — see
+	// testdata/server-lifecycle.log.
 	Save func(line string) (slot string, ok bool)
 }
 
@@ -60,48 +67,153 @@ const (
 
 // RulesV0 is written against game 0.12.1.4 community captures, not a corpus
 // of our own. The join name is everything after the marker; the leave line
-// is assumed not to carry a name in a known position.
+// is assumed not to carry a name in a known position. Kept for older
+// installs; the real capture behind v1 confirmed both markers do occur.
 var RulesV0 = Rules{
 	Version: "v0-community-0.12",
-	Join: func(line string) (string, bool) {
+	Join: func(line string) (Event, bool) {
 		i := strings.Index(line, joinMarkerV0)
 		if i < 0 {
-			return "", false
+			return Event{}, false
 		}
 		name := strings.TrimSpace(line[i+len(joinMarkerV0):])
 		if name == "" {
-			return "", false
+			return Event{}, false
 		}
-		return name, true
+		return Event{Name: name}, true
 	},
-	Leave: func(line string) (string, bool) {
+	Leave: func(line string) (Event, bool) {
 		if !strings.Contains(line, leaveMarkerV0) {
-			return "", false
+			return Event{}, false
 		}
-		return "", true
+		return Event{}, true
 	},
-	Save: func(line string) (string, bool) {
-		i := strings.Index(line, saveMarkerV0)
-		if i < 0 {
-			return "", false
-		}
-		rest := line[i+len(saveMarkerV0):]
-		end := strings.IndexByte(rest, ')')
-		if end < 0 {
-			return "", false
-		}
-		return strings.TrimSpace(rest[:end]), true
-	},
+	Save: saveV0,
 }
 
-// Session is one tracked player. Name doubles as the identity until a
-// verified log line yields a real player id — the collector needs *some*
-// stable key per player, and on a 6-player friends server names are unique
-// in practice. SeenAt is when this tracker first saw the join line, which is
-// poll-time coarse; the log's own timestamps are not parsed in v0.
+func saveV0(line string) (string, bool) {
+	i := strings.Index(line, saveMarkerV0)
+	if i < 0 {
+		return "", false
+	}
+	rest := line[i+len(saveMarkerV0):]
+	end := strings.IndexByte(rest, ')')
+	if end < 0 {
+		return "", false
+	}
+	return strings.TrimSpace(rest[:end]), true
+}
+
+// v1 markers, from a real capture of a client joining and leaving
+// (2026-08-09, game 0.12.1.4 / UE 5.6.1). The session lines carry the
+// player id and name symmetrically:
+//
+//	LogDomMatcherSession: Player ADDED to session [<32hex>]-[<name>]
+//	LogDomMatcherSession: Player Removed from session [<32hex>]-[<name>]
+//
+// The ADDED/Removed case difference is the game's own. The v0 markers both
+// fired in the same capture — "Join succeeded" one millisecond after ADDED,
+// ClientRequestDisconnect just before Removed — so v1's Join matches only
+// ADDED (a second join pattern would double-add a player under a second
+// key), while its Leave also understands the disconnect line
+// (Account[XP:<id>] ... Character Name[<name>]) because leave deletes are
+// idempotent and a crash path might emit one shape without the other.
+const (
+	joinMarkerV1   = "LogDomMatcherSession: Player ADDED to session ["
+	leaveMarkerV1  = "LogDomMatcherSession: Player Removed from session ["
+	leaveAccount   = "Account["
+	leaveCharacter = "Character Name["
+)
+
+// sessionPair parses "<id>]-[<name>]" — the text following a v1 session
+// marker (which itself ends at the opening bracket).
+func sessionPair(rest string) (Event, bool) {
+	sep := strings.Index(rest, "]-[")
+	if sep < 0 {
+		return Event{}, false
+	}
+	end := strings.LastIndexByte(rest, ']')
+	if end <= sep+2 {
+		return Event{}, false
+	}
+	ev := Event{ID: rest[:sep], Name: rest[sep+3 : end]}
+	if ev.ID == "" && ev.Name == "" {
+		return Event{}, false
+	}
+	return ev, true
+}
+
+// bracketed returns the text inside the first "<label>...]" after label,
+// e.g. bracketed(line, "Character Name[") on the disconnect line.
+func bracketed(line, label string) string {
+	i := strings.Index(line, label)
+	if i < 0 {
+		return ""
+	}
+	rest := line[i+len(label):]
+	end := strings.IndexByte(rest, ']')
+	if end < 0 {
+		return ""
+	}
+	return rest[:end]
+}
+
+// RulesV1 is written from testdata/player-session.log — a real capture with
+// synthetic ids and names substituted in (real player ids stay out of the
+// repo). It keys players by their real id, which is what makes save-side
+// matching via CanonicalUID possible at all.
+var RulesV1 = Rules{
+	Version: "v1-capture-0.12",
+	Join: func(line string) (Event, bool) {
+		i := strings.Index(line, joinMarkerV1)
+		if i < 0 {
+			return Event{}, false
+		}
+		return sessionPair(line[i+len(joinMarkerV1):])
+	},
+	Leave: func(line string) (Event, bool) {
+		if i := strings.Index(line, leaveMarkerV1); i >= 0 {
+			if ev, ok := sessionPair(line[i+len(leaveMarkerV1):]); ok {
+				return ev, true
+			}
+			return Event{}, true
+		}
+		if strings.Contains(line, leaveMarkerV0) {
+			ev := Event{Name: bracketed(line, leaveCharacter)}
+			// The account id is written platform-tagged ("XP:<id>");
+			// the tag is not part of the id the session lines use.
+			if acct := bracketed(line, leaveAccount); acct != "" {
+				if colon := strings.LastIndexByte(acct, ':'); colon >= 0 {
+					acct = acct[colon+1:]
+				}
+				ev.ID = acct
+			}
+			return ev, true
+		}
+		return Event{}, false
+	},
+	Save: saveV0,
+}
+
+// Session is one tracked player. ID is the player id when the rules table
+// extracted one (v1 always does; v0 never can) — empty means Name doubles
+// as the identity, which is unique in practice on a 6-player friends
+// server. SeenAt is when this tracker first saw the join line, which is
+// poll-time coarse; the log's own timestamps are not parsed.
 type Session struct {
+	ID     string
 	Name   string
 	SeenAt time.Time
+}
+
+// key is what sessions are stored under: the id when there is one, the
+// name otherwise. Join and leave lines for the same player must land on
+// the same key, which v1's symmetric id-carrying lines guarantee.
+func (e Event) key() string {
+	if e.ID != "" {
+		return e.ID
+	}
+	return e.Name
 }
 
 // Tracker holds the derived player state for one server process.
@@ -166,9 +278,11 @@ func (t *Tracker) Update(startedAt time.Time, tail []string) {
 }
 
 func (t *Tracker) apply(line string, now time.Time) {
-	if name, ok := t.rules.Join(line); ok {
-		if _, tracked := t.sessions[name]; !tracked {
-			t.sessions[name] = Session{Name: name, SeenAt: now}
+	if ev, ok := t.rules.Join(line); ok {
+		if key := ev.key(); key != "" {
+			if _, tracked := t.sessions[key]; !tracked {
+				t.sessions[key] = Session{ID: ev.ID, Name: ev.Name, SeenAt: now}
+			}
 		}
 		return
 	}
@@ -176,12 +290,15 @@ func (t *Tracker) apply(line string, now time.Time) {
 		t.lastSave, t.lastSaveSlot = now, slot
 		return
 	}
-	if name, ok := t.rules.Leave(line); ok {
-		if name == "" {
-			name = t.attribute(line)
+	if ev, ok := t.rules.Leave(line); ok {
+		key := ev.key()
+		if _, tracked := t.sessions[key]; !tracked {
+			// The line's own identification missed (or names a player we
+			// never saw join): fall back to searching it for a tracked name.
+			key = t.attribute(line)
 		}
-		if name != "" {
-			delete(t.sessions, name)
+		if key != "" {
+			delete(t.sessions, key)
 		}
 		// An unattributable leave closes nothing: a phantom entry in the
 		// player list is a visible, recoverable error (it clears on the next
@@ -191,17 +308,20 @@ func (t *Tracker) apply(line string, now time.Time) {
 	}
 }
 
-// attribute finds the tracked name a leave line mentions, longest name first
-// so "Bram" never claims a line about "Bramblejaw".
+// attribute finds the tracked player a leave line mentions by name, longest
+// name first so "Bram" never claims a line about "Bramblejaw". Returns the
+// session key.
 func (t *Tracker) attribute(line string) string {
-	names := make([]string, 0, len(t.sessions))
-	for name := range t.sessions {
-		names = append(names, name)
+	keys := make([]string, 0, len(t.sessions))
+	for key := range t.sessions {
+		keys = append(keys, key)
 	}
-	sort.Slice(names, func(i, j int) bool { return len(names[i]) > len(names[j]) })
-	for _, name := range names {
-		if strings.Contains(line, name) {
-			return name
+	sort.Slice(keys, func(i, j int) bool {
+		return len(t.sessions[keys[i]].Name) > len(t.sessions[keys[j]].Name)
+	})
+	for _, key := range keys {
+		if name := t.sessions[key].Name; name != "" && strings.Contains(line, name) {
+			return key
 		}
 	}
 	return ""
