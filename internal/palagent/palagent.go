@@ -54,10 +54,11 @@ const APIVersion = 3
 // duplication cannot drift.
 const DefaultAppID = 4019830
 
-// DefaultGamePort is the UDP port the game binds by default. The server
-// also uses the port immediately above it, so a deployment publishing
-// these must reserve the pair (docs/dragonwilds-recon.md, "Steam /
-// install").
+// DefaultGamePort is the UDP port the game binds by default. Deployments
+// reserve this and the port above it as a pair: sources describe the
+// server as using both, though only this one plus an ephemeral port was
+// observed in testing, so the neighbour is reserved defensively
+// (docs/dragonwilds-recon.md, "Port binding does not match the sources").
 const DefaultGamePort = 7777
 
 // minTokenLen is the floor for the shared token; the agent refuses to

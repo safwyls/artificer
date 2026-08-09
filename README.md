@@ -58,6 +58,32 @@ installs the game with SteamCMD and runs
 agent seeds the config with it on first install. The Raise-a-server wizard
 sets all of this up; `docs/sidecar-agent.md` has the reference stack.
 
+## Testing against a real server
+
+`scripts/dev-local.sh` stands the whole stack up locally — SteamCMD installs
+the game, the agent supervises it, and the dashboard drives the agent. It is
+the same shape as a real deployment on purpose: the game has no admin
+transport, so anything that bypasses the agent isn't exercising the real
+path.
+
+```sh
+./scripts/dev-local.sh install   # one-off, ~5 GB
+./scripts/dev-local.sh up        # build + start agent and dashboard
+./scripts/dev-local.sh start     # start the game
+./scripts/dev-local.sh status    # health, info, players, metrics
+./scripts/dev-local.sh down      # stop everything
+```
+
+Then open http://127.0.0.1:8080 (admin / localadmin123). To actually join
+the server from the game, set `DWDEV_OWNER_ID` to your Player ID first
+(in game: Settings, bottom-left "My Player ID") — otherwise a placeholder
+is used, which boots fine but won't make you the Owner.
+
+On Fedora, SteamCMD needs `sudo dnf install glibc.i686 libstdc++.i686` and a
+`/etc/ssl/certs/ca-certificates.crt` symlink to
+`/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem`; without them it reports
+"needs to be online" and gives up. `install` prints the exact commands.
+
 Tests: `go test ./...` and `cd web && npm test`.
 
 ## Lineage

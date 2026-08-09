@@ -226,6 +226,17 @@ clients (paid game, Epic account, a GUI machine), so the two community
 markers `dwlog` matches remain unverified — the one part of the parser
 still resting on someone else's report.
 
+**Port binding does not match the sources.** With `-Port=7777` the running
+server binds **7777/udp and one ephemeral high port** (45453 in this run) —
+*not* 7778. The "7777 + 7778" pairing is community-sourced and was not
+reproduced. Caveats: this was an idle server with no players, and the game
+uses Epic relays, so a second well-known port may only appear under
+conditions this test didn't create. Engineering stance: provisioning still
+publishes the `Port`/`Port+1` pair, because a published-but-unused port
+costs nothing while a missing one would be an obscure "players can't
+connect" bug — but the pair is defensive, not confirmed. Do not present it
+as fact.
+
 **An idle server is completely silent.** After world load it emitted no log
 lines at all for ten minutes. Liveness must come from the agent's process
 state, never from log activity — which is what the client does.

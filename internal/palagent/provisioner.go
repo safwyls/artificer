@@ -57,8 +57,9 @@ type ProvisionRequest struct {
 	WorldName  string `json:"worldName"`
 	// RunAs is uid:gid for the container ("" = image default/root).
 	RunAs string `json:"runAs"`
-	// GamePort is the published UDP port; the game also uses the port
-	// immediately above it, and both are published as a pair.
+	// GamePort is the published UDP port. The port above it is published
+	// too — sources say the server uses both; testing saw only this one
+	// plus an ephemeral port, so the neighbour is reserved defensively.
 	GamePort  int `json:"gamePort"`
 	AgentPort int `json:"agentPort"`
 }

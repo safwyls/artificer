@@ -207,10 +207,18 @@ func (s *Store) CreateServer(ctx context.Context, srv *Server) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	// Normalize onto the struct, not just into the statement: callers
+	// serialize the same struct straight back to the client, so a value
+	// fixed up only on its way to the database leaves the response
+	// disagreeing with the row it just created.
+	srv.Game = normalizeGame(srv.Game)
+	srv.GamePort = normalizeGamePort(srv.Game, srv.GamePort)
+	srv.JoinAddress = strings.TrimSpace(srv.JoinAddress)
+
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO servers (name, game, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, join_address, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		srv.Name, normalizeGame(srv.Game), srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc, normalizeGamePort(srv.Game, srv.GamePort), strings.TrimSpace(srv.JoinAddress), boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath, srv.AgentURL, agentEnc, srv.ContainerName)
+		srv.Name, srv.Game, srv.Host, srv.RCONPort, rconEnc, srv.RESTPort, restEnc, srv.GamePort, srv.JoinAddress, boolToInt(srv.UseREST), boolToInt(srv.Enabled), srv.SavePath, srv.ConfigPath, srv.InstallPath, srv.AgentURL, agentEnc, srv.ContainerName)
 	if err != nil {
 		return 0, err
 	}
