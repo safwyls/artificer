@@ -6,6 +6,7 @@ import { preloadMapTextures } from "../lib/map";
 import { ServerRail } from "./ServerRail";
 import { ServerSubNav } from "./ServerSubNav";
 import { MobileTopBar, MobileBottomRail } from "./MobileChrome";
+import { AdvisorOverlay } from "./AdvisorOverlay";
 
 /**
  * App chrome, per mocks/dashboard.html + mobile.html:
@@ -52,6 +53,10 @@ export function AppShell() {
           <MobileBottomRail servers={servers} activeServerId={activeServerId} />
         </div>
       </div>
+
+      {/* The advisor follows the active server; outside a server route it
+          falls back to the first server, so "any view" includes home. */}
+      <AdvisorOverlay serverId={activeServerId ?? servers[0]?.id ?? null} />
     </div>
   );
 }

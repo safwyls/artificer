@@ -31,6 +31,10 @@ services:
       # that socket is root-equivalent, and Palcon has no business holding
       # it. Leave unset to run without power control.
       - DOCKER_HOST=tcp://docker-proxy:2375
+      # Optional: enables the pal advisor on the Calculators page — set one
+      # (Anthropic wins if both are). Leave unset to run without it.
+      #- ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      #- GEMINI_API_KEY=${GEMINI_API_KEY}
     restart: unless-stopped
 
   # Grants exactly two things: reading container state, and POSTing

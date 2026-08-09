@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -42,7 +43,14 @@ type Server struct {
 	// Provisioner, when set (like CookieSecure, assigned after New), lets
 	// the new-server wizard deploy stacks itself via a provisioner-mode
 	// palagent instead of handing the operator a file.
-	Provisioner  *agentctl.Client
+	Provisioner *agentctl.Client
+	// The pal advisor has two possible sources, resolved in advisor():
+	// a key saved through the admin UI (uiAdvisor, encrypted in the store)
+	// wins over one from the environment (envAdvisor, set by main). Both
+	// nil means the feature is simply absent — see internal/advisor.
+	advisorMu    sync.RWMutex
+	envAdvisor   AdvisorClient
+	uiAdvisor    AdvisorClient
 	loginLimiter *loginLimiter
 }
 
@@ -88,6 +96,22 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 			r.With(s.requireAdmin).Post("/users", s.handleCreateUser)
 			r.With(s.requireAdmin).Put("/users/{userID}", s.handleUpdateUser)
 			r.With(s.requireAdmin).Delete("/users/{userID}", s.handleDeleteUser)
+
+			// Advisor key management: process-wide (the advisor is one
+			// feature, not a per-server one), admin-only, stored encrypted.
+			// A key saved here wins over one from the environment.
+			r.With(s.requireAdmin).Put("/advisor/key", s.handleSetAdvisorKey)
+			r.With(s.requireAdmin).Delete("/advisor/key", s.handleDeleteAdvisorKey)
+			r.With(s.requireAdmin).Put("/advisor/settings", s.handleSetAdvisorSettings)
+			// Change which model a saved key runs, without re-entering it.
+			r.With(s.requireAdmin).Put("/advisor/key/model", s.handleSetAdvisorKeyModel)
+			r.Put("/me/advisor-key/model", s.handleSetUserAdvisorKeyModel)
+			// A user's own key, shadowing the shared one for their requests
+			// only. Any signed-in user; scoped to their account.
+			r.Put("/me/advisor-key", s.handleSetUserAdvisorKey)
+			r.Delete("/me/advisor-key", s.handleDeleteUserAdvisorKey)
+			// Embedded project docs, for the advisor's docs-search tool.
+			r.Get("/docs", s.handleDocs)
 
 			r.Get("/servers", s.handleListServers)
 			r.With(s.requireAdmin).Post("/servers", s.handleCreateServer)
@@ -163,6 +187,10 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.Get("/metrics/history", s.handleServerMetricsHistory)
 				r.Get("/pals", s.handleServerPals)
 				r.Get("/guilds", s.handleServerGuilds)
+				// Pal advisor chat (Claude-backed). GET says whether the
+				// process has a key at all; POST answers one question.
+				r.Get("/advisor", s.handleAdvisorStatus)
+				r.Post("/advisor", s.handleAdvisorChat)
 				r.Get("/inventory", s.handleServerInventory)
 				r.Get("/storage", s.handleServerStorage)
 				r.Get("/achievements", s.handleServerAchievements)

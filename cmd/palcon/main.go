@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/safwyls/palcon/internal/advisor"
 	"github.com/safwyls/palcon/internal/agentctl"
 	"github.com/safwyls/palcon/internal/agentfiles"
 	"github.com/safwyls/palcon/internal/api"
@@ -129,6 +130,29 @@ func run(logger *slog.Logger) error {
 
 	apiServer := api.New(st, cfg.JWTSecret, logger, palReader, docker, notifier, backups, files)
 	apiServer.CookieSecure = cfg.CookieSecure
+	// Optional: the pal advisor rides whichever model key is set, Anthropic
+	// first when both are — a deterministic pick beats erroring on a config
+	// most operators set by copying one line from .env.example.
+	switch {
+	case cfg.AnthropicAPIKey != "":
+		apiServer.SetEnvAdvisor(advisor.NewClaude(cfg.AnthropicAPIKey, ""))
+		logger.Info("pal advisor enabled", "provider", "anthropic", "source", "env")
+	case cfg.GeminiAPIKey != "":
+		gem, err := advisor.NewGemini(ctx, cfg.GeminiAPIKey, "")
+		if err != nil {
+			return fmt.Errorf("configuring gemini advisor: %w", err)
+		}
+		apiServer.SetEnvAdvisor(gem)
+		logger.Info("pal advisor enabled", "provider", "gemini", "source", "env")
+	}
+	// A key saved through the admin UI wins over the environment. Unusable
+	// (rotated ENCRYPTION_KEY, say) is a warning, not a startup failure —
+	// the admin can paste a fresh key without touching the host.
+	if provider, err := apiServer.LoadStoredAdvisor(ctx); err != nil {
+		logger.Warn("stored advisor key unusable", "error", err)
+	} else if provider != "" {
+		logger.Info("pal advisor enabled", "provider", provider, "source", "ui")
+	}
 	// Optional one-click provisioning (docs/sidecar-agent.md phase 5).
 	if cfg.ProvisionerURL != "" {
 		provisioner, err := agentctl.New(cfg.ProvisionerURL, cfg.ProvisionerToken)

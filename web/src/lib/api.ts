@@ -602,6 +602,76 @@ export interface PalsResult {
   saveModTime: string;
 }
 
+/** The model asking the browser to run one calculator tool. `signature` is
+ * provider bookkeeping (Gemini's thought signature, base64) that must ride
+ * the round trip untouched — echo the whole object back verbatim. */
+export interface AdvisorToolCall {
+  id?: string;
+  name: string;
+  args: Record<string, unknown>;
+  signature?: string;
+}
+
+/** The browser's answer to one tool call. */
+export interface AdvisorToolResult {
+  id?: string;
+  name: string;
+  content: string;
+}
+
+/** A browser-implemented tool the model may call — defined next to the code
+ * that executes it (lib/advisor-tools.ts) and forwarded by the server. */
+export interface AdvisorTool {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+/** One turn of a pal-advisor conversation. The browser resends the whole
+ * conversation with each question — the server keeps no chat state. Tool
+ * turns exist because the calculators run here in the browser: an assistant
+ * turn may carry the model's tool calls, answered by a "tool" turn. */
+export interface AdvisorMessage {
+  role: "user" | "assistant" | "tool";
+  content?: string;
+  toolCalls?: AdvisorToolCall[];
+  toolResults?: AdvisorToolResult[];
+}
+
+/** One model turn: a final reply, or tool calls to execute and re-submit
+ * (content then carries any preamble the model wrote before calling). */
+export interface AdvisorChatResponse {
+  reply?: string;
+  content?: string;
+  toolCalls?: AdvisorToolCall[];
+}
+
+/** Whether the advisor is available for THIS user, whose API answers their
+ * questions, where that key came from (their personal key shadows the
+ * shared one), and whether they may manage the shared key. The key itself
+ * is never in any payload. */
+/** One model a key's owner may pick. The list is served by the server so
+ * the picker can never offer a model the server would reject. */
+export interface AdvisorModelOption {
+  id: string;
+  label: string;
+}
+
+export interface AdvisorStatus {
+  enabled: boolean;
+  provider: string;
+  /** The resolved model THIS user's questions run on. */
+  model: string;
+  source: "env" | "ui" | "personal" | "";
+  canConfigure: boolean;
+  hasPersonalKey: boolean;
+  /** How many tool round-trips one question may take — the chat loop runs
+   * in the browser, so the server hands the cap over. Admin-tunable. */
+  maxToolRounds: number;
+  /** Valid model choices per provider; first entry is the default. */
+  modelOptions: Record<string, AdvisorModelOption[]>;
+}
+
 export interface InventoryResult {
   players: PlayerInventory[];
   parsedAt: string;
@@ -853,6 +923,38 @@ export const api = {
   // it is the location of chests nobody has opened yet.
   serverStorage: (id: number, world = false) =>
     request<StorageResult>(`/servers/${id}/storage${world ? "?world=1" : ""}`),
+  // Pal advisor (hosted-model chat). GET says whether the process holds a
+  // model API key at all and which provider it is; POST answers one
+  // question. The context is the JSON summary lib/advisor.ts builds from
+  // the same /pals payload the calculators render — the server adds the
+  // prompt, never the data.
+  advisorStatus: (id: number) => request<AdvisorStatus>(`/servers/${id}/advisor`),
+  advisorChat: (id: number, context: string, messages: AdvisorMessage[], tools: AdvisorTool[] = []) =>
+    request<AdvisorChatResponse>(`/servers/${id}/advisor`, {
+      method: "POST",
+      body: JSON.stringify({ context, messages, tools }),
+    }),
+  // Admin-only key management. The key is stored encrypted server-side and
+  // takes effect immediately; both calls return the fresh status.
+  setAdvisorKey: (provider: string, apiKey: string, model = "") =>
+    request<AdvisorStatus>(`/advisor/key`, { method: "PUT", body: JSON.stringify({ provider, apiKey, model }) }),
+  deleteAdvisorKey: () => request<AdvisorStatus>(`/advisor/key`, { method: "DELETE" }),
+  // The signed-in user's own key — used in place of the shared one for
+  // their requests only, stored encrypted against their account.
+  setAdvisorSettings: (maxToolRounds: number) =>
+    request<AdvisorStatus>(`/advisor/settings`, { method: "PUT", body: JSON.stringify({ maxToolRounds }) }),
+  setMyAdvisorKey: (provider: string, apiKey: string, model = "") =>
+    request<AdvisorStatus>(`/me/advisor-key`, { method: "PUT", body: JSON.stringify({ provider, apiKey, model }) }),
+  deleteMyAdvisorKey: () => request<AdvisorStatus>(`/me/advisor-key`, { method: "DELETE" }),
+  // Change which model a saved key runs, without re-entering the key.
+  setAdvisorModel: (model: string) =>
+    request<AdvisorStatus>(`/advisor/key/model`, { method: "PUT", body: JSON.stringify({ model }) }),
+  setMyAdvisorModel: (model: string) =>
+    request<AdvisorStatus>(`/me/advisor-key/model`, { method: "PUT", body: JSON.stringify({ model }) }),
+  // Embedded project docs, for the advisor's docs-search tool. One blob,
+  // cached by the tool for the session — it changes only with the binary.
+  docs: () => request<{ docs: { name: string; content: string }[] }>(`/docs`),
+
   serverVisibility: (id: number) => request<VisibilityResult>(`/servers/${id}/visibility`),
   updateServerVisibility: (id: number, input: VisibilityInput) =>
     request<void>(`/servers/${id}/visibility`, { method: "PUT", body: JSON.stringify(input) }),

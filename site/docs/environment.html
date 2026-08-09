@@ -120,6 +120,8 @@ file. Two of them are secrets you should treat as part of your backup.</p>
   <tr><td><code>DOCKER_HOST</code></td><td>no</td><td>—</td><td>scoped socket proxy for <a href="power-control.html">power control</a>, e.g. <code>tcp://docker-proxy:2375</code>; unset disables it</td></tr>
   <tr><td><code>PROVISIONER_URL</code></td><td>no</td><td>—</td><td><a href="palagent.html#provisioner">provisioner-mode palagent</a> for one-click server creation; unset keeps the wizard's paste flow</td></tr>
   <tr><td><code>PROVISIONER_TOKEN</code></td><td>no</td><td>—</td><td>bearer token matching the provisioner's <code>PALAGENT_TOKEN</code></td></tr>
+  <tr><td><code>ANTHROPIC_API_KEY</code></td><td>no</td><td>—</td><td>enables Ask Anubis (the AI advisor) via Anthropic Claude; admins and users can also paste keys in the UI instead, stored encrypted</td></tr>
+  <tr><td><code>GEMINI_API_KEY</code></td><td>no</td><td>—</td><td>enables Ask Anubis via Google Gemini; ignored when <code>ANTHROPIC_API_KEY</code> is also set</td></tr>
 </table>
 
 <div class="callout danger"><p><b><code>ENCRYPTION_KEY</code> is unrecoverable.</b> It must be

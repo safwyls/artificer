@@ -32,7 +32,7 @@ import {
   type RouteOption,
   type StepParent,
 } from "../lib/breeding-path";
-import { computeStats, talentRating, hasCombatStats, passiveStatEffect, friendshipRank, talentTone } from "../lib/stats";
+import { computeStats, talentRating, hasCombatStats, passiveStatEffect, talentTone } from "../lib/stats";
 import { cn } from "../lib/utils";
 import { PalPortrait } from "../components/PalPortrait";
 import { PassiveBadge, PassiveTierTile } from "../components/PassiveBadge";
@@ -42,6 +42,7 @@ import { ElementIcon } from "../components/ElementIcon";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { WorkIcon } from "../components/WorkIcon";
 import { PalPicker, type PickedPal, type SavePal } from "../components/PalPicker";
+import { toSavePals } from "../lib/savepals";
 import { NumberField as NumberInput } from "../components/ui/number-field";
 import { Select } from "../components/ui/select";
 
@@ -65,52 +66,10 @@ export function ServerCalculators() {
     staleTime: 60_000,
   });
 
-  const savePals: SavePal[] | undefined = useMemo(() => {
-    if (!palsQuery.data) return undefined;
-    const out: SavePal[] = [];
-    const seen = new Set<string>();
-    for (const player of palsQuery.data.players) {
-      const buckets: [typeof player.party, string][] = [
-        [player.party, "Party"],
-        [player.palbox, "Palbox"],
-        [player.base, "At base"],
-        [player.storage ?? [], "Pal storage"],
-      ];
-      for (const [list, where] of buckets) {
-        for (const pal of list) {
-          if (seen.has(pal.instanceId)) continue;
-          seen.add(pal.instanceId);
-          // Soul upgrades come back keyed by the game's stat labels; pull the
-          // three combat ones. Rank is 1-based (1 = no condenser), so stars = rank-1.
-          const souls = pal.souls ?? {};
-          out.push({
-            key: pal.instanceId,
-            characterId: pal.characterId,
-            nickname: pal.nickname,
-            level: pal.level,
-            gender: pal.gender,
-            ivHp: pal.talentHp,
-            ivAttack: pal.talentShot,
-            ivDefense: pal.talentDefense,
-            condenser: Math.max(0, (pal.rank ?? 1) - 1),
-            souls: {
-              hp: souls["Max HP"] ?? 0,
-              attack: souls["Attack"] ?? 0,
-              defense: souls["Defense"] ?? 0,
-            },
-            passives: pal.passives ?? [],
-            isAlpha: pal.isBoss,
-            trust: friendshipRank(pal.friendship),
-            playerUid: player.uid,
-            playerName: player.nickname,
-            pal,
-            where,
-          });
-        }
-      }
-    }
-    return out;
-  }, [palsQuery.data]);
+  const savePals: SavePal[] | undefined = useMemo(
+    () => (palsQuery.data ? toSavePals(palsQuery.data.players) : undefined),
+    [palsQuery.data],
+  );
 
   const saveStatus =
     palsQuery.isLoading

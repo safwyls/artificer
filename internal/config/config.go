@@ -43,6 +43,14 @@ type Config struct {
 	// CookieSecure marks the session cookie Secure for deployments behind
 	// TLS. Off by default so plain-HTTP LAN setups keep working.
 	CookieSecure bool
+
+	// AnthropicAPIKey / GeminiAPIKey enable the pal advisor chat (hosted-
+	// model analysis of pals and base crews) — set one or the other. Both
+	// empty disables the feature entirely: like DockerHost, absent means
+	// the UI never offers it, not that it breaks. If both are set,
+	// Anthropic wins (see cmd/palcon).
+	AnthropicAPIKey string
+	GeminiAPIKey    string
 }
 
 func (c *Config) DBPath() string {
@@ -64,6 +72,8 @@ func Load() (*Config, error) {
 		// operator a file to paste.
 		ProvisionerURL:   os.Getenv("PROVISIONER_URL"),
 		ProvisionerToken: os.Getenv("PROVISIONER_TOKEN"),
+		AnthropicAPIKey:  os.Getenv("ANTHROPIC_API_KEY"),
+		GeminiAPIKey:     os.Getenv("GEMINI_API_KEY"),
 	}
 
 	cfg.CookieSecure = os.Getenv("COOKIE_SECURE") == "true" || os.Getenv("COOKIE_SECURE") == "1"

@@ -533,6 +533,13 @@ async function route_(route: string, method: string, q: URLSearchParams, body: a
 
   // --- save-file data ---
   if (route === "/servers/1/pals" || route === "/servers/1/guilds") return world();
+  // The advisor needs a server to hold keys and relay questions; the demo
+  // has neither, so the status errors and the bubble never renders (the
+  // overlay treats a failed status as "no advisor here").
+  if (route === "/servers/1/advisor" && method === "GET") throw new ApiError(404, "no advisor in the demo");
+  if (route === "/servers/1/advisor" && method === "POST") throw new ApiError(400, "advisor not configured");
+  if (route === "/advisor/key" || route === "/me/advisor-key") throw new ApiError(403, "the demo can't store keys");
+  if (route === "/docs") return { docs: [] };
   if (route === "/servers/1/inventory") return inventory();
   if (route === "/servers/1/achievements") return achievements();
   if (route === "/servers/1/storage") return storage(q.get("world") === "1");

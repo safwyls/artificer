@@ -54,6 +54,13 @@ One Go binary. Your hardware. Your data.
   And a base crew planner: the game's work-suitability sheet per base, who
   works nights, who's sick or idle, and who in the guild's boxes would do a
   job better.
+- **Ask** — Ask Anubis, an optional AI advisor that reads your server's save
+  and answers in plain language: what to condense, where souls are worth it,
+  who should cover Mining at Base 2. It calls the console's own calculators
+  for breeding and stat math, searches palcon's docs and the Palworld wiki,
+  and guesses which player it's talking to (or asks). Bring an Anthropic or
+  Google Gemini API key — pasted once into the UI, stored encrypted — or let
+  players bring their own; unset, the feature simply isn't there.
 
 The whole console is responsive and installable as a PWA, so it works as well
 from a phone as from a desk.

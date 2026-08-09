@@ -208,8 +208,47 @@ no signalling channel between the API and the loops.
 
 Optionality is wiring, not error handling: without `DOCKER_HOST` the
 `dockerctl` client is `nil` and power control is *absent*; without
-`PROVISIONER_URL` the one-click wizard degrades to handing you a stack file.
-The same nil-means-off pattern recurs at every optional edge.
+`PROVISIONER_URL` the one-click wizard degrades to handing you a stack file;
+without a model API key from any source, the advisor ("Ask Anubis" — the
+floating chat bubble on every authed view, `internal/advisor`) answers
+nobody, and its panel offers key setup instead. The same nil-means-off
+pattern recurs at every optional edge.
+
+The advisor serves Anthropic or Google behind one interface, and a key
+carries its owner's model choice — validated against a curated,
+GA-models-only list that the status endpoint also serves to the UI's
+picker, so the picker can never offer what the server would reject. Keys
+resolve per request, most specific first: a user's personal key
+(`user_advisor_keys`, one encrypted row per account, dies with it)
+shadows the shared one — their questions, their billing, invisible to
+everyone else — then an admin's UI-saved key (`app_settings`, same box as
+server credentials, never echoed back, hot-swapped without a restart),
+then the environment. The status endpoint reports each user's own view:
+whose API, and which model, their questions actually run on.
+
+The advisor also inherits the client/server data split rather than fighting
+it: every derived number (effective work levels, condenser math, stat
+estimates) and every vendored catalog lives in the browser's calculators,
+so the browser builds a compact JSON summary of what it already computed —
+from the same `/pals` payload it renders, visibility hides included — and
+sends it with each question. The Go side wraps that in the system prompt,
+injects the asking user's username from the session — so the model can
+guess which in-game player it's advising, and asks when the guess is
+ambiguous — and holds the API key, which the browser never sees.
+
+The same split shapes the advisor's tool use. The calculators are exposed
+to the model as tools (breeding outcomes, parent pairs, inheritance odds,
+stat estimates), alongside a search over these embedded docs (served once
+by `/api/docs`) and the Palworld wiki (queried from the browser through
+the Fandom API's CORS support, so the Go server never grows an
+outbound-fetch surface). Tools execute in the browser: definitions ride in
+with each request from `web/src/lib/advisor-tools.ts`, the model's calls
+come back out in the chat response, the browser runs the real calculator
+and re-submits with the results. The loop driver is the browser, bounded
+by an admin-tunable round cap; the last permitted round carries an
+answer-now note so a budget hit ends in a best-effort answer rather than
+discarded work. The server stays stateless per request, and the Go binary
+still never learns what a breeding table is.
 
 Shutdown: `signal.NotifyContext` cancels one context shared by every loop;
 the HTTP server gets 10 seconds; the collector alone is *awaited*, because
