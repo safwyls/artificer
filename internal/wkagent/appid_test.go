@@ -3,8 +3,8 @@ package wkagent_test
 import (
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/games/dragonwilds"
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/games/dragonwilds"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 // The agent spells the Steam app id out itself rather than importing the

@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/safwyls/dwcon/internal/agentctl"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/agentctl"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // agentFor builds the agentctl client for a server row. Errors collapse to

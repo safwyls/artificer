@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/dockerctl"
+	"github.com/safwyls/wildskeeper/internal/dockerctl"
 )
 
 // dockerSpy records the requests a client makes and answers with canned

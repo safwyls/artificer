@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/safwyls/dwcon/internal/game"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/game"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 var errBadServerID = errors.New("invalid server id")

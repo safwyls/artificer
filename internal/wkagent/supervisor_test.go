@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 // newSupervisorAgent builds a supervisor-mode agent whose "game" is the

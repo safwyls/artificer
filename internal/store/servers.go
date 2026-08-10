@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/safwyls/dwcon/internal/game"
+	"github.com/safwyls/wildskeeper/internal/game"
 )
 
 var ErrNotFound = errors.New("not found")

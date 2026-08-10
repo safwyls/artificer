@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // fakeInstallDir builds a Palworld install root: cache directories with

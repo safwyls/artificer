@@ -1,4 +1,4 @@
-# Wildskeeper (dwcon)
+# Wildskeeper (wildskeeper)
 
 A management console for a self-hosted **RuneScape: Dragonwilds** dedicated
 server — built on the reusable base extracted from
@@ -43,11 +43,11 @@ assumed anywhere in the code.
 
 ```sh
 cp .env.example .env && export $(cat .env | xargs)
-go run ./cmd/dwcon          # backend on :8080
+go run ./cmd/wildskeeper          # backend on :8080
 cd web && npm install && npm run dev   # frontend dev server
 ```
 
-Production: `cd web && npm run build`, then `go build ./cmd/dwcon` (the Go
+Production: `cd web && npm run build`, then `go build ./cmd/wildskeeper` (the Go
 binary embeds the bundle), or use the `Dockerfile` / `docker-compose.yml`.
 
 The game server itself runs under the `wkagent` sidecar

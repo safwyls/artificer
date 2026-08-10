@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/rcon"
-	"github.com/safwyls/dwcon/internal/rcon/rcontest"
+	"github.com/safwyls/wildskeeper/internal/rcon"
+	"github.com/safwyls/wildskeeper/internal/rcon/rcontest"
 )
 
 func TestPacketRoundTrip(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/agentfiles"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/agentfiles"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 const (

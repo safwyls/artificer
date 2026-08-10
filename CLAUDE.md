@@ -1,6 +1,6 @@
 For any UI/frontend task, always produce a written design plan (palette, type, layout, signature) and self-critique it against generic AI-design defaults before writing code — per the frontend-design skill.
 
-# Wildskeeper (dwcon)
+# Wildskeeper (wildskeeper)
 
 **Picking this up mid-flight? Read `docs/state-of-play.md` first** — it is
 the handoff: what's done, what's verified against a real server, what is
@@ -43,4 +43,4 @@ required — the game refuses to start without an owner, so the agent seeds
 that whole stack from the Raise-a-server wizard.
 
 Tests: `go test ./...` and `cd web && npm test`. Production build:
-`cd web && npm run build` then `go build ./cmd/dwcon` (embeds the bundle).
+`cd web && npm run build` then `go build ./cmd/wildskeeper` (embeds the bundle).

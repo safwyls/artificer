@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/safwyls/dwcon/internal/agentfiles"
-	"github.com/safwyls/dwcon/internal/game"
-	"github.com/safwyls/dwcon/internal/savecache"
+	"github.com/safwyls/wildskeeper/internal/agentfiles"
+	"github.com/safwyls/wildskeeper/internal/game"
+	"github.com/safwyls/wildskeeper/internal/savecache"
 )
 
 // The world endpoint serves the metadata parsed out of the server's save

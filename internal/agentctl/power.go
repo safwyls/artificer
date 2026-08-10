@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 // GameStatus mirrors the agent's wire type, like Job and Health.

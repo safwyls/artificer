@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // fakeSaveDir writes a minimal save with a valid container magic, enough

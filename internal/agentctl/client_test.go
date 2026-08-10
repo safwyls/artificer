@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/agentctl"
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/agentctl"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 // newProvisioner spins a real provisioner-mode wkagent over a fake docker
@@ -36,7 +36,7 @@ func newProvisioner(t *testing.T) (*agentctl.Client, string) {
 			// discovery and refused by destroy.
 			io.WriteString(w, `[{"Id":"cafe","Names":["/wkagent-main"],
 			  "Image":"ghcr.io/safwyls/wkagent:latest","State":"running",
-			  "Labels":{"dwcon.provisioned":"true","dwcon.slug":"main"},
+			  "Labels":{"wildskeeper.provisioned":"true","wildskeeper.slug":"main"},
 			  "Ports":[{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"}]},
 			 {"Id":"beef","Names":["/nginx"],"Image":"nginx:latest",
 			  "State":"running","Labels":{},"Ports":[]}]`)

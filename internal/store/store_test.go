@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/crypto"
-	"github.com/safwyls/dwcon/internal/db"
+	"github.com/safwyls/wildskeeper/internal/crypto"
+	"github.com/safwyls/wildskeeper/internal/db"
 )
 
 func newTestStore(t *testing.T) (*Store, *sql.DB) {

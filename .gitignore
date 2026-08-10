@@ -10,9 +10,9 @@ app.yaml
 /bin/
 *.exe
 # Local `go build -o` outputs at the repo root (30MB apiece)
-/dwcon
+/wildskeeper
 /wkagent
-dwcon.log
+wildskeeper.log
 # The palcon reference checkout symlinked beside this repo
 /palcon
 

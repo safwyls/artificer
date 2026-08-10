@@ -1,8 +1,8 @@
 # Plan of Attack: Dragonwilds Support in Palcon ("Wildskeeper")
 
 > **Status 2026-08-09 — Phases 0, 1 and most of 5 landed**, as this
-> standalone repo (dwcon/Wildskeeper) built from palcon's reusable base —
-> superseding §0's in-binary decision, per the maintainer: dwcon is a
+> standalone repo (wildskeeper/Wildskeeper) built from palcon's reusable base —
+> superseding §0's in-binary decision, per the maintainer: wildskeeper is a
 > sibling project, the porting doc's recommended path. Palworld itself was
 > removed; the shared-layer tests run against a test-only REST game
 > (`internal/game/gametest`). Recon findings live in

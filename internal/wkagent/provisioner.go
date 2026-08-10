@@ -11,13 +11,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/safwyls/dwcon/internal/dockerctl"
+	"github.com/safwyls/wildskeeper/internal/dockerctl"
 )
 
 // Provisioner mode (docs/sidecar-agent.md phase 5): the one component in
 // the system allowed to hold docker create rights, exposing exactly one
 // verb — instantiate the locked Dragonwilds supervisor template. The
-// template lives here in code: a compromised dwcon (or leaked provisioner
+// template lives here in code: a compromised wildskeeper (or leaked provisioner
 // token) can stamp out more Dragonwilds servers under the configured data
 // root, and nothing else — no arbitrary images, mounts, or privileges are
 // expressible through this API.
@@ -44,7 +44,7 @@ type ProvisionRequest struct {
 	Slug string `json:"slug"`
 	// ImageTag selects the wkagent channel for the new server.
 	ImageTag string `json:"imageTag"`
-	// Token is the new agent's bearer token (dwcon generated it).
+	// Token is the new agent's bearer token (wildskeeper generated it).
 	Token string `json:"token"`
 	// AdminPassword becomes the in-game admin password
 	// (WKAGENT_ADMIN_PASSWORD), enforced into DedicatedServer.ini.
@@ -181,7 +181,7 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 			req.GamePort + 1: fmt.Sprintf("%d/udp", defaultContainerGamePort+1),
 			req.AgentPort:    "8811/tcp",
 		},
-		Labels:               map[string]string{"dwcon.provisioned": "true", "dwcon.slug": req.Slug},
+		Labels:               map[string]string{"wildskeeper.provisioned": "true", "wildskeeper.slug": req.Slug},
 		RestartUnlessStopped: true,
 	})
 	if err != nil {
@@ -240,7 +240,7 @@ func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	}
 	var out []DiscoveredServer
 	for _, c := range containers {
-		if !strings.Contains(c.Image, "wkagent") && c.Labels["dwcon.provisioned"] != "true" {
+		if !strings.Contains(c.Image, "wkagent") && c.Labels["wildskeeper.provisioned"] != "true" {
 			continue
 		}
 		mode := ""
@@ -311,7 +311,7 @@ func (a *Agent) handleAdopt(w http.ResponseWriter, r *http.Request) {
 		if c.Name != req.Container {
 			continue
 		}
-		if !strings.Contains(c.Image, "wkagent") && c.Labels["dwcon.provisioned"] != "true" {
+		if !strings.Contains(c.Image, "wkagent") && c.Labels["wildskeeper.provisioned"] != "true" {
 			writeError(w, http.StatusBadRequest, "not a wkagent container")
 			return
 		}
@@ -361,7 +361,7 @@ type DestroyResult struct {
 
 // handleDestroy removes a container this provisioner created.
 //
-// The label gate is the whole security argument. `dwcon.provisioned=true`
+// The label gate is the whole security argument. `wildskeeper.provisioned=true`
 // is written in exactly one place — handleProvision — so destroy can only
 // ever unmake what provision made. That is deliberately narrower than
 // discover/adopt, which also match on the wkagent image name: a
@@ -396,7 +396,7 @@ func (a *Agent) handleDestroy(w http.ResponseWriter, r *http.Request) {
 		if c.Name != name {
 			continue
 		}
-		if c.Labels["dwcon.provisioned"] != "true" {
+		if c.Labels["wildskeeper.provisioned"] != "true" {
 			writeError(w, http.StatusBadRequest,
 				"that container was not created by this provisioner — remove it wherever it was deployed")
 			return
@@ -415,7 +415,7 @@ func (a *Agent) handleDestroy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		dataDir := ""
-		if slug := c.Labels["dwcon.slug"]; slug != "" {
+		if slug := c.Labels["wildskeeper.slug"]; slug != "" {
 			dataDir = filepath.Join(a.cfg.DataRoot, slug)
 		}
 		a.cfg.Logger.Info("destroyed server", "container", name, "dataKept", dataDir)

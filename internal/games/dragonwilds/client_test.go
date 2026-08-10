@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/game"
-	"github.com/safwyls/dwcon/internal/games/dragonwilds"
+	"github.com/safwyls/wildskeeper/internal/game"
+	"github.com/safwyls/wildskeeper/internal/games/dragonwilds"
 )
 
 // fakeAgent is a wkagent just complete enough for the derived client:

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/agentctl"
-	"github.com/safwyls/dwcon/internal/store"
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/agentctl"
+	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 func TestProvisionServer(t *testing.T) {
@@ -168,7 +168,7 @@ func TestDeleteServerDestroysContainerWhenAsked(t *testing.T) {
 		if r.URL.Path == "/containers/json" {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`[{"Id":"cafe","Names":["/wkagent-doomed"],"Image":"ghcr.io/safwyls/wkagent:latest",
-			  "State":"running","Labels":{"dwcon.provisioned":"true","dwcon.slug":"doomed"},"Ports":[]}]`))
+			  "State":"running","Labels":{"wildskeeper.provisioned":"true","wildskeeper.slug":"doomed"},"Ports":[]}]`))
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -248,7 +248,7 @@ func TestDeleteServerDestroysContainerWhenAsked(t *testing.T) {
 func TestDeleteServerKeepsRowWhenDestroyRefused(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
-	// A wkagent container with no dwcon.provisioned label — deployed by
+	// A wkagent container with no wildskeeper.provisioned label — deployed by
 	// hand, so the provisioner won't unmake it.
 	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/containers/json" {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // Visibility is two switches on the same data.

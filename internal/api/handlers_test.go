@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // TestDiscord proves a pasted webhook works, so it is the one notification

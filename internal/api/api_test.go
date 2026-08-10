@@ -18,13 +18,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/safwyls/dwcon/internal/agentfiles"
-	"github.com/safwyls/dwcon/internal/api"
-	"github.com/safwyls/dwcon/internal/backup"
-	"github.com/safwyls/dwcon/internal/crypto"
-	"github.com/safwyls/dwcon/internal/db"
-	"github.com/safwyls/dwcon/internal/notify"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/agentfiles"
+	"github.com/safwyls/wildskeeper/internal/api"
+	"github.com/safwyls/wildskeeper/internal/backup"
+	"github.com/safwyls/wildskeeper/internal/crypto"
+	"github.com/safwyls/wildskeeper/internal/db"
+	"github.com/safwyls/wildskeeper/internal/notify"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 const (

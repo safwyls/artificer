@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/game/gametest"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/game/gametest"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // fakeGame is a Palworld REST API just complete enough for the action

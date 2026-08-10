@@ -18,7 +18,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/safwyls/dwcon/internal/game"
+	"github.com/safwyls/wildskeeper/internal/game"
 )
 
 // AppID is the Steam app id of the *dedicated server* tool (the game client

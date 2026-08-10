@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/store"
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 // supervisorServer registers a server whose agent supervises a fake game.

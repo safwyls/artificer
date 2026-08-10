@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/crypto"
-	"github.com/safwyls/dwcon/internal/db"
-	"github.com/safwyls/dwcon/internal/game"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/crypto"
+	"github.com/safwyls/wildskeeper/internal/db"
+	"github.com/safwyls/wildskeeper/internal/game"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // stubClient serves a fixed player list; only Players is exercised by the

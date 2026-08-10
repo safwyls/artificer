@@ -5,7 +5,7 @@ package store
 import (
 	"database/sql"
 
-	"github.com/safwyls/dwcon/internal/crypto"
+	"github.com/safwyls/wildskeeper/internal/crypto"
 )
 
 type Store struct {

@@ -6,7 +6,7 @@ every fact the code rests on and every place it is still guessing.
 
 ## What this is
 
-**Wildskeeper** (module `github.com/safwyls/dwcon`) is a management console
+**Wildskeeper** (module `github.com/safwyls/wildskeeper`) is a management console
 for a self-hosted **RuneScape: Dragonwilds** dedicated server. It was built
 by copying [palcon](https://github.com/safwyls/palcon) — its Palworld
 sibling — and removing Palworld. The maintainer wanted a **separate repo**,
@@ -143,7 +143,7 @@ Still open: the second UDP port question, ban *enforcement*, chat lines.
 The dwbridge mod (`tools/dwbridge`) is real, and one command is proven
 through the whole stack: `POST /api/servers/{id}/save` in the console wrote
 the world on a headless server with no player connected —
-dwcon → wkagent `/v1/bridge/command` → file IPC → the UE4SS Lua mod →
+wildskeeper → wkagent `/v1/bridge/command` → file IPC → the UE4SS Lua mod →
 `PersistenceSubsystem:SaveGame`, `Save completed SUCCESSFULLY` in the game
 log, save file rewritten.
 

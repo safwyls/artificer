@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/dockerctl"
-	"github.com/safwyls/dwcon/internal/game/gametest"
-	"github.com/safwyls/dwcon/internal/notify"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/dockerctl"
+	"github.com/safwyls/wildskeeper/internal/game/gametest"
+	"github.com/safwyls/wildskeeper/internal/notify"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // agentSpy is a wkagent that reports whichever mode a test asks for and

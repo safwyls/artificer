@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/game"
+	"github.com/safwyls/wildskeeper/internal/game"
 )
 
 // ID is the game id test rows set to resolve to this client.

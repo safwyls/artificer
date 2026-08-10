@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/games/dragonwilds/dwconfig"
+	"github.com/safwyls/wildskeeper/internal/games/dragonwilds/dwconfig"
 )
 
 // supervisor runs the game server as a child process — supervisor mode's core

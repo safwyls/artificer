@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/game"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/game"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // downAfter is how many consecutive failed probes declare a server down.

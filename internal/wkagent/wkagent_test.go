@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 const testToken = "test-token-0123456789abcdef"

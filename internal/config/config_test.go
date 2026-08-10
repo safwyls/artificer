@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/config"
+	"github.com/safwyls/wildskeeper/internal/config"
 )
 
 const (

@@ -1,6 +1,6 @@
 // Package games registers every game palcon supports.
 //
-// Importing it for side effects — `_ "github.com/safwyls/dwcon/internal/games"`
+// Importing it for side effects — `_ "github.com/safwyls/wildskeeper/internal/games"`
 // — is what populates the game registry. Binaries and any test that resolves a
 // server row to a client need exactly this one import; adding a game means
 // adding one line here and nothing anywhere else.
@@ -10,5 +10,5 @@
 package games
 
 import (
-	_ "github.com/safwyls/dwcon/internal/games/dragonwilds"
+	_ "github.com/safwyls/wildskeeper/internal/games/dragonwilds"
 )

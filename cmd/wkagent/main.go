@@ -1,6 +1,6 @@
 // Command wkagent is the per-server sidecar agent: it sits next to one
 // Dragonwilds game server (or supervises it directly), holding the install
-// volume and SteamCMD, and exposes a narrow authenticated API for dwcon to
+// volume and SteamCMD, and exposes a narrow authenticated API for wildskeeper to
 // drive. See docs/sidecar-agent.md for the design.
 package main
 
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 // version is stamped by the release build via

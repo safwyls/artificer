@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/collector"
+	"github.com/safwyls/wildskeeper/internal/collector"
 )
 
 // audit records a management action against a server. Best-effort by

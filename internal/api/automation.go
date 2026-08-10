@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/dwcon/internal/notify"
-	"github.com/safwyls/dwcon/internal/sched"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/notify"
+	"github.com/safwyls/wildskeeper/internal/sched"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // scheduleJSON is the wire form of a restart schedule. Times are the

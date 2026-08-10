@@ -16,22 +16,22 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend /app/web/dist ./web/dist
-RUN CGO_ENABLED=0 go build -o /out/dwcon ./cmd/dwcon
+RUN CGO_ENABLED=0 go build -o /out/wildskeeper ./cmd/wildskeeper
 
 # ---- runtime ----
 FROM docker.io/library/alpine:3.22
 # No python3: the plan expected the save reader to shell out to a Python
 # GVAS tool, but the format turned out to be SPUD and the reader (dwsave)
 # is pure Go inside the binary.
-RUN adduser -D -u 1000 dwcon
+RUN adduser -D -u 1000 wildskeeper
 WORKDIR /app
-COPY --from=backend /out/dwcon ./dwcon
-RUN mkdir -p /data && chown dwcon:dwcon /data
-USER dwcon
+COPY --from=backend /out/wildskeeper ./wildskeeper
+RUN mkdir -p /data && chown wildskeeper:wildskeeper /data
+USER wildskeeper
 # The app otherwise defaults to ./data, which this non-root user can't
 # create — so an image run without DATA_DIR set died with a confusing
 # "permission denied" despite /data existing and being owned correctly.
 ENV DATA_DIR=/data
 VOLUME /data
 EXPOSE 8080
-ENTRYPOINT ["./dwcon"]
+ENTRYPOINT ["./wildskeeper"]

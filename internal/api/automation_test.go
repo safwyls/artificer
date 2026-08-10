@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // createTestServer inserts a server row directly; automation endpoints

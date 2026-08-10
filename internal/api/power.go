@@ -11,9 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/dwcon/internal/agentctl"
-	"github.com/safwyls/dwcon/internal/dockerctl"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/agentctl"
+	"github.com/safwyls/wildskeeper/internal/dockerctl"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // containerFor resolves the server's configured docker container,

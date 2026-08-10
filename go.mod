@@ -1,4 +1,4 @@
-module github.com/safwyls/dwcon
+module github.com/safwyls/wildskeeper
 
 go 1.26
 

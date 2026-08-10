@@ -5,13 +5,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/crypto"
-	"github.com/safwyls/dwcon/internal/db"
-	"github.com/safwyls/dwcon/internal/game"
+	"github.com/safwyls/wildskeeper/internal/crypto"
+	"github.com/safwyls/wildskeeper/internal/db"
+	"github.com/safwyls/wildskeeper/internal/game"
 
 	// Registers the games, so the definition lookups below resolve for real
 	// instead of skipping.
-	_ "github.com/safwyls/dwcon/internal/games"
+	_ "github.com/safwyls/wildskeeper/internal/games"
 )
 
 // Existing installs upgrade in place, and a server row that predates the game

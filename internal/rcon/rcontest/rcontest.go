@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/rcon"
+	"github.com/safwyls/wildskeeper/internal/rcon"
 )
 
 // Server speaks just enough Source RCON for a client: auth (optionally

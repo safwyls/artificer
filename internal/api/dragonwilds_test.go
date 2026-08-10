@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // A Dragonwilds server end to end through the API: the config editor speaks

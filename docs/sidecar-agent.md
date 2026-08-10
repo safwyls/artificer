@@ -206,9 +206,9 @@ services:
       - ./dragonwilds/RSDragonwilds/Saved/SaveGames:/dragonwilds/RSDragonwilds/Saved/SaveGames:ro
     environment:
       - WKAGENT_TOKEN=${WKAGENT_TOKEN}   # generated in the Wildskeeper UI
-    networks: [dwcon-net]
+    networks: [wildskeeper-net]
 networks:
-  dwcon-net:
+  wildskeeper-net:
     external: true
 ```
 
@@ -325,7 +325,7 @@ spinning up a new Dragonwilds server from the dashboard — lands in two steps:
         - /mnt/pool/apps/dragonwilds-servers:/mnt/pool/apps/dragonwilds-servers
       ports: ["8810:8811"]
       restart: unless-stopped
-  # dwcon env: PROVISIONER_URL=http://<host>:8810  PROVISIONER_TOKEN=<same token>
+  # wildskeeper env: PROVISIONER_URL=http://<host>:8810  PROVISIONER_TOKEN=<same token>
   ```
 
   Caveat: one-click containers are plain docker containers — on TrueNAS
@@ -344,7 +344,7 @@ spinning up a new Dragonwilds server from the dashboard — lands in two steps:
   existing supervisor installs for adoption with their ports prefilled.
 
   `/v1/destroy` is create's inverse, and the only verb that unmakes
-  anything. It is gated on the `dwcon.provisioned=true` label that
+  anything. It is gated on the `wildskeeper.provisioned=true` label that
   `/v1/provision` writes — deliberately narrower than discover/adopt,
   which also match the wkagent image name. A wkagent deployed by hand
   (a TrueNAS app, a pasted stack) carries the image but not the label and

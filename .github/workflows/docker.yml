@@ -63,7 +63,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - image: dwcon
+          - image: wildskeeper
             dockerfile: Dockerfile
           - image: wkagent
             dockerfile: Dockerfile.wkagent

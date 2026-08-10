@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/agentctl"
-	"github.com/safwyls/dwcon/internal/game"
-	"github.com/safwyls/dwcon/internal/games/dragonwilds/dwlog"
+	"github.com/safwyls/wildskeeper/internal/agentctl"
+	"github.com/safwyls/wildskeeper/internal/game"
+	"github.com/safwyls/wildskeeper/internal/games/dragonwilds/dwlog"
 )
 
 // errNoAgent is the config-level failure: without a sidecar there is no

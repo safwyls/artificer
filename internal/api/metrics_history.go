@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/collector"
+	"github.com/safwyls/wildskeeper/internal/collector"
 )
 
 // metricPointDTO is one charted sample. Fields are pointers so a gap in the

@@ -13,13 +13,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/safwyls/dwcon/internal/agentctl"
-	"github.com/safwyls/dwcon/internal/store"
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/agentctl"
+	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 // Provisioning ("new server from the dashboard", docs/sidecar-agent.md
-// phase 4): dwcon deliberately holds no docker create rights, so this
+// phase 4): wildskeeper deliberately holds no docker create rights, so this
 // endpoint does everything short of the paste — it registers a fully
 // wired server row (host, game port, agent URL + token) and generates the
 // matching supervisor-mode stack file. The human deploys the stack; the
@@ -393,7 +393,7 @@ func (s *Server) inferHost(declared string, servers []*store.Server) string {
 }
 
 // proposePorts finds the first offset where the game's port pair and the
-// agent's port are all free of anything dwcon tracks or the host's
+// agent's port are all free of anything wildskeeper tracks or the host's
 // containers hold. The pair moves together because the game binds both.
 func proposePorts(servers []*store.Server, containerPorts []int) map[string]int {
 	used := map[int]bool{}
@@ -423,7 +423,7 @@ func proposePorts(servers []*store.Server, containerPorts []int) map[string]int 
 }
 
 // handleProvisionDiscover surfaces wkagent containers already on the
-// provisioner's host, marking the ones dwcon knows about so the add
+// provisioner's host, marking the ones wildskeeper knows about so the add
 // dialog offers only genuine adoptees prominently.
 func (s *Server) handleProvisionDiscover(w http.ResponseWriter, r *http.Request) {
 	if s.Provisioner == nil {

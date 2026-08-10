@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/safwyls/dwcon/internal/agentfiles"
-	"github.com/safwyls/dwcon/internal/games/dragonwilds/dwconfig"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/agentfiles"
+	"github.com/safwyls/wildskeeper/internal/games/dragonwilds/dwconfig"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // configCodec is one game's ini reader/writer behind a common wire shape.

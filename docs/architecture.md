@@ -8,7 +8,7 @@ game abstraction's edges, [`visibility.md`](visibility.md) for the privacy
 model, [`dragonwilds-recon.md`](dragonwilds-recon.md) for the verified game
 facts every parser and capability decision rests on.
 
-In one sentence: **dwcon is a single Go binary acting as a pure control
+In one sentence: **wildskeeper is a single Go binary acting as a pure control
 plane** — it holds no docker socket, never writes a game save, and reaches
 game servers only through a per-server sidecar agent or a scoped docker
 proxy — serving an embedded React SPA that polls a JSON API.
@@ -39,7 +39,7 @@ only transport.
 
 | Layer | Choice | Why |
 |---|---|---|
-| Backend | Go 1.26, one module, **two binaries** (`cmd/dwcon`, `cmd/wkagent`) | Single static binary per role; shared internal packages so file operations behave identically whichever side executes them |
+| Backend | Go 1.26, one module, **two binaries** (`cmd/wildskeeper`, `cmd/wkagent`) | Single static binary per role; shared internal packages so file operations behave identically whichever side executes them |
 | HTTP router | chi v5 | Small, stdlib-shaped |
 | Auth | golang-jwt v5 (HS256, pinned), bcrypt via `x/crypto` | JWT in an HttpOnly cookie; no server-side session table |
 | Database | SQLite via `modernc.org/sqlite` (pure Go) | No cgo → `CGO_ENABLED=0` builds and an alpine runtime with no glibc; one file in `DATA_DIR` (still named `palcon.db` — the inherited filename, kept so an upgraded deployment finds its data) |
@@ -49,8 +49,8 @@ only transport.
 | Server state | TanStack Query v5 — the only state manager | REST + polling everywhere; no websockets, no SSE, no Redux |
 | Styling | Tailwind 3.4 + shadcn-style components over Radix primitives | One Wildskeeper theme (deep night, brass, rune-cyan) with no light/dark toggle; installable PWA (manifest-only, no service worker) |
 | Game transports | The wkagent sidecar, and nothing else | Dragonwilds has no RCON, no REST and no query protocol. `internal/rcon` (with its `rcontest` fake) still ships, imported by nothing but its own tests — the inherited transport, kept for the next game rather than deleted |
-| Container control | Docker Engine HTTP API via `tecnativa/docker-socket-proxy` | dwcon never holds the socket; the proxy allows exactly inspect + start/stop/restart |
-| Images | `ghcr.io/safwyls/dwcon` (alpine) and `ghcr.io/safwyls/wkagent` (steamcmd/debian) | Two images, one repo, same tag scheme |
+| Container control | Docker Engine HTTP API via `tecnativa/docker-socket-proxy` | wildskeeper never holds the socket; the proxy allows exactly inspect + start/stop/restart |
+| Images | `ghcr.io/safwyls/wildskeeper` (alpine) and `ghcr.io/safwyls/wkagent` (steamcmd/debian) | Two images, one repo, same tag scheme |
 
 Go direct dependencies number six: chi, golang-jwt, `x/crypto`,
 modernc.org/sqlite, and the two model SDKs (`anthropic-sdk-go`,
@@ -62,9 +62,9 @@ is stdlib.
 The reference deployment is compose stacks on one Docker host (TrueNAS Scale
 being the documented case), but each game server's stack can equally live on
 a **different host** — that is what the agent exists for. The structural
-rule from `sidecar-agent.md`: dwcon's stack and each game server's stack
+rule from `sidecar-agent.md`: wildskeeper's stack and each game server's stack
 are separate compose files joined by a shared external network, so
-`docker compose down` on dwcon can never take a game server with it.
+`docker compose down` on wildskeeper can never take a game server with it.
 
 ```mermaid
 flowchart TB
@@ -73,11 +73,11 @@ flowchart TB
         pub["Anyone with the<br/>public status link"]
     end
 
-    subgraph dwconStack["dwcon stack (compose)"]
-        dwcon["<b>dwcon</b><br/>Go binary + embedded React SPA<br/>:8080"]
+    subgraph wildskeeperStack["wildskeeper stack (compose)"]
+        wildskeeper["<b>wildskeeper</b><br/>Go binary + embedded React SPA<br/>:8080"]
         proxy["docker-socket-proxy<br/>CONTAINERS=1, POST=1<br/><i>only container holding the socket</i>"]
         data[("DATA_DIR volume<br/>palcon.db · backups ·<br/>agentfiles cache")]
-        dwcon --- data
+        wildskeeper --- data
     end
 
     subgraph gameStack1["game server stack — companion mode"]
@@ -98,13 +98,13 @@ flowchart TB
     sock["/var/run/docker.sock"]
     discord["Discord webhook<br/><i>the only outbound call</i>"]
 
-    browser -->|"HTTPS/HTTP · JWT cookie"| dwcon
-    pub -->|"GET /api/public/status/{token}"| dwcon
-    dwcon -->|"bearer token · files + steam verbs<br/><i>no derived state: needs supervisor</i>"| agent1
-    dwcon -->|"bearer token · health + log tail<br/>power + files + steam"| agent2
-    dwcon -->|"start/stop/restart · inspect · logs"| proxy
-    dwcon -.->|"provision / discover / adopt / destroy"| prov
-    dwcon -.->|notifications| discord
+    browser -->|"HTTPS/HTTP · JWT cookie"| wildskeeper
+    pub -->|"GET /api/public/status/{token}"| wildskeeper
+    wildskeeper -->|"bearer token · files + steam verbs<br/><i>no derived state: needs supervisor</i>"| agent1
+    wildskeeper -->|"bearer token · health + log tail<br/>power + files + steam"| agent2
+    wildskeeper -->|"start/stop/restart · inspect · logs"| proxy
+    wildskeeper -.->|"provision / discover / adopt / destroy"| prov
+    wildskeeper -.->|notifications| discord
     proxy -->|":ro"| sock
     prov -->|"root, by design"| sock
     proxy -->|"bounce"| game1
@@ -122,10 +122,10 @@ Dragonwilds client refuses it outright — with no process to observe, the
 agent's health reports no game and there is nothing to derive liveness or a
 player list from. Supervisor mode is what lights the dashboard up.
 
-Reading the trust gradient left to right: the browser gets a cookie; dwcon
+Reading the trust gradient left to right: the browser gets a cookie; wildskeeper
 gets fixed verbs on the proxy and on each agent; only the proxy and the
 optional provisioner ever touch the docker socket, and the proxy holds it
-read-only with two API classes enabled. A fully compromised dwcon can
+read-only with two API classes enabled. A fully compromised wildskeeper can
 bounce game servers and touch agent-scoped files — it cannot create
 containers, mount volumes, or reach host root. The provisioner is the
 documented, deliberate exception ([`sidecar-agent.md`](sidecar-agent.md)
@@ -147,7 +147,7 @@ written purely against the `internal/game` contracts.
 ```mermaid
 flowchart TB
     subgraph entry["entrypoints"]
-        cmddwcon["cmd/dwcon"]
+        cmdwildskeeper["cmd/wildskeeper"]
         cmdwkagent["cmd/wkagent"]
     end
 
@@ -182,7 +182,7 @@ flowchart TB
     wkagent["internal/wkagent<br/>companion · supervisor · provisioner"]
     web["web/ (React SPA)<br/>embedded via go:embed"]
 
-    cmddwcon --> api & collector & sched & watchdog & backup & advisor
+    cmdwildskeeper --> api & collector & sched & watchdog & backup & advisor
     cmdwkagent --> wkagent
     api --> store & dockerctl & agentctl & agentfiles & notify
     api -.->|"config view<br/>(behind a configCodec seam)"| dwconfig
@@ -193,7 +193,7 @@ flowchart TB
     dw --> agentctl & dwlog
     wkagent --> steamcmd & dwconfig & dockerctl
     agentfiles --> agentctl
-    web -.->|"embedded into"| cmddwcon
+    web -.->|"embedded into"| cmdwildskeeper
 ```
 
 Three honesty notes the code itself makes. `internal/api/config.go` is the
@@ -213,7 +213,7 @@ Dragonwilds world-metadata reader.)
 
 ## Startup wiring & background loops
 
-`cmd/dwcon/main.go` is the entire composition root — a flat sequence, no
+`cmd/wildskeeper/main.go` is the entire composition root — a flat sequence, no
 DI framework: load env config → open SQLite (single connection, inline
 migrations) → build the AES-GCM box and the store around it → bootstrap the
 admin user (first run only) → start the background loops → serve HTTP.
@@ -276,7 +276,7 @@ identity.
   `DefaultGamePort`, `NewClient(Conn) Client`, `CanonicalUID(string) string`,
   and `Features` — the dashboard views this game can fill.
 - **Registry** — package-level map; implementations `Register` from `init`,
-  and `internal/games` blank-imports every one so `cmd/dwcon` wires them
+  and `internal/games` blank-imports every one so `cmd/wildskeeper` wires them
   all with a single side-effect import. Duplicate or malformed
   registrations panic at startup rather than surfacing later as an
   unreachable server. `DefaultID` is `"dragonwilds"`, so a row written
@@ -343,7 +343,7 @@ single `OptionSettings=(...)` line — and copies palconfig's write policy
 deliberately: the file as written is the only schema, so edits never add or
 remove keys, each new value is validated against the type inferred from the
 existing one, a key appearing twice is shown read-only rather than guessed
-at, a one-level `.dwcon.bak` is kept, and the swap is atomic. It resolves
+at, a one-level `.wildskeeper.bak` is kept, and the swap is atomic. It resolves
 the configured path whether it points at the file, the platform folder, or
 the `Config` folder above it.
 
@@ -394,7 +394,7 @@ repairing a broken grant never depends on the grants. Deliberate choices:
   world.
 
 The only unauthenticated data endpoint is `GET /api/public/status/{token}`
-— token-gated, read-only, and served entirely from dwcon's own DB so
+— token-gated, read-only, and served entirely from wildskeeper's own DB so
 public traffic can never probe or load the game server.
 
 **There are no websockets and no SSE anywhere.** Every live view is REST
@@ -547,15 +547,15 @@ The package, binary and image keep the inherited name — `cmd/wkagent`,
 `internal/wkagent`, `ghcr.io/safwyls/wkagent` — even though this repo's
 build of it is Dragonwilds-shaped throughout: app id 4019830, install dir
 `/dragonwilds`, `DedicatedServer.ini` seeding. The name is the one thing
-that didn't need changing. Every file-and-process capability dwcon can't have
+that didn't need changing. Every file-and-process capability wildskeeper can't have
 without bind mounts moves into a small trusted container sitting *next to*
 each game server. One agent per server, fixed dashboard-shaped verbs (never
 exec, never an arbitrary path parameter), bearer-token auth (constant-time
 compare, 16-char minimum), long work modelled as **jobs** — POST returns
-immediately, dwcon polls, and `/v1/health` reports the current-or-last
-job so dwcon rediscovers in-flight work after its own restart. `/v1/health`
+immediately, wildskeeper polls, and `/v1/health` reports the current-or-last
+job so wildskeeper rediscovers in-flight work after its own restart. `/v1/health`
 also reports `apiVersion` (3: 1 = steam verbs, 2 = file verbs, 3 =
-supervisor), so an old agent keeps working with a new dwcon.
+supervisor), so an old agent keeps working with a new wildskeeper.
 
 Here the agent is not an optional convenience: with no RCON, REST or query
 protocol, `/v1/health` and `/v1/power/logs` *are* the admin interface.
@@ -574,16 +574,16 @@ server hangs off one process's stdout.
 The provisioner's template is Dragonwilds-shaped throughout: it publishes
 `gamePort`, `gamePort+1` and the agent port and nothing else (there is no
 admin port to expose), binds the per-slug data directory at
-`/dragonwilds`, labels what it creates `dwcon.provisioned=true` and
-`dwcon.slug=<slug>`, and **requires** an `ownerId` — the game refuses to
+`/dragonwilds`, labels what it creates `wildskeeper.provisioned=true` and
+`wildskeeper.slug=<slug>`, and **requires** an `ownerId` — the game refuses to
 start without one, so a deploy that omitted it could only ever produce a
-container that fails. Destroy is gated on `dwcon.provisioned`, written in
+container that fails. Destroy is gated on `wildskeeper.provisioned`, written in
 exactly one place, so it can only unmake what provision made; the data
 directory is never removed.
 
 The file sync is worth knowing about because it's what lets the save
 pipeline stay local-path-shaped: the agent computes an ETag over each save
-file's path, size and mtime; dwcon syncs with `If-None-Match`, so an
+file's path, size and mtime; wildskeeper syncs with `If-None-Match`, so an
 unchanged poll transfers nothing; changed bundles stream as tar, extract
 to a temp dir and atomically rename into place, with traversal, size and
 file-count guards on extraction. Config PUTs write atomically and refuse
@@ -591,10 +591,10 @@ to *create* the file — a missing ini means a wrong install dir, and
 creating one would mask that.
 
 Lifecycle coupling is minimized by construction: the agent is not a child
-of dwcon and holds no live connection; dwcon restarts never touch game
+of wildskeeper and holds no live connection; wildskeeper restarts never touch game
 servers in either mode. Supervisor mode couples the game's uptime to the
 *agent image* only — so the agent stays small and boring and updates a few
-times a year while dwcon updates weekly.
+times a year while wildskeeper updates weekly.
 
 ## Frontend
 
@@ -638,7 +638,7 @@ Users, Automation, Activity, public status) they share the base with.
   remains — `main.tsx` still selects `HashRouter` when `VITE_DEMO=1` — and
   it is inert, because nothing else in the tree reads that variable.
 
-Dev loop: `go run ./cmd/dwcon` on :8080, `npm run dev` with Vite proxying
+Dev loop: `go run ./cmd/wildskeeper` on :8080, `npm run dev` with Vite proxying
 `/api` — no CORS involved.
 
 ## Build, CI & publishing
@@ -656,7 +656,7 @@ flowchart LR
         d2["Dockerfile.wkagent<br/>go → steamcmd/debian-12"]
     end
 
-    ghcr1[("ghcr.io/safwyls/dwcon<br/>:latest :beta :semver :sha")]
+    ghcr1[("ghcr.io/safwyls/wildskeeper<br/>:latest :beta :semver :sha")]
     ghcr2[("ghcr.io/safwyls/wkagent<br/>same tag scheme")]
 
     trig --> verify --> build
@@ -674,9 +674,9 @@ Notes that matter operationally:
   No Python packages are installed — nothing in the suite parses saves yet.
 - Two images publish from one repo with the **same tag scheme**, so a
   compose stack pins one channel (`:latest`, `:beta`, or a semver) across
-  the dwcon/wkagent pair. `beta` is a real test channel deployments can
+  the wildskeeper/wkagent pair. `beta` is a real test channel deployments can
   pull without touching `:latest`.
-- The dwcon runtime image is plain alpine, running as a non-root user
+- The wildskeeper runtime image is plain alpine, running as a non-root user
   with `DATA_DIR=/data` set in the image (the default `./data` isn't
   creatable by that user, which failed confusingly). It used to carry
   `python3` for a save reader expected to shell out to Python GVAS
@@ -714,10 +714,10 @@ Patterns that hold everywhere and explain most local decisions:
    can't") against everything else → 502 ("the server is unreachable"),
    plus 501 for a row naming a game this build doesn't have.
 5. **Detached contexts for must-finish work.** Stop sequences and
-   session-closing use `context.WithoutCancel` — a closed tab or a dwcon
-   restart mid-job strands nothing, and agent jobs outlive dwcon by design.
-6. **Polling over push, everywhere.** Client↔dwcon, dwcon↔agent,
-   dwcon↔docker: bounded request/response with ETags and tuned
+   session-closing use `context.WithoutCancel` — a closed tab or a wildskeeper
+   restart mid-job strands nothing, and agent jobs outlive wildskeeper by design.
+6. **Polling over push, everywhere.** Client↔wildskeeper, wildskeeper↔agent,
+   wildskeeper↔docker: bounded request/response with ETags and tuned
    intervals, no held-open connections. This is what makes the
    no-lifecycle-coupling rule cheap to keep. The live player list is the
    sharpest case: a browser poll that makes the server re-read a log ring

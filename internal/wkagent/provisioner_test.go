@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 // fakeDockerAPI records the provisioner's docker calls.
@@ -35,7 +35,7 @@ func (f *fakeDockerAPI) handler() http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`[
 			  {"Id":"c1","Names":["/wkagent-main"],"Image":"ghcr.io/safwyls/wkagent:beta","State":"running",
-			   "Labels":{"dwcon.provisioned":"true","dwcon.slug":"main"},
+			   "Labels":{"wildskeeper.provisioned":"true","wildskeeper.slug":"main"},
 			   "Ports":[{"PrivatePort":7777,"PublicPort":9211,"Type":"udp"},{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"}]},
 			  {"Id":"c2","Names":["/wkprovisioner"],"Image":"ghcr.io/safwyls/wkagent:beta","State":"running","Ports":[]},
 			  {"Id":"c3","Names":["/nginx"],"Image":"nginx:latest","State":"running","Ports":[]}

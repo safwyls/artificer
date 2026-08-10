@@ -13,14 +13,14 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/safwyls/dwcon/internal/agentfiles"
-	"github.com/safwyls/dwcon/internal/api"
-	"github.com/safwyls/dwcon/internal/backup"
-	"github.com/safwyls/dwcon/internal/crypto"
-	"github.com/safwyls/dwcon/internal/db"
-	"github.com/safwyls/dwcon/internal/dockerctl"
-	"github.com/safwyls/dwcon/internal/notify"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/agentfiles"
+	"github.com/safwyls/wildskeeper/internal/api"
+	"github.com/safwyls/wildskeeper/internal/backup"
+	"github.com/safwyls/wildskeeper/internal/crypto"
+	"github.com/safwyls/wildskeeper/internal/db"
+	"github.com/safwyls/wildskeeper/internal/dockerctl"
+	"github.com/safwyls/wildskeeper/internal/notify"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // dockerFake answers the handful of endpoints the power handlers use and

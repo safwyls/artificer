@@ -24,9 +24,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/agentfiles"
-	"github.com/safwyls/dwcon/internal/notify"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/agentfiles"
+	"github.com/safwyls/wildskeeper/internal/notify"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 const (

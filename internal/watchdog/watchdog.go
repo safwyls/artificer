@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/dockerctl"
-	"github.com/safwyls/dwcon/internal/notify"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/dockerctl"
+	"github.com/safwyls/wildskeeper/internal/notify"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 const (

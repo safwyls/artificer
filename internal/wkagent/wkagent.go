@@ -32,8 +32,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/dwcon/internal/dockerctl"
-	"github.com/safwyls/dwcon/internal/steamcmd"
+	"github.com/safwyls/wildskeeper/internal/dockerctl"
+	"github.com/safwyls/wildskeeper/internal/steamcmd"
 )
 
 // APIVersion is reported in /v1/health so the control plane can refuse to

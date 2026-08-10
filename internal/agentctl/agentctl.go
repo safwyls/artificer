@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/wkagent"
+	"github.com/safwyls/wildskeeper/internal/wkagent"
 )
 
 // ErrNotConfigured means this server has no agent URL; agent-backed

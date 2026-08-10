@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/dwcon/internal/collector"
-	"github.com/safwyls/dwcon/internal/sched"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/collector"
+	"github.com/safwyls/wildskeeper/internal/sched"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // handlePublicStatus is the one unauthenticated data endpoint: a read-only

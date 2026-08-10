@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // The world file is whatever the server would load: the newest .sav. The

@@ -10,9 +10,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/safwyls/dwcon/docs"
-	"github.com/safwyls/dwcon/internal/advisor"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/docs"
+	"github.com/safwyls/wildskeeper/internal/advisor"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // handleDocs serves the embedded project documentation for the advisor's

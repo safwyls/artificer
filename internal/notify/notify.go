@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 // Discord embed accent colors, decimal RGB.

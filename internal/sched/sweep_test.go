@@ -15,15 +15,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/crypto"
-	"github.com/safwyls/dwcon/internal/db"
-	"github.com/safwyls/dwcon/internal/game/gametest"
-	"github.com/safwyls/dwcon/internal/notify"
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/crypto"
+	"github.com/safwyls/wildskeeper/internal/db"
+	"github.com/safwyls/wildskeeper/internal/game/gametest"
+	"github.com/safwyls/wildskeeper/internal/notify"
+	"github.com/safwyls/wildskeeper/internal/store"
 
 	// The scheduler talks to a server through its game client, which only
 	// resolves once the registry is populated the way the binary does it.
-	_ "github.com/safwyls/dwcon/internal/games"
+	_ "github.com/safwyls/wildskeeper/internal/games"
 )
 
 // gameSpy is a Palworld REST endpoint that records the calls the scheduler

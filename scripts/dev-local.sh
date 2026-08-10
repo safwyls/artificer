@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Runs the whole stack locally against a real Dragonwilds server: the
-# wkagent sidecar in supervisor mode, and dwcon in front of it.
+# wkagent sidecar in supervisor mode, and wildskeeper in front of it.
 #
 # This is the manual-test path. It is deliberately the same shape as a real
-# deployment — the agent owns the game process and dwcon only talks to the
+# deployment — the agent owns the game process and wildskeeper only talks to the
 # agent — because Dragonwilds has no admin transport of its own, so anything
 # that skips the agent isn't testing the real thing.
 #
@@ -89,7 +89,7 @@ up)
   R="$(repo_root)"
   mkdir -p "$RUN_DIR/data"
   echo "==> building"
-  (cd "$R" && go build -o "$RUN_DIR/wkagent" ./cmd/wkagent && go build -o "$RUN_DIR/dwcon" ./cmd/dwcon)
+  (cd "$R" && go build -o "$RUN_DIR/wkagent" ./cmd/wkagent && go build -o "$RUN_DIR/wildskeeper" ./cmd/wildskeeper)
   [ -d "$R/web/dist" ] || (cd "$R/web" && npm run build)
 
   echo "==> starting wkagent (supervisor) on :$AGENT_PORT"
@@ -105,12 +105,12 @@ up)
   WKAGENT_AUTOSTART=false \
     nohup "$RUN_DIR/wkagent" > "$RUN_DIR/agent.log" 2>&1 < /dev/null &
 
-  echo "==> starting dwcon on :$HTTP_PORT"
+  echo "==> starting wildskeeper on :$HTTP_PORT"
   JWT_SECRET="0123456789abcdef0123456789abcdef0123456789abcdef" \
   ENCRYPTION_KEY="0123456789abcdef0123456789abcdef" \
   ADMIN_USERNAME=admin ADMIN_PASSWORD="$ADMIN_PW" \
   DATA_DIR="$RUN_DIR/data" HTTP_ADDR=":$HTTP_PORT" \
-    nohup "$RUN_DIR/dwcon" > "$RUN_DIR/dwcon.log" 2>&1 < /dev/null &
+    nohup "$RUN_DIR/wildskeeper" > "$RUN_DIR/wildskeeper.log" 2>&1 < /dev/null &
 
   sleep 4
   login
@@ -151,7 +151,7 @@ down)
   # -x matches the process name exactly. -f would also match any shell
   # whose command line mentions these paths, including this script's caller.
   pkill -x wkagent 2>/dev/null || true
-  pkill -x dwcon 2>/dev/null || true
+  pkill -x wildskeeper 2>/dev/null || true
   echo "stopped"
   ;;
 

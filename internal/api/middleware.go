@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/wildskeeper/internal/store"
 )
 
 var errBootstrapPasswordRequired = errors.New("ADMIN_PASSWORD must be set for the first run (no users exist yet)")
