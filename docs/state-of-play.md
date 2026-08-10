@@ -1,6 +1,7 @@
 # State of play
 
-Written 2026-08-09 as a handoff. Read this first, then
+Written 2026-08-09 as a handoff; updated 2026-08-10 after the first real
+deployment (see "Deployed for real", below). Read this first, then
 [`dragonwilds-recon.md`](dragonwilds-recon.md) — between them they hold
 every fact the code rests on and every place it is still guessing.
 
@@ -206,6 +207,10 @@ if mirrored mode is ever unavailable.
 
 ## Suggested next steps
 
+A fuller, prioritized version of this list now lives in
+[`roadmap.md`](roadmap.md); the two items below remain the highest-value
+engineering.
+
 1. **Finish the dwbridge command set.** The channel and `save` are done;
    what remains is `kick`/`ban`/`unban`/`broadcast` in the mod. These need
    a connected client to build against (the admin RPC wants a player
@@ -230,9 +235,54 @@ if mirrored mode is ever unavailable.
    a `wkagent` user (uid 1000) and the generated compose warns that the
    `/dragonwilds` volume must be writable by that uid. The `-healthz`
    healthcheck is verified under docker-format builds (OCI builds drop
-   HEALTHCHECK silently). Still untouched by real infrastructure: the
+   HEALTHCHECK silently). ~~Still untouched by real infrastructure: the
    provisioner (fake API in tests only) and an actual SteamCMD install
-   from inside the container (the test bind-mounted the existing one).
+   from inside the container.~~ **Both closed 2026-08-10** — see
+   "Deployed for real" below.
+
+## Deployed for real (2026-08-10)
+
+The whole production path now has one full success behind it, on a TrueNAS
+SCALE box that also runs palcon:
+
+- The repo lives at `github.com/safwyls/wildskeeper` and CI publishes
+  `ghcr.io/safwyls/wildskeeper` + `ghcr.io/safwyls/wkagent`.
+- The console and a provisioner-mode wkagent run as TrueNAS custom apps
+  from `deploy/truenas-app.yaml` (compose yaml pasted into "Install via
+  YAML"). Console runs as the TrueNAS `apps` user via `user: "568:568"`
+  (the Dockerfile also takes `UID`/`GID` build args now).
+- **One-click provisioning worked end to end with zero code changes**: the
+  wizard → `/v1/provision` → container created → SteamCMD installed the
+  game in-container on first boot → settings edited in the UI → restart →
+  **a real game client connected and played.** The provisioner and
+  in-container SteamCMD install are no longer test-fake-only.
+
+Deployment lessons, so the next install doesn't rediscover them (all now
+reflected in `deploy/truenas-app.yaml`'s comments):
+
+1. **`ENCRYPTION_KEY` is exactly 32 bytes** — generate with
+   `openssl rand -hex 16`, not `-hex 32` (that's 64 chars and the app
+   exits at boot with a fatal log line). `JWT_SECRET` is ≥32, so
+   `-hex 32` is right *there*.
+2. **The dataset must be chowned to the runtime uid** (568:568 on
+   TrueNAS) before first start, or `/data` fails with permission denied.
+3. **Cross-app DNS** works by attaching both apps to the shared external
+   `wildskeeper-net` — compose registers each *service name* as an alias
+   on that network, so the console reaches `http://wkprovisioner:8811`.
+   The `networks:` list is per-service; forgetting it on the provisioner
+   is invisible until the console's health calls fail. TrueNAS may need a
+   full redeploy (not restart) to pick up a network change.
+4. **`WKAGENT_PUBLIC_HOST` wants the LAN IP**, not the WAN IP — it's the
+   address the console itself uses to reach provisioned agents, and a WAN
+   address means hairpin NAT.
+5. **Port proposals can't see the other console's containers.** palcon's
+   `palagent-palhalla` published host 8811 and the first provision failed
+   at `docker start` with "port is already allocated" — created but not
+   started, so the leftover container had to be `docker rm`'d before
+   retrying (the 409 name gate is checked before creation, not after a
+   half-failure). Fix was choosing agent port 8821 under the wizard's
+   Deployment details. When two control planes share a host, eyeball
+   `docker ps` for the proposed ports first.
 
 ## Loose ends
 

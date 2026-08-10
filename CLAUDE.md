@@ -42,5 +42,11 @@ required — the game refuses to start without an owner, so the agent seeds
 (`internal/wkagent/provisioner.go` + `internal/api/provision.go`) makes
 that whole stack from the Raise-a-server wizard.
 
+Deployed for real since 2026-08-10: TrueNAS SCALE custom apps from
+`deploy/truenas-app.yaml`, images on ghcr, one-click provisioning verified
+with a live game client — see state-of-play's "Deployed for real" for the
+deployment gotchas (key lengths, dataset chown, shared network, port
+collisions with palcon on the same host). Roadmap: `docs/roadmap.md`.
+
 Tests: `go test ./...` and `cd web && npm test`. Production build:
 `cd web && npm run build` then `go build ./cmd/wildskeeper` (embeds the bundle).

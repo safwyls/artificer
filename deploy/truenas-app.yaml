@@ -23,15 +23,17 @@
 #    can never take the other with it):
 #        docker network create wildskeeper-net
 #
-# 3. Fill in the x-secrets values below. Generate the two keys with:
-#        openssl rand -hex 32        # JWT_SECRET
-#        openssl rand -hex 32        # ENCRYPTION_KEY
+# 3. Fill in the x-secrets values below. The lengths are enforced at
+#    startup — wrong lengths make the container exit immediately with a
+#    fatal log line. Generate them with:
+#        openssl rand -hex 32        # JWT_SECRET      (64 chars; needs ≥32)
+#        openssl rand -hex 16        # ENCRYPTION_KEY  (32 chars; needs exactly 32)
 #    ENCRYPTION_KEY protects the agent/RCON credentials at rest in the DB —
 #    losing it means re-entering every server's tokens.
 
 x-secrets: &secrets
   JWT_SECRET: "CHANGE-ME-openssl-rand-hex-32"
-  ENCRYPTION_KEY: "CHANGE-ME-openssl-rand-hex-32"
+  ENCRYPTION_KEY: "CHANGE-ME-must-be-exactly-32b"
   ADMIN_USERNAME: "admin"
   ADMIN_PASSWORD: "CHANGE-ME"
 

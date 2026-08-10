@@ -1,0 +1,115 @@
+# Roadmap
+
+Written 2026-08-10, the day the stack first ran for real (TrueNAS, one-click
+provision, live client). Ordered by value-per-effort within each horizon.
+Ground rules inherited from the architecture: the agent is the only
+transport, the console never gains docker create rights, and anything the
+game can't do gets an honest 501 — features below must not bend those.
+
+## Now — finish what's started
+
+1. **Wine launch profile for the modded build** (state-of-play, Phase 4
+   item 1). Pure engineering, no unknowns: a wkagent profile that runs the
+   Windows build + UE4SS under Wine so the agent supervises the modded
+   process instead of it being hand-run. This is the gate in front of every
+   other dwbridge improvement — without it the command channel only exists
+   on dev boxes. Pin the UE4SS nightly; expect churn at Dragonwilds 1.0.
+2. **Ban via the ini** (Phase 4 item 2). One experiment stands between us
+   and offline ban/unban: hand-flip `bIsBanned` in `KnownPlayerList`, see
+   if the server honors it and when it re-reads the file. dwconfig already
+   owns that file safely; if the flag works, `ban`/`unban` become config
+   operations and skip the closed RPC path entirely.
+3. **Deepen `dwsave`: the player roster.** Player state in the save is
+   JSON inside SPUD properties, and a played world save exists locally.
+   Find the property values, `json.Unmarshal`, surface characters (name,
+   level, position, last-seen) on the Saves/world page. Identity still
+   routes through dwlog/ini (the EOS id isn't in the save).
+4. **Decide the orphaned advisor** (~1,100 dead lines, `internal/advisor`
+   + `internal/api/advisor.go`). Either delete it or re-point it at
+   Dragonwilds as a "world advisor" over dwsave data. Deletion is the
+   cheap, reversible default; it's all in git history.
+
+## Next — deployment quality of life
+
+Everything here was motivated by a real friction on 2026-08-10:
+
+5. **Startup config validation that names every problem at once.** The
+   first deploy died one env var at a time. Validate all of
+   JWT_SECRET/ENCRYPTION_KEY/ADMIN_PASSWORD/DATA_DIR in one pass and
+   report the full list in one fatal message.
+6. **Host-port awareness beyond our own containers.** The first provision
+   failed on a port palcon held. The provisioner already talks to docker:
+   have `/v1/provision` (or the defaults endpoint) list *all* containers'
+   published host ports — not just wkagent-shaped ones — so proposals
+   avoid them and a collision is refused before create, not discovered at
+   start. Keeps the created-but-not-started leftover from ever existing
+   (and if start still fails, clean up the half-made container).
+7. **Provisioner status surfaced in the UI.** "No provisioner is
+   configured" covered three different failures (unset URL, DNS,
+   token). A settings/status page that shows the configured endpoint,
+   last health result, and last error would have cut the debugging to
+   one glance. Same panel can host a "test connection" button.
+8. **A cleaner failed-provision story.** Today: 502 with the docker error
+   inlined and a manual `docker rm`. Wanted: the error classified
+   (port, name, pull, permission), the remedy stated, and the leftover
+   container removed or adoptable.
+9. **TLS / cross-host agents.** The pinned-fingerprint TLS scheme from
+   sidecar-agent.md, so agents on other machines aren't plain HTTP with a
+   bearer token. The deferred reverse-connection (agent dials out over
+   WebSocket) unlocks NAT'd hosts; verb surface unchanged.
+
+## Later — features on top of a solid base
+
+10. **World map / viewer.** Once dwsave yields positions, a map page
+    (player last-positions, points of interest) is the showpiece feature.
+    Needs coordinate-system recon against the real game first.
+11. **Play-session analytics.** dwlog already keys sessions by player id;
+    persist them into per-player playtime, first/last seen, session
+    history, and a small activity chart on the server page.
+12. **Backup restore.** Backups exist; restore is still "the operator
+    untars by hand". A deliberate restore verb on the agent (the one thing
+    the read-only save mount was waiting for), gated in the UI behind a
+    stopped server and a confirmation naming the save it overwrites.
+13. **Scheduled-restart polish for the no-save-on-shutdown game.** The
+    scheduler exists; wire it to dwbridge `save` so a restart is
+    warn → save → stop → start, closing the up-to-5-minutes-lost window
+    when the bridge is present.
+14. **Update automation.** SteamCMD update through the agent exists as a
+    verb; add update checking (build id polling), a "update available"
+    badge, and an opt-in maintenance window that chains save → stop →
+    update → start.
+15. **Chat capture, if it exists in the log.** Still-open recon question.
+    If chat lines appear in the server log, dwlog grows a rule and the UI
+    gets a live chat panel (read-only; there is no send path).
+16. **Mod management via the agent.** The Wine/UE4SS stack (item 1) makes
+    mod files part of the deployment; a small manifest the agent applies
+    (dwbridge version pinning included) turns "the mod setup" from a doc
+    into a button.
+
+## Structural, someday
+
+17. **Extract the shared base into a library palcon and wildskeeper both
+    import.** The repos are kept structurally identical so fixes travel by
+    hand; a `go.mod`-level shared core would make them travel by `go get`.
+    Big, and only worth it if a third game ever appears — the current
+    copy-discipline works and keeps each repo independently deployable.
+    (A cheaper interim: a script that diffs the shared layers between the
+    two repos and reports drift.)
+18. **Multi-node.** Several game hosts, one console: provisioner-per-host
+    is already the model; what's missing is TLS (item 9), per-host
+    provisioner rows instead of one env var, and host labels in the UI.
+19. **Auth beyond bootstrap admin.** Users/roles exist; OIDC/proxy-auth
+    would let a TrueNAS/Authentik household SSO into it. Cookie-secure
+    and JWT plumbing are already in place.
+
+## Non-goals, so they don't creep back
+
+- **Kick/broadcast via the admin RPC.** Tested against a live player,
+  silently does nothing, and the working-looking alternatives wedge the
+  Lua VM. The recon doc's "Why the command tier stops at `save`" is the
+  tombstone; don't re-attempt without new information (a game update
+  changing the surface *is* new information).
+- **A query/RCON client.** The game has none; everything is derived, and
+  the derivations are now verified. Don't add speculative protocol code.
+- **The console holding docker create rights.** The provisioner split is
+  the security model, not an inconvenience.
