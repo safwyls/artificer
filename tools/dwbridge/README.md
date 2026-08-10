@@ -36,14 +36,35 @@ handler here, never a version handshake.
 
 - `ping` — liveness with a real object touch (finds the live GameMode).
 - `save` — `PersistenceSubsystem:SaveGame`, the same call the autosave makes.
-  **Verified headless.**
+  **Verified headless and through the console.**
 
-`kick`/`ban`/`unban`/`broadcast` are mapped in the recon doc's "Command
-surface" section (`Server_RequestAdminAction` + the `EAdminAction` enum, the
-chat component's `Server_SendChatMessage`) but not implemented here yet: they
-take struct parameters and, for kick, a connected player's controller, so they
-need a live client to build against safely. The console reports them as an
-honest capability gap until the mod lists them.
+That is the whole list, and the list is the contract: the agent only routes
+what the heartbeat advertises, so the console reports everything else as an
+honest capability gap.
+
+### Why kick/ban/broadcast are not here
+
+They were implemented, tested against a live connected player, and removed —
+the full findings are in the recon doc's "Why the command tier stops at
+`save`". The short version:
+
+- **`Server_` RPCs do nothing when called on the server.** The reflected
+  function is the client's send-stub; the logic is native `_Implementation`
+  code that reflection can't reach. `Server_RequestAdminAction` returns
+  `ok=true` and the player stays connected.
+- **Native UFunctions wedge the UE4SS Lua VM.** `ClientMessage` and
+  `ClientWasKicked` each hung the mod thread (the game itself keeps running);
+  recovery needs a server restart. That rules out UE's standard kick path.
+- **No Blueprint-exposed kick/ban exists** on the GameSession, GameMode or
+  GameState.
+
+A verb that answers "done" while nothing happened is worse than no verb —
+an operator would be told a griefer was kicked while they were still in the
+world. So the mod advertises only what it can actually do.
+
+If you pick this up: the untried lead is the GameState's replicated
+`KickedUsers` / `BannedUsers` arrays (readable today, empty on a fresh
+server), and for bans the ini's `KnownPlayerList` `bIsBanned` flag.
 
 ## Install
 
@@ -58,9 +79,18 @@ honest capability gap until the mod lists them.
    `DWBRIDGE_DIR='Z:\...\dwbridge'`, pointing at the same `<install>/dwbridge`
    the agent uses.
 
-## The one Wine gotcha
+## Gotchas worth knowing before you edit this
 
-Windows `rename` does not overwrite an existing file (it fails and strands the
-`.tmp`), so the mod removes the destination before renaming. Getting this
-wrong freezes `heartbeat.json` at its first value and the bridge reads as
-permanently stale — see `writeFileAtomic` in `Scripts/main.lua`.
+- **Wine rename semantics.** Windows `rename` does not overwrite an existing
+  file (it fails and strands the `.tmp`), so the mod removes the destination
+  first. Getting this wrong freezes `heartbeat.json` at its first value and
+  the bridge reads as permanently stale — see `writeFileAtomic`.
+- **Never call native UFunctions.** They hang the Lua VM (see above). Stick
+  to Blueprint-exposed functions and property access.
+- **Never nest `ForEachProperty` inside `ForEachFunction`.** That
+  combination also wedged the VM during exploration.
+- **A wedged mod is invisible from in-game.** The server keeps running and
+  players stay connected; only the heartbeat stops. That is by design on the
+  agent side — staleness is what marks the bridge unavailable — but it means
+  "the console lost the bridge" and "the server is fine" are both true at
+  once, and recovery is a server restart.

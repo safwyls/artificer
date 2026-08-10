@@ -417,21 +417,57 @@ server. This is what the dwbridge mod calls (or will call):
   world and logged `Save completed SUCCESSFULLY` — the same path autosave
   takes. `SpudSubsystem:SaveGame(SlotName, Title, ...)` sits under it; the
   Persistence wrapper is the right level to call.
-- **kick / ban / unkick / unban — mapped, not yet implemented.**
-  `DominionPlayerController:Server_RequestAdminAction(Action, UserId)` where
-  `Action` is the enum `EAdminAction { Kick=0, Ban=1, Unkick=2, Unban=3 }`
-  and `UserId` is an `FUniqueNetIdRepl` struct. Two real constraints: it is a
-  *player controller* RPC (needs a connected admin's controller — a headless
-  server has none until someone joins), and the struct parameter is awkward to
-  build from Lua. `Server_SubmitAdminPassword(EnteredPassword)` authenticates
-  first. Bans also surface at rest in the ini `KnownPlayerList` (`bIsBanned`),
-  so offline ban/unban may be a dwconfig edit rather than a bridge call — to
-  be settled against a connected client.
-- **broadcast — mapped, not yet implemented.**
-  `PlayerChatComponent:Server_SendChatMessage(ChatMessageData: struct)` and
-  `Client_ReceiveSystemMessage(Tag: struct)`; per-player components with
-  struct params. Only meaningful with players online (nobody to hear
-  otherwise), so it too waits for a live client to build against.
+- **kick / ban / unban — mapped, and BLOCKED. Do not retry the obvious path.**
+  Tested against a connected client 2026-08-09; see "Why the command tier
+  stops at save" below. In short: `Server_RequestAdminAction(Action, UserId)`
+  exists (`EAdminAction { Kick=0, Ban=1, Unkick=2, Unban=3 }`, verified off
+  the live UEnum), but calling it from the server does nothing — a
+  `Server_` RPC invoked *on the server* is a no-op. Bans also surface at
+  rest in the ini `KnownPlayerList` (`bIsBanned`), which remains the most
+  promising route for offline ban/unban.
+- **broadcast — mapped, and blocked the same way.**
+  `PlayerChatComponent:Server_SendChatMessage(ChatMessageData)` where
+  `ChatMessageData = {SenderId, CharacterGuid, PlayerId: int, Color,
+  MessageBody: string}` (dumped from the live struct).
+  `Client_ReceiveSystemMessage(Tag: FGameplayTag)` carries **no text** — the
+  game's system messages are canned tags, so free text has to go through
+  `ChatMessageData`. Reading works: a hook on `Server_SendChatMessage`
+  captured a real player's message verbatim. Sending does not — see below.
+
+### Why the command tier stops at `save`
+
+Three findings from driving a live modded server with a connected player.
+Each is repeatable, and together they explain why only `save` shipped:
+
+1. **`Server_` RPCs are no-ops when invoked on the server.** The function
+   the reflection exposes is the *client-side send stub*: it serialises the
+   arguments and hands them to the net driver. Called on the authority there
+   is nobody to send to, so it returns cleanly having done nothing — which
+   is exactly what a kick looked like (`ok=true`, player still connected,
+   no session-removal line in the log). The real behaviour lives in
+   `Server_RequestAdminAction_Implementation`, native C++ that is not
+   reflected and so cannot be called. Submitting the admin password first
+   (`Server_SubmitAdminPassword`, same no-op class) changes nothing.
+2. **Native UFunctions hang the UE4SS Lua VM in this build.** Calling
+   `PlayerController:ClientMessage` (3-arg native) or `ClientWasKicked`
+   wedges the Lua thread: the *game* keeps running normally and players
+   stay connected, but the mod stops responding — the heartbeat freezes and
+   the bridge correctly reports itself unavailable. Recovery needs a server
+   restart. Only Blueprint-exposed functions are safely callable, which
+   rules out UE's whole standard kick path.
+3. **No Blueprint-exposed kick/ban exists anywhere.** `DominionGameSession`,
+   `BP_GameMode_C` and `BP_GameState_C` were each walked in full: not one
+   `Kick`/`Ban`/`Admin` function among them. The GameState does carry
+   replicated `KickedUsers` / `BannedUsers` arrays (readable, empty on a
+   fresh server) whose `OnRep_` handlers exist client-side — mutating those
+   directly is the one untried lead, though the actual disconnection is
+   still native code, so replicating the array may only move UI state.
+
+Consequence for the mod: `kick`/`ban`/`unban` were implemented, tested
+against a live player, found to silently do nothing, and **removed**. A
+verb that reports success while nothing happens is worse than an honest
+501 — the console would tell an operator a troublemaker was kicked when
+they were still in the world. The mod advertises only what it can do.
 - **shutdown — not a bridge command.** Stopping the process is the agent's
   supervisor job, with a grace period; a mod-driven shutdown would be
   strictly worse (it can't stop a hung game). Left pointed at the agent.
@@ -449,14 +485,34 @@ freshness as `health.bridge`, and the dragonwilds client routes a command
 through it only when the heartbeat lists that command — otherwise the honest
 501 stands.
 
+## Closed with a live player on the modded server (2026-08-09)
+
+**Autosave is 5 minutes regardless of activity.** A server with a player
+connected and actively playing saved 5 min 13 s after boot — the same
+cadence measured idle. Player activity does not tighten or loosen it, so
+the "a restart costs up to ~5 minutes of play" figure holds under load
+too. The save additionally writes a player chunk, and the game logs its
+own cosmetic bug doing it: `LogSpudData: Error: Chunk ID Players is more
+than 4 characters long, will be truncated`.
+
+**No second well-known UDP port, even with a player connected.** With one
+player in-world the server held exactly two UDP sockets: the configured
+game port, and one *ephemeral* high port (observed 45453). The 7778 the
+web sources claim never appears. Provisioning still reserves the pair,
+which is now knowingly defensive rather than required.
+
+**Chat lines: readable at the source, absent from the log.** A player's
+chat message was captured live by hooking `Server_SendChatMessage` (body
+verbatim), but chat does **not** appear in the server's stdout log, so
+`dwlog` cannot see it. Chat monitoring would have to come through a mod.
+
 ## Still open
 
-1. **Autosave interval with players present** — a leave triggers a save
-   (verified), but whether activity changes the 5-minute idle cadence is
-   untested.
-2. **Whether a second well-known UDP port opens** once a player connects
-   (only 7777 plus an ephemeral port was seen idle; the join capture
-   wasn't instrumented for ports).
-3. **Ban enforcement** — does the server honor a hand-edited
-   `bIsBanned=True`, and does it re-read the ini to see it?
-4. **Chat log lines** — no chat has been captured.
+1. **Ban enforcement** — does the server honor a hand-edited
+   `bIsBanned=True` in the ini's `KnownPlayerList`, and does it re-read the
+   file to see it? This is now the most valuable open question, because it
+   is the only plausible route to offline ban/unban given the command-tier
+   findings above.
+2. **The `KickedUsers` / `BannedUsers` GameState arrays** — whether pushing
+   a net id into them actually disconnects a player, or merely replicates
+   UI state. The one untried lead for a live kick.

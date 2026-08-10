@@ -50,11 +50,15 @@ wizard), Phase 3 (the `dwsave` save reader — world *metadata*, see below),
 Phase 4 (the dwbridge command channel — its `save` verb works end to end;
 see below), Phase 5 (the Wildskeeper frontend).
 
-**Partial:** Phase 4's command surface. The bridge exists and `save` is
-proven through the whole stack; `kick`/`ban`/`unban`/`broadcast` are
-mapped to real game functions (recon doc, "Command surface") but not yet
-implemented in the mod — they need a connected client to build against
-safely. Also unfinished: everything in the save beyond the header —
+**Partial, and now bounded by the game rather than by effort:** Phase 4's
+command surface. The bridge exists and `save` is proven through the whole
+stack. `kick`/`ban`/`unban`/`broadcast` were implemented and tested against
+a live connected player, found to silently do nothing, and **removed** — a
+`Server_` RPC invoked on the server is a no-op, the native functions that
+would work wedge the UE4SS Lua VM, and no Blueprint-exposed kick/ban exists
+anywhere. Full detail in the recon doc's "Why the command tier stops at
+`save`"; don't re-attempt the obvious path without reading it.
+Also unfinished: everything in the save beyond the header —
 `dwsave` reads the INFO chunk and level names, not players or inventories,
 so the visibility roster still reports unavailable.
 
@@ -156,11 +160,23 @@ The pieces, all committed:
   heartbeat lists them; otherwise the honest 501 stands. `save` is live;
   the rest map to real functions but await the mod implementing them.
 
-What's left in Phase 4: implement `kick`/`ban`/`unban`/`broadcast` in the
-mod (they need a connected client to build against — see the recon doc's
-"Command surface"), and a palagent launch profile that runs the Windows
-build under Wine (today it's `GAME_CMD`/`GAME_ARGS` config; the e2e ran the
-game by hand while a real agent drove the bridge over the shared dir).
+What's left in Phase 4, in the order worth attempting:
+
+1. **A palagent launch profile for the Wine + Windows build.** Pure
+   engineering, no unknowns: today it is `GAME_CMD`/`GAME_ARGS` config and
+   the live test ran the game by hand while a real agent drove the bridge
+   over the shared directory. This is what makes the modded stack
+   deployable rather than hand-run.
+2. **Ban via the ini.** `KnownPlayerList`'s `bIsBanned` flag is the one
+   plausible route to offline ban/unban left standing, and dwconfig already
+   owns that file safely. Needs one experiment: does the server honour a
+   hand-edited flag, and does it re-read the file?
+3. **The `KickedUsers`/`BannedUsers` GameState arrays** — the only untried
+   lead for a live kick, and a long shot (the disconnection itself is
+   native code, so replicating the arrays may only move UI state).
+
+Do **not** start by re-implementing the admin RPC: that path is closed and
+the recon doc explains exactly why.
 
 ## Running it locally
 
@@ -181,12 +197,12 @@ Two environment quirks, both already applied on this machine: SteamCMD is
 symlink to `/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem`, or it
 reports "needs to be online" and gives up.
 
-**A Windows game client cannot reach this server at `127.0.0.1`.** WSL2 in
-default NAT mode forwards TCP only, and the game is UDP. Either set
-`networkingMode=mirrored` in `C:\Users\<user>\.wslconfig` and
-`wsl --shutdown`, or install the Windows depot (`4019831`) natively.
-(A client **did** join on 2026-08-09 — see above — so this was overcome
-at least once; the note stays for whoever hits it fresh.)
+**Reaching the server from a Windows game client: solved.** WSL2's default
+NAT mode forwards TCP only, and the game is UDP — but **`networkingMode=mirrored`
+in `C:\Users\<user>\.wslconfig` (then `wsl --shutdown`) fixes it**, confirmed
+2026-08-09: a client connected to the WSL-hosted server over UDP with no
+trouble. Installing the Windows depot (`4019831`) natively is the fallback
+if mirrored mode is ever unavailable.
 
 ## Suggested next steps
 
