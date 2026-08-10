@@ -23,7 +23,13 @@ FROM docker.io/library/alpine:3.22
 # No python3: the plan expected the save reader to shell out to a Python
 # GVAS tool, but the format turned out to be SPUD and the reader (dwsave)
 # is pure Go inside the binary.
-RUN adduser -D -u 1000 wildskeeper
+# Overridable so deployments can match the host owner of the /data bind
+# mount (e.g. TrueNAS's apps user, 568:568) at build time; at runtime a
+# compose `user:` line does the same job without rebuilding — the binary
+# only needs a writable DATA_DIR, nothing tied to this account.
+ARG UID=1000
+ARG GID=1000
+RUN addgroup -g "$GID" wildskeeper && adduser -D -u "$UID" -G wildskeeper wildskeeper
 WORKDIR /app
 COPY --from=backend /out/wildskeeper ./wildskeeper
 RUN mkdir -p /data && chown wildskeeper:wildskeeper /data
