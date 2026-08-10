@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the whole stack locally against a real Dragonwilds server: the
-# palagent sidecar in supervisor mode, and dwcon in front of it.
+# wkagent sidecar in supervisor mode, and dwcon in front of it.
 #
 # This is the manual-test path. It is deliberately the same shape as a real
 # deployment — the agent owns the game process and dwcon only talks to the
@@ -52,7 +52,7 @@ api() { curl -sS --connect-timeout 3 --max-time 120 -b "$COOKIES" "$@"; }
 # first and says which thing to run, rather than surfacing a curl error.
 require_agent() {
   if ! curl -sS --connect-timeout 2 -o /dev/null "$AGENT/healthz" 2>/dev/null; then
-    echo "The palagent isn't listening on $AGENT." >&2
+    echo "The wkagent isn't listening on $AGENT." >&2
     echo "It runs as a background process, so a WSL restart or reboot stops it." >&2
     echo "Start the stack with:  $0 up" >&2
     exit 1
@@ -89,21 +89,21 @@ up)
   R="$(repo_root)"
   mkdir -p "$RUN_DIR/data"
   echo "==> building"
-  (cd "$R" && go build -o "$RUN_DIR/palagent" ./cmd/palagent && go build -o "$RUN_DIR/dwcon" ./cmd/dwcon)
+  (cd "$R" && go build -o "$RUN_DIR/wkagent" ./cmd/wkagent && go build -o "$RUN_DIR/dwcon" ./cmd/dwcon)
   [ -d "$R/web/dist" ] || (cd "$R/web" && npm run build)
 
-  echo "==> starting palagent (supervisor) on :$AGENT_PORT"
-  PALAGENT_MODE=supervisor \
-  PALAGENT_TOKEN="$AGENT_TOKEN" \
-  PALAGENT_INSTALL_DIR="$SERVER_DIR" \
-  PALAGENT_ADDR=":$AGENT_PORT" \
-  PALAGENT_GAME_PORT="$GAME_PORT" \
-  PALAGENT_STEAMCMD="$STEAMCMD_DIR/steamcmd.sh" \
-  PALAGENT_ADMIN_PASSWORD="local-admin-pw" \
-  PALAGENT_OWNER_ID="$OWNER_ID" \
-  PALAGENT_SERVER_NAME="Grimwood Bastion" \
-  PALAGENT_AUTOSTART=false \
-    nohup "$RUN_DIR/palagent" > "$RUN_DIR/agent.log" 2>&1 < /dev/null &
+  echo "==> starting wkagent (supervisor) on :$AGENT_PORT"
+  WKAGENT_MODE=supervisor \
+  WKAGENT_TOKEN="$AGENT_TOKEN" \
+  WKAGENT_INSTALL_DIR="$SERVER_DIR" \
+  WKAGENT_ADDR=":$AGENT_PORT" \
+  WKAGENT_GAME_PORT="$GAME_PORT" \
+  WKAGENT_STEAMCMD="$STEAMCMD_DIR/steamcmd.sh" \
+  WKAGENT_ADMIN_PASSWORD="local-admin-pw" \
+  WKAGENT_OWNER_ID="$OWNER_ID" \
+  WKAGENT_SERVER_NAME="Grimwood Bastion" \
+  WKAGENT_AUTOSTART=false \
+    nohup "$RUN_DIR/wkagent" > "$RUN_DIR/agent.log" 2>&1 < /dev/null &
 
   echo "==> starting dwcon on :$HTTP_PORT"
   JWT_SECRET="0123456789abcdef0123456789abcdef0123456789abcdef" \
@@ -150,7 +150,7 @@ down)
   agent_curl -X POST "$AGENT/v1/power/stop" > /dev/null 2>&1 || true
   # -x matches the process name exactly. -f would also match any shell
   # whose command line mentions these paths, including this script's caller.
-  pkill -x palagent 2>/dev/null || true
+  pkill -x wkagent 2>/dev/null || true
   pkill -x dwcon 2>/dev/null || true
   echo "stopped"
   ;;

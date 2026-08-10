@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/palagent"
+	"github.com/safwyls/dwcon/internal/wkagent"
 )
 
 // GameStatus mirrors the agent's wire type, like Job and Health.
-type GameStatus = palagent.GameStatus
+type GameStatus = wkagent.GameStatus
 
 // Power performs start/stop/restart on a supervisor-mode agent's game and
 // returns the post-action status. Stop legitimately waits out the game's
@@ -57,7 +57,7 @@ type ProvisionResult struct {
 // Provision asks a provisioner-mode agent to instantiate the Palworld
 // supervisor template. The generous timeout covers the image pull a first
 // provision performs.
-func (c *Client) Provision(ctx context.Context, req palagent.ProvisionRequest) (*ProvisionResult, error) {
+func (c *Client) Provision(ctx context.Context, req wkagent.ProvisionRequest) (*ProvisionResult, error) {
 	var res ProvisionResult
 	if err := c.do(ctx, http.MethodPost, "/v1/provision", req, &res, 10*time.Minute); err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (c *Client) Provision(ctx context.Context, req palagent.ProvisionRequest) (
 }
 
 // DiscoveredServer mirrors the provisioner's wire type.
-type DiscoveredServer = palagent.DiscoveredServer
+type DiscoveredServer = wkagent.DiscoveredServer
 
 // Discover lists Palworld-shaped containers on the provisioner's host.
 func (c *Client) Discover(ctx context.Context) ([]DiscoveredServer, error) {
@@ -80,7 +80,7 @@ func (c *Client) Discover(ctx context.Context) ([]DiscoveredServer, error) {
 }
 
 // DestroyResult mirrors the provisioner's wire type.
-type DestroyResult = palagent.DestroyResult
+type DestroyResult = wkagent.DestroyResult
 
 // Destroy asks the provisioner to remove a container it created.
 //
@@ -99,9 +99,9 @@ func (c *Client) Destroy(ctx context.Context, container string) (*DestroyResult,
 }
 
 // AdoptResult mirrors the provisioner's wire type.
-type AdoptResult = palagent.AdoptResult
+type AdoptResult = wkagent.AdoptResult
 
-// Adopt recovers a palagent container's registration data (secrets
+// Adopt recovers a wkagent container's registration data (secrets
 // included) so palcon can re-register a server whose row was lost.
 func (c *Client) Adopt(ctx context.Context, container string) (*AdoptResult, error) {
 	var res AdoptResult

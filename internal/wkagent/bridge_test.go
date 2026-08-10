@@ -1,4 +1,4 @@
-package palagent
+package wkagent
 
 import (
 	"context"

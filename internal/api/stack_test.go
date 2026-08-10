@@ -39,15 +39,15 @@ func TestGeneratedStackIsValidYAML(t *testing.T) {
 	if err := yaml.Unmarshal([]byte(res.Stack), &parsed); err != nil {
 		t.Fatalf("generated stack is not valid YAML: %v\n%s", err, res.Stack)
 	}
-	svc, ok := parsed.Services["palagent"]
+	svc, ok := parsed.Services["wkagent"]
 	if !ok {
-		t.Fatalf("no palagent service in:\n%s", res.Stack)
+		t.Fatalf("no wkagent service in:\n%s", res.Stack)
 	}
-	if svc.Env["PALAGENT_OWNER_ID"] != `P-88F2"weird` {
-		t.Errorf("owner id did not survive quoting: %q", svc.Env["PALAGENT_OWNER_ID"])
+	if svc.Env["WKAGENT_OWNER_ID"] != `P-88F2"weird` {
+		t.Errorf("owner id did not survive quoting: %q", svc.Env["WKAGENT_OWNER_ID"])
 	}
-	if svc.Env["PALAGENT_SERVER_NAME"] != `Quote"Name` {
-		t.Errorf("server name did not survive quoting: %q", svc.Env["PALAGENT_SERVER_NAME"])
+	if svc.Env["WKAGENT_SERVER_NAME"] != `Quote"Name` {
+		t.Errorf("server name did not survive quoting: %q", svc.Env["WKAGENT_SERVER_NAME"])
 	}
 	if len(svc.Ports) != 3 {
 		t.Errorf("ports = %v, want the game pair plus the agent", svc.Ports)

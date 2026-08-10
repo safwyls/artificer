@@ -41,7 +41,7 @@ type Server struct {
 	// Empty = not configured.
 	SavePath string
 	// ConfigPath is an optional container-local path to the directory holding
-	// the server's PalWorldSettings.ini, bind-mounted read-write so the
+	// the server's DedicatedServer.ini, bind-mounted read-write so the
 	// settings editor can change it. Separate from SavePath so save data
 	// stays read-only. Empty = settings editor off.
 	ConfigPath string
@@ -50,7 +50,7 @@ type Server struct {
 	// read-write so the SteamCMD cache repair tool can wipe corrupted
 	// manifests. Empty = repair tool off.
 	InstallPath string
-	// AgentURL points at the server's palagent sidecar
+	// AgentURL points at the server's wkagent sidecar
 	// (docs/sidecar-agent.md); AgentToken is the bearer token palcon
 	// presents to it, encrypted at rest like the RCON/REST passwords and
 	// only populated when explicitly needed. Empty URL = no agent.

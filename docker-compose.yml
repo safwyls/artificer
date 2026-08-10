@@ -8,7 +8,7 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/data
-      # Only needed for servers WITHOUT a palagent sidecar — with an agent,
+      # Only needed for servers WITHOUT a wkagent sidecar — with an agent,
       # Wildskeeper pulls saves and config over its API and neither mount
       # below is used.
       #
@@ -33,7 +33,7 @@ services:
       # scoped proxy below, never at the host's docker socket directly —
       # that socket is root-equivalent, and Wildskeeper has no business
       # holding it. Leave unset to run without power control. Servers run
-      # by a palagent sidecar don't need this at all: power goes through
+      # by a wkagent sidecar don't need this at all: power goes through
       # the agent.
       - DOCKER_HOST=tcp://docker-proxy:2375
     restart: unless-stopped

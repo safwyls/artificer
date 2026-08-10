@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/safwyls/dwcon/internal/agentctl"
-	"github.com/safwyls/dwcon/internal/palagent"
+	"github.com/safwyls/dwcon/internal/wkagent"
 )
 
 const token = "client-test-token-0123456789"
 
-// newAgent spins a real palagent over a temp install dir — the client is
+// newAgent spins a real wkagent over a temp install dir — the client is
 // tested against the actual server implementation, not a stub, so the two
 // can't drift.
 func newAgent(t *testing.T, script string) *httptest.Server {
@@ -33,7 +33,7 @@ func newAgent(t *testing.T, script string) *httptest.Server {
 	if err := os.WriteFile(steamcmd, []byte("#!/bin/sh\n"+script+"\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: token, InstallDir: install, SteamCmd: steamcmd, Version: "test",
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
@@ -49,7 +49,7 @@ func TestNewValidation(t *testing.T) {
 	if _, err := agentctl.New("", token); !errors.Is(err, agentctl.ErrNotConfigured) {
 		t.Errorf("empty url: got %v, want ErrNotConfigured", err)
 	}
-	if _, err := agentctl.New("palagent:8811", token); err == nil {
+	if _, err := agentctl.New("wkagent:8811", token); err == nil {
 		t.Error("schemeless url accepted")
 	}
 }
@@ -66,7 +66,7 @@ func TestClientRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if health.APIVersion != palagent.APIVersion || !health.InstallDirOk {
+	if health.APIVersion != wkagent.APIVersion || !health.InstallDirOk {
 		t.Errorf("health = %+v", health)
 	}
 
@@ -101,7 +101,7 @@ func TestClientSyncSave(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(world, "Ashenfall.sav"), []byte("v1"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: token, InstallDir: install, SteamCmd: "/bin/true", Version: "test",
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})

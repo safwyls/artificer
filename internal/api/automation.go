@@ -112,7 +112,7 @@ func (s *Server) handleGetAutomation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp["discord"] = discord
-		// A supervised server's container runs palagent as PID 1, so it
+		// A supervised server's container runs wkagent as PID 1, so it
 		// stays up whatever the game does — the watchdog would inspect it
 		// forever and never see the crash it exists to catch. The agent's
 		// own supervisor already restarts the game with backoff, so the

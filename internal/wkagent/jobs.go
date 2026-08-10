@@ -1,4 +1,4 @@
-package palagent
+package wkagent
 
 import (
 	"bufio"
@@ -101,7 +101,7 @@ func (r *jobRunner) run(id, command string, args []string) {
 			return
 		}
 		r.appendLog(id, fmt.Sprintf(
-			"palagent: retrying (%d/%d) — %q is SteamCMD's usual cold-bootstrap flake and normally clears on the second run",
+			"wkagent: retrying (%d/%d) — %q is SteamCMD's usual cold-bootstrap flake and normally clears on the second run",
 			attemptNo+1, maxAttempts, errMsg))
 	}
 }

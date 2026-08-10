@@ -1,6 +1,6 @@
 //go:build unix
 
-package palagent
+package wkagent
 
 import "syscall"
 

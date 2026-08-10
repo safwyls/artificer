@@ -15,7 +15,7 @@ import (
 	"github.com/safwyls/dwcon/internal/games/dragonwilds"
 )
 
-// fakeAgent is a palagent just complete enough for the derived client:
+// fakeAgent is a wkagent just complete enough for the derived client:
 // /v1/health with a supervised-game status, /v1/power/logs with a ring.
 type fakeAgent struct {
 	mu        sync.Mutex
@@ -41,7 +41,7 @@ func newFakeAgent(t *testing.T) (*fakeAgent, string) {
 		switch r.URL.Path {
 		case "/v1/health":
 			h := map[string]any{
-				"agent": "palagent", "apiVersion": 1, "mode": "supervisor",
+				"agent": "wkagent", "apiVersion": 1, "mode": "supervisor",
 				"game": map[string]any{"state": f.state, "startedAt": f.startedAt},
 				"job":  nil,
 			}

@@ -13,17 +13,17 @@ import (
 	"time"
 )
 
-// This file exists for the palagent provisioner, not for palcon: palcon's
+// This file exists for the wkagent provisioner, not for palcon: palcon's
 // proxy deliberately can't create containers (see the package comment).
 // The provisioner is the one component allowed to hold create rights, and
 // even it only ever instantiates the locked Palworld template
-// (internal/palagent/provisioner.go).
+// (internal/wkagent/provisioner.go).
 
-// pullTimeout bounds an image pull; the palagent image is a few hundred
+// pullTimeout bounds an image pull; the wkagent image is a few hundred
 // MB and cached after the first provision.
 const pullTimeout = 10 * time.Minute
 
-// ImagePull pulls ref (e.g. ghcr.io/safwyls/palagent:beta), consuming the
+// ImagePull pulls ref (e.g. ghcr.io/safwyls/wkagent:beta), consuming the
 // progress stream until the daemon reports completion.
 func (c *Client) ImagePull(ctx context.Context, ref string) error {
 	name, tag := ref, "latest"

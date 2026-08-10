@@ -58,7 +58,7 @@ export const PERMISSION_LABELS: Record<Permission, { label: string; help: string
   save: { label: "Save world", help: "Trigger a world save" },
   moderate: { label: "Moderate", help: "Kick, ban and unban players" },
   shutdown: { label: "In-game shutdown", help: "Shut the server down with a countdown" },
-  settings: { label: "Edit settings", help: "Read and edit PalWorldSettings.ini" },
+  settings: { label: "Edit settings", help: "Read and edit DedicatedServer.ini" },
 };
 
 export interface Me {
@@ -180,7 +180,7 @@ export interface ServerWriteInput {
   containerName: string;
 }
 
-/** One background job on a server's palagent sidecar. */
+/** One background job on a server's wkagent sidecar. */
 export interface SteamJob {
   id: string;
   kind: string;
@@ -255,7 +255,7 @@ export interface ProvisionDefaults {
   ports?: { game: number; agent: number };
 }
 
-/** A palagent container found on the provisioner's host. */
+/** A wkagent container found on the provisioner's host. */
 export interface DiscoveredServer {
   name: string;
   image: string;
@@ -537,7 +537,7 @@ export interface AutomationResult {
   /** Absent for non-admins. */
   discord?: DiscordConfig;
   /** Absent for non-admins. `available` = docker control + container name. */
-  /** `supervised` means a palagent owns the game process, which is why
+  /** `supervised` means a wkagent owns the game process, which is why
    * `available` is false: its own supervisor already does this job. */
   watchdog?: { enabled: boolean; available: boolean; supervised?: boolean };
   /** Absent for non-admins. Token is the /status/<token> URL segment. */
@@ -858,7 +858,7 @@ export const api = {
   // power permission and a configured install path.
   clearSteamCache: (id: number) =>
     request<{ removed: number }>(`/servers/${id}/steam-cache/clear`, { method: "POST" }),
-  // SteamCMD update via the server's palagent sidecar. POST starts a job
+  // SteamCMD update via the server's wkagent sidecar. POST starts a job
   // on the agent (409 while the container runs or a job is in flight);
   // GET reports the running/last job so the UI can poll — and rediscover
   // an in-flight update after a reload.

@@ -34,7 +34,7 @@ type Config struct {
 	// Palcon should never require access to a docker socket to run.
 	DockerHost string
 
-	// ProvisionerURL/Token point at a provisioner-mode palagent — the one
+	// ProvisionerURL/Token point at a provisioner-mode wkagent — the one
 	// component allowed to create containers. Empty means the new-server
 	// wizard hands the operator a stack file to paste instead.
 	ProvisionerURL   string

@@ -59,7 +59,7 @@ func TestLoadReadsTheEnvironment(t *testing.T) {
 		"JWT_SECRET": goodJWT, "ENCRYPTION_KEY": goodKey, "DATA_DIR": dir,
 		"HTTP_ADDR": ":9999", "ADMIN_USERNAME": "root", "ADMIN_PASSWORD": "hunter2",
 		"DOCKER_HOST":     "tcp://10.0.0.5:2375",
-		"PROVISIONER_URL": "http://palprovisioner:8811", "PROVISIONER_TOKEN": "tok",
+		"PROVISIONER_URL": "http://wkprovisioner:8811", "PROVISIONER_TOKEN": "tok",
 	})
 
 	cfg, err := config.Load()
@@ -72,7 +72,7 @@ func TestLoadReadsTheEnvironment(t *testing.T) {
 	if cfg.DockerHost != "tcp://10.0.0.5:2375" {
 		t.Errorf("DockerHost = %q", cfg.DockerHost)
 	}
-	if cfg.ProvisionerURL != "http://palprovisioner:8811" || cfg.ProvisionerToken != "tok" {
+	if cfg.ProvisionerURL != "http://wkprovisioner:8811" || cfg.ProvisionerToken != "tok" {
 		t.Errorf("provisioner = %q / %q", cfg.ProvisionerURL, cfg.ProvisionerToken)
 	}
 }

@@ -84,8 +84,8 @@ func newStore(t *testing.T) *store.Store {
 	return store.New(sqlDB, box)
 }
 
-const crashedContainer = `{"Name":"/palagent-main","State":{"Status":"exited","Running":false,"ExitCode":137}}`
-const healthyContainer = `{"Name":"/palagent-main","State":{"Status":"running","Running":true,"StartedAt":"2026-07-26T05:00:00Z"}}`
+const crashedContainer = `{"Name":"/wkagent-main","State":{"Status":"exited","Running":false,"ExitCode":137}}`
+const healthyContainer = `{"Name":"/wkagent-main","State":{"Status":"running","Running":true,"StartedAt":"2026-07-26T05:00:00Z"}}`
 
 func newWatchdog(t *testing.T, st *store.Store, docker *dockerctl.Client) *Watchdog {
 	t.Helper()
@@ -98,7 +98,7 @@ func addServer(t *testing.T, st *store.Store, over func(*store.Server)) *store.S
 	t.Helper()
 	srv := &store.Server{
 		Name: "main", Host: "10.0.0.5", Enabled: true,
-		Watchdog: true, ContainerName: "palagent-main",
+		Watchdog: true, ContainerName: "wkagent-main",
 	}
 	if over != nil {
 		over(srv)

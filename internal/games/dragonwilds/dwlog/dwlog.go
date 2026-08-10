@@ -1,7 +1,7 @@
 // Package dwlog derives who is on a Dragonwilds server from its log stream.
 //
 // Dragonwilds has no RCON, no HTTP API and no query protocol; the log tail
-// the palagent supervisor captures is the only live source of player state.
+// the wkagent supervisor captures is the only live source of player state.
 // This package is a small state machine over that tail: join and leave lines
 // open and close sessions, everything else is noise by design.
 //

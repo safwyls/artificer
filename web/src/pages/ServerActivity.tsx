@@ -251,7 +251,7 @@ export function ServerActivity() {
 
           {activityQuery.data && rows.length === 0 && (
             <p className="px-5 py-6 text-sm text-wk-parchment/60">
-              No joins or leaves seen in the last {hours} hours. Events are recorded from when this Palcon
+              No joins or leaves seen in the last {hours} hours. Events are recorded from when this Wildskeeper
               version started watching the server.
             </p>
           )}

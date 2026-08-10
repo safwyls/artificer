@@ -58,7 +58,7 @@ func (c *Client) raw(ctx context.Context, method, path string, header http.Heade
 		case resp.StatusCode == http.StatusNotFound && msg == "":
 			// A JSON-less 404 is the router, not a handler: the agent
 			// predates this verb.
-			return nil, nil, fmt.Errorf("%w: the agent does not support this operation — update the palagent image", ErrRejected)
+			return nil, nil, fmt.Errorf("%w: the agent does not support this operation — update the wkagent image", ErrRejected)
 		case resp.StatusCode == http.StatusNotFound, resp.StatusCode == http.StatusBadRequest:
 			return nil, nil, fmt.Errorf("%w: %s", ErrRejected, msg)
 		}
@@ -172,7 +172,7 @@ func extractTar(r io.Reader, dir string) error {
 // this console syncs was written before it.
 var mtimeFloor = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
-// GetConfig fetches the raw PalWorldSettings.ini.
+// GetConfig fetches the raw DedicatedServer.ini.
 func (c *Client) GetConfig(ctx context.Context) ([]byte, error) {
 	resp, cancel, err := c.raw(ctx, http.MethodGet, "/v1/files/config", nil, nil, 30*time.Second)
 	if err != nil {
@@ -183,7 +183,7 @@ func (c *Client) GetConfig(ctx context.Context) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 }
 
-// PutConfig replaces PalWorldSettings.ini; the agent writes atomically.
+// PutConfig replaces DedicatedServer.ini; the agent writes atomically.
 func (c *Client) PutConfig(ctx context.Context, data []byte) error {
 	resp, cancel, err := c.raw(ctx, http.MethodPut, "/v1/files/config", nil, bytes.NewReader(data), 30*time.Second)
 	if err != nil {

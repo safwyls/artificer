@@ -8,7 +8,7 @@ Palworld.
 Dragonwilds has no RCON, no HTTP admin API and no query protocol; all
 native administration is the in-game Server Management menu. Wildskeeper
 therefore *derives* everything: process liveness and uptime from its
-palagent sidecar, the live player list from a state machine over the
+wkagent sidecar, the live player list from a state machine over the
 server's log tail, configuration from `DedicatedServer.ini` at rest.
 Commands that have no transport (broadcast, kick, ban) answer HTTP 501
 with the honest reason instead of pretending — they light up when the
@@ -26,7 +26,7 @@ planned UE4SS command bridge exists.
   keys, type-validated, one-level `.bak`, atomic swap) plus one-click
   admin-password rotation — the game's one real remote-admin lever
 - **Server log** — live tail through the agent
-- **Raise a server** — one-click provisioning through a palagent
+- **Raise a server** — one-click provisioning through a wkagent
   provisioner (or a generated compose stack to deploy by hand): creates the
   container, installs the game via SteamCMD, seeds `DedicatedServer.ini`
   with your Owner ID, and starts it
@@ -50,11 +50,11 @@ cd web && npm install && npm run dev   # frontend dev server
 Production: `cd web && npm run build`, then `go build ./cmd/dwcon` (the Go
 binary embeds the bundle), or use the `Dockerfile` / `docker-compose.yml`.
 
-The game server itself runs under the `palagent` sidecar
-(`Dockerfile.palagent`). In supervisor mode the agent *is* the server: it
+The game server itself runs under the `wkagent` sidecar
+(`Dockerfile.wkagent`). In supervisor mode the agent *is* the server: it
 installs the game with SteamCMD and runs
 `./RSDragonwildsServer.sh -log -Port=7777` as a child process. It needs
-`PALAGENT_OWNER_ID` — the game refuses to start without an owner, and the
+`WKAGENT_OWNER_ID` — the game refuses to start without an owner, and the
 agent seeds the config with it on first install. The Raise-a-server wizard
 sets all of this up; `docs/sidecar-agent.md` has the reference stack.
 

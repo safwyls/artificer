@@ -122,7 +122,7 @@ type Conn struct {
 	// PreferREST asks for the game's HTTP admin API where it has one, with
 	// RCON as the fallback. Games with no HTTP API ignore it.
 	PreferREST bool
-	// AgentURL and AgentToken reach the server's palagent sidecar. Games with
+	// AgentURL and AgentToken reach the server's wkagent sidecar. Games with
 	// no query protocol of their own (Dragonwilds) derive their state through
 	// the agent — process liveness from its health, players from its log tail
 	// — so for them the agent is the admin transport, not an extra.

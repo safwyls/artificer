@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/palagent"
 	"github.com/safwyls/dwcon/internal/store"
+	"github.com/safwyls/dwcon/internal/wkagent"
 )
 
 // supervisorServer registers a server whose agent supervises a fake game.
@@ -35,7 +35,7 @@ while true; do sleep 0.05; done
 	if err := os.WriteFile(steamcmd, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: agentToken, InstallDir: install, SteamCmd: steamcmd, Version: "test",
 		Mode: "supervisor", StopGrace: time.Second,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -82,8 +82,8 @@ func TestPowerViaSupervisorAgent(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &state); err != nil {
 		t.Fatal(err)
 	}
-	if state.Running || !strings.Contains(state.Name, "palagent") {
-		t.Fatalf("initial state = %+v, want stopped palagent-managed", state)
+	if state.Running || !strings.Contains(state.Name, "wkagent") {
+		t.Fatalf("initial state = %+v, want stopped wkagent-managed", state)
 	}
 
 	// Start → running.

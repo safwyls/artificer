@@ -24,7 +24,7 @@ way to ask the game anything. Every piece of live state is *derived*:
 
 | What the UI shows | Where it actually comes from |
 |---|---|
-| Server up/down, uptime | palagent's `/v1/health` → supervised process state |
+| Server up/down, uptime | wkagent's `/v1/health` → supervised process state |
 | Player list | a state machine (`dwlog`) over the agent's stdout log ring |
 | Config | `DedicatedServer.ini` read at rest (`dwconfig`) |
 | Saves | files on disk, synced through the agent |
@@ -143,7 +143,7 @@ Still open: the second UDP port question, ban *enforcement*, chat lines.
 The dwbridge mod (`tools/dwbridge`) is real, and one command is proven
 through the whole stack: `POST /api/servers/{id}/save` in the console wrote
 the world on a headless server with no player connected —
-dwcon → palagent `/v1/bridge/command` → file IPC → the UE4SS Lua mod →
+dwcon → wkagent `/v1/bridge/command` → file IPC → the UE4SS Lua mod →
 `PersistenceSubsystem:SaveGame`, `Save completed SUCCESSFULLY` in the game
 log, save file rewritten.
 
@@ -153,7 +153,7 @@ The pieces, all committed:
   rename-over-existing are unreliable under Wine). Commands: `ping`, `save`.
 - **`tools/ue4ss-wine-shim`** — how the modded Windows build runs under Wine
   (the server imports no dwmapi, so UE4SS loads via a `version.dll` shim).
-- **palagent** — `bridge.go`: the file IPC's other half, `POST
+- **wkagent** — `bridge.go`: the file IPC's other half, `POST
   /v1/bridge/command`, and `health.bridge` (heartbeat freshness + command
   list). Supervisor mode only.
 - **dragonwilds client** — commands route through the bridge when the
@@ -162,7 +162,7 @@ The pieces, all committed:
 
 What's left in Phase 4, in the order worth attempting:
 
-1. **A palagent launch profile for the Wine + Windows build.** Pure
+1. **A wkagent launch profile for the Wine + Windows build.** Pure
    engineering, no unknowns: today it is `GAME_CMD`/`GAME_ARGS` config and
    the live test ran the game by hand while a real agent drove the bridge
    over the shared directory. This is what makes the modded stack
@@ -210,7 +210,7 @@ if mirrored mode is ever unavailable.
    what remains is `kick`/`ban`/`unban`/`broadcast` in the mod. These need
    a connected client to build against (the admin RPC wants a player
    controller; the struct params want a real value to copy), and a
-   palagent launch profile that runs the Windows build under Wine so the
+   wkagent launch profile that runs the Windows build under Wine so the
    agent supervises the modded process directly. Pin the UE4SS
    nightly that works; expect churn at 1.0.
 2. **Deepen the save reader.** Now unblocked for real: a played world
@@ -226,8 +226,8 @@ if mirrored mode is ever unavailable.
    in-container**, metrics/world/logs derive across the container
    network, clean stop in ~1 s. The catch found on the very first run:
    **the game refuses to boot as root** ("Refusing to run with the root
-   privileges", exit 134 crash loop), so `Dockerfile.palagent` now bakes
-   a `palagent` user (uid 1000) and the generated compose warns that the
+   privileges", exit 134 crash loop), so `Dockerfile.wkagent` now bakes
+   a `wkagent` user (uid 1000) and the generated compose warns that the
    `/dragonwilds` volume must be writable by that uid. The `-healthz`
    healthcheck is verified under docker-format builds (OCI builds drop
    HEALTHCHECK silently). Still untouched by real infrastructure: the

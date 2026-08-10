@@ -9,7 +9,7 @@ import { NumberField } from "./ui/number-field";
 import { Label } from "./ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 
-/** How the game is deployed. These are the agent's own `PALAGENT_MODE`
+/** How the game is deployed. These are the agent's own `WKAGENT_MODE`
  * values, so the tab a server sits under is the shape it really runs in. */
 type Kind = "supervised" | "companion";
 
@@ -20,9 +20,9 @@ const KINDS = [
 
 const KIND_BLURB: Record<Kind, string> = {
   supervised:
-    "One palagent container runs the game itself. Power, updates, saves and settings all flow through the agent — no container name, no path mounts.",
+    "One wkagent container runs the game itself. Power, updates, saves and settings all flow through the agent — no container name, no path mounts.",
   companion:
-    "The game runs in its own container. Power goes through the docker proxy, and files come from a palagent beside it — or from three paths mounted into Wildskeeper.",
+    "The game runs in its own container. Power goes through the docker proxy, and files come from a wkagent beside it — or from three paths mounted into Wildskeeper.",
 };
 
 const emptyForm: ServerWriteInput = {
@@ -215,7 +215,7 @@ export function ServerFormDialog({
         <Label>Agent URL</Label>
         <Input
           value={form.agentUrl}
-          placeholder="http://palagent:8811"
+          placeholder="http://wkagent:8811"
           onChange={(e) => setForm({ ...form, agentUrl: e.target.value })}
         />
       </div>
@@ -244,7 +244,7 @@ export function ServerFormDialog({
           <DialogHeader>
             <DialogTitle>{mode === "create" ? "Add an existing server" : `Edit "${server?.name}"`}</DialogTitle>
             <DialogDescription>
-              Credentials come from your server's <code>PalWorldSettings.ini</code>.
+              Credentials come from your server's <code>DedicatedServer.ini</code>.
               {mode === "edit" && " Leave a password blank to keep the current one."}
             </DialogDescription>
           </DialogHeader>
@@ -317,8 +317,8 @@ export function ServerFormDialog({
               <Section title="Agent">
                 {agentFields}
                 <p className="text-xs text-muted-foreground">
-                  The <code>palagent</code> container running this game. Token must match the agent's{" "}
-                  <code>PALAGENT_TOKEN</code> — the provisioner writes both when it generates the stack.
+                  The <code>wkagent</code> container running this game. Token must match the agent's{" "}
+                  <code>WKAGENT_TOKEN</code> — the provisioner writes both when it generates the stack.
                 </p>
 
                 {strays.length > 0 && (
@@ -346,7 +346,7 @@ export function ServerFormDialog({
                     <Label>Container name (optional)</Label>
                     <Input
                       value={form.containerName}
-                      placeholder="palworld"
+                      placeholder="dragonwilds"
                       onChange={(e) => setForm({ ...form, containerName: e.target.value })}
                     />
                     <p className="text-xs text-muted-foreground">
@@ -359,7 +359,7 @@ export function ServerFormDialog({
                 <Section title="File access">
                   {agentFields}
                   <p className="text-xs text-muted-foreground">
-                    A <code>palagent</code> sidecar deployed next to the game container. Covers all three paths
+                    A <code>wkagent</code> sidecar deployed next to the game container. Covers all three paths
                     below at once: saves, the settings editor, backups and SteamCMD repair.
                   </p>
 
@@ -380,8 +380,8 @@ export function ServerFormDialog({
                           onChange={(e) => setForm({ ...form, savePath: e.target.value })}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Container path to the world save folder (holds <code>Level.sav</code>), mounted
-                          read-only. Turns on the Pal, inventory and map views.
+                          Container path to the world save folder (<code>SaveGames</code>, holding the
+                          <code>.sav</code>), mounted read-only. Turns on the world panel and backups.
                         </p>
                       </div>
 
@@ -393,7 +393,7 @@ export function ServerFormDialog({
                           onChange={(e) => setForm({ ...form, configPath: e.target.value })}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Container path to the folder holding <code>PalWorldSettings.ini</code>, mounted
+                          Container path to the folder holding <code>DedicatedServer.ini</code>, mounted
                           <strong> read-write</strong>. Turns on the settings editor. Keep it separate from the
                           save mount so save data stays read-only.
                         </p>
@@ -403,11 +403,11 @@ export function ServerFormDialog({
                         <Label>Install path (optional)</Label>
                         <Input
                           value={form.installPath}
-                          placeholder="/palworld"
+                          placeholder="/dragonwilds"
                           onChange={(e) => setForm({ ...form, installPath: e.target.value })}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Container path to the Palworld install root (holds <code>steamapps</code>), mounted
+                          Container path to the Dragonwilds install root (holds <code>steamapps</code>), mounted
                           <strong> read-write</strong>. Turns on clearing the SteamCMD cache when a game update
                           corrupts it.
                         </p>

@@ -61,12 +61,12 @@ func TestRestartSendsTheStopGrace(t *testing.T) {
 	spy, client := newSpy(t, "")
 	spy.set(http.StatusNoContent, "")
 
-	if err := client.Restart(context.Background(), "palagent-main"); err != nil {
+	if err := client.Restart(context.Background(), "wkagent-main"); err != nil {
 		t.Fatalf("Restart: %v", err)
 	}
 	// The grace period is what gives Palworld time to flush its world
 	// instead of taking a SIGKILL.
-	if got := spy.last(); !strings.Contains(got, "/containers/palagent-main/restart?t=") {
+	if got := spy.last(); !strings.Contains(got, "/containers/wkagent-main/restart?t=") {
 		t.Errorf("restart request = %q", got)
 	}
 }
@@ -115,7 +115,7 @@ func TestContainerRemoveReportsARunningContainer(t *testing.T) {
 
 func TestContainerList(t *testing.T) {
 	_, client := newSpy(t, `[
-	  {"Id":"c1","Names":["/palagent-main"],"Image":"ghcr.io/safwyls/palagent:latest","State":"running",
+	  {"Id":"c1","Names":["/wkagent-main"],"Image":"ghcr.io/safwyls/wkagent:latest","State":"running",
 	   "Labels":{"palcon.provisioned":"true","palcon.slug":"main"},
 	   "Ports":[{"PrivatePort":8211,"PublicPort":9211,"Type":"udp"},
 	            {"PrivatePort":8811,"PublicPort":0,"Type":"tcp"}]},
@@ -133,7 +133,7 @@ func TestContainerList(t *testing.T) {
 	first := list[0]
 	// The leading slash docker puts on every name is stripped, so callers
 	// can compare against the name they asked for.
-	if first.Name != "palagent-main" {
+	if first.Name != "wkagent-main" {
 		t.Errorf("Name = %q, want the slash stripped", first.Name)
 	}
 	if first.Labels["palcon.slug"] != "main" {
@@ -162,13 +162,13 @@ func TestContainerListReportsADeadDaemon(t *testing.T) {
 }
 
 func TestInspectEnv(t *testing.T) {
-	_, client := newSpy(t, `{"Config":{"Env":["PALAGENT_MODE=supervisor","PALAGENT_TOKEN=secret"]}}`)
+	_, client := newSpy(t, `{"Config":{"Env":["WKAGENT_MODE=supervisor","WKAGENT_TOKEN=secret"]}}`)
 
 	env, err := client.InspectEnv(context.Background(), "c1")
 	if err != nil {
 		t.Fatalf("InspectEnv: %v", err)
 	}
-	if len(env) != 2 || env[0] != "PALAGENT_MODE=supervisor" {
+	if len(env) != 2 || env[0] != "WKAGENT_MODE=supervisor" {
 		t.Errorf("env = %v", env)
 	}
 }

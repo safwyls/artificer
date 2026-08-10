@@ -8,12 +8,12 @@ game's own functions on request.
 
 Proven end to end 2026-08-09: `POST /api/servers/{id}/save` in the console
 wrote the world on a headless server with no player connected —
-dwcon → palagent → this mod → `PersistenceSubsystem:SaveGame`.
+dwcon → wkagent → this mod → `PersistenceSubsystem:SaveGame`.
 
 ## How it fits together
 
 ```
-dwcon  ──HTTP──▶  palagent  ──files──▶  dwbridge (this mod)  ──▶  game
+dwcon  ──HTTP──▶  wkagent  ──files──▶  dwbridge (this mod)  ──▶  game
        /save      /v1/bridge/command    DWBRIDGE_DIR               UFunction
 ```
 

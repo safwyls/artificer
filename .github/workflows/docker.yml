@@ -51,8 +51,8 @@ jobs:
       - name: Go tests
         run: go test ./...
 
-  # Two images from one repo: the dashboard (Dockerfile) and the palagent
-  # sidecar (Dockerfile.palagent, docs/sidecar-agent.md). Same tag scheme
+  # Two images from one repo: the dashboard (Dockerfile) and the wkagent
+  # sidecar (Dockerfile.wkagent, docs/sidecar-agent.md). Same tag scheme
   # for both so a compose stack can pin one channel across the pair.
   docker:
     needs: verify
@@ -65,8 +65,8 @@ jobs:
         include:
           - image: dwcon
             dockerfile: Dockerfile
-          - image: palagent
-            dockerfile: Dockerfile.palagent
+          - image: wkagent
+            dockerfile: Dockerfile.wkagent
     steps:
       - uses: actions/checkout@v5
 

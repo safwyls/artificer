@@ -1,4 +1,4 @@
-package palagent_test
+package wkagent_test
 
 import (
 	"encoding/json"

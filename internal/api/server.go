@@ -42,7 +42,7 @@ type Server struct {
 	files *agentfiles.Syncer
 	// Provisioner, when set (like CookieSecure, assigned after New), lets
 	// the new-server wizard deploy stacks itself via a provisioner-mode
-	// palagent instead of handing the operator a file.
+	// wkagent instead of handing the operator a file.
 	Provisioner *agentctl.Client
 	// Worlds, when set (assigned after New, like Provisioner), is the
 	// Dragonwilds save-reader cache behind GET /servers/{id}/world. Nil
@@ -149,15 +149,15 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.With(s.requirePermission(store.PermPower)).Get("/container/logs", s.handleContainerLogs)
 				// SteamCMD repair & update — power territory: they exist
 				// to get a broken container updating again. Runs via the
-				// server's palagent when configured, else the local
+				// server's wkagent when configured, else the local
 				// install-path mount (cache clear only).
 				r.With(s.requirePermission(store.PermPower)).Post("/steam-cache/clear", s.handleClearSteamCache)
 				r.With(s.requirePermission(store.PermPower)).Post("/steam/update", s.handleSteamUpdateStart)
 				r.With(s.requirePermission(store.PermPower)).Get("/steam/update", s.handleSteamUpdateStatus)
 				r.Get("/settings", s.handleServerSettings)
 
-				// Settings-ini editor (PalWorldSettings.ini or
-				// DedicatedServer.ini by game). Gated even for reading: the
+				// Settings-ini editor (DedicatedServer.ini here; the codec
+				// is per-game, see config.go). Gated even for reading: the
 				// file holds the admin/join passwords in the clear.
 				r.With(s.requirePermission(store.PermSettings)).Get("/config", s.handleGetConfig)
 				r.With(s.requirePermission(store.PermSettings)).Put("/config", s.handleUpdateConfig)

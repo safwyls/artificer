@@ -12,7 +12,7 @@ gets for free.
 
 A note on intent before the details: the expected way to reuse this work is
 a **sibling project that lifts or copies the generic packages** — `rcon`,
-`rcontest`, `savecache`, `steamcmd`, the generic halves of `palagent` and
+`rcontest`, `savecache`, `steamcmd`, the generic halves of `wkagent` and
 `agentctl` — not a second game registered inside this binary (Go's
 `internal/` rule means a separate module can't import them in place anyway).
 The registry below is deliberately frozen at what palcon itself consumes:
@@ -148,7 +148,7 @@ only the words change.
 | Discord notifications | `internal/notify` |
 | Backup schedule + archives | `internal/backup` |
 | Docker power control and provisioning | `internal/dockerctl` |
-| Remote file/process access next to the game server | `internal/palagent`, `internal/agentctl` |
+| Remote file/process access next to the game server | `internal/wkagent`, `internal/agentctl` |
 | Auth, users, permissions, audit trail, per-view visibility | `internal/api`, `internal/store` |
 
 ## Feature keys are views, not game concepts
@@ -180,7 +180,7 @@ worth having if the map is accurate:
   game, not shared. The shared frontend is the shell: `AppShell`, `ServerRail`,
   auth, the API client, `ui/`, `MetricChart`, `ServerPower`, `ServerSettings`,
   the log dialogs, `PublicStatus`, `Users`.
-- **`internal/palagent`** is a Palworld supervisor: it knows how to launch
+- **`internal/wkagent`** is a Palworld supervisor: it knows how to launch
   `PalServer.sh` and write `PalWorldSettings.ini`. The file/process/SteamCMD
   half is generic; the launch half is not.
 - **`internal/games/palworld/palconfig`** parses Palworld's one-line

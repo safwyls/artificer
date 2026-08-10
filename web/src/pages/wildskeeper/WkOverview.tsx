@@ -201,7 +201,7 @@ export function WkOverview() {
                     ))
                   ) : (
                     <span className="text-wk-mist">
-                      {logsQuery.isError ? "The log is out of reach — is the palagent up?" : "No log lines yet."}
+                      {logsQuery.isError ? "The log is out of reach — is the wkagent up?" : "No log lines yet."}
                     </span>
                   )}
                 </div>

@@ -22,7 +22,7 @@ const (
 	// PermPower so someone can be trusted to restart the container without
 	// also being able to boot everyone mid-session.
 	PermShutdown = "shutdown"
-	// PermSettings reads and edits PalWorldSettings.ini. Gated because the
+	// PermSettings reads and edits DedicatedServer.ini. Gated because the
 	// file holds the admin/join passwords in the clear and a bad edit can
 	// stop the server booting.
 	PermSettings = "settings"

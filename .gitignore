@@ -11,7 +11,7 @@ app.yaml
 *.exe
 # Local `go build -o` outputs at the repo root (30MB apiece)
 /dwcon
-/palagent
+/wkagent
 dwcon.log
 # The palcon reference checkout symlinked beside this repo
 /palcon

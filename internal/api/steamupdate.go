@@ -58,11 +58,11 @@ func (s *Server) handleSteamUpdateStart(w http.ResponseWriter, r *http.Request) 
 
 	// Whether the *game* is running is the question; the container is only
 	// a proxy for it, and a bad one under a supervisor. A supervised
-	// container runs palagent as PID 1, so it is always up even with the
+	// container runs wkagent as PID 1, so it is always up even with the
 	// game stopped — reading container state there would refuse every
 	// update forever, and stopping the container to satisfy it would kill
 	// the agent that has to perform the update. The agent answers
-	// first-hand instead (palagent's own guard on game.Running), so palcon
+	// first-hand instead (wkagent's own guard on game.Running), so palcon
 	// asks it and skips the container entirely.
 	if _, health := s.agentSupervisor(r.Context(), srv); health != nil {
 		if health.Game.State == "running" {

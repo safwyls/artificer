@@ -1,5 +1,5 @@
 // Package steamcmd holds the SteamCMD-adjacent file operations shared by
-// palcon (running them against a local bind mount) and palagent (running
+// palcon (running them against a local bind mount) and wkagent (running
 // them next to the game server). One implementation, two executors, so the
 // behavior can't drift between deployment styles.
 //

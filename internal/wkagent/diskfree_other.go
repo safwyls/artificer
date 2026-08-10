@@ -1,6 +1,6 @@
 //go:build !unix
 
-package palagent
+package wkagent
 
 // Agents deploy as Linux containers; on other platforms disk space is
 // simply unreported rather than a build failure.

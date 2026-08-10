@@ -36,7 +36,7 @@ export function Login() {
         <CardHeader className="items-center text-center">
           <ServerCog className="mb-1 h-8 w-8 text-wk-ember" />
           <h1 className="font-display text-xl font-bold text-foreground">Wildskeeper</h1>
-          <p className="text-sm text-muted-foreground">Sign in to manage your Palworld servers</p>
+          <p className="text-sm text-muted-foreground">Sign in to tend your Dragonwilds servers</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">

@@ -1,4 +1,4 @@
-package palagent_test
+package wkagent_test
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/palagent"
+	"github.com/safwyls/dwcon/internal/wkagent"
 )
 
 const testToken = "test-token-0123456789abcdef"
@@ -37,7 +37,7 @@ func newTestAgent(t *testing.T, script string) (*httptest.Server, string) {
 		t.Fatal(err)
 	}
 
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token:      testToken,
 		InstallDir: install,
 		SteamCmd:   steamcmd,
@@ -77,7 +77,7 @@ func do(t *testing.T, srv *httptest.Server, method, path, token string, body any
 }
 
 func TestAgentRejectsShortToken(t *testing.T) {
-	_, err := palagent.New(palagent.Config{Token: "short", InstallDir: t.TempDir()})
+	_, err := wkagent.New(wkagent.Config{Token: "short", InstallDir: t.TempDir()})
 	if err == nil {
 		t.Fatal("agent accepted a sub-minimum token")
 	}
@@ -101,7 +101,7 @@ func TestAgentAuth(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("health: got %d", resp.StatusCode)
 	}
-	if health["apiVersion"] != float64(palagent.APIVersion) || health["mode"] != "companion" || health["installDirOk"] != true {
+	if health["apiVersion"] != float64(wkagent.APIVersion) || health["mode"] != "companion" || health["installDirOk"] != true {
 		t.Errorf("health = %v", health)
 	}
 }
@@ -202,7 +202,7 @@ echo "Success! App '4019830' fully installed."`)
 	for _, l := range job["log"].([]any) {
 		joined += l.(string) + "\n"
 	}
-	if !strings.Contains(joined, "palagent: retrying (2/2)") {
+	if !strings.Contains(joined, "wkagent: retrying (2/2)") {
 		t.Errorf("log missing retry marker:\n%s", joined)
 	}
 }

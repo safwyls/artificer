@@ -1,4 +1,4 @@
-package palagent
+package wkagent
 
 import (
 	"bufio"
@@ -135,7 +135,7 @@ func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
 
 // desiredPath is where the operator's intent survives agent recreation.
 func (s *supervisor) desiredPath() string {
-	return filepath.Join(s.installDir, ".palagent", "desired")
+	return filepath.Join(s.installDir, ".wkagent", "desired")
 }
 
 func (s *supervisor) loadDesired(fallback string) string {
@@ -482,7 +482,7 @@ func (s *supervisor) prepareRuntime() {
 func (s *supervisor) seedConfig(ini string) {
 	if s.ownerID == "" {
 		s.logger.Warn("no owner id configured: the game will write its own DedicatedServer.ini and refuse to start until OwnerId is filled in",
-			"path", ini, "fix", "set PALAGENT_OWNER_ID (in-game: Settings, bottom-left 'My Player ID')")
+			"path", ini, "fix", "set WKAGENT_OWNER_ID (in-game: Settings, bottom-left 'My Player ID')")
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(ini), 0o755); err != nil {
@@ -490,7 +490,7 @@ func (s *supervisor) seedConfig(ini string) {
 		return
 	}
 	var b strings.Builder
-	b.WriteString("; Seeded by palagent on first install. The game owns this file from\n")
+	b.WriteString("; Seeded by wkagent on first install. The game owns this file from\n")
 	b.WriteString("; here — edit it from the dashboard's Configuration view.\n")
 	b.WriteString("[/Script/Dominion.DedicatedServerSettings]\n")
 	b.WriteString("OwnerId=" + s.ownerID + "\n")

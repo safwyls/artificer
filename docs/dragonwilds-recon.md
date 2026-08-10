@@ -85,7 +85,7 @@ UNVERIFIED are the gaps a headless server cannot close.
 
 ### Logs
 - `RSDragonwilds/Saved/Logs/RSDragonwilds.log`; with `-log` the same stream
-  reaches stdout, which is what palagent's supervisor ring captures.
+  reaches stdout, which is what wkagent's supervisor ring captures.
 - Production-verified markers (used by the AltSystem42 docker image to count
   players):
   - join: lines containing `LogNet: Join succeeded:`
@@ -148,10 +148,10 @@ found:
   client as first reader. The agent's `/v1/health` already reports
   `Game.StartedAt`, which is the tracker's restart-reset key; `/v1/power/logs`
   serves the stdout ring (2000 lines, pull-based — no streaming exists).
-- palagent's launch half was Palworld-hardcoded; retargeted in Phase 2 to
+- wkagent's launch half was Palworld-hardcoded; retargeted in Phase 2 to
   the native Linux build (see "Phase 2 decisions" below).
 - `internal/agentfiles` is the base-side syncer; the agent-side file service
-  is `internal/palagent/files.go` (plan's naming was loose).
+  is `internal/wkagent/files.go` (plan's naming was loose).
 
 ## Phase 2 decisions (agent + provisioning)
 
@@ -178,7 +178,7 @@ wrong guess would be expensive.
   `DedicatedServer.ini` on first run but refuses to start until `OwnerId`
   has a value, so an unattended install would loop. The agent therefore
   *seeds* a minimal ini when the install has none and an owner id is
-  configured (`PALAGENT_OWNER_ID`), and the provisioning API rejects a
+  configured (`WKAGENT_OWNER_ID`), and the provisioning API rejects a
   request without one. Seeding never overwrites an existing file.
   **This is the one place the port leans on unverified detail**: the
   section name and key spellings come from the multi-source-but-not-
@@ -291,7 +291,7 @@ autosave interval was never found in config documentation.
 run: as uid 0 the binary prints `Refusing to run with the root privileges`
 and aborts (exit 134) before touching config or saves — a crash loop under
 a supervisor. As any unprivileged uid it boots normally. This is why
-`Dockerfile.palagent` bakes a non-root user and the provisioner's compose
+`Dockerfile.wkagent` bakes a non-root user and the provisioner's compose
 warns about volume ownership; the same world then loaded, served, and
 stopped cleanly inside the container, so containerized deployment itself
 is confirmed viable.
@@ -403,7 +403,7 @@ every link held:
 
 Phase 4 is therefore a mod-authoring task, not a platform gamble. The
 costs it brings: the game must run as the Windows build under Wine (a
-palagent launch-profile variant), and the 1.0 launch (expected
+wkagent launch-profile variant), and the 1.0 launch (expected
 2026-09-15) may shift signatures — pin the UE4SS build that works.
 
 ## Command surface (mapped live via UE4SS, 2026-08-09)
@@ -474,13 +474,13 @@ they were still in the world. The mod advertises only what it can do.
 
 ### The bridge transport
 
-The mod (`tools/dwbridge`) and palagent share a directory
+The mod (`tools/dwbridge`) and wkagent share a directory
 (`<install>/dwbridge/`); the mod writes a heartbeat there and answers
 `request.json` with `response.json`. Single-flight, fixed filenames — a
 management console issues one command at a time, and it dodges the fact that
 `io.popen('dir')` and rename-over-existing are both unreliable under Wine
 (the mod removes a file before renaming onto it, or the heartbeat freezes at
-its first value). palagent exposes it as `POST /v1/bridge/command`, reports
+its first value). wkagent exposes it as `POST /v1/bridge/command`, reports
 freshness as `health.bridge`, and the dragonwilds client routes a command
 through it only when the heartbeat lists that command — otherwise the honest
 501 stands.

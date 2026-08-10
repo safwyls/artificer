@@ -20,7 +20,7 @@ import (
 	"github.com/safwyls/dwcon/internal/store"
 )
 
-// agentSpy is a palagent that reports whichever mode a test asks for and
+// agentSpy is a wkagent that reports whichever mode a test asks for and
 // records the power verbs it receives.
 type agentSpy struct {
 	mu    sync.Mutex
@@ -45,7 +45,7 @@ func newAgentSpy(t *testing.T, mode string) (*agentSpy, string) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.URL.Path == "/v1/health":
-			body := map[string]any{"agent": "palagent", "mode": mode, "apiVersion": 1}
+			body := map[string]any{"agent": "wkagent", "mode": mode, "apiVersion": 1}
 			// Only a supervisor reports a game; a companion's is null, which
 			// is half of what marks it as not owning the process.
 			if mode == "supervisor" {
@@ -142,7 +142,7 @@ func TestSupervisorAgentRestartsInsteadOfDocker(t *testing.T) {
 	game, gameURL := newGameSpy(t)
 	agent, agentURL := newAgentSpy(t, "supervisor")
 	docker, dockerClient := newDockerSpy(t)
-	srv := addAgentServer(t, st, gameURL, agentURL, "palagent-main")
+	srv := addAgentServer(t, st, gameURL, agentURL, "wkagent-main")
 	sc := addSchedule(t, st, srv.ID, time.Now().Truncate(time.Minute), nil, true)
 
 	schedulerWithDocker(t, st, dockerClient).restart(context.Background(), srv, sc)
@@ -182,7 +182,7 @@ func TestCompanionAgentFallsBackToDocker(t *testing.T) {
 	_, gameURL := newGameSpy(t)
 	agent, agentURL := newAgentSpy(t, "companion")
 	docker, dockerClient := newDockerSpy(t)
-	srv := addAgentServer(t, st, gameURL, agentURL, "palagent-main")
+	srv := addAgentServer(t, st, gameURL, agentURL, "wkagent-main")
 	sc := addSchedule(t, st, srv.ID, time.Now().Truncate(time.Minute), nil, true)
 
 	schedulerWithDocker(t, st, dockerClient).restart(context.Background(), srv, sc)
@@ -203,7 +203,7 @@ func TestUnreachableAgentFallsBackToDocker(t *testing.T) {
 	agent, agentURL := newAgentSpy(t, "supervisor")
 	agent.setDown(true)
 	docker, dockerClient := newDockerSpy(t)
-	srv := addAgentServer(t, st, gameURL, agentURL, "palagent-main")
+	srv := addAgentServer(t, st, gameURL, agentURL, "wkagent-main")
 	sc := addSchedule(t, st, srv.ID, time.Now().Truncate(time.Minute), nil, true)
 
 	schedulerWithDocker(t, st, dockerClient).restart(context.Background(), srv, sc)
@@ -242,10 +242,10 @@ func TestCountdownMatchesWhoIsRestarting(t *testing.T) {
 		return wait
 	}
 
-	if got := waitFor(t, "supervisor", true, "palagent-main"); got != 1 {
+	if got := waitFor(t, "supervisor", true, "wkagent-main"); got != 1 {
 		t.Errorf("agent-restarted countdown = %v, want 1", got)
 	}
-	if got := waitFor(t, "", true, "palagent-main"); got != 1 {
+	if got := waitFor(t, "", true, "wkagent-main"); got != 1 {
 		t.Errorf("docker-restarted countdown = %v, want 1", got)
 	}
 	// Nothing configured to restart it: the shutdown is the restart, so

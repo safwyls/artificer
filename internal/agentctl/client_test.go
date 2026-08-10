@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/safwyls/dwcon/internal/agentctl"
-	"github.com/safwyls/dwcon/internal/palagent"
+	"github.com/safwyls/dwcon/internal/wkagent"
 )
 
-// newProvisioner spins a real provisioner-mode palagent over a fake docker
+// newProvisioner spins a real provisioner-mode wkagent over a fake docker
 // endpoint, so the client is exercised against the actual server rather
 // than a stub of it.
 func newProvisioner(t *testing.T) (*agentctl.Client, string) {
@@ -31,17 +31,17 @@ func newProvisioner(t *testing.T) (*agentctl.Client, string) {
 			io.WriteString(w, `{"Id":"cafe"}`)
 		case r.URL.Path == "/containers/json":
 			w.Header().Set("Content-Type", "application/json")
-			// palagent-main is provisioner-made; nginx is a bystander with
+			// wkagent-main is provisioner-made; nginx is a bystander with
 			// neither the image nor the label, so it is invisible to
 			// discovery and refused by destroy.
-			io.WriteString(w, `[{"Id":"cafe","Names":["/palagent-main"],
-			  "Image":"ghcr.io/safwyls/palagent:latest","State":"running",
+			io.WriteString(w, `[{"Id":"cafe","Names":["/wkagent-main"],
+			  "Image":"ghcr.io/safwyls/wkagent:latest","State":"running",
 			  "Labels":{"dwcon.provisioned":"true","dwcon.slug":"main"},
 			  "Ports":[{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"}]},
 			 {"Id":"beef","Names":["/nginx"],"Image":"nginx:latest",
 			  "State":"running","Labels":{},"Ports":[]}]`)
 		case strings.HasSuffix(r.URL.Path, "/json"):
-			io.WriteString(w, `{"Config":{"Env":["PALAGENT_MODE=supervisor","PALAGENT_TOKEN=recovered-token","PALAGENT_ADMIN_PASSWORD=recovered-pw","PALAGENT_SERVER_NAME=Main"]}}`)
+			io.WriteString(w, `{"Config":{"Env":["WKAGENT_MODE=supervisor","WKAGENT_TOKEN=recovered-token","WKAGENT_ADMIN_PASSWORD=recovered-pw","WKAGENT_SERVER_NAME=Main"]}}`)
 		default:
 			w.WriteHeader(http.StatusNoContent)
 		}
@@ -49,7 +49,7 @@ func newProvisioner(t *testing.T) (*agentctl.Client, string) {
 	t.Cleanup(docker.Close)
 
 	dataRoot := t.TempDir()
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: token, InstallDir: t.TempDir(), Version: "test",
 		Mode: "provisioner", DockerHost: docker.URL, DataRoot: dataRoot,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -68,12 +68,12 @@ func newProvisioner(t *testing.T) (*agentctl.Client, string) {
 }
 
 func TestBaseURLIsTheConfiguredEndpoint(t *testing.T) {
-	client, err := agentctl.New("http://palagent-main:8811/", token)
+	client, err := agentctl.New("http://wkagent-main:8811/", token)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The trailing slash is trimmed, so path joining can't double it.
-	if client.BaseURL() != "http://palagent-main:8811" {
+	if client.BaseURL() != "http://wkagent-main:8811" {
 		t.Errorf("BaseURL = %q", client.BaseURL())
 	}
 }
@@ -82,7 +82,7 @@ func TestProvisionDiscoverAdoptDestroy(t *testing.T) {
 	client, dataRoot := newProvisioner(t)
 	ctx := context.Background()
 
-	res, err := client.Provision(ctx, palagent.ProvisionRequest{
+	res, err := client.Provision(ctx, wkagent.ProvisionRequest{
 		Slug: "palhalla", ImageTag: "latest",
 		Token: "new-agent-token-0123456789abcdef", AdminPassword: "pw12345",
 		ServerName: "Palhalla", RunAs: "568:568",
@@ -91,7 +91,7 @@ func TestProvisionDiscoverAdoptDestroy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Provision: %v", err)
 	}
-	if res.Container != "palagent-palhalla" || res.DataDir != filepath.Join(dataRoot, "palhalla") {
+	if res.Container != "wkagent-palhalla" || res.DataDir != filepath.Join(dataRoot, "palhalla") {
 		t.Errorf("provision result = %+v", res)
 	}
 
@@ -99,11 +99,11 @@ func TestProvisionDiscoverAdoptDestroy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
-	if len(found) != 1 || found[0].Name != "palagent-main" || found[0].AgentPort != 9811 {
+	if len(found) != 1 || found[0].Name != "wkagent-main" || found[0].AgentPort != 9811 {
 		t.Fatalf("discovered = %+v", found)
 	}
 
-	adopted, err := client.Adopt(ctx, "palagent-main")
+	adopted, err := client.Adopt(ctx, "wkagent-main")
 	if err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
@@ -114,11 +114,11 @@ func TestProvisionDiscoverAdoptDestroy(t *testing.T) {
 		t.Errorf("adopt result = %+v", adopted)
 	}
 
-	destroyed, err := client.Destroy(ctx, "palagent-main")
+	destroyed, err := client.Destroy(ctx, "wkagent-main")
 	if err != nil {
 		t.Fatalf("Destroy: %v", err)
 	}
-	if destroyed.Container != "palagent-main" || destroyed.DataDir != filepath.Join(dataRoot, "main") {
+	if destroyed.Container != "wkagent-main" || destroyed.DataDir != filepath.Join(dataRoot, "main") {
 		t.Errorf("destroy result = %+v", destroyed)
 	}
 }
@@ -133,7 +133,7 @@ func TestProvisionerRefusalsAreRejections(t *testing.T) {
 		t.Errorf("adopting nothing: %v, want ErrRejected", err)
 	}
 	// A slug the provisioner won't accept.
-	if _, err := client.Provision(ctx, palagent.ProvisionRequest{Slug: "../escape"}); !errors.Is(err, agentctl.ErrRejected) {
+	if _, err := client.Provision(ctx, wkagent.ProvisionRequest{Slug: "../escape"}); !errors.Is(err, agentctl.ErrRejected) {
 		t.Errorf("provisioning a traversal slug: %v, want ErrRejected", err)
 	}
 }
@@ -220,7 +220,7 @@ func newAgentWithConfig(t *testing.T, ini string) *agentctl.Client {
 	if err := os.WriteFile(cfgPath, []byte(ini), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: token, InstallDir: install, Version: "test",
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})

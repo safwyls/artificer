@@ -1,4 +1,4 @@
-package palagent_test
+package wkagent_test
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/dwcon/internal/palagent"
+	"github.com/safwyls/dwcon/internal/wkagent"
 )
 
 // fakeDockerAPI records the provisioner's docker calls.
@@ -34,16 +34,16 @@ func (f *fakeDockerAPI) handler() http.Handler {
 		case r.URL.Path == "/containers/json":
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`[
-			  {"Id":"c1","Names":["/palagent-main"],"Image":"ghcr.io/safwyls/palagent:beta","State":"running",
+			  {"Id":"c1","Names":["/wkagent-main"],"Image":"ghcr.io/safwyls/wkagent:beta","State":"running",
 			   "Labels":{"dwcon.provisioned":"true","dwcon.slug":"main"},
 			   "Ports":[{"PrivatePort":7777,"PublicPort":9211,"Type":"udp"},{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"}]},
-			  {"Id":"c2","Names":["/palprovisioner"],"Image":"ghcr.io/safwyls/palagent:beta","State":"running","Ports":[]},
+			  {"Id":"c2","Names":["/wkprovisioner"],"Image":"ghcr.io/safwyls/wkagent:beta","State":"running","Ports":[]},
 			  {"Id":"c3","Names":["/nginx"],"Image":"nginx:latest","State":"running","Ports":[]}
 			]`))
 		case r.URL.Path == "/containers/c1/json":
-			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=supervisor","PALAGENT_TOKEN=secret-must-not-leak","PALAGENT_ADMIN_PASSWORD=recovered-pw","PALAGENT_SERVER_NAME=Main World"]}}`))
+			w.Write([]byte(`{"Config":{"Env":["WKAGENT_MODE=supervisor","WKAGENT_TOKEN=secret-must-not-leak","WKAGENT_ADMIN_PASSWORD=recovered-pw","WKAGENT_SERVER_NAME=Main World"]}}`))
 		case r.URL.Path == "/containers/c2/json":
-			w.Write([]byte(`{"Config":{"Env":["PALAGENT_MODE=provisioner"]}}`))
+			w.Write([]byte(`{"Config":{"Env":["WKAGENT_MODE=provisioner"]}}`))
 		default:
 			w.WriteHeader(http.StatusNoContent)
 		}
@@ -56,7 +56,7 @@ func newProvisioner(t *testing.T) (*httptest.Server, *fakeDockerAPI, string) {
 	dockerSrv := httptest.NewServer(fake.handler())
 	t.Cleanup(dockerSrv.Close)
 	dataRoot := t.TempDir()
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: testToken, InstallDir: t.TempDir(), Version: "test",
 		Mode: "provisioner", DockerHost: dockerSrv.URL, DataRoot: dataRoot,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -81,25 +81,25 @@ func TestProvisionerCreatesServer(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("provision: %d %v", resp.StatusCode, m)
 	}
-	if m["container"] != "palagent-palhalla-2" || m["dataDir"] != filepath.Join(dataRoot, "palhalla-2") {
+	if m["container"] != "wkagent-palhalla-2" || m["dataDir"] != filepath.Join(dataRoot, "palhalla-2") {
 		t.Errorf("response = %v", m)
 	}
 	if _, err := os.Stat(filepath.Join(dataRoot, "palhalla-2")); err != nil {
 		t.Errorf("data dir not created: %v", err)
 	}
 
-	// pull → create → start, template locked to the palagent image.
+	// pull → create → start, template locked to the wkagent image.
 	joined := strings.Join(fake.calls, " | ")
 	for _, want := range []string{"/images/create", "/containers/create", "/start"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("docker calls missing %s: %s", want, joined)
 		}
 	}
-	if fake.create["Image"] != "ghcr.io/safwyls/palagent:beta" || fake.create["User"] != "568:568" {
+	if fake.create["Image"] != "ghcr.io/safwyls/wkagent:beta" || fake.create["User"] != "568:568" {
 		t.Errorf("create = image %v user %v", fake.create["Image"], fake.create["User"])
 	}
 	env := strings.Join(toStrings(fake.create["Env"].([]any)), " ")
-	for _, want := range []string{"PALAGENT_MODE=supervisor", "PALAGENT_TOKEN=new-agent-token", "PALAGENT_ADMIN_PASSWORD=pw12345", "PALAGENT_SERVER_NAME=Palhalla II", "HOME=/tmp"} {
+	for _, want := range []string{"WKAGENT_MODE=supervisor", "WKAGENT_TOKEN=new-agent-token", "WKAGENT_ADMIN_PASSWORD=pw12345", "WKAGENT_SERVER_NAME=Palhalla II", "HOME=/tmp"} {
 		if !strings.Contains(env, want) {
 			t.Errorf("env missing %s: %s", want, env)
 		}
@@ -119,7 +119,7 @@ func TestProvisionerRefusesNameInUse(t *testing.T) {
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("provision onto an existing name: %d %v, want 409", resp.StatusCode, m)
 	}
-	if msg, _ := m["error"].(string); !strings.Contains(msg, "palagent-main") {
+	if msg, _ := m["error"].(string); !strings.Contains(msg, "wkagent-main") {
 		t.Errorf("error should name the container in the way: %v", m)
 	}
 	joined := strings.Join(fake.calls, " | ")
@@ -160,7 +160,7 @@ func TestProvisionerHealthDefaultsAndDiscover(t *testing.T) {
 		t.Fatalf("discovered = %v, want exactly the supervisor", servers)
 	}
 	got := servers[0].(map[string]any)
-	if got["name"] != "palagent-main" || got["mode"] != "supervisor" || got["running"] != true ||
+	if got["name"] != "wkagent-main" || got["mode"] != "supervisor" || got["running"] != true ||
 		got["gamePort"] != float64(9211) || got["agentPort"] != float64(9811) {
 		t.Errorf("candidate = %v", got)
 	}
@@ -171,12 +171,12 @@ func TestProvisionerHealthDefaultsAndDiscover(t *testing.T) {
 
 // Adoption is the one deliberate secret-return path: the provisioner
 // injected these values, so handing them back to the authenticated
-// control plane recovers a lost registration. Restricted to palagent
+// control plane recovers a lost registration. Restricted to wkagent
 // containers.
 func TestProvisionerAdopt(t *testing.T) {
 	srv, _, _ := newProvisioner(t)
 
-	resp, m := do(t, srv, "POST", "/v1/adopt", testToken, map[string]string{"container": "palagent-main"})
+	resp, m := do(t, srv, "POST", "/v1/adopt", testToken, map[string]string{"container": "wkagent-main"})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("adopt: %d %v", resp.StatusCode, m)
 	}
@@ -185,7 +185,7 @@ func TestProvisionerAdopt(t *testing.T) {
 		t.Errorf("adopt result = %v", m)
 	}
 
-	// Not-a-palagent and unknown containers refuse.
+	// Not-a-wkagent and unknown containers refuse.
 	if resp, _ := do(t, srv, "POST", "/v1/adopt", testToken, map[string]string{"container": "nginx"}); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("nginx adopt: %d, want 400", resp.StatusCode)
 	}
@@ -193,7 +193,7 @@ func TestProvisionerAdopt(t *testing.T) {
 		t.Errorf("ghost adopt: %d, want 404", resp.StatusCode)
 	}
 	// The provisioner itself is not adoptable.
-	if resp, _ := do(t, srv, "POST", "/v1/adopt", testToken, map[string]string{"container": "palprovisioner"}); resp.StatusCode != http.StatusBadRequest {
+	if resp, _ := do(t, srv, "POST", "/v1/adopt", testToken, map[string]string{"container": "wkprovisioner"}); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("provisioner adopt: %d, want 400", resp.StatusCode)
 	}
 }
@@ -203,11 +203,11 @@ func TestProvisionerAdopt(t *testing.T) {
 func TestProvisionerDestroy(t *testing.T) {
 	srv, fake, dataRoot := newProvisioner(t)
 
-	resp, m := do(t, srv, "POST", "/v1/destroy", testToken, map[string]string{"container": "palagent-main"})
+	resp, m := do(t, srv, "POST", "/v1/destroy", testToken, map[string]string{"container": "wkagent-main"})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("destroy: %d %v", resp.StatusCode, m)
 	}
-	if m["container"] != "palagent-main" || m["dataDir"] != filepath.Join(dataRoot, "main") {
+	if m["container"] != "wkagent-main" || m["dataDir"] != filepath.Join(dataRoot, "main") {
 		t.Errorf("destroy result = %v", m)
 	}
 
@@ -222,13 +222,13 @@ func TestProvisionerDestroy(t *testing.T) {
 }
 
 // The label gate, which is the whole security argument for this verb:
-// only containers this provisioner created can be destroyed. A palagent
+// only containers this provisioner created can be destroyed. A wkagent
 // deployed by hand carries the image but not the label, and is refused —
 // including the provisioner itself.
 func TestProvisionerDestroyRefusesUnlabelled(t *testing.T) {
 	srv, fake, _ := newProvisioner(t)
 
-	for _, name := range []string{"palprovisioner", "nginx"} {
+	for _, name := range []string{"wkprovisioner", "nginx"} {
 		resp, m := do(t, srv, "POST", "/v1/destroy", testToken, map[string]string{"container": name})
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("destroy %s: %d %v, want 400", name, resp.StatusCode, m)

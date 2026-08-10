@@ -1,4 +1,4 @@
-package palagent_test
+package wkagent_test
 
 import (
 	"io"
@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/palagent"
+	"github.com/safwyls/dwcon/internal/wkagent"
 )
 
 // newSupervisorAgent builds a supervisor-mode agent whose "game" is the
 // given shell script, installed as RSDragonwildsServer.sh in a fresh install dir.
-func newSupervisorAgent(t *testing.T, gameScript string) (*httptest.Server, *palagent.Agent, string) {
+func newSupervisorAgent(t *testing.T, gameScript string) (*httptest.Server, *wkagent.Agent, string) {
 	t.Helper()
 	install := t.TempDir()
 	writeGame(t, install, gameScript)
@@ -24,7 +24,7 @@ func newSupervisorAgent(t *testing.T, gameScript string) (*httptest.Server, *pal
 	if err := os.WriteFile(steamcmd, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: testToken, InstallDir: install, SteamCmd: steamcmd, Version: "test",
 		Mode:                "supervisor",
 		StopGrace:           500 * time.Millisecond,
@@ -112,7 +112,7 @@ func TestSupervisorLifecycle(t *testing.T) {
 		t.Fatalf("stop: %d %v", resp.StatusCode, m)
 	}
 	waitGameState(t, srv, "stopped")
-	desired, err := os.ReadFile(filepath.Join(install, ".palagent", "desired"))
+	desired, err := os.ReadFile(filepath.Join(install, ".wkagent", "desired"))
 	if err != nil || strings.TrimSpace(string(desired)) != "stopped" {
 		t.Errorf("desired = %q, %v; want persisted stopped", desired, err)
 	}
@@ -305,7 +305,7 @@ func TestSupervisorEnforcesManagementConfig(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(iniDir, "DedicatedServer.ini"), []byte(seed), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: testToken, InstallDir: install, SteamCmd: "/bin/true", Version: "test",
 		Mode: "supervisor", StopGrace: 500 * time.Millisecond,
 		AdminPassword: "hunter2-but-longer",
@@ -358,7 +358,7 @@ func TestSupervisorBootInstallsAndStarts(t *testing.T) {
 	if err := os.WriteFile(steamcmd, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: testToken, InstallDir: install, SteamCmd: steamcmd, Version: "test",
 		Mode: "supervisor", StopGrace: 500 * time.Millisecond,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -403,7 +403,7 @@ func waitGameStateWithin(t *testing.T, srv *httptest.Server, want string, within
 func TestSupervisorSeedsConfigForAFreshInstall(t *testing.T) {
 	install := t.TempDir()
 	writeGame(t, install, steadyGame)
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: testToken, InstallDir: install, SteamCmd: "/bin/true", Version: "test",
 		Mode: "supervisor", StopGrace: 500 * time.Millisecond,
 		AdminPassword: "hunter2-but-longer",
@@ -451,7 +451,7 @@ func TestSupervisorSeedsConfigForAFreshInstall(t *testing.T) {
 func TestSupervisorSeedsNothingWithoutAnOwnerID(t *testing.T) {
 	install := t.TempDir()
 	writeGame(t, install, steadyGame)
-	agent, err := palagent.New(palagent.Config{
+	agent, err := wkagent.New(wkagent.Config{
 		Token: testToken, InstallDir: install, SteamCmd: "/bin/true", Version: "test",
 		Mode: "supervisor", StopGrace: 500 * time.Millisecond,
 		AdminPassword: "hunter2-but-longer",

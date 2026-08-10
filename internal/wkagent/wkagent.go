@@ -1,4 +1,4 @@
-// Package palagent is the sidecar agent that runs (or sits beside) one
+// Package wkagent is the sidecar agent that runs (or sits beside) one
 // Dragonwilds game server, holding the install volume and the SteamCMD
 // tooling so the control plane can stay pure. See docs/sidecar-agent.md.
 //
@@ -12,7 +12,7 @@
 // leaked token) can repair one game server and nothing else. Long-running
 // work runs as a job: POST starts it and returns immediately, the caller
 // polls; a control-plane restart mid-job orphans nothing.
-package palagent
+package wkagent
 
 import (
 	"crypto/rand"
@@ -43,7 +43,7 @@ import (
 const APIVersion = 3
 
 // DefaultAppID is the Steam app the agent updates when none is configured:
-// the RuneScape: Dragonwilds dedicated server tool. Set PALAGENT_APP_ID to
+// the RuneScape: Dragonwilds dedicated server tool. Set WKAGENT_APP_ID to
 // point the agent at a different one.
 //
 // Spelled out here rather than read from internal/games/dragonwilds, on purpose.
@@ -259,7 +259,7 @@ func (a *Agent) Handler() http.Handler {
 		// verbs, since there is no game to command.
 		r.Post("/bridge/command", a.handleBridgeCommand)
 		// Phase 5 — provisioner mode: the create verb, read-only
-		// discovery, and adoption (secret recovery for palagent
+		// discovery, and adoption (secret recovery for wkagent
 		// containers the control plane lost track of).
 		r.Post("/provision", a.handleProvision)
 		r.Get("/discover", a.handleDiscover)
@@ -325,7 +325,7 @@ func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	_, saveErr := a.findSaveDir()
 	_, configErr := os.Stat(a.configPath())
 	h := Health{
-		Agent:         "palagent",
+		Agent:         "wkagent",
 		Version:       a.cfg.Version,
 		APIVersion:    APIVersion,
 		Mode:          a.cfg.Mode,

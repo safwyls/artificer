@@ -30,7 +30,7 @@ only transport.
 - [Data layer](#data-layer)
 - [The save pipeline](#the-save-pipeline)
 - [Power control & the stop sequence](#power-control--the-stop-sequence)
-- [palagent: the sidecar](#palagent-the-sidecar)
+- [wkagent: the sidecar](#wkagent-the-sidecar)
 - [Frontend](#frontend)
 - [Build, CI & publishing](#build-ci--publishing)
 - [Cross-cutting design rules](#cross-cutting-design-rules)
@@ -39,7 +39,7 @@ only transport.
 
 | Layer | Choice | Why |
 |---|---|---|
-| Backend | Go 1.26, one module, **two binaries** (`cmd/dwcon`, `cmd/palagent`) | Single static binary per role; shared internal packages so file operations behave identically whichever side executes them |
+| Backend | Go 1.26, one module, **two binaries** (`cmd/dwcon`, `cmd/wkagent`) | Single static binary per role; shared internal packages so file operations behave identically whichever side executes them |
 | HTTP router | chi v5 | Small, stdlib-shaped |
 | Auth | golang-jwt v5 (HS256, pinned), bcrypt via `x/crypto` | JWT in an HttpOnly cookie; no server-side session table |
 | Database | SQLite via `modernc.org/sqlite` (pure Go) | No cgo → `CGO_ENABLED=0` builds and an alpine runtime with no glibc; one file in `DATA_DIR` (still named `palcon.db` — the inherited filename, kept so an upgraded deployment finds its data) |
@@ -48,9 +48,9 @@ only transport.
 | Frontend | React 18 + TypeScript 5.5, Vite 5 | SPA embedded into the Go binary via `go:embed` |
 | Server state | TanStack Query v5 — the only state manager | REST + polling everywhere; no websockets, no SSE, no Redux |
 | Styling | Tailwind 3.4 + shadcn-style components over Radix primitives | One Wildskeeper theme (deep night, brass, rune-cyan) with no light/dark toggle; installable PWA (manifest-only, no service worker) |
-| Game transports | The palagent sidecar, and nothing else | Dragonwilds has no RCON, no REST and no query protocol. `internal/rcon` (with its `rcontest` fake) still ships, imported by nothing but its own tests — the inherited transport, kept for the next game rather than deleted |
+| Game transports | The wkagent sidecar, and nothing else | Dragonwilds has no RCON, no REST and no query protocol. `internal/rcon` (with its `rcontest` fake) still ships, imported by nothing but its own tests — the inherited transport, kept for the next game rather than deleted |
 | Container control | Docker Engine HTTP API via `tecnativa/docker-socket-proxy` | dwcon never holds the socket; the proxy allows exactly inspect + start/stop/restart |
-| Images | `ghcr.io/safwyls/dwcon` (alpine) and `ghcr.io/safwyls/palagent` (steamcmd/debian) | Two images, one repo, same tag scheme |
+| Images | `ghcr.io/safwyls/dwcon` (alpine) and `ghcr.io/safwyls/wkagent` (steamcmd/debian) | Two images, one repo, same tag scheme |
 
 Go direct dependencies number six: chi, golang-jwt, `x/crypto`,
 modernc.org/sqlite, and the two model SDKs (`anthropic-sdk-go`,
@@ -82,19 +82,19 @@ flowchart TB
 
     subgraph gameStack1["game server stack — companion mode"]
         game1["Dragonwilds server container<br/>:7777-7778/udp · no admin port"]
-        agent1["palagent (companion)<br/>:8811"]
+        agent1["wkagent (companion)<br/>:8811"]
         vol1[("shared /dragonwilds volume<br/>SaveGames nested :ro in agent")]
         game1 --- vol1
         agent1 --- vol1
     end
 
     subgraph gameStack2["game server stack — supervisor mode"]
-        agent2["palagent (supervisor) :8811<br/>runs the game as a child process<br/>:7777-7778/udp"]
+        agent2["wkagent (supervisor) :8811<br/>runs the game as a child process<br/>:7777-7778/udp"]
         vol2[("own /dragonwilds volume<br/>game writes its own saves")]
         agent2 --- vol2
     end
 
-    prov["palagent (provisioner) :8811<br/><i>the one component with<br/>docker create rights</i>"]
+    prov["wkagent (provisioner) :8811<br/><i>the one component with<br/>docker create rights</i>"]
     sock["/var/run/docker.sock"]
     discord["Discord webhook<br/><i>the only outbound call</i>"]
 
@@ -148,7 +148,7 @@ written purely against the `internal/game` contracts.
 flowchart TB
     subgraph entry["entrypoints"]
         cmddwcon["cmd/dwcon"]
-        cmdpalagent["cmd/palagent"]
+        cmdwkagent["cmd/wkagent"]
     end
 
     subgraph core["game-agnostic core"]
@@ -163,7 +163,7 @@ flowchart TB
         backup["internal/backup<br/>save snapshots"]
         notify["internal/notify<br/>Discord webhooks"]
         dockerctl["internal/dockerctl<br/>docker API client (proxy-shaped)"]
-        agentctl["internal/agentctl<br/>palagent client"]
+        agentctl["internal/agentctl<br/>wkagent client"]
         agentfiles["internal/agentfiles<br/>save/config path resolver + sync cache"]
         savecache["internal/savecache<br/>mtime-keyed parse cache<br/>Source: dwsave"]
         rcon["internal/rcon<br/>Source RCON wire protocol<br/><i>no importer</i>"]
@@ -179,11 +179,11 @@ flowchart TB
         dwconfig["…/dragonwilds/dwconfig<br/>DedicatedServer.ini parse + edit"]
     end
 
-    palagent["internal/palagent<br/>companion · supervisor · provisioner"]
+    wkagent["internal/wkagent<br/>companion · supervisor · provisioner"]
     web["web/ (React SPA)<br/>embedded via go:embed"]
 
     cmddwcon --> api & collector & sched & watchdog & backup & advisor
-    cmdpalagent --> palagent
+    cmdwkagent --> wkagent
     api --> store & dockerctl & agentctl & agentfiles & notify
     api -.->|"config view<br/>(behind a configCodec seam)"| dwconfig
     store --> db & crypto & gamepkg
@@ -191,7 +191,7 @@ flowchart TB
     dw -->|"game.Register()"| gamepkg
     games -.->|blank import| dw
     dw --> agentctl & dwlog
-    palagent --> steamcmd & dwconfig & dockerctl
+    wkagent --> steamcmd & dwconfig & dockerctl
     agentfiles --> agentctl
     web -.->|"embedded into"| cmddwcon
 ```
@@ -296,7 +296,7 @@ validates stored visibility switches, and keeping a key no game offers
 costs nothing while dropping one silently erases an admin's setting.
 
 The Dragonwilds implementation supplies one client, and it has no transport
-of its own. Everything is derived through the server's palagent sidecar:
+of its own. Everything is derived through the server's wkagent sidecar:
 
 - **`refresh`** is the single poll behind every read. `GET /v1/health`
   gives process state and `startedAt`; if the process is running,
@@ -440,7 +440,7 @@ an empty table.
 sequenceDiagram
     participant L as save refresher (15s)
     participant AF as agentfiles
-    participant AG as palagent sidecar
+    participant AG as wkagent sidecar
     participant BK as backup runner (60s)
     participant API as internal/api
     participant B as Browser
@@ -505,7 +505,7 @@ SteamCMD gate) ask the question and must get the same answer:
 ```mermaid
 flowchart TD
     req["power action for server"] --> hasAgent{"agent configured and<br/>reachable and reports<br/>supervisor mode?"}
-    hasAgent -->|yes| sup["palagent supervisor verbs<br/>/v1/power/* · crash restarts ·<br/>log ring buffer"]
+    hasAgent -->|yes| sup["wkagent supervisor verbs<br/>/v1/power/* · crash restarts ·<br/>log ring buffer"]
     hasAgent -->|"no (none / unreachable / companion)"| hasDocker{"DOCKER_HOST set and<br/>row has containerName?"}
     hasDocker -->|yes| proxy["docker-socket-proxy<br/>inspect · start/stop/restart · logs"]
     hasDocker -->|no| off["power control absent<br/>(controls not rendered)"]
@@ -540,11 +540,11 @@ tab after clicking Stop cannot strand it half-done. An operator stop is
 recorded as a stop regardless of exit code — never a crash, never counted
 toward the watchdog's restart backoff.
 
-## palagent: the sidecar
+## wkagent: the sidecar
 
 Full design in [`sidecar-agent.md`](sidecar-agent.md); the shape in brief.
-The package, binary and image keep the inherited name — `cmd/palagent`,
-`internal/palagent`, `ghcr.io/safwyls/palagent` — even though this repo's
+The package, binary and image keep the inherited name — `cmd/wkagent`,
+`internal/wkagent`, `ghcr.io/safwyls/wkagent` — even though this repo's
 build of it is Dragonwilds-shaped throughout: app id 4019830, install dir
 `/dragonwilds`, `DedicatedServer.ini` seeding. The name is the one thing
 that didn't need changing. Every file-and-process capability dwcon can't have
@@ -653,11 +653,11 @@ flowchart LR
 
     subgraph build["docker.yml — matrix build"]
         d1["Dockerfile<br/>node → go → alpine"]
-        d2["Dockerfile.palagent<br/>go → steamcmd/debian-12"]
+        d2["Dockerfile.wkagent<br/>go → steamcmd/debian-12"]
     end
 
     ghcr1[("ghcr.io/safwyls/dwcon<br/>:latest :beta :semver :sha")]
-    ghcr2[("ghcr.io/safwyls/palagent<br/>same tag scheme")]
+    ghcr2[("ghcr.io/safwyls/wkagent<br/>same tag scheme")]
 
     trig --> verify --> build
     d1 --> ghcr1
@@ -674,14 +674,14 @@ Notes that matter operationally:
   No Python packages are installed — nothing in the suite parses saves yet.
 - Two images publish from one repo with the **same tag scheme**, so a
   compose stack pins one channel (`:latest`, `:beta`, or a semver) across
-  the dwcon/palagent pair. `beta` is a real test channel deployments can
+  the dwcon/wkagent pair. `beta` is a real test channel deployments can
   pull without touching `:latest`.
 - The dwcon runtime image is plain alpine, running as a non-root user
   with `DATA_DIR=/data` set in the image (the default `./data` isn't
   creatable by that user, which failed confusingly). It used to carry
   `python3` for a save reader expected to shell out to Python GVAS
   tooling; the format turned out to be SPUD and the reader (`dwsave`) is
-  pure Go inside the binary. The palagent image is based on
+  pure Go inside the binary. The wkagent image is based on
   `steamcmd/steamcmd:debian-12` because SteamCMD needs 32-bit glibc, and
   the binary is its own healthcheck probe (the base ships neither wget nor
   curl).

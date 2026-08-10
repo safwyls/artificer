@@ -89,7 +89,7 @@ func run(logger *slog.Logger) error {
 	}()
 
 	// Resolves each server's save/config to a local path — a bind mount,
-	// or a cache mirrored from its palagent sidecar (phase 2).
+	// or a cache mirrored from its wkagent sidecar (phase 2).
 	files := agentfiles.New(cfg.DataDir, logger)
 
 	// For agent-backed servers this loop drives the save sync that backups

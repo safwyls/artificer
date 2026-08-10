@@ -23,7 +23,7 @@ const overrides: Record<string, unknown> = {
   serverInfo: { servername: "Palhalla", playerCount: 0, transport: "rest" },
   serverPlayers: [],
   listUsers: [],
-  containerStatus: { name: "palagent-main", status: "running", running: true },
+  containerStatus: { name: "wkagent-main", status: "running", running: true },
   containerLogs: { lines: [] },
   serverMetrics: {
     serverfps: 60,

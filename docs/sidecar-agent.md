@@ -1,4 +1,4 @@
-# Sidecar agent (`palagent`) design
+# Sidecar agent (`wkagent`) design
 
 Status: phase 1 in progress (2026-07). This documents the agreed design for
 managing Dragonwilds servers directly from the dashboard via a per-server
@@ -24,7 +24,7 @@ the base becomes a pure control plane speaking HTTP to it.
 
 ## Shape
 
-- **One agent per game server.** "Palcon + a fleet of palagents", never one
+- **One agent per game server.** "Palcon + a fleet of wkagents", never one
   agent supervising many servers. Each agent owns exactly one game server:
   its own volume, its own auth token, its own compose stack. Blast radius,
   updates and restarts stay per-server by construction.
@@ -32,10 +32,10 @@ the base becomes a pure control plane speaking HTTP to it.
   in `internal/dockerctl`: the agent exposes only dashboard-shaped
   operations. A compromised control plane (or leaked token) can bounce/repair one
   game server and touch its files — nothing else.
-- **Same repo, second binary.** `cmd/palagent`, sharing internal packages
+- **Same repo, second binary.** `cmd/wkagent`, sharing internal packages
   (e.g. `internal/steamcmd`) with the base so file operations behave
   identically whichever side executes them. Published as its own image
-  (`Dockerfile.palagent`), versioned with a compatibility handshake.
+  (`Dockerfile.wkagent`), versioned with a compatibility handshake.
 
 ## Two modes
 
@@ -60,7 +60,7 @@ cannot see the game process (separate container), so the base — which can —
 refuses SteamCMD updates while the container is running.
 
 **Supervisor (phase 3, shipped).** The same agent image *is* the server
-container: `PALAGENT_MODE=supervisor` makes it install the game via
+container: `WKAGENT_MODE=supervisor` makes it install the game via
 SteamCMD on first boot and run `RSDragonwildsServer.sh` as a child process (own
 process group, so signals reach the real binary). Start/stop/restart,
 crash auto-restart with backoff, and the game's stdout become agent verbs
@@ -72,8 +72,8 @@ level down) — which also means the base's existing in-game-shutdown
 restart flow and restart schedules work unchanged: the game exits, the
 supervisor brings it back. SteamCMD updates and a running game are
 mutually exclusive, enforced agent-side. Config knobs:
-`PALAGENT_GAME_CMD`/`PALAGENT_GAME_ARGS`, `PALAGENT_STOP_GRACE`,
-`PALAGENT_AUTOSTART`. Don't combine supervisor mode with a
+`WKAGENT_GAME_CMD`/`WKAGENT_GAME_ARGS`, `WKAGENT_STOP_GRACE`,
+`WKAGENT_AUTOSTART`. Don't combine supervisor mode with a
 `containerName`/watchdog on the same server — the supervisor owns
 restarts. A server graduates from companion to supervisor by redeploying
 its stack.
@@ -84,23 +84,23 @@ wizard generates this file; it is reproduced here as the reference shape:
 ```yaml
 # dragonwilds-main/docker-compose.yml — the agent IS the server
 services:
-  palagent:
-    image: ghcr.io/safwyls/palagent:latest
+  wkagent:
+    image: ghcr.io/safwyls/wkagent:latest
     environment:
-      - PALAGENT_TOKEN=${PALAGENT_TOKEN}
-      - PALAGENT_MODE=supervisor
+      - WKAGENT_TOKEN=${WKAGENT_TOKEN}
+      - WKAGENT_MODE=supervisor
       # Enforced into DedicatedServer.ini before every start: this is the
       # password the in-game Server Management menu accepts.
-      - PALAGENT_ADMIN_PASSWORD=${DW_ADMIN_PASSWORD}
+      - WKAGENT_ADMIN_PASSWORD=${DW_ADMIN_PASSWORD}
       # REQUIRED. The game writes its own config on first run but refuses
       # to start until OwnerId has a value, so the agent seeds one with
       # this id. In game: Settings, bottom-left "My Player ID".
-      - PALAGENT_OWNER_ID=${DW_OWNER_ID}
+      - WKAGENT_OWNER_ID=${DW_OWNER_ID}
     volumes: ["./dragonwilds:/dragonwilds"]   # the game writes its own saves here
     ports:
       - "7777:7777/udp"   # game
       - "7778:7778/udp"   # the server also binds the port above its own
-      - "8811:8811"       # palagent API — the dashboard's only channel
+      - "8811:8811"       # wkagent API — the dashboard's only channel
     restart: unless-stopped
 ```
 
@@ -127,8 +127,8 @@ never move. Expect one restart's worth of downtime.
    container name would race it.
 4. **Remove the companion agent service** from wherever it lives, and
    deploy a supervisor-mode stack for the server (per the example above):
-   same volume path, `PALAGENT_MODE=supervisor`,
-   `PALAGENT_ADMIN_PASSWORD` set to the row's REST/RCON password, the
+   same volume path, `WKAGENT_MODE=supervisor`,
+   `WKAGENT_ADMIN_PASSWORD` set to the row's REST/RCON password, the
    game/REST/RCON ports the old app published, and **no** SaveGames `:ro`
    overlay — the game writes its own saves through this mount. Reusing
    the companion's token saves a form edit. As its own stack, not inside
@@ -140,7 +140,7 @@ never move. Expect one restart's worth of downtime.
 6. **Start from the card.** The existing PalWorldSettings.ini is kept
    as-is (identity seeding only applies to fresh installs); the
    management settings are enforced on start, so REST connects on its
-   own. Verify the card shows "palagent · supervisor" and players can
+   own. Verify the card shows "wkagent · supervisor" and players can
    join.
 7. **Rollback**, if needed: stop the supervisor stack, redeploy the old
    game app and companion — the dataset was never modified structurally.
@@ -194,8 +194,8 @@ services:
     image: <your Dragonwilds server image>
     volumes: ["./dragonwilds:/dragonwilds"]
     # ... existing game config unchanged ...
-  palagent:
-    image: ghcr.io/safwyls/palagent:latest
+  wkagent:
+    image: ghcr.io/safwyls/wkagent:latest
     volumes:
       - ./dragonwilds:/dragonwilds
       # Save data stays kernel-enforced read-only inside the agent: the
@@ -205,7 +205,7 @@ services:
       # line only if/when a deliberate restore-backup verb ships.
       - ./dragonwilds/RSDragonwilds/Saved/SaveGames:/dragonwilds/RSDragonwilds/Saved/SaveGames:ro
     environment:
-      - PALAGENT_TOKEN=${PALAGENT_TOKEN}   # generated in the Wildskeeper UI
+      - WKAGENT_TOKEN=${WKAGENT_TOKEN}   # generated in the Wildskeeper UI
     networks: [dwcon-net]
 networks:
   dwcon-net:
@@ -228,9 +228,9 @@ compare; agent refuses to start with a token under 16 chars). Bare
 | GET/PUT | `/v1/files/config` | companion/supervisor | `PalWorldSettings.ini`; PUT writes atomically, refuses to create |
 | POST | `/v1/power/{start,stop,restart}` | supervisor | game process control; returns post-action status. `?graceful=20s` on stop/restart means "the game has already accepted an in-game shutdown — let that exit finish before signalling it" (see below) |
 | GET | `/v1/power/logs` | supervisor | game stdout ring buffer |
-| POST | `/v1/provision` | provisioner | instantiate the locked supervisor template; 409 when `palagent-<slug>` already exists, checked before the mkdir and the pull so a refusal means nothing was made |
-| GET | `/v1/discover` | provisioner | list palagent containers (name, mode, ports, state — never env) |
-| POST | `/v1/adopt` | provisioner | recover a palagent container's registration data, **secrets included** — the deliberate exception to the env rule, bounded to palagent containers, because the provisioner injected those secrets itself and returning them to the token-authenticated control plane recreates a lost server row in one click |
+| POST | `/v1/provision` | provisioner | instantiate the locked supervisor template; 409 when `wkagent-<slug>` already exists, checked before the mkdir and the pull so a refusal means nothing was made |
+| GET | `/v1/discover` | provisioner | list wkagent containers (name, mode, ports, state — never env) |
+| POST | `/v1/adopt` | provisioner | recover a wkagent container's registration data, **secrets included** — the deliberate exception to the env rule, bounded to wkagent containers, because the provisioner injected those secrets itself and returning them to the token-authenticated control plane recreates a lost server row in one click |
 
 Never a generic exec or arbitrary path parameter, in any mode.
 
@@ -267,14 +267,14 @@ spinning up a new Dragonwilds server from the dashboard — lands in two steps:
   credentials — and emits the complete supervisor stack file with copy /
   download. The human pastes it and deploys; the agent installs the game
   via SteamCMD on first boot (progress on the server's card) and comes up
-  already connected, because PALAGENT_ADMIN_PASSWORD enforces the
+  already connected, because WKAGENT_ADMIN_PASSWORD enforces the
   management interfaces. Everything is dashboard-driven except the single
   paste (`POST /servers/provision`, admin-only).
 - **Phase 5 (optional), one-click — SHIPPED 2026-07**: a provisioner-mode
-  palagent (`PALAGENT_MODE=provisioner`) holds the docker create rights
+  wkagent (`WKAGENT_MODE=provisioner`) holds the docker create rights
   the control plane must never have, exposing one fixed verb — `/v1/provision`,
   instantiate the locked Dragonwilds supervisor template. The template lives
-  in code (internal/palagent/provisioner.go): no arbitrary images, mounts
+  in code (internal/wkagent/provisioner.go): no arbitrary images, mounts
   or privileges are expressible; data dirs are always `<data root>/<slug>`
   with the slug pattern forbidding traversal. A compromised control plane (or
   leaked provisioner token) can stamp out more Dragonwilds servers, and
@@ -303,20 +303,20 @@ spinning up a new Dragonwilds server from the dashboard — lands in two steps:
 
   ```yaml
   services:
-    palprovisioner:
-      image: ghcr.io/safwyls/palagent:latest
+    wkprovisioner:
+      image: ghcr.io/safwyls/wkagent:latest
       user: "0:0"
       environment:
-        - PALAGENT_MODE=provisioner
-        - PALAGENT_TOKEN=${PROVISIONER_TOKEN}
-        - PALAGENT_DATA_ROOT=/mnt/pool/apps/dragonwilds-servers
+        - WKAGENT_MODE=provisioner
+        - WKAGENT_TOKEN=${PROVISIONER_TOKEN}
+        - WKAGENT_DATA_ROOT=/mnt/pool/apps/dragonwilds-servers
         # Wizard defaults, reported via /v1/health so the form prefills
         # instead of asking. PUBLIC_HOST is the LAN address the dashboard and
         # players reach this box on — it can't be guessed from inside a
         # container ("localhost" would be the container itself).
-        - PALAGENT_PUBLIC_HOST=10.0.0.5
-        - PALAGENT_DEFAULT_RUN_AS=568:568   # default anyway
-        - PALAGENT_DEFAULT_IMAGE_TAG=latest # default anyway
+        - WKAGENT_PUBLIC_HOST=10.0.0.5
+        - WKAGENT_DEFAULT_RUN_AS=568:568   # default anyway
+        - WKAGENT_DEFAULT_IMAGE_TAG=latest # default anyway
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
         # MUST be mounted at the identical path: the provisioner mkdirs
@@ -338,7 +338,7 @@ spinning up a new Dragonwilds server from the dashboard — lands in two steps:
   from the servers it already tracks; and the form collapses to name +
   MOTD with the rest behind an Advanced disclosure (data path disappears
   entirely — one-click servers always live at `<data root>/<slug>`).
-  `/v1/discover` additionally lists palagent-shaped containers on the
+  `/v1/discover` additionally lists wkagent-shaped containers on the
   host (name, mode, published ports, running state — never environment
   values, which carry tokens), so the add-server dialog can offer
   existing supervisor installs for adoption with their ports prefilled.
@@ -346,7 +346,7 @@ spinning up a new Dragonwilds server from the dashboard — lands in two steps:
   `/v1/destroy` is create's inverse, and the only verb that unmakes
   anything. It is gated on the `dwcon.provisioned=true` label that
   `/v1/provision` writes — deliberately narrower than discover/adopt,
-  which also match the palagent image name. A palagent deployed by hand
+  which also match the wkagent image name. A wkagent deployed by hand
   (a TrueNAS app, a pasted stack) carries the image but not the label and
   is refused, so this verb can only ever unmake what the same provisioner
   made. It stops the container first, giving the game its grace period to

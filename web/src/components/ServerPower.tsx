@@ -192,7 +192,7 @@ export function ServerPower({
           <p className="font-mono text-xs text-wk-parchment/40">
             {powerOff ? (
               <>
-                {agentAlive ? "palagent connected" : "palagent unreachable — deploying, or the stack is down"} ·
+                {agentAlive ? "wkagent connected" : "wkagent unreachable — deploying, or the stack is down"} ·
                 docker power control not configured
               </>
             ) : (
@@ -256,7 +256,7 @@ export function ServerPower({
             <p className="text-xs text-wk-parchment/40">
               {jobRunning
                 ? "Updating the server install — this can take several minutes."
-                : "Stuck after a Palworld patch? Clear the cache or re-run the update."}
+                : "Stuck after a Dragonwilds patch? Clear the cache or re-run the update."}
             </p>
           </div>
           <div className="flex items-center gap-2">

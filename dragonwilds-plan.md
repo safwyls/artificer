@@ -55,7 +55,7 @@
 **Audience:** Claude Code, working in this repo (originally written for `safwyls/palcon`).
 **Goal:** A fully featured management console for a self-hosted RuneScape: Dragonwilds
 dedicated server (moddable, 6-player, friends-only), reusing palcon's game-agnostic
-core and palagent architecture. The visual target is the Wildskeeper mock
+core and wkagent architecture. The visual target is the Wildskeeper mock
 (`dragonwilds-dashboard.html`), which defines the theme, layout, and the honest
 capability set of the game.
 
@@ -115,7 +115,7 @@ Do all of this before writing the game package. Produce
 
 1. Read in full: `docs/sidecar-agent.md`, `docs/porting-to-another-game.md`,
    `internal/game/*`, `internal/games/palworld/*` (the template),
-   `internal/palagent/*`, `internal/agentctl/*`, `internal/savecache/*`,
+   `internal/wkagent/*`, `internal/agentctl/*`, `internal/savecache/*`,
    `internal/collector/*` (how Players polling feeds join/leave events and
    playtime), and how `internal/api` surfaces per-method client errors.
 2. Verify externally (do not guess; record sources):
@@ -140,7 +140,7 @@ Do all of this before writing the game package. Produce
    Python `gvas` library. Record: header magic, compression (zlib? oodle? —
    palcon already vendors `pyooz` if oodle), whether standard GVAS property
    walking succeeds. This decides Phase 3's approach and effort.
-5. Audit palagent's file/process/SteamCMD half vs. what Dragonwilds needs:
+5. Audit wkagent's file/process/SteamCMD half vs. what Dragonwilds needs:
    log streaming or tailing to base (exists? add?), file read/write for ini
    and saves, process supervision hooks. List the deltas.
 
@@ -193,14 +193,14 @@ commands honestly disabled.
 player list from logs, playtime accruing, metrics charts, working backups and
 scheduled restarts; Kick/Ban buttons visibly disabled with an accurate reason.
 
-## 4. Phase 2 — palagent: supervisor mode for Dragonwilds
+## 4. Phase 2 — wkagent: supervisor mode for Dragonwilds
 
-The porting doc is explicit: palagent's file/process/SteamCMD half is generic;
+The porting doc is explicit: wkagent's file/process/SteamCMD half is generic;
 the *launch* half is Palworld-shaped (`PalServer.sh`, `PalWorldSettings.ini`).
 Add a Dragonwilds launch profile.
 
 1. Refactor the launch half behind a small per-game launcher interface inside
-   `internal/palagent` (keep it internal to the agent; do not grow
+   `internal/wkagent` (keep it internal to the agent; do not grow
    `game.Definition` for this unless palcon-base actually needs to read it).
 2. Dragonwilds launcher: SteamCMD install/update with the verified app id;
    start command per recon (native Linux binary, or Win64 under Proton-GE —
@@ -223,7 +223,7 @@ Add a Dragonwilds launch profile.
    handling, backpressure) gets added to the generic half, since the log
    stream is Dragonwilds' primary state source.
 
-**Acceptance:** one-click provision of a Dragonwilds server via palagent
+**Acceptance:** one-click provision of a Dragonwilds server via wkagent
 supervisor mode on Messier; update via SteamCMD with live transcript; crash
 watchdog restarts it; ZFS-friendly backup schedule captures `Savegames/`.
 

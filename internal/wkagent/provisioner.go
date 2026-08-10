@@ -1,4 +1,4 @@
-package palagent
+package wkagent
 
 import (
 	"encoding/json"
@@ -39,15 +39,15 @@ var tagPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$`)
 // ProvisionRequest instantiates the template. Every field is data for
 // the fixed template — none of it changes what kind of container is made.
 type ProvisionRequest struct {
-	// Slug names the container (palagent-<slug>) and the data directory
+	// Slug names the container (wkagent-<slug>) and the data directory
 	// (<data root>/<slug>).
 	Slug string `json:"slug"`
-	// ImageTag selects the palagent channel for the new server.
+	// ImageTag selects the wkagent channel for the new server.
 	ImageTag string `json:"imageTag"`
 	// Token is the new agent's bearer token (dwcon generated it).
 	Token string `json:"token"`
 	// AdminPassword becomes the in-game admin password
-	// (PALAGENT_ADMIN_PASSWORD), enforced into DedicatedServer.ini.
+	// (WKAGENT_ADMIN_PASSWORD), enforced into DedicatedServer.ini.
 	AdminPassword string `json:"adminPassword"`
 	// OwnerID is the Player ID that owns the server. Required: the game
 	// refuses to start without one, so a deploy that omitted it would
@@ -56,7 +56,7 @@ type ProvisionRequest struct {
 	ServerName string `json:"serverName"`
 	WorldName  string `json:"worldName"`
 	// RunAs is uid:gid for the container ("" = the image's own user,
-	// palagent/uid 1000 — never root, which the game refuses to boot as).
+	// wkagent/uid 1000 — never root, which the game refuses to boot as).
 	RunAs string `json:"runAs"`
 	// GamePort is the published UDP port. The port above it is published
 	// too — sources say the server uses both; testing saw only this one
@@ -114,7 +114,7 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name := "palagent-" + req.Slug
+	name := "wkagent-" + req.Slug
 	// A name already in use can only fail at create — after the mkdir, the
 	// chown and a multi-hundred-MB image pull have all reported progress.
 	// Check it first, and refuse in the one status the caller can read as
@@ -148,7 +148,7 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	image := "ghcr.io/safwyls/palagent:" + req.ImageTag
+	image := "ghcr.io/safwyls/wkagent:" + req.ImageTag
 	if err := a.docker.ImagePull(r.Context(), image); err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
@@ -156,16 +156,16 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 
 	env := []string{
 		"HOME=/tmp",
-		"PALAGENT_MODE=supervisor",
-		"PALAGENT_TOKEN=" + req.Token,
-		"PALAGENT_ADMIN_PASSWORD=" + req.AdminPassword,
-		"PALAGENT_OWNER_ID=" + strings.TrimSpace(req.OwnerID),
+		"WKAGENT_MODE=supervisor",
+		"WKAGENT_TOKEN=" + req.Token,
+		"WKAGENT_ADMIN_PASSWORD=" + req.AdminPassword,
+		"WKAGENT_OWNER_ID=" + strings.TrimSpace(req.OwnerID),
 	}
 	if req.ServerName != "" {
-		env = append(env, "PALAGENT_SERVER_NAME="+req.ServerName)
+		env = append(env, "WKAGENT_SERVER_NAME="+req.ServerName)
 	}
 	if req.WorldName != "" {
-		env = append(env, "PALAGENT_WORLD_NAME="+req.WorldName)
+		env = append(env, "WKAGENT_WORLD_NAME="+req.WorldName)
 	}
 	id, err := a.docker.ContainerCreate(r.Context(), dockerctl.ContainerSpec{
 		Name:  name,
@@ -206,14 +206,14 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 type ProvisionDefaults struct {
 	DataRoot string `json:"dataRoot"`
 	// PublicHost is the address palcon (and players) reach this host on —
-	// PALAGENT_PUBLIC_HOST. Inside containers "localhost" means the
+	// WKAGENT_PUBLIC_HOST. Inside containers "localhost" means the
 	// container itself, so this must be declared, not guessed.
 	PublicHost string `json:"publicHost,omitempty"`
 	RunAs      string `json:"runAs"`
 	ImageTag   string `json:"imageTag"`
 }
 
-// DiscoveredServer is one palagent-shaped container found on the host.
+// DiscoveredServer is one wkagent-shaped container found on the host.
 // Deliberately free of environment values: a container's env carries its
 // token and admin password, and those never leave the provisioner.
 type DiscoveredServer struct {
@@ -226,7 +226,7 @@ type DiscoveredServer struct {
 	AgentPort int `json:"agentPort,omitempty"`
 }
 
-// handleDiscover lists palagent-shaped containers on the host so the add
+// handleDiscover lists wkagent-shaped containers on the host so the add
 // dialog can offer existing installs for adoption.
 func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	if a.cfg.Mode != "provisioner" {
@@ -240,14 +240,14 @@ func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	}
 	var out []DiscoveredServer
 	for _, c := range containers {
-		if !strings.Contains(c.Image, "palagent") && c.Labels["dwcon.provisioned"] != "true" {
+		if !strings.Contains(c.Image, "wkagent") && c.Labels["dwcon.provisioned"] != "true" {
 			continue
 		}
 		mode := ""
 		if env, err := a.docker.InspectEnv(r.Context(), c.ID); err == nil {
 			for _, e := range env {
 				// Only the mode crosses the boundary — never other env.
-				if v, ok := strings.CutPrefix(e, "PALAGENT_MODE="); ok {
+				if v, ok := strings.CutPrefix(e, "WKAGENT_MODE="); ok {
 					mode = v
 				}
 			}
@@ -256,7 +256,7 @@ func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
 			continue // that's us (or a peer), not a game server
 		}
 		if mode == "" {
-			mode = "companion" // palagent's default mode
+			mode = "companion" // wkagent's default mode
 		}
 		out = append(out, DiscoveredServer{
 			Name:      c.Name,
@@ -271,11 +271,11 @@ func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
 }
 
 // AdoptResult carries everything palcon needs to re-register an existing
-// palagent container — including its secrets. Deliberately: the
+// wkagent container — including its secrets. Deliberately: the
 // provisioner created these containers and injected those secrets in the
 // first place, so returning them to the (token-authenticated) control
 // plane stays within the same trust boundary. It is still restricted to
-// palagent containers — never arbitrary ones.
+// wkagent containers — never arbitrary ones.
 type AdoptResult struct {
 	Name          string `json:"name"`
 	Mode          string `json:"mode"`
@@ -311,8 +311,8 @@ func (a *Agent) handleAdopt(w http.ResponseWriter, r *http.Request) {
 		if c.Name != req.Container {
 			continue
 		}
-		if !strings.Contains(c.Image, "palagent") && c.Labels["dwcon.provisioned"] != "true" {
-			writeError(w, http.StatusBadRequest, "not a palagent container")
+		if !strings.Contains(c.Image, "wkagent") && c.Labels["dwcon.provisioned"] != "true" {
+			writeError(w, http.StatusBadRequest, "not a wkagent container")
 			return
 		}
 		env, err := a.docker.InspectEnv(r.Context(), c.ID)
@@ -327,16 +327,16 @@ func (a *Agent) handleAdopt(w http.ResponseWriter, r *http.Request) {
 			AgentPort: c.Ports["8811/tcp"],
 		}
 		for _, e := range env {
-			if v, ok := strings.CutPrefix(e, "PALAGENT_MODE="); ok {
+			if v, ok := strings.CutPrefix(e, "WKAGENT_MODE="); ok {
 				res.Mode = v
 			}
-			if v, ok := strings.CutPrefix(e, "PALAGENT_TOKEN="); ok {
+			if v, ok := strings.CutPrefix(e, "WKAGENT_TOKEN="); ok {
 				res.Token = v
 			}
-			if v, ok := strings.CutPrefix(e, "PALAGENT_ADMIN_PASSWORD="); ok {
+			if v, ok := strings.CutPrefix(e, "WKAGENT_ADMIN_PASSWORD="); ok {
 				res.AdminPassword = v
 			}
-			if v, ok := strings.CutPrefix(e, "PALAGENT_SERVER_NAME="); ok {
+			if v, ok := strings.CutPrefix(e, "WKAGENT_SERVER_NAME="); ok {
 				res.ServerName = v
 			}
 		}
@@ -364,8 +364,8 @@ type DestroyResult struct {
 // The label gate is the whole security argument. `dwcon.provisioned=true`
 // is written in exactly one place — handleProvision — so destroy can only
 // ever unmake what provision made. That is deliberately narrower than
-// discover/adopt, which also match on the palagent image name: a
-// hand-deployed palagent (a TrueNAS app, a pasted stack) is something the
+// discover/adopt, which also match on the wkagent image name: a
+// hand-deployed wkagent (a TrueNAS app, a pasted stack) is something the
 // operator manages elsewhere, and this verb must not reach into it. So a
 // leaked provisioner token buys the ability to delete containers that
 // same token's provisioner created, and nothing else on the host.

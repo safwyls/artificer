@@ -1,4 +1,4 @@
-// Package agentctl is palcon's client for a server's palagent sidecar
+// Package agentctl is palcon's client for a server's wkagent sidecar
 // (docs/sidecar-agent.md) — the same role dockerctl plays for the docker
 // socket proxy: a small, scoped client with errors worth showing a user.
 package agentctl
@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/dwcon/internal/palagent"
+	"github.com/safwyls/dwcon/internal/wkagent"
 )
 
 // ErrNotConfigured means this server has no agent URL; agent-backed
@@ -40,8 +40,8 @@ var ErrNotFound = errors.New("the agent has no such thing")
 // Job and Health mirror the agent's wire types; the agent package owns
 // them so the two binaries can't drift.
 type (
-	Job    = palagent.Job
-	Health = palagent.Health
+	Job    = wkagent.Job
+	Health = wkagent.Health
 )
 
 type Client struct {
@@ -50,7 +50,7 @@ type Client struct {
 	http  *http.Client
 }
 
-// New builds a client for an agent URL like http://palagent-main:8811.
+// New builds a client for an agent URL like http://wkagent-main:8811.
 // An empty URL returns ErrNotConfigured so callers can treat "feature off"
 // distinctly.
 func New(rawURL, token string) (*Client, error) {

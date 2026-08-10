@@ -1,4 +1,4 @@
-# palagent — the per-server sidecar agent (docs/sidecar-agent.md).
+# wkagent — the per-server sidecar agent (docs/sidecar-agent.md).
 # Deployed in each game server's compose stack, sharing its /dragonwilds
 # volume; dwcon drives it over HTTP with a bearer token.
 
@@ -8,24 +8,24 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /out/palagent ./cmd/palagent
+RUN CGO_ENABLED=0 go build -o /out/wkagent ./cmd/wkagent
 
 # ---- runtime ----
 # steamcmd needs 32-bit glibc, so the runtime base is the maintained
 # steamcmd image (Debian) rather than alpine like dwcon's.
 FROM docker.io/steamcmd/steamcmd:debian-12
-COPY --from=build /out/palagent /usr/local/bin/palagent
+COPY --from=build /out/wkagent /usr/local/bin/wkagent
 # The game refuses to boot as root ("Refusing to run with the root
 # privileges", exit 134 — found on the first real container run), so the
 # whole container runs as an unprivileged user. The /dragonwilds volume
 # must be owned by uid 1000 on the host; steamcmd also needs the writable
 # home this user gets.
-RUN useradd -m -u 1000 palagent
-USER palagent
-ENV HOME=/home/palagent \
-    PALAGENT_INSTALL_DIR=/dragonwilds \
-    PALAGENT_STEAMCMD=steamcmd \
-    PALAGENT_ADDR=:8811
+RUN useradd -m -u 1000 wkagent
+USER wkagent
+ENV HOME=/home/wkagent \
+    WKAGENT_INSTALL_DIR=/dragonwilds \
+    WKAGENT_STEAMCMD=steamcmd \
+    WKAGENT_ADDR=:8811
 # 8811 is the agent API; 7777-7778/udp is the game itself, which the agent
 # supervises in-container. The game uses the port above its own, so the
 # pair is exposed together.
@@ -33,5 +33,5 @@ EXPOSE 8811 7777/udp 7778/udp
 # The steamcmd base ships neither wget nor curl; the agent binary probes
 # its own /healthz instead.
 HEALTHCHECK --interval=30s --timeout=5s \
-    CMD ["/usr/local/bin/palagent", "-healthz"]
-ENTRYPOINT ["/usr/local/bin/palagent"]
+    CMD ["/usr/local/bin/wkagent", "-healthz"]
+ENTRYPOINT ["/usr/local/bin/wkagent"]

@@ -85,7 +85,7 @@ export function WkLogs() {
             {logsQuery.isLoading && <span className="text-wk-mist">Fetching the log…</span>}
             {logsQuery.isError && (
               <span className="text-wk-ember">
-                The log is out of reach. The palagent serves it for supervised servers; a stopped agent or a
+                The log is out of reach. The wkagent serves it for supervised servers; a stopped agent or a
                 companion-mode setup has nothing to tail.
               </span>
             )}

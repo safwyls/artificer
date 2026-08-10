@@ -1,4 +1,4 @@
-package palagent
+package wkagent
 
 import (
 	"archive/tar"
@@ -159,7 +159,7 @@ func (a *Agent) configPath() string {
 func (a *Agent) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 	data, err := os.ReadFile(a.configPath())
 	if errors.Is(err, os.ErrNotExist) {
-		writeError(w, http.StatusNotFound, "PalWorldSettings.ini not found under the install dir")
+		writeError(w, http.StatusNotFound, "DedicatedServer.ini not found under the install dir")
 		return
 	}
 	if err != nil {
@@ -170,7 +170,7 @@ func (a *Agent) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// handlePutConfig replaces PalWorldSettings.ini atomically (tmp + rename),
+// handlePutConfig replaces DedicatedServer.ini atomically (tmp + rename),
 // so the game can never boot on a half-written file.
 func (a *Agent) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxConfigBytes))
@@ -183,10 +183,10 @@ func (a *Agent) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		// Refuse to conjure a config where none exists — that means the
 		// install dir is wrong or the server never booted, and a stray
 		// file here would mask it.
-		writeError(w, http.StatusNotFound, "PalWorldSettings.ini not found under the install dir")
+		writeError(w, http.StatusNotFound, "DedicatedServer.ini not found under the install dir")
 		return
 	}
-	tmp := path + ".palagent-tmp"
+	tmp := path + ".wkagent-tmp"
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

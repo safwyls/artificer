@@ -109,7 +109,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	// The cache path is an implementation detail; what the user should
 	// see is where the file actually lives.
 	if viaAgent {
-		res.Path = codec.filename + " · synced via palagent"
+		res.Path = codec.filename + " · synced via wkagent"
 	}
 	writeJSON(w, http.StatusOK, res)
 }
@@ -189,7 +189,7 @@ func (s *Server) respondFreshConfig(w http.ResponseWriter, r *http.Request, srv 
 	if err == nil {
 		if res, rerr := codec.read(path); rerr == nil {
 			if viaAgent {
-				res.Path = codec.filename + " · synced via palagent"
+				res.Path = codec.filename + " · synced via wkagent"
 			}
 			writeJSON(w, http.StatusOK, res)
 			return

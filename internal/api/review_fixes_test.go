@@ -13,7 +13,7 @@ import (
 	"github.com/safwyls/dwcon/internal/store"
 )
 
-// supervisorAgent is a palagent reporting supervisor mode with the game in
+// supervisorAgent is a wkagent reporting supervisor mode with the game in
 // whatever state a test needs.
 func supervisorAgent(t *testing.T, gameState string) string {
 	t.Helper()
@@ -22,7 +22,7 @@ func supervisorAgent(t *testing.T, gameState string) string {
 		switch {
 		case r.URL.Path == "/v1/health":
 			json.NewEncoder(w).Encode(map[string]any{
-				"agent": "palagent", "mode": "supervisor", "apiVersion": 1,
+				"agent": "wkagent", "mode": "supervisor", "apiVersion": 1,
 				"installDir": "/palworld", "installDirOk": true,
 				"game": map[string]any{"state": gameState},
 			})
@@ -36,7 +36,7 @@ func supervisorAgent(t *testing.T, gameState string) string {
 	return srv.URL
 }
 
-// A supervised container runs palagent as PID 1, so it is always up even
+// A supervised container runs wkagent as PID 1, so it is always up even
 // with the game stopped. Reading container state there would refuse every
 // update forever — and stopping the container to satisfy the gate kills the
 // agent that has to perform the update.
@@ -47,7 +47,7 @@ func TestSteamUpdateAsksTheAgentNotTheContainer(t *testing.T) {
 	id, err := app.store.CreateServer(context.Background(), &store.Server{
 		Name: "supervised", Host: "10.0.0.5", Enabled: true,
 		RCONPort: 25575, RESTPort: 8212,
-		ContainerName: "palagent-main",
+		ContainerName: "wkagent-main",
 		AgentURL:      supervisorAgent(t, "stopped"),
 		AgentToken:    "agent-token-0123456789abcdef",
 	})
@@ -72,7 +72,7 @@ func TestSteamUpdateRefusedWhileTheSupervisedGameRuns(t *testing.T) {
 	id, err := app.store.CreateServer(context.Background(), &store.Server{
 		Name: "supervised", Host: "10.0.0.5", Enabled: true,
 		RCONPort: 25575, RESTPort: 8212,
-		ContainerName: "palagent-main",
+		ContainerName: "wkagent-main",
 		AgentURL:      supervisorAgent(t, "running"),
 		AgentToken:    "agent-token-0123456789abcdef",
 	})
@@ -96,12 +96,12 @@ type destroyStub struct {
 
 func newDestroyStub(t *testing.T) (*destroyStub, string) {
 	t.Helper()
-	d := &destroyStub{status: http.StatusOK, body: `{"container":"palagent-main","dataDir":"/data/main"}`}
+	d := &destroyStub{status: http.StatusOK, body: `{"container":"wkagent-main","dataDir":"/data/main"}`}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/v1/health" {
 			json.NewEncoder(w).Encode(map[string]any{
-				"agent": "palagent", "mode": "provisioner", "apiVersion": 1,
+				"agent": "wkagent", "mode": "provisioner", "apiVersion": 1,
 				"provision": map[string]any{"dataRoot": "/data", "runAs": "568:568", "imageTag": "latest"},
 			})
 			return
@@ -133,7 +133,7 @@ func TestDeleteTreatsAnAlreadyGoneContainerAsDestroyed(t *testing.T) {
 	stub, provURL := newDestroyStub(t)
 	withProvisioner(t, app, provURL)
 
-	id := addProvisionedRow(t, app, "palagent-main")
+	id := addProvisionedRow(t, app, "wkagent-main")
 	stub.set(http.StatusNotFound, `{"error":"no container with that name"}`)
 
 	rec := app.do(t, "DELETE", "/api/servers/"+itoa(id)+"?removeContainer=true", nil, admin)
@@ -151,7 +151,7 @@ func TestDeleteStillStopsOnARefusedDestroy(t *testing.T) {
 	stub, provURL := newDestroyStub(t)
 	withProvisioner(t, app, provURL)
 
-	id := addProvisionedRow(t, app, "palagent-byhand")
+	id := addProvisionedRow(t, app, "wkagent-byhand")
 	stub.set(http.StatusBadRequest, `{"error":"that container was not created by this provisioner"}`)
 
 	if rec := app.do(t, "DELETE", "/api/servers/"+itoa(id)+"?removeContainer=true", nil, admin); rec.Code != http.StatusBadRequest {
@@ -169,8 +169,8 @@ func TestDeleteRefusesToDestroyASharedContainer(t *testing.T) {
 	stub, provURL := newDestroyStub(t)
 	withProvisioner(t, app, provURL)
 
-	first := addProvisionedRow(t, app, "palagent-shared")
-	addProvisionedRow(t, app, "palagent-shared")
+	first := addProvisionedRow(t, app, "wkagent-shared")
+	addProvisionedRow(t, app, "wkagent-shared")
 
 	rec := app.do(t, "DELETE", "/api/servers/"+itoa(first)+"?removeContainer=true", nil, admin)
 	if rec.Code != http.StatusConflict {
