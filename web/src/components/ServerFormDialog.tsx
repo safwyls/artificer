@@ -61,7 +61,7 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
 /** Which tab an existing server opens on. A container name or a path mount
  * is what makes a deployment companion-shaped; a provisioned or adopted
  * supervisor row carries an agent URL and nothing else. A bare REST/RCON
- * server opens on Companion too — the game is running somewhere palcon
+ * server opens on Companion too — the game is running somewhere wildskeeper
  * doesn't own, which is exactly what that tab describes. */
 function kindFor(mode: "create" | "edit", server?: Server): Kind {
   if (mode === "create" || !server) return "supervised";

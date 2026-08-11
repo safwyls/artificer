@@ -46,9 +46,9 @@ func TestLoadDefaults(t *testing.T) {
 		t.Errorf("AdminUsername = %q, want the admin default", cfg.AdminUsername)
 	}
 	if cfg.CookieSecure {
-		t.Error("CookieSecure should default off — palcon is usually plain HTTP on a LAN")
+		t.Error("CookieSecure should default off — wildskeeper is usually plain HTTP on a LAN")
 	}
-	if cfg.DBPath() != filepath.Join(dir, "palcon.db") {
+	if cfg.DBPath() != filepath.Join(dir, "wildskeeper.db") {
 		t.Errorf("DBPath = %q", cfg.DBPath())
 	}
 }

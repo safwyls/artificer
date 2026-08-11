@@ -79,7 +79,7 @@ func TestProvisionServer(t *testing.T) {
 
 // One-click: with a provisioner configured, provisioning also deploys.
 // The provisioner here is a real provisioner-mode wkagent over a fake
-// docker API — the full palcon → provisioner → docker chain.
+// docker API — the full wildskeeper → provisioner → docker chain.
 func TestProvisionOneClickDeploy(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
@@ -149,7 +149,7 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	}
 	// The row records the container the provisioner made — without it the
 	// destroy path has no name to pass back, and the logs viewer and
-	// watchdog stay dark for the one server palcon knows the name of.
+	// watchdog stay dark for the one server wildskeeper knows the name of.
 	if res.Server.ContainerName != "wkagent-one-click" {
 		t.Errorf("containerName = %q, want wkagent-one-click", res.Server.ContainerName)
 	}

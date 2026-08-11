@@ -205,7 +205,7 @@ func (a *Agent) handleProvision(w http.ResponseWriter, r *http.Request) {
 // how servers land on this host.
 type ProvisionDefaults struct {
 	DataRoot string `json:"dataRoot"`
-	// PublicHost is the address palcon (and players) reach this host on —
+	// PublicHost is the address wildskeeper (and players) reach this host on —
 	// WKAGENT_PUBLIC_HOST. Inside containers "localhost" means the
 	// container itself, so this must be declared, not guessed.
 	PublicHost string `json:"publicHost,omitempty"`
@@ -270,7 +270,7 @@ func (a *Agent) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"servers": out})
 }
 
-// AdoptResult carries everything palcon needs to re-register an existing
+// AdoptResult carries everything wildskeeper needs to re-register an existing
 // wkagent container — including its secrets. Deliberately: the
 // provisioner created these containers and injected those secrets in the
 // first place, so returning them to the (token-authenticated) control

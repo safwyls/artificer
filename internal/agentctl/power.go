@@ -102,7 +102,7 @@ func (c *Client) Destroy(ctx context.Context, container string) (*DestroyResult,
 type AdoptResult = wkagent.AdoptResult
 
 // Adopt recovers a wkagent container's registration data (secrets
-// included) so palcon can re-register a server whose row was lost.
+// included) so wildskeeper can re-register a server whose row was lost.
 func (c *Client) Adopt(ctx context.Context, container string) (*AdoptResult, error) {
 	var res AdoptResult
 	if err := c.do(ctx, http.MethodPost, "/v1/adopt", map[string]string{"container": container}, &res, 30*time.Second); err != nil {

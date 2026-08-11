@@ -1,4 +1,4 @@
-// Package games registers every game palcon supports.
+// Package games registers every game wildskeeper supports.
 //
 // Importing it for side effects — `_ "github.com/safwyls/wildskeeper/internal/games"`
 // — is what populates the game registry. Binaries and any test that resolves a

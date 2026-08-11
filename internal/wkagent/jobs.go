@@ -50,7 +50,7 @@ type jobRunner struct {
 	mu   sync.Mutex
 	jobs map[string]*Job
 	// cur is the running job's id, or the most recently started one once
-	// nothing is running — what /v1/health reports so palcon can
+	// nothing is running — what /v1/health reports so wildskeeper can
 	// rediscover in-flight work after its own restart.
 	cur string
 }
@@ -76,7 +76,7 @@ func (r *jobRunner) start(kind, command string, args []string) (*Job, error) {
 
 // ansiEscape strips the terminal color codes SteamCMD sprinkles through
 // its output ("Loading Steam API...\x1b[0mOK"); the dashboard renders the
-// log as plain text, same as palcon does for container logs.
+// log as plain text, same as wildskeeper does for container logs.
 var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
 // retryableSteamError matches failures a fresh SteamCMD bootstrap commonly

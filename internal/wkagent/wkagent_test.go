@@ -156,7 +156,7 @@ func TestAgentUpdateJob(t *testing.T) {
 		t.Errorf("log = %v, want the script's 2 lines", log)
 	}
 
-	// The finished job is discoverable via health (palcon-restart path).
+	// The finished job is discoverable via health (wildskeeper-restart path).
 	_, health := do(t, srv, "GET", "/v1/health", testToken, nil)
 	if health["job"].(map[string]any)["id"] != id {
 		t.Error("health does not report the last job")

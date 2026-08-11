@@ -25,11 +25,11 @@ export function lastSeenLabel(unixSeconds: number): string {
 
 /** The two stamps a save player carries, either of which can date them.
  *
- * lastSeen is palcon's own observation of the player leaving. lastOnline is
+ * lastSeen is wildskeeper's own observation of the player leaving. lastOnline is
  * the save's LastOnlineDateTime, which Palworld writes at *login* and never
  * updates — so on its own it reports when someone arrived, understating an
  * offline player by the whole length of their last session. It stays as the
- * fallback for servers palcon has no history for, but every label below says
+ * fallback for servers wildskeeper has no history for, but every label below says
  * "joined" when it's in use: a join time presented as a last-seen time is the
  * bug these two functions exist to end. */
 export interface SeenStamps {

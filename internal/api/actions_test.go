@@ -265,7 +265,7 @@ func TestServerActionsPassThroughTheirArguments(t *testing.T) {
 	}
 }
 
-// A game that answers with an error is a bad gateway, not a 500: palcon is
+// A game that answers with an error is a bad gateway, not a 500: wildskeeper is
 // working, the thing behind it isn't.
 func TestServerActionsReportGameFailureAsBadGateway(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)

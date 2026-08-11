@@ -86,7 +86,7 @@ func TestOpenSessionsAndWatchHeartbeat(t *testing.T) {
 }
 
 // LastSeen is the whole reason the uid column exists: a player save's
-// LastOnlineDateTime is a *login* stamp Palworld never updates, so palcon's
+// LastOnlineDateTime is a *login* stamp Palworld never updates, so wildskeeper's
 // own observation of someone leaving is the only honest answer to "when were
 // they last here?".
 func TestLastSeenPrefersObservedLeaves(t *testing.T) {
@@ -121,7 +121,7 @@ func TestLastSeenPrefersObservedLeaves(t *testing.T) {
 	if got := seen[kyoshiUID]; !got.Equal(now.Add(-20 * time.Minute)) {
 		t.Errorf("Kyoshi last seen %v, want the leave at %v", got, now.Add(-20*time.Minute))
 	}
-	// Still online: seen as recently as palcon last looked, not at their join.
+	// Still online: seen as recently as wildskeeper last looked, not at their join.
 	if got := seen[rushiUID]; !got.Equal(now) {
 		t.Errorf("Rushi last seen %v, want the watch heartbeat %v", got, now)
 	}
@@ -131,7 +131,7 @@ func TestLastSeenPrefersObservedLeaves(t *testing.T) {
 }
 
 // A crashed collector must not keep advancing an online player's last-seen:
-// the heartbeat stops, and so does what palcon may claim to have watched.
+// the heartbeat stops, and so does what wildskeeper may claim to have watched.
 func TestLastSeenOfOpenSessionStopsAtTheHeartbeat(t *testing.T) {
 	st, _ := newTestStore(t)
 	ctx := context.Background()

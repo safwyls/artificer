@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// This file exists for the wkagent provisioner, not for palcon: palcon's
+// This file exists for the wkagent provisioner, not for wildskeeper: wildskeeper's
 // proxy deliberately can't create containers (see the package comment).
 // The provisioner is the one component allowed to hold create rights, and
 // even it only ever instantiates the locked Palworld template
@@ -77,7 +77,7 @@ type ContainerSpec struct {
 	Binds []string
 	// Ports maps host port -> container "port/proto" (e.g. "8211/udp").
 	Ports map[int]string
-	// Labels tag the container (e.g. as palcon-provisioned, for discovery).
+	// Labels tag the container (e.g. as wildskeeper-provisioned, for discovery).
 	Labels map[string]string
 	// RestartUnlessStopped applies docker's unless-stopped policy.
 	RestartUnlessStopped bool

@@ -149,7 +149,7 @@ func TestLoginAndSessionRoundTrip(t *testing.T) {
 	if rec := app.do(t, "GET", "/api/me", nil, nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("no cookie: got %d, want 401", rec.Code)
 	}
-	garbage := []*http.Cookie{{Name: "palcon_session", Value: "not-a-jwt"}}
+	garbage := []*http.Cookie{{Name: "wildskeeper_session", Value: "not-a-jwt"}}
 	if rec := app.do(t, "GET", "/api/me", nil, garbage); rec.Code != http.StatusUnauthorized {
 		t.Errorf("garbage cookie: got %d, want 401", rec.Code)
 	}
@@ -226,7 +226,7 @@ func TestJWTAlgorithmPinned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign none-token: %v", err)
 	}
-	cookies := []*http.Cookie{{Name: "palcon_session", Value: signed}}
+	cookies := []*http.Cookie{{Name: "wildskeeper_session", Value: signed}}
 	if rec := app.do(t, "GET", "/api/me", nil, cookies); rec.Code != http.StatusUnauthorized {
 		t.Errorf("alg=none token: got %d, want 401", rec.Code)
 	}

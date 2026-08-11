@@ -283,7 +283,7 @@ func (s *supervisor) wait(cmd *exec.Cmd, stdout interface{ Read([]byte) (int, er
 	}
 
 	// Restart policy: any exit while desired=running comes back — that's
-	// what makes palcon's in-game shutdown double as a restart, exactly
+	// what makes wildskeeper's in-game shutdown double as a restart, exactly
 	// like docker's unless-stopped did in companion mode. Unclean exits
 	// back off so a boot-loop can't spin the CPU.
 	delay := time.Duration(0)
@@ -309,7 +309,7 @@ func (s *supervisor) wait(cmd *exec.Cmd, stdout interface{ Read([]byte) (int, er
 // can resurrect it.
 //
 // selfExit is how long a shutdown the game has *already* accepted gets to
-// finish before the supervisor escalates. Palcon asks the game to shut
+// finish before the supervisor escalates. Wildskeeper asks the game to shut
 // itself down over REST before calling this, and signalling a server
 // that's mid-save turns what would have been exit 0 into 143
 // (128+SIGTERM) — the engine logs "Exiting abnormally (error code: 143)"

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -45,11 +46,34 @@ func main() {
 	}
 }
 
+// adoptLegacyDB renames a palcon.db left by a pre-rename deployment (the
+// app was palcon-derived and kept its DB filename until 2026-08) to the
+// current name, sidecar WAL/SHM files included, so the rename doesn't
+// silently start an empty database. No-op once wildskeeper.db exists.
+func adoptLegacyDB(cfg *config.Config, logger *slog.Logger) {
+	if _, err := os.Stat(cfg.DBPath()); err == nil {
+		return
+	}
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		legacy := filepath.Join(cfg.DataDir, "palcon.db"+suffix)
+		if _, err := os.Stat(legacy); err != nil {
+			continue
+		}
+		if err := os.Rename(legacy, cfg.DBPath()+suffix); err != nil {
+			logger.Error("adopting legacy palcon.db", "file", legacy, "error", err)
+			return
+		}
+		logger.Info("adopted legacy database file", "from", legacy)
+	}
+}
+
 func run(logger *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
+
+	adoptLegacyDB(cfg, logger)
 
 	sqlDB, err := db.Open(cfg.DBPath())
 	if err != nil {

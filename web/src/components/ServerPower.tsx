@@ -83,7 +83,7 @@ export function ServerPower({
   const allowed = can("power");
 
   // Polls only while the agent reports a running job; also runs once on
-  // mount, so a reload (or a palcon restart) rediscovers an in-flight
+  // mount, so a reload (or a wildskeeper restart) rediscovers an in-flight
   // update instead of forgetting it.
   const updateStatus = useQuery({
     queryKey: ["steam-update", serverId],

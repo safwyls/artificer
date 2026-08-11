@@ -107,7 +107,7 @@ func TestProvisionerCreatesServer(t *testing.T) {
 }
 
 // A slug whose container already exists is refused before the mkdir and
-// the image pull, and with 409 — the status palcon reads as "nothing was
+// the image pull, and with 409 — the status wildskeeper reads as "nothing was
 // made", which is what keeps it from registering the server anyway.
 func TestProvisionerRefusesNameInUse(t *testing.T) {
 	srv, fake, dataRoot := newProvisioner(t)

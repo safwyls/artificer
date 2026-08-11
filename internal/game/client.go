@@ -1,4 +1,4 @@
-// Package game defines the contracts palcon needs from a dedicated game
+// Package game defines the contracts wildskeeper needs from a dedicated game
 // server, with no knowledge of which game it is.
 //
 // The moderation, power, metrics-collection, scheduling and watchdog paths
@@ -7,7 +7,7 @@
 // registry.go) with nothing in that layer changing.
 //
 // The save-reading views are not there yet — internal/api still imports
-// games/palworld's save and config readers directly, and cmd/palcon wires
+// games/palworld's save and config readers directly, and cmd/wildskeeper wires
 // the Palworld save reader concretely. docs/porting-to-another-game.md
 // tracks what remains Palworld-shaped; this comment should not be read as
 // claiming more than that document does.
@@ -65,7 +65,7 @@ type Metrics struct {
 	Days int `json:"days"`
 }
 
-// Client is the set of operations palcon needs from a game server,
+// Client is the set of operations wildskeeper needs from a game server,
 // regardless of which transport carries them.
 type Client interface {
 	Info(ctx context.Context) (*ServerInfo, error)

@@ -133,7 +133,7 @@ func schedulerWithDocker(t *testing.T, st *store.Store, docker *dockerctl.Client
 }
 
 // The regression this guards: a provisioned server carries both an agent
-// and a container name, and palcon's docker proxy may be pointed at a
+// and a container name, and wildskeeper's docker proxy may be pointed at a
 // different daemon than the one running it. The agent is the only half
 // guaranteed to be looking at the right machine, so it wins — exactly as
 // the manual Restart button decides it.

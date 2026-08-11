@@ -55,7 +55,7 @@ func TestDiscordTestEndpoint(t *testing.T) {
 		t.Errorf("posts = %d, want 1", got)
 	}
 
-	// A revoked webhook is a bad gateway: palcon works, Discord refused.
+	// A revoked webhook is a bad gateway: wildskeeper works, Discord refused.
 	mu.Lock()
 	status = http.StatusNotFound
 	mu.Unlock()
@@ -76,7 +76,7 @@ func TestDiscordTestIsAdminOnly(t *testing.T) {
 }
 
 // The public status page is the one unauthenticated endpoint, and it serves
-// entirely from palcon's own database — never by probing the game.
+// entirely from wildskeeper's own database — never by probing the game.
 func TestPublicStatus(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 	id := createTestServer(t, app)

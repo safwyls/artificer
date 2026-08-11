@@ -5,7 +5,7 @@
 // through the sidecar agent — which makes it a poor instrument for testing
 // the shared plumbing: every test would need a fake agent and a synthetic
 // log. This game speaks the plain HTTP vocabulary the shared tests' fakes
-// already serve (the `/v1/api/*` paths inherited from palcon's Palworld
+// already serve (the `/v1/api/*` paths inherited from wildskeeper's Palworld
 // REST protocol), so a test can point a row at an httptest server and watch
 // exactly which calls arrive. Production code never registers it; importing
 // this package from non-test code is a review error.

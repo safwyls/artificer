@@ -12,7 +12,7 @@ import (
 	"github.com/safwyls/wildskeeper/internal/store"
 )
 
-const sessionCookieName = "palcon_session"
+const sessionCookieName = "wildskeeper_session"
 const sessionDuration = 7 * 24 * time.Hour
 
 type sessionClaims struct {

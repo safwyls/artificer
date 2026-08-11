@@ -1,9 +1,9 @@
-// Package dragonwilds implements palcon's game contract for RuneScape:
+// Package dragonwilds implements wildskeeper's game contract for RuneScape:
 // Dragonwilds dedicated servers.
 //
 // The game has no RCON, no HTTP admin API and no query protocol — all
 // native administration is the in-game Server Management menu. Everything
-// palcon shows is therefore *derived*: process liveness from the wkagent
+// wildskeeper shows is therefore *derived*: process liveness from the wkagent
 // sidecar's health, the player list from a state machine over the agent's
 // log tail (dwlog), config from DedicatedServer.ini (dwconfig). Commands
 // have no transport at all until the UE4SS command bridge exists, so the

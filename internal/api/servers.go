@@ -220,7 +220,7 @@ func (s *Server) serverSharingContainer(ctx context.Context, srv *store.Server) 
 // The ordering is handleProvisionServer's in reverse, for the same reason:
 // destroy first, delete the row after. A destroy that fails keeps the row,
 // so the operator still has the card and the credentials to retry from.
-// Deleting the row first would leave a live container that palcon can only
+// Deleting the row first would leave a live container that wildskeeper can only
 // reach again through adoption — and the container name it needed to
 // destroy it lives on that row.
 func (s *Server) handleDeleteServer(w http.ResponseWriter, r *http.Request) {

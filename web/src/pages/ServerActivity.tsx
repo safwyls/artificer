@@ -82,7 +82,7 @@ function analyze(events: PlayerEvent[], rangeStart: Date, now: Date, onlineNow: 
     const s = totals.get(userId);
     if (!s) continue;
     // A join with no leave only means "still playing" if the player is on
-    // the server right now. Otherwise the leave was never observed (palcon
+    // the server right now. Otherwise the leave was never observed (wildskeeper
     // was down when they logged off) and running the session to now would
     // bill them for every hour since — up to the whole visible range.
     if (onlineNow && !onlineNow.has(userId)) continue;

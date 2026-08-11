@@ -32,7 +32,7 @@ import (
 
 type provisionRequest struct {
 	Name string `json:"name"`
-	// Host is where the stack will run — an address palcon can reach the
+	// Host is where the stack will run — an address wildskeeper can reach the
 	// published ports on.
 	Host string `json:"host"`
 	// DataPath is the host directory mounted as the install volume.
@@ -175,7 +175,7 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	// The container is named from the slug, so a name already on the host
 	// can never deploy. Catch it before anything is written: the row would
 	// carry freshly generated credentials that the running container has
-	// never seen, leaving a server palcon can see and never reach. (The
+	// never seen, leaving a server wildskeeper can see and never reach. (The
 	// provisioner refuses this itself — checked here too so an older
 	// provisioner image, which only fails at docker create, is covered.)
 	if s.Provisioner != nil {
@@ -284,7 +284,7 @@ services:
 		AgentURL:   fmt.Sprintf("http://%s:%d", req.Host, req.AgentPort),
 		AgentToken: token,
 		// Recorded only when the provisioner actually made it: this is the
-		// name the destroy path passes back, and — when palcon's own docker
+		// name the destroy path passes back, and — when wildskeeper's own docker
 		// proxy happens to watch the same daemon — what the container logs
 		// viewer and watchdog key off. Power control is unaffected either
 		// way, since every power site tries agentSupervisor before docker.
@@ -324,7 +324,7 @@ func conflictMessage(slug string) string {
 
 // handleProvisionDefaults reports everything the wizard can prefill: the
 // provisioner's own configuration (data root, public host, run-as, image
-// tag) plus a free-port proposal computed from the servers palcon already
+// tag) plus a free-port proposal computed from the servers wildskeeper already
 // manages. The proposal is a suggestion — something else on the box can
 // still hold a port, in which case the deploy fails cleanly at create
 // time.
@@ -344,7 +344,7 @@ func (s *Server) handleProvisionDefaults(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Containers hold ports too — including ones whose palcon row was
+	// Containers hold ports too — including ones whose wildskeeper row was
 	// deleted. The provisioner sees them; a proposal that ignored them
 	// would suggest ports that fail at deploy time.
 	var containerPorts []int
@@ -367,7 +367,7 @@ func (s *Server) handleProvisionDefaults(w http.ResponseWriter, r *http.Request)
 // inferHost picks the address for new servers: the provisioner's declared
 // public host wins; else the host part of the provisioner URL when it's a
 // real address (a bare compose service name — no dots, not an IP — can't
-// be reached by players or by palcon's REST client); else the address the
+// be reached by players or by wildskeeper's REST client); else the address the
 // existing servers already use.
 func (s *Server) inferHost(declared string, servers []*store.Server) string {
 	if declared != "" {

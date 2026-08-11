@@ -169,7 +169,7 @@ func TestMissingIsDistinctFromRefused(t *testing.T) {
 func errFrom[T any](_ T, err error) error { return err }
 
 // Power and the file verbs are supervisor-mode features. A companion agent
-// answers 400, which the client surfaces as a rejection so palcon can fall
+// answers 400, which the client surfaces as a rejection so wildskeeper can fall
 // back to the docker proxy instead of reporting an outage.
 func TestSupervisorOnlyVerbsAgainstACompanion(t *testing.T) {
 	srv := newAgent(t, "exit 0")
@@ -276,7 +276,7 @@ func TestGetConfigOnAnUnbootedInstall(t *testing.T) {
 }
 
 // An agent that isn't there at all is a transport failure, not a rejection —
-// the distinction is what lets palcon say "unreachable" rather than
+// the distinction is what lets wildskeeper say "unreachable" rather than
 // "misconfigured".
 func TestUnreachableAgentIsNotARejection(t *testing.T) {
 	client, err := agentctl.New("http://127.0.0.1:1", token)

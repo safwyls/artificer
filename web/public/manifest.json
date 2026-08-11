@@ -1,7 +1,7 @@
 {
   "name": "Wildskeeper",
   "short_name": "Wildskeeper",
-  "description": "Palworld dedicated server admin panel",
+  "description": "RuneScape: Dragonwilds server console",
   "id": "/",
   "start_url": "/",
   "scope": "/",

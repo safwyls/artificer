@@ -16,7 +16,7 @@ import (
 )
 
 // scheduleJSON is the wire form of a restart schedule. Times are the
-// palcon host's local wall clock; the automation payload carries the
+// wildskeeper host's local wall clock; the automation payload carries the
 // timezone name so the UI can label them honestly.
 type scheduleJSON struct {
 	ID             int64   `json:"id"`

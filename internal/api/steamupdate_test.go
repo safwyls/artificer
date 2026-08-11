@@ -19,7 +19,7 @@ import (
 const agentToken = "api-test-agent-token-0123456789"
 
 // agentServer runs a real wkagent over a fake install dir and registers a
-// server row pointing at it, exercising the palcon→agent path end to end.
+// server row pointing at it, exercising the wildskeeper→agent path end to end.
 func agentServer(t *testing.T, app *testApp) (int64, string) {
 	t.Helper()
 	install := fakeInstallDir(t)

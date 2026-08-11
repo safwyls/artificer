@@ -251,7 +251,7 @@ func (a *Agent) Handler() http.Handler {
 		r.Get("/files/config", a.handleGetConfig)
 		r.Put("/files/config", a.handlePutConfig)
 		// Phase 3 power verbs — supervisor mode only; companion agents
-		// answer 400 so palcon falls back to the docker proxy.
+		// answer 400 so wildskeeper falls back to the docker proxy.
 		r.Post("/power/{action}", a.handlePower)
 		r.Get("/power/logs", a.handleGameLogs)
 		// Phase 4 — the dwbridge command channel. Supervisor mode only;
@@ -287,7 +287,7 @@ func (a *Agent) requireToken(next http.Handler) http.Handler {
 	})
 }
 
-// Health is the /v1/health payload — everything palcon needs to decide
+// Health is the /v1/health payload — everything wildskeeper needs to decide
 // what this agent can do and whether work is in flight.
 type Health struct {
 	Agent        string `json:"agent"`
@@ -297,7 +297,7 @@ type Health struct {
 	InstallDir   string `json:"installDir"`
 	InstallDirOk bool   `json:"installDirOk"`
 	// SaveFound/ConfigFound report whether the phase 2 file verbs have
-	// anything to serve, so palcon can distinguish "not synced yet" from
+	// anything to serve, so wildskeeper can distinguish "not synced yet" from
 	// "this install has no world".
 	SaveFound     bool   `json:"saveFound"`
 	ConfigFound   bool   `json:"configFound"`
@@ -313,7 +313,7 @@ type Health struct {
 	Provision *ProvisionDefaults `json:"provision,omitempty"`
 	// Job is the running job if there is one, else the most recently
 	// finished one, else null. Exposing it here (not only under /jobs)
-	// lets palcon rediscover in-flight work after its own restart.
+	// lets wildskeeper rediscover in-flight work after its own restart.
 	Job *Job `json:"job"`
 }
 
@@ -429,14 +429,14 @@ func parseGraceful(v string) time.Duration {
 }
 
 // handlePower starts/stops/restarts the supervised game. The response is
-// the post-action status, so palcon needs no follow-up read.
+// the post-action status, so wildskeeper needs no follow-up read.
 func (a *Agent) handlePower(w http.ResponseWriter, r *http.Request) {
 	if a.game == nil {
 		writeError(w, http.StatusBadRequest, "agent is in companion mode — the game runs in its own container")
 		return
 	}
 	// graceful is how long an in-game shutdown the caller already requested
-	// gets to finish before the supervisor signals the process. Palcon sets
+	// gets to finish before the supervisor signals the process. Wildskeeper sets
 	// it after its REST /shutdown courtesy is accepted; absent, stops
 	// escalate immediately as before.
 	graceful := parseGraceful(r.URL.Query().Get("graceful"))
