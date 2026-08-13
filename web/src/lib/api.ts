@@ -267,6 +267,63 @@ export interface DiscoveredServer {
   registered: boolean;
 }
 
+/**
+ * Which of Dragonwilds' two dedicated-server builds the agent launches.
+ *
+ * Not a preference: the native Linux build cannot load UE4SS, so it can
+ * never carry the dwbridge mod and its commands stay unavailable forever.
+ * The Windows build under Wine can. The two also come from different Steam
+ * depots, so switching means re-downloading the game — which is why
+ * `installed` is per profile and worth showing.
+ */
+export interface Launch {
+  profile: string;
+  label: string;
+  /** Whether this build can carry the mod, and so run commands at all. */
+  mods: boolean;
+  /** Whether the launcher exists on this agent at all. False for the Wine
+   * build on an agent image with no Wine in it — a different problem from
+   * "not installed", fixable only by moving the agent to another image. */
+  runnable: boolean;
+  /** Whether the selected build's files are present. False between a switch
+   * and the re-install it needs. */
+  installed: boolean;
+  /** Profiles the console may select. Empty when the agent runs an explicit
+   * command, which must not be silently replaced. */
+  available?: string[];
+  /** The selection has changed since the running process started. */
+  pendingRestart: boolean;
+  configPath: string;
+}
+
+export const LAUNCH_PROFILES: Record<string, { label: string; blurb: string }> = {
+  native: { label: "Native Linux", blurb: "Simplest to run. No mod support, so commands stay unavailable." },
+  wine: { label: "Windows + mods", blurb: "Runs under Wine and can load the dwbridge mod, so on-demand saves work." },
+};
+
+/** One command's answer from the capabilities probe. */
+export interface CommandCapability {
+  supported: boolean;
+  /** Why not, when unsupported — the same text the 501 would carry. Shown
+   * verbatim, so it should name what's missing. */
+  reason?: string;
+}
+
+/**
+ * What a server's commands can actually do right now.
+ *
+ * For Dragonwilds the answer moves with the dwbridge mod, which is a
+ * property of the machine rather than the game — so it has to be asked, not
+ * assumed. `probed` is false for a game whose client can't answer; every
+ * command then reports supported, which is what the UI assumed before this
+ * existed. Treat a failed request the same way: show the control and let a
+ * 501 explain itself, rather than hiding a working button.
+ */
+export interface Capabilities {
+  probed: boolean;
+  commands: Record<string, CommandCapability | undefined>;
+}
+
 export interface ServerInfo {
   servername: string;
   version: string;
@@ -868,6 +925,18 @@ export const api = {
       body: JSON.stringify({ validate: true }),
     }),
   steamUpdateStatus: (id: number) => request<SteamUpdateStatus>(`/servers/${id}/steam/update`),
+  // Which game build the agent launches. Throws a 400 ApiError when the
+  // server has no agent, or has one that doesn't run the game.
+  serverLaunch: (id: number) => request<Launch>(`/servers/${id}/launch`),
+  // Rebuild this server's agent container on another wkagent image,
+  // through the provisioner that created it.
+  recreateAgent: (id: number, imageTag: string) =>
+    request<{ container: string; image: string; previousImage: string }>(`/servers/${id}/agent/image`, {
+      method: "POST",
+      body: JSON.stringify({ imageTag }),
+    }),
+  setServerLaunch: (id: number, profile: string) =>
+    request<Launch>(`/servers/${id}/launch`, { method: "PUT", body: JSON.stringify({ profile }) }),
   setWatchdog: (id: number, enabled: boolean) =>
     request<{ enabled: boolean }>(`/servers/${id}/watchdog`, { method: "PUT", body: JSON.stringify({ enabled }) }),
   setPublicStatus: (id: number, enabled: boolean) =>
@@ -920,6 +989,9 @@ export const api = {
 
   serverInfo: (id: number) => request<ServerInfo>(`/servers/${id}/info`),
   serverPlayers: (id: number) => request<Player[]>(`/servers/${id}/players`),
+  // What this server's commands can actually do, so the UI can say so
+  // before anyone clicks. See Capabilities.
+  serverCapabilities: (id: number) => request<Capabilities>(`/servers/${id}/capabilities`),
   broadcast: (id: number, message: string) =>
     request<void>(`/servers/${id}/broadcast`, { method: "POST", body: JSON.stringify({ message }) }),
   kick: (id: number, playerUid: string, message: string) =>

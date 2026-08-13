@@ -160,6 +160,12 @@ The pieces, all committed:
 - **dragonwilds client** — commands route through the bridge when the
   heartbeat lists them; otherwise the honest 501 stands. `save` is live;
   the rest map to real functions but await the mod implementing them.
+  It also answers `game.CommandProber` (2026-08-11): `Supports(ctx, op)`
+  reports whether a command would be carried *without* carrying it, so the
+  console can describe a server before anyone clicks. Probe and command
+  share one decision (`bridgeReady`), which is what keeps a promise from
+  drifting from the behaviour; `GET /servers/{id}/capabilities` exposes it,
+  and a game whose client has no prober reports everything supported.
 - **the dashboard** — on-demand save is a first-class control (2026-08-11):
   a Save world button in the Overview's power row (kept even for
   agent-managed servers, where docker power hides) and on the World-saves
@@ -167,14 +173,86 @@ The pieces, all committed:
   confirmations — the interactive half of roadmap item 13's
   warn → save → stop → start chain. Capability is still discovered by
   doing: no bridge means the button's toast relays the 501's reason.
+- **the scheduler** — the *automatic* half of that chain, and the surprise
+  when it was picked up (2026-08-11): `sched.restart` had called
+  `client.Save` all along, so scheduled restarts have been reaching
+  dwbridge since the mod landed. What was missing was knowing whether the
+  save happened. It now classifies the attempt — saved / no command bridge
+  (`*game.UnsupportedError`) / failed — and carries that into the Discord
+  restart notice, the audit detail (`"05:00 · world saved"`, rendered in
+  Activity) and the log. The notice used to be sent *before* the save and
+  claim "is saving and restarting now" unconditionally; it is now sent
+  after, and says which of the three happened. On a game that does not save
+  on shutdown, that distinction is the difference between a clean restart
+  and losing up to ~5 minutes, so it is worth the ≤25 s the save budget
+  adds to the notice.
 
 What's left in Phase 4, in the order worth attempting:
 
-1. **A wkagent launch profile for the Wine + Windows build.** Pure
-   engineering, no unknowns: today it is `GAME_CMD`/`GAME_ARGS` config and
-   the live test ran the game by hand while a real agent drove the bridge
-   over the shared directory. This is what makes the modded stack
-   deployable rather than hand-run.
+1. ~~**A wkagent launch profile for the Wine + Windows build.**~~ **Built
+   2026-08-11, and untested against real Wine — see below.** The agent now
+   has launch *profiles* (`internal/wkagent/launch.go`): `native` (the
+   Linux build, no mods) and `wine` (the Windows build, the only one UE4SS
+   can attach to). A profile carries everything that differs between the
+   two builds, because it is more than a command line — different Steam
+   depot (`+@sSteamCmdForcePlatformType windows`, which must precede
+   `+login` or it is ignored), a different config directory
+   (`WindowsServer/`, not `LinuxServer/` — the ini editor would otherwise
+   edit a file the game never reads), a different "is it installed" probe,
+   and the environment the mod stack needs:
+   `WINEDLLOVERRIDES=version=n,b` (without it Wine prefers its builtin
+   version.dll and UE4SS never injects) plus `DWBRIDGE_DIR` as a
+   `Z:`-mapped Windows path (the mod reads it with Windows semantics; a
+   Linux path leaves the bridge idle with no error anywhere).
+
+   The selection persists in the install volume beside desired-state, is
+   reported in `health.launch`, and is changed through `PUT /v1/launch` →
+   `PUT /api/servers/{id}/launch` → a Launch mode control in the
+   dashboard's power card. It deliberately applies at the *next start*:
+   switching build is a re-install, not a restart, so the agent refuses to
+   decide that timing. `deploy/`-wise there is a second image,
+   `Dockerfile.wkagent-wine` — Wine adds >1 GB and most servers will never
+   want it, so the plain image stays small.
+
+   **Switching is safe for the world, and carries the settings.** Saves
+   live in `Saved/SaveGames/`, which is *not* platform-suffixed, so both
+   builds read and write the same world — switching costs nothing there.
+   Config is a different story: it *is* per platform, so selecting a
+   profile copies `DedicatedServer.ini` across to the new build's
+   directory when that side has none, and the agent's config verbs follow
+   the active profile. Without both, a switch would silently revert every
+   edited setting and then let the dashboard keep editing a file the game
+   no longer reads.
+
+   **Deploying it.** The provisioner needs no change — it doesn't run
+   games. The per-server agent container is what needs Wine, via the
+   `latest-wine` image tag (Deployment details in the Raise-a-server
+   wizard). CI publishes it from `Dockerfile.wkagent-wine`; the plain
+   `latest` stays Wine-free.
+
+   For a server that *already exists*, there is now a button:
+   `POST /v1/provision/recreate` on the provisioner reads a container's
+   configuration back with `dockerctl.InspectSpec` and rebuilds it on
+   another image, keeping env, binds, ports, user, labels, restart policy
+   and networks. This exists because provisioner-made containers belong to
+   no orchestrator — they are not in a TrueNAS apps list or any compose
+   file — so the alternative was hand-written docker on the host. The
+   agent reports `launch.runnable` (is the launcher actually present in
+   this image?), and the console offers the rebuild exactly when a Wine
+   profile is selected on an image with no Wine in it. The image is pulled
+   before anything is removed, so a bad tag fails while the old container
+   is still running.
+
+   **What is proven and what is not.** A stub `wine` on PATH proves the
+   whole launch path — PATH resolution, the exe, the port, the env, the
+   working directory — reaches the process
+   (`TestWineProfileLaunchesThroughPathWithTheModEnvironment`). Nothing
+   here has been run against real Wine, a real Windows depot, or a real
+   UE4SS: this box has none of the three. The feasibility of the *stack*
+   was proven by hand on 2026-08-09 (`tools/ue4ss-wine-shim/README.md`);
+   what is unproven is this agent driving it. Expect the first real run to
+   find something — a path that needs to be `Z:`-mapped and isn't, a Wine
+   prefix permission, the exe name after a patch.
 2. **Ban via the ini.** `KnownPlayerList`'s `bIsBanned` flag is the one
    plausible route to offline ban/unban left standing, and dwconfig already
    owns that file safely. Needs one experiment: does the server honour a

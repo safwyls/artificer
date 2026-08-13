@@ -79,12 +79,16 @@ type Config struct {
 	// or "supervisor" (this agent runs the game as a child process and
 	// owns its lifecycle — docs/sidecar-agent.md phase 3).
 	Mode string
-	// GameCommand is the launcher relative to InstallDir; defaults to
-	// ./RSDragonwildsServer.sh. Supervisor mode only.
+	// GameCommand is the launcher relative to InstallDir. Setting it opts
+	// out of launch profiles entirely (see ProfileCustom). Supervisor mode
+	// only.
 	GameCommand string
 	// GameArgs are the launcher's flags; defaults to -log plus the
 	// configured port. Supervisor mode only.
 	GameArgs []string
+	// Launch selects and tunes the launch profile — which of the game's two
+	// builds to run. Supervisor mode only; see launch.go.
+	Launch LaunchConfig
 	// StopGrace is how long a SIGTERM'd game gets before SIGKILL;
 	// defaults to 30s.
 	StopGrace time.Duration
@@ -128,6 +132,11 @@ type Config struct {
 	PublicHost      string
 	DefaultRunAs    string
 	DefaultImageTag string
+	// AllowedImagePrefixes bounds what this host can be told to run. Empty
+	// means DefaultImagePrefixes. Provisioner mode only — and the single
+	// thing standing between a generic spec endpoint and an arbitrary
+	// container-execution primitive.
+	AllowedImagePrefixes []string
 	// Version is the agent build version, reported in /v1/health.
 	Version string
 	Logger  *slog.Logger
@@ -199,7 +208,7 @@ func (a *Agent) Run() {
 	}
 	if !a.game.Installed() {
 		a.cfg.Logger.Info("game not installed; installing", "dir", a.cfg.InstallDir)
-		args := steamcmd.UpdateArgs(a.cfg.InstallDir, a.cfg.AppID, true)
+		args := steamcmd.UpdateArgsFor(a.cfg.InstallDir, a.cfg.AppID, true, a.steamPlatform())
 		job, err := a.jobs.start("steam-install", a.cfg.SteamCmd, args)
 		if err != nil {
 			a.cfg.Logger.Error("install could not start", "error", err)
@@ -258,10 +267,22 @@ func (a *Agent) Handler() http.Handler {
 		// nil bridge (companion/provisioner) answers 400 like the power
 		// verbs, since there is no game to command.
 		r.Post("/bridge/command", a.handleBridgeCommand)
+
+		// Which of the game's two builds to launch. Reading is part of
+		// health; this is the write side, and it applies at the next
+		// start rather than disturbing a running game.
+		r.Put("/launch", a.handleSetLaunchProfile)
 		// Phase 5 — provisioner mode: the create verb, read-only
 		// discovery, and adoption (secret recovery for wkagent
 		// containers the control plane lost track of).
 		r.Post("/provision", a.handleProvision)
+		// The game-agnostic contract: any console sends what its game
+		// needs as data and this places it. See spec.go.
+		r.Post("/provision/spec", a.handleProvisionSpec)
+		// Rebuild a provisioned agent on a different image — the only
+		// non-manual way to move one to the Wine channel, since nothing
+		// else on the host manages these containers.
+		r.Post("/provision/recreate", a.handleRecreate)
 		r.Get("/discover", a.handleDiscover)
 		r.Post("/adopt", a.handleAdopt)
 		// Destroy is create's inverse and is gated on the label create
@@ -309,6 +330,10 @@ type Health struct {
 	// plane can tell "no command channel exists" from "one exists but is
 	// down".
 	Bridge *BridgeStatus `json:"bridge,omitempty"`
+	// Launch reports which of the game's builds this agent starts, and what
+	// else it could start. Nil outside supervisor mode, where nothing is
+	// launched at all.
+	Launch *LaunchStatus `json:"launch,omitempty"`
 	// Provision carries the wizard defaults; nil outside provisioner mode.
 	Provision *ProvisionDefaults `json:"provision,omitempty"`
 	// Job is the running job if there is one, else the most recently
@@ -342,6 +367,9 @@ func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	}
 	if a.bridge != nil {
 		h.Bridge = a.bridge.Status()
+	}
+	if a.game != nil {
+		h.Launch = a.launchStatus()
 	}
 	if a.cfg.Mode == "provisioner" {
 		h.Provision = &ProvisionDefaults{
@@ -391,7 +419,7 @@ func (a *Agent) handleStartUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	args := steamcmd.UpdateArgs(a.cfg.InstallDir, a.cfg.AppID, req.Validate)
+	args := steamcmd.UpdateArgsFor(a.cfg.InstallDir, a.cfg.AppID, req.Validate, a.steamPlatform())
 	job, err := a.jobs.start("steam-update", a.cfg.SteamCmd, args)
 	if errors.Is(err, errJobRunning) {
 		writeError(w, http.StatusConflict, "a job is already running")
@@ -531,4 +559,88 @@ func newJobID() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// LaunchStatus is the /v1/health launch field: which build the agent runs,
+// what else it could run, and whether the running process is still the one
+// that was selected.
+type LaunchStatus struct {
+	Profile string `json:"profile"`
+	Label   string `json:"label"`
+	// Mods reports whether the selected build can carry the dwbridge mod.
+	// This is the honest upstream answer to "can this server ever run a
+	// command?" — a native Linux server cannot, however healthy it looks.
+	Mods bool `json:"mods"`
+	// Installed reports whether the selected build's files are present.
+	// False after a switch and before the re-install it requires, which is
+	// exactly when an operator most needs telling.
+	Installed bool `json:"installed"`
+	// Runnable reports whether the profile's launcher exists on this agent.
+	// False for the Wine profile on an image with no Wine in it — a
+	// different failure from "the game isn't installed", and one only a
+	// redeploy of the agent itself can fix.
+	Runnable bool `json:"runnable"`
+	// Available are the profiles the console may select. Empty when the
+	// agent runs an explicit command (ProfileCustom), which the console
+	// must not silently replace.
+	Available []string `json:"available"`
+	// PendingRestart reports that the selection has changed since the
+	// running process started, so the game is not yet the build named here.
+	PendingRestart bool `json:"pendingRestart"`
+	// ConfigPath is where this build's DedicatedServer.ini lives, relative
+	// to the install root — it moves with the platform.
+	ConfigPath string `json:"configPath"`
+}
+
+// steamPlatform is the depot the selected build needs, so an install or
+// update fetches the build the agent is actually going to run rather than
+// whatever matches the host.
+func (a *Agent) steamPlatform() string {
+	if a.game == nil {
+		return ""
+	}
+	return a.game.Profile().SteamPlatform
+}
+
+func (a *Agent) launchStatus() *LaunchStatus {
+	p := a.game.Profile()
+	st := &LaunchStatus{
+		Profile:    p.Name,
+		Label:      p.Label,
+		Mods:       p.Mods,
+		Installed:  p.installed(a.cfg.InstallDir),
+		Runnable:   p.runnable(a.cfg.InstallDir),
+		ConfigPath: p.ConfigRel,
+	}
+	if p.Name != ProfileCustom {
+		st.Available = SelectableProfiles
+	}
+	st.PendingRestart = a.game.profileChangedSinceStart()
+	return st
+}
+
+// handleSetLaunchProfile selects the build the next start will launch.
+//
+// It does not stop, start or restart anything. Switching build is not a
+// restart: the two come from different Steam depots, so the new one has to
+// be installed before it can run, and doing that behind an operator's back
+// during what looked like a settings change would be the worst possible
+// moment to surprise them.
+func (a *Agent) handleSetLaunchProfile(w http.ResponseWriter, r *http.Request) {
+	if a.game == nil {
+		writeError(w, http.StatusBadRequest, "agent is not supervising a game — launch profiles are supervisor mode only")
+		return
+	}
+	var in struct {
+		Profile string `json:"profile"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if _, err := a.game.SetProfile(in.Profile); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, a.launchStatus())
 }

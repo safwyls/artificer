@@ -25,6 +25,7 @@ import {
   type ScheduleWriteInput,
 } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useCommand } from "../lib/capabilities";
 import { agoLabel } from "../lib/time";
 import { cn } from "../lib/utils";
 import { Button } from "../components/ui/button";
@@ -252,6 +253,10 @@ function SchedulesCard({
 }) {
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["automation", serverId] });
+  // A scheduled restart saves first — but only where something can carry
+  // the save. Asking lets this card describe what will happen to *this*
+  // server instead of listing both possibilities.
+  const saveCmd = useCommand(serverId, "save");
 
   const toggle = useMutation({
     mutationFn: (sc: RestartSchedule) =>
@@ -296,7 +301,10 @@ function SchedulesCard({
           <p className="text-sm text-wk-parchment/60">No restart schedules yet.</p>
           {canEdit && (
             <p className="mt-1 text-sm text-wk-parchment/60">
-              Add one and Wildskeeper restarts the server on schedule. The game has no save command and does not save on shutdown, so a restart loses anything since the last autosave.
+              Add one and Wildskeeper restarts the server on schedule.{" "}
+              {saveCmd.known && !saveCmd.supported
+                ? "This server has no way to save on demand, so a restart loses anything since the game's last autosave."
+                : "The world is saved first, so a restart costs nothing."}
             </p>
           )}
         </div>
@@ -354,7 +362,17 @@ function SchedulesCard({
 
       <div className="space-y-1 border-t border-wk-edge px-5 py-3 text-xs text-wk-parchment/50">
         <p>
-          Times are {data.timezone} (Wildskeeper's clock). The world is not saved before a restart — the game only autosaves on its own timer.
+          Times are {data.timezone} (Wildskeeper's clock).{" "}
+          {saveCmd.known && !saveCmd.supported ? (
+            <>
+              This server cannot be saved on demand — {saveCmd.reason} — so each restart costs whatever came after the
+              game's last autosave. Every run records that in Activity.
+            </>
+          ) : (
+            <>
+              Wildskeeper saves the world before each restart, and records in Activity whether the save landed.
+            </>
+          )}
         </p>
         {!data.dockerRestart && (
           <p className="text-wk-parchment/60">
@@ -420,7 +438,8 @@ function ScheduleDialog({
         <DialogHeader>
           <DialogTitle>{schedule ? "Edit schedule" : "Add restart schedule"}</DialogTitle>
           <DialogDescription>
-            Each lead time is when a warning would be sent once a command bridge exists. The server then restarts; the game does not save on shutdown.
+            Each lead time sends a Discord warning; an in-game warning needs a dwbridge mod that can broadcast, and
+            none does yet. At the scheduled time Wildskeeper saves the world, then restarts the server.
           </DialogDescription>
         </DialogHeader>
 
