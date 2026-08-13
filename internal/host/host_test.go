@@ -16,7 +16,15 @@ import (
 	"github.com/safwyls/ilmari/internal/host"
 )
 
-const testToken = "test-token-0123456789abcdef"
+// Two consoles, two tokens: the tests exercise the boundary between them.
+const (
+	wkToken  = "wk-token-0123456789abcdef"
+	palToken = "pal-token-0123456789abcdef"
+)
+
+// testToken is the default caller (wildskeeper) for tests that don't care
+// which console is asking.
+const testToken = wkToken
 
 // fakeDocker stands in for the daemon and records what it was asked to do.
 type fakeDocker struct {
@@ -64,8 +72,12 @@ func newService(t *testing.T) (*httptest.Server, *fakeDocker, string) {
 	t.Cleanup(dockerSrv.Close)
 	dataRoot := t.TempDir()
 	svc, err := host.New(host.Config{
-		Token: testToken, DockerHost: dockerSrv.URL, DataRoot: dataRoot,
-		Version: "test", Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Clients: []host.ClientConfig{
+			{ID: "wildskeeper", Token: wkToken, DataRoot: dataRoot},
+			{ID: "palcon", Token: palToken, DataRoot: filepath.Join(dataRoot, "pal")},
+		},
+		DockerHost: dockerSrv.URL,
+		Version:    "test", Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -76,6 +88,10 @@ func newService(t *testing.T) (*httptest.Server, *fakeDocker, string) {
 }
 
 func do(t *testing.T, srv *httptest.Server, method, path string, body any) (*http.Response, map[string]any) {
+	return doAs(t, srv, testToken, method, path, body)
+}
+
+func doAs(t *testing.T, srv *httptest.Server, token, method, path string, body any) (*http.Response, map[string]any) {
 	t.Helper()
 	var payload io.Reader
 	if body != nil {
@@ -86,7 +102,7 @@ func do(t *testing.T, srv *httptest.Server, method, path string, body any) (*htt
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.Header.Set("Authorization", "Bearer "+testToken)
+	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -116,8 +132,8 @@ func TestRequiresToken(t *testing.T) {
 func TestPlacesAnyConsolesContainer(t *testing.T) {
 	srv, fake, dataRoot := newService(t)
 
-	resp, m := do(t, srv, "POST", "/v1/provision", map[string]any{
-		"name": "palagent-palhalla", "slug": "palhalla", "owner": "palcon",
+	resp, m := doAs(t, srv, palToken, "POST", "/v1/provision", map[string]any{
+		"name": "palagent-palhalla", "slug": "palhalla",
 		"image": "ghcr.io/safwyls/palagent:latest", "user": "568:568",
 		"env":       map[string]string{"PALAGENT_MODE": "supervisor", "PALAGENT_SERVER_DESC": "chill server"},
 		"ports":     []map[string]any{{"host": 8211, "container": 8211, "proto": "udp"}, {"host": 25575, "container": 25575}},
@@ -126,8 +142,9 @@ func TestPlacesAnyConsolesContainer(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("provision: %d %v", resp.StatusCode, m)
 	}
-	if _, err := os.Stat(filepath.Join(dataRoot, "palhalla")); err != nil {
-		t.Errorf("data dir not created under the data root: %v", err)
+	// Under *palcon's* data root — the caller's own, not a shared one.
+	if _, err := os.Stat(filepath.Join(dataRoot, "pal", "palhalla")); err != nil {
+		t.Errorf("data dir not created under the caller's data root: %v", err)
 	}
 	env := fmt.Sprint(fake.created["Env"])
 	if !strings.Contains(env, "PALAGENT_SERVER_DESC=chill server") {
@@ -274,5 +291,98 @@ func TestPortsReportsEveryPublishedPort(t *testing.T) {
 	ports, _ := m["ports"].([]any)
 	if len(ports) != 4 {
 		t.Fatalf("got %d published ports, want all 4 across both consoles and nginx: %v", len(ports), ports)
+	}
+}
+
+// The boundary the per-console tokens exist for: wildskeeper's token must
+// not be able to destroy or rebuild a Palworld server. This holds for
+// legacy containers too — palagent-palhalla predates Ilmari, and its
+// palcon.provisioned label is what names its owner.
+func TestAConsoleCannotActOnAnotherConsolesServers(t *testing.T) {
+	srv, fake, _ := newService(t)
+	fake.containers = twoConsoles
+
+	for _, tc := range []struct {
+		path string
+		body map[string]any
+	}{
+		{"/v1/provision/destroy", map[string]any{"container": "palagent-palhalla"}},
+		{"/v1/provision/recreate", map[string]any{"container": "palagent-palhalla", "image": "ghcr.io/safwyls/palagent:beta"}},
+	} {
+		resp, m := doAs(t, srv, wkToken, "POST", tc.path, tc.body)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("%s across the console boundary: status = %d, want 403: %v", tc.path, resp.StatusCode, m)
+		}
+	}
+	// And the right console can: same request, palcon's token.
+	resp, m := doAs(t, srv, palToken, "POST", "/v1/provision/destroy", map[string]any{"container": "palagent-palhalla"})
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("the owning console was refused its own container: %d %v", resp.StatusCode, m)
+	}
+}
+
+// Foreign rows in the fleet view exist to explain port collisions, and for
+// nothing else — no slug, no data directory. What is shared between the
+// contracts is deliberately just enough to avoid stepping on each other.
+func TestForeignRowsShowPortsButNotPaths(t *testing.T) {
+	srv, fake, dataRoot := newService(t)
+	fake.containers = twoConsoles
+
+	_, m := doAs(t, srv, wkToken, "GET", "/v1/containers", nil)
+	rows, _ := m["containers"].([]any)
+	byName := map[string]map[string]any{}
+	for _, r := range rows {
+		row, _ := r.(map[string]any)
+		byName[fmt.Sprint(row["name"])] = row
+	}
+
+	mine := byName["wkagent-ashenfall"]
+	if mine["mine"] != true || mine["dataDir"] != filepath.Join(dataRoot, "ashenfall") {
+		t.Errorf("own row should carry its data dir: %v", mine)
+	}
+	foreign := byName["palagent-palhalla"]
+	if foreign["mine"] != false || foreign["owner"] != "palcon" {
+		t.Errorf("foreign row mislabelled: %v", foreign)
+	}
+	if _, has := foreign["dataDir"]; has {
+		t.Errorf("a foreign row leaked its data directory: %v", foreign)
+	}
+	if _, has := foreign["slug"]; has {
+		t.Errorf("a foreign row leaked its slug: %v", foreign)
+	}
+	// But its ports are visible — that is the part that must be shared.
+	if _, has := foreign["ports"]; !has {
+		t.Errorf("a foreign row must still show its ports: %v", foreign)
+	}
+}
+
+// Health answers for the presented token: palcon's token gets palcon's
+// data root, which is how a console detects holding the wrong credential
+// before anything is placed.
+func TestHealthIsPerConsole(t *testing.T) {
+	srv, _, dataRoot := newService(t)
+
+	_, m := doAs(t, srv, palToken, "GET", "/v1/health", nil)
+	if m["client"] != "palcon" || m["dataRoot"] != filepath.Join(dataRoot, "pal") {
+		t.Errorf("health for palcon's token = client %v, dataRoot %v", m["client"], m["dataRoot"])
+	}
+	_, m = doAs(t, srv, wkToken, "GET", "/v1/health", nil)
+	if m["client"] != "wildskeeper" || m["dataRoot"] != dataRoot {
+		t.Errorf("health for wildskeeper's token = client %v, dataRoot %v", m["client"], m["dataRoot"])
+	}
+}
+
+// Two consoles sharing a token would make the caller ambiguous, so it is a
+// startup refusal, not a silent last-one-wins.
+func TestSharedTokensAreRefusedAtStartup(t *testing.T) {
+	_, err := host.New(host.Config{
+		Clients: []host.ClientConfig{
+			{ID: "wildskeeper", Token: wkToken, DataRoot: "/a"},
+			{ID: "palcon", Token: wkToken, DataRoot: "/b"},
+		},
+		DockerHost: "tcp://127.0.0.1:1",
+	})
+	if err == nil || !strings.Contains(err.Error(), "token") {
+		t.Errorf("shared tokens should refuse startup, got %v", err)
 	}
 }

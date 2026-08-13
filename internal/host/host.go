@@ -35,14 +35,13 @@
 package host
 
 import (
+	"context"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -53,7 +52,7 @@ import (
 // understand, rather than failing in some more interesting way later.
 const APIVersion = 1
 
-// minTokenLen is the floor for the shared token. The service refuses to
+// minTokenLen is the floor for every client token. The service refuses to
 // start below it rather than run guessably authenticated — it holds the
 // Docker socket, so "someone guessed the token" is not a small event.
 const minTokenLen = 16
@@ -63,9 +62,9 @@ const minTokenLen = 16
 const (
 	LabelManaged = "ilmari.managed"
 	LabelSlug    = "ilmari.slug"
-	// LabelOwner records which console asked, so a fleet view can group by
-	// it and a console can recognise its own. Advisory only: it is not a
-	// permission check, because a shared token cannot be one.
+	// LabelOwner records which console placed a container. Enforced, not
+	// advisory: the owner is taken from the caller's token, never from the
+	// request, and every destroy and rebuild requires it to match.
 	LabelOwner = "ilmari.owner"
 )
 
@@ -73,26 +72,30 @@ const (
 // service did. Containers carrying them were made by a console's own
 // built-in provisioner and are still ours to manage — recognising them is
 // what lets an existing deployment move to Ilmari without relabelling live
-// containers or, worse, orphaning them.
+// containers or, worse, orphaning them. The label also names the console
+// that made the container, so ownership survives the migration too.
 var legacyManagedLabels = []string{"wildskeeper.provisioned", "palcon.provisioned"}
 
-// legacySlugLabels mirror legacyManagedLabels for the slug.
-var legacySlugLabels = []string{"wildskeeper.slug", "palcon.slug"}
+// legacySlugLabels and legacyOwners mirror legacyManagedLabels, index for
+// index.
+var (
+	legacySlugLabels = []string{"wildskeeper.slug", "palcon.slug"}
+	legacyOwners     = []string{"wildskeeper", "palcon"}
+)
 
 type Config struct {
-	// Token is the shared bearer token consoles present. Required.
-	Token string
+	// Clients are the registered consoles, each with its own token, data
+	// root and image allowlist. At least one is required — there is no
+	// shared-token mode, because a shared token cannot express ownership.
+	Clients []ClientConfig
 	// DockerHost is the Docker endpoint. Required.
 	DockerHost string
-	// DataRoot is the directory per-server data directories are created
-	// under. Required, and the only place caller-named slugs can land.
-	DataRoot string
 	// PublicHost is the address consoles and players reach this machine on.
 	// Reported to consoles so a wizard can prefill instead of asking; inside
 	// a container "localhost" means the container, so it must be declared.
 	PublicHost string
-	// AllowedImagePrefixes bounds what this host can be told to run. Empty
-	// means DefaultImagePrefixes.
+	// AllowedImagePrefixes is the fallback allowlist for clients that don't
+	// bring their own. Empty means DefaultImagePrefixes.
 	AllowedImagePrefixes []string
 	// DefaultRunAs is the uid:gid suggested to consoles that don't specify.
 	DefaultRunAs string
@@ -101,28 +104,48 @@ type Config struct {
 }
 
 type Service struct {
-	cfg    Config
-	docker *dockerctl.Client
+	cfg     Config
+	clients []client
+	docker  *dockerctl.Client
 }
 
 func New(cfg Config) (*Service, error) {
-	if len(cfg.Token) < minTokenLen {
-		return nil, fmt.Errorf("token must be at least %d characters", minTokenLen)
+	if len(cfg.Clients) == 0 {
+		return nil, errors.New("at least one client must be registered (ILMARI_CLIENTS / ILMARI_CLIENTS_FILE)")
 	}
 	if cfg.DockerHost == "" {
 		return nil, errors.New("docker host is required")
 	}
-	if cfg.DataRoot == "" {
-		return nil, errors.New("data root is required")
-	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+	seenID := map[string]bool{}
+	seenHash := map[[32]byte]bool{}
+	clients := make([]client, 0, len(cfg.Clients))
+	for _, cc := range cfg.Clients {
+		if err := cc.validate(); err != nil {
+			return nil, err
+		}
+		if seenID[cc.ID] {
+			return nil, fmt.Errorf("client id %q registered twice", cc.ID)
+		}
+		seenID[cc.ID] = true
+		hash := sha256.Sum256([]byte(cc.Token))
+		// Two consoles sharing a token would make resolve ambiguous — the
+		// last match would silently win, which is worse than refusing.
+		if seenHash[hash] {
+			return nil, fmt.Errorf("client %q shares a token with another client; each console needs its own", cc.ID)
+		}
+		seenHash[hash] = true
+		clients = append(clients, client{
+			ID: cc.ID, tokenHash: hash, DataRoot: cc.DataRoot, ImagePrefixes: cc.ImagePrefixes,
+		})
 	}
 	docker, err := dockerctl.New(cfg.DockerHost)
 	if err != nil {
 		return nil, fmt.Errorf("docker endpoint: %w", err)
 	}
-	return &Service{cfg: cfg, docker: docker}, nil
+	return &Service{cfg: cfg, clients: clients, docker: docker}, nil
 }
 
 func (s *Service) Handler() http.Handler {
@@ -145,18 +168,21 @@ func (s *Service) Handler() http.Handler {
 	return r
 }
 
-// requireToken is a constant-time bearer check. Deliberately the only
-// authentication: this service is reached over a LAN by machines, not
-// people, and a session/cookie scheme would be more surface for no gain.
+// requireToken identifies the calling console from its bearer token and
+// stashes it in the request context. Bearer-token-only on purpose: this
+// service is reached over a LAN by machines, not people, and a
+// session/cookie scheme would be more surface for no gain. Which console a
+// token belongs to is what turns the owner label from a comment into a
+// rule — every ownership check downstream reads the identity established
+// here.
 func (s *Service) requireToken(next http.Handler) http.Handler {
-	want := sha256.Sum256([]byte(s.cfg.Token))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := sha256.Sum256([]byte(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")))
-		if subtle.ConstantTimeCompare(got[:], want[:]) != 1 {
+		c := s.resolve(r)
+		if c == nil {
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), callerKey{}, c)))
 	})
 }
 
@@ -164,6 +190,11 @@ type Health struct {
 	Service    string `json:"service"`
 	Version    string `json:"version"`
 	APIVersion int    `json:"apiVersion"`
+	// Client is who this answer is for — the console the presented token
+	// belongs to. A console can use it to detect a misconfigured token
+	// (wildskeeper holding palcon's) before anything is placed.
+	Client string `json:"client"`
+	// DataRoot is the calling console's own root, not anyone else's.
 	DataRoot   string `json:"dataRoot"`
 	PublicHost string `json:"publicHost,omitempty"`
 	RunAs      string `json:"runAs,omitempty"`
@@ -176,21 +207,31 @@ type Health struct {
 }
 
 func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
+	c := caller(r)
 	_, err := s.docker.ContainerList(r.Context())
-	allowed := s.cfg.AllowedImagePrefixes
-	if len(allowed) == 0 {
-		allowed = DefaultImagePrefixes
-	}
 	writeJSON(w, http.StatusOK, Health{
 		Service:              "ilmari",
 		Version:              s.cfg.Version,
 		APIVersion:           APIVersion,
-		DataRoot:             s.cfg.DataRoot,
+		Client:               c.ID,
+		DataRoot:             c.DataRoot,
 		PublicHost:           s.cfg.PublicHost,
 		RunAs:                s.cfg.DefaultRunAs,
-		AllowedImagePrefixes: allowed,
+		AllowedImagePrefixes: s.allowlistFor(c),
 		DockerOk:             err == nil,
 	})
+}
+
+// allowlistFor is the image allowlist that applies to one console: its own
+// when registered with one, the service-wide fallback otherwise.
+func (s *Service) allowlistFor(c *client) []string {
+	if len(c.ImagePrefixes) > 0 {
+		return c.ImagePrefixes
+	}
+	if len(s.cfg.AllowedImagePrefixes) > 0 {
+		return s.cfg.AllowedImagePrefixes
+	}
+	return DefaultImagePrefixes
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

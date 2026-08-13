@@ -32,10 +32,19 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	// Per-console registrations: each game dashboard gets its own token,
+	// data root and (optionally) image allowlist. JSON, inline or from a
+	// file — the file wins, and is the better habit for secrets:
+	//   ILMARI_CLIENTS='[{"id":"wildskeeper","token":"...","dataRoot":"/mnt/tank/apps/dragonwilds-servers"},
+	//                    {"id":"palcon","token":"...","dataRoot":"/mnt/tank/apps/palworld-servers"}]'
+	clients, err := host.LoadClients(os.Getenv("ILMARI_CLIENTS"), os.Getenv("ILMARI_CLIENTS_FILE"))
+	if err != nil {
+		logger.Error("invalid client registrations", "error", err)
+		os.Exit(1)
+	}
 	svc, err := host.New(host.Config{
-		Token:      os.Getenv("ILMARI_TOKEN"),
+		Clients:    clients,
 		DockerHost: envOr("ILMARI_DOCKER_HOST", "unix:///var/run/docker.sock"),
-		DataRoot:   os.Getenv("ILMARI_DATA_ROOT"),
 		PublicHost: os.Getenv("ILMARI_PUBLIC_HOST"),
 		// Comma-separated. Leaving it unset keeps the narrow default rather
 		// than opening the host up, which is the right way round for a

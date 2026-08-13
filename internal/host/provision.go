@@ -34,35 +34,24 @@ func writePlaceError(w http.ResponseWriter, err error) {
 	writeError(w, http.StatusBadGateway, err.Error())
 }
 
-// managed reports whether a container is one Ilmari may act on, and its
-// slug. Legacy labels count: containers made by a console's own built-in
-// provisioner, before this service existed, are still ours.
-func managed(labels map[string]string) (string, bool) {
-	if labels[LabelManaged] == "true" {
-		return labels[LabelSlug], true
-	}
-	for i, key := range legacyManagedLabels {
-		if labels[key] == "true" {
-			return labels[legacySlugLabels[i]], true
-		}
-	}
-	return "", false
-}
-
 // place creates and starts one container from a spec. Every provision comes
 // through here — there is deliberately no second path, because a second one
 // would mean a second set of ownership labels, chown rules and failure
 // semantics to keep in step.
-func (s *Service) place(ctx context.Context, spec ProvisionSpec, owner string) (string, error) {
-	if err := spec.Validate(s.cfg.AllowedImagePrefixes); err != nil {
+//
+// Everything caller-dependent — the data root the slug lands under, the
+// image allowlist, the owner label — comes from the resolved client, never
+// from the request. That is the enforcement half of per-console tokens.
+func (s *Service) place(ctx context.Context, spec ProvisionSpec, c *client) (string, error) {
+	if err := spec.Validate(s.allowlistFor(c)); err != nil {
 		return "", &placeError{http.StatusBadRequest, err}
 	}
 
-	// The data directory is always DataRoot/<slug>. The slug pattern
-	// forbids traversal and nothing else about the location is
+	// The data directory is always <caller's data root>/<slug>. The slug
+	// pattern forbids traversal and nothing else about the location is
 	// caller-controlled — this is the constraint that keeps a spec from
 	// being able to mount anything it likes.
-	dataDir := filepath.Join(s.cfg.DataRoot, spec.Slug)
+	dataDir := filepath.Join(c.DataRoot, spec.Slug)
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return "", &placeError{http.StatusInternalServerError, fmt.Errorf("creating data dir: %w", err)}
 	}
@@ -112,9 +101,7 @@ func (s *Service) place(ctx context.Context, spec ProvisionSpec, owner string) (
 	}
 	labels[LabelManaged] = "true"
 	labels[LabelSlug] = spec.Slug
-	if owner != "" {
-		labels[LabelOwner] = owner
-	}
+	labels[LabelOwner] = c.ID
 
 	if _, err := s.docker.ContainerCreate(ctx, dockerctl.ContainerSpec{
 		Name:                 spec.Name,
@@ -134,14 +121,11 @@ func (s *Service) place(ctx context.Context, spec ProvisionSpec, owner string) (
 	return dataDir, nil
 }
 
-type provisionRequest struct {
-	ProvisionSpec
-	// Owner names the console asking, recorded as a label for grouping.
-	Owner string `json:"owner,omitempty"`
-}
-
 func (s *Service) handleProvision(w http.ResponseWriter, r *http.Request) {
-	var req provisionRequest
+	c := caller(r)
+	// Note there is no owner field in the request: who is asking comes from
+	// the token, and a console cannot place containers as anyone else.
+	var req ProvisionSpec
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -169,12 +153,12 @@ func (s *Service) handleProvision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dataDir, err := s.place(r.Context(), req.ProvisionSpec, req.Owner)
+	dataDir, err := s.place(r.Context(), req, c)
 	if err != nil {
 		writePlaceError(w, err)
 		return
 	}
-	s.cfg.Logger.Info("placed container", "container", req.Name, "image", req.Image, "owner", req.Owner, "dataDir", dataDir)
+	s.cfg.Logger.Info("placed container", "container", req.Name, "image", req.Image, "owner", c.ID, "dataDir", dataDir)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"container": req.Name,
 		"dataDir":   dataDir,
@@ -230,11 +214,12 @@ func (s *Service) handleRecreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := checkImage(req.Image, s.cfg.AllowedImagePrefixes); err != nil {
+	c := caller(r)
+	if err := checkImage(req.Image, s.allowlistFor(c)); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	found, err := s.findManaged(r.Context(), req.Container, w)
+	found, err := s.findOwned(r.Context(), req.Container, c, w)
 	if err != nil || found == nil {
 		return
 	}
@@ -291,11 +276,12 @@ func (s *Service) handleDestroy(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	found, err := s.findManaged(r.Context(), req.Container, w)
+	c := caller(r)
+	found, err := s.findOwned(r.Context(), req.Container, c, w)
 	if err != nil || found == nil {
 		return
 	}
-	slug, _ := managed(found.Labels)
+	_, slug, _ := ownerOf(found.Labels)
 
 	// Stop first so whatever is inside can flush; the data it leaves behind
 	// is the whole reason the directory is kept.
@@ -308,7 +294,7 @@ func (s *Service) handleDestroy(w http.ResponseWriter, r *http.Request) {
 	}
 	dataDir := ""
 	if slug != "" {
-		dataDir = filepath.Join(s.cfg.DataRoot, slug)
+		dataDir = filepath.Join(c.DataRoot, slug)
 	}
 	// The data directory is deliberately kept. Unmaking a container is not
 	// consent to delete what it was holding.
@@ -316,10 +302,16 @@ func (s *Service) handleDestroy(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"container": req.Container, "dataDir": dataDir})
 }
 
-// findManaged resolves a container name to something Ilmari is allowed to
-// touch, writing the refusal itself when it isn't. A nil result with a nil
+// findOwned resolves a container name to something *this caller* may act
+// on, writing the refusal itself when it may not. A nil result with a nil
 // error means the response has already been written.
-func (s *Service) findManaged(ctx context.Context, name string, w http.ResponseWriter) (*dockerctl.ContainerSummary, error) {
+//
+// The two refusals are deliberately different messages: "not created by
+// Ilmari" points at wherever the container is actually managed, while
+// "belongs to a different console" names the real problem without letting
+// one console act across the boundary. What a foreign container never gets
+// is silently treated as fair game.
+func (s *Service) findOwned(ctx context.Context, name string, c *client, w http.ResponseWriter) (*dockerctl.ContainerSummary, error) {
 	containers, err := s.docker.ContainerList(ctx)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
@@ -329,9 +321,14 @@ func (s *Service) findManaged(ctx context.Context, name string, w http.ResponseW
 		if containers[i].Name != name {
 			continue
 		}
-		if _, ok := managed(containers[i].Labels); !ok {
+		owner, _, ok := ownerOf(containers[i].Labels)
+		if !ok {
 			writeError(w, http.StatusBadRequest,
 				"that container was not created by Ilmari — manage it wherever it was deployed")
+			return nil, nil
+		}
+		if owner != c.ID {
+			writeError(w, http.StatusForbidden, errForeign.Error())
 			return nil, nil
 		}
 		return &containers[i], nil
@@ -345,10 +342,13 @@ type ManagedContainer struct {
 	Name    string `json:"name"`
 	Image   string `json:"image"`
 	Running bool   `json:"running"`
-	// Managed reports whether Ilmari may act on it. Unmanaged containers are
-	// still listed: they hold ports and disk, and leaving them out is how a
-	// console ends up proposing a port something else already has.
+	// Managed reports whether Ilmari made it; Mine whether the calling
+	// console may act on it. Unmanaged and foreign containers are still
+	// listed — they hold ports and disk, and leaving them out is how a
+	// console ends up proposing a port something else already has — but
+	// only Mine rows carry a slug and data directory.
 	Managed bool      `json:"managed"`
+	Mine    bool      `json:"mine"`
 	Slug    string    `json:"slug,omitempty"`
 	Owner   string    `json:"owner,omitempty"`
 	Ports   []PortMap `json:"ports,omitempty"`
@@ -368,15 +368,24 @@ func (s *Service) handleListContainers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	me := caller(r)
 	out := make([]ManagedContainer, 0, len(containers))
 	for _, c := range containers {
-		slug, ok := managed(c.Labels)
+		owner, slug, ok := ownerOf(c.Labels)
 		row := ManagedContainer{
 			Name: c.Name, Image: c.Image, Running: c.State == "running",
-			Managed: ok, Slug: slug, Owner: c.Labels[LabelOwner],
+			Managed: ok, Owner: owner,
+			// Mine marks the rows this console may act on; everything else
+			// is context for port and name decisions, nothing more.
+			Mine: ok && owner == me.ID,
 		}
-		if ok && slug != "" {
-			row.DataDir = filepath.Join(s.cfg.DataRoot, slug)
+		// Slug and data directory are the caller's own business only. A
+		// foreign row shows enough to explain a port collision and no more.
+		if row.Mine {
+			row.Slug = slug
+			if slug != "" {
+				row.DataDir = filepath.Join(me.DataRoot, slug)
+			}
 		}
 		for containerSide, hostPort := range c.Ports {
 			if hostPort == 0 {

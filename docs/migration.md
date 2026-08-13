@@ -27,25 +27,17 @@ whole reason `recreate` exists.
 
 ## Decisions to make before starting
 
-**1. Data roots — this needs a code change.** Ilmari has one
-`ILMARI_DATA_ROOT`, but the two consoles keep their servers under different
-paths. One root cannot serve both without moving somebody's data.
+**1. Data roots — resolved.** Each registered client brings its own
+`dataRoot`, so wildskeeper and palcon keep their existing paths untouched.
 
-Recommended: **per-owner data roots**, keyed by the `owner` a console sends
-(`ILMARI_DATA_ROOTS=wildskeeper=/mnt/tank/apps/dragonwilds-servers,palcon=/mnt/tank/apps/palworld-servers`),
-falling back to `ILMARI_DATA_ROOT`. Small change, and it also keeps the
-`dataDir` Ilmari reports correct for pre-existing containers.
+(Rebuilds were never at risk either way — `InspectSpec` reads a container's
+*real* binds back, so it never re-derives a path from a data root.)
 
-(Rebuilds are safe either way — `InspectSpec` reads a container's *real*
-binds back, so it never re-derives a path from the data root. Only the
-reported path and newly-placed containers are affected.)
-
-**2. One token or two.** A shared token means either console can act on the
-other's containers: the `owner` label is for grouping, not permission.
-
-For a single-operator homelab, one token is fine and simpler — but say so
-out loud rather than assuming it. If you want isolation later, the shape is
-per-console tokens each scoped to an owner, checked in `findManaged`.
+**2. One token or two — decided: per-console tokens.** Each console is a
+registered client with its own credential, and ownership is enforced from
+the token rather than recorded as a label: a wildskeeper token cannot act
+on a Palworld server, including ones that predate Ilmari. Generate two
+tokens (`openssl rand -hex 24` each) before Phase 1.
 
 **3. Port.** Ilmari defaults to **8820**. Check it's free before deploying —
 `docker ps` for published ports, or read `/v1/ports` from the existing
@@ -61,7 +53,8 @@ Ilmari cannot serve the consoles yet. Concretely:
 - [ ] **`GET /v1/discover`** — the Raise-a-server wizard calls it to offer
       existing installs for adoption. Absent today, so that flow breaks.
 - [ ] **`POST /v1/adopt`** — same story.
-- [ ] **Per-owner data roots** (decision 1 above).
+- [x] **Per-console registration** — tokens, data roots and allowlists are
+      per client, with ownership enforced from the token (done 2026-08-13).
 - [ ] **A client package in each console.** `agentctl.Health` is a type
       alias for `wkagent.Health`, so today's client cannot parse Ilmari's
       response at all. Give Ilmari the shape it wants and write a small
@@ -142,7 +135,8 @@ Same change, same shape, one console later. Doing them separately is the
 point: if something is wrong with Ilmari, only one game is affected and the
 other is untouched evidence of what "working" looks like.
 
-1. [ ] Add the same flag to palcon, sending `owner: palcon`.
+1. [ ] Add the same flag to palcon, with **palcon's own token** — identity
+       comes from the credential, not from anything in the request.
 2. [ ] Deploy, leaving palcon's provisioner running.
 3. [ ] Provision, rebuild and destroy a throwaway Palworld server.
 4. [ ] Confirm from `/v1/containers` that both consoles' servers now appear

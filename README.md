@@ -47,9 +47,42 @@ has a test:
 Nothing here ever returns a container's environment: it carries tokens and
 passwords, and a fleet view is not worth leaking them for.
 
+## Consoles are registered, not shared
+
+Each game dashboard is a **registered client** with its own token, its own
+data root, and optionally its own image allowlist:
+
+```json
+[
+  {"id": "wildskeeper", "token": "…", "dataRoot": "/mnt/tank/apps/dragonwilds-servers"},
+  {"id": "palcon",      "token": "…", "dataRoot": "/mnt/tank/apps/palworld-servers",
+   "imagePrefixes": ["ghcr.io/safwyls/palagent"]}
+]
+```
+
+(`ILMARI_CLIENTS` inline, or `ILMARI_CLIENTS_FILE` — the file wins, and is
+the better habit for secrets.)
+
+The contracts are deliberately **similar but separate**: same verbs, same
+spec, same shapes, but separate credentials and separate entitlements. The
+token says who is asking; ownership is enforced from it, never from the
+request. Concretely:
+
+- a wildskeeper token **cannot destroy or rebuild** a Palworld server
+  (403), including servers that predate Ilmari — the legacy
+  `palcon.provisioned` label names their owner;
+- each console's containers land under **its own data root**;
+- each console can be held to **its own image allowlist**;
+- the fleet views share exactly what collision-avoidance needs — every
+  container's name, image, state and ports — while slug and data directory
+  appear only on rows the caller owns.
+
+Two clients sharing a token is a startup refusal, not a silent
+last-one-wins.
+
 ## API
 
-All routes need `Authorization: Bearer $ILMARI_TOKEN`.
+All routes need `Authorization: Bearer <that console's token>`.
 
 | Verb | Path | Does |
 |---|---|---|
@@ -88,11 +121,11 @@ Everything under `env` is the console's business. Ilmari never reads it.
 
 | Variable | Meaning |
 |---|---|
-| `ILMARI_TOKEN` | shared bearer token; ≥16 chars, required |
+| `ILMARI_CLIENTS` | JSON array of client registrations (see above); required unless the file is set |
+| `ILMARI_CLIENTS_FILE` | path to the same JSON; wins over the inline form |
 | `ILMARI_DOCKER_HOST` | Docker endpoint (default `unix:///var/run/docker.sock`) |
-| `ILMARI_DATA_ROOT` | directory server data directories are created under; required |
 | `ILMARI_PUBLIC_HOST` | the address consoles and players reach this machine on |
-| `ILMARI_ALLOWED_IMAGE_PREFIXES` | comma-separated allowlist; unset keeps the narrow default |
+| `ILMARI_ALLOWED_IMAGE_PREFIXES` | fallback allowlist for clients that don't bring their own |
 | `ILMARI_DEFAULT_RUN_AS` | uid:gid suggested to consoles that don't specify |
 | `ILMARI_ADDR` | listen address (default `:8820`) |
 
