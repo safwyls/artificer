@@ -56,6 +56,10 @@ type ClientConfig struct {
 	// ImagePrefixes bounds what this console may deploy. Empty falls back
 	// to the service-wide allowlist.
 	ImagePrefixes []string `json:"imagePrefixes,omitempty"`
+	// EnvPrefix is this console's environment namespace ("WKAGENT_",
+	// "PALAGENT_"). Adopt returns only variables under it; a client
+	// registered without one gets no environment back at all.
+	EnvPrefix string `json:"envPrefix,omitempty"`
 }
 
 var clientIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -80,6 +84,7 @@ type client struct {
 	tokenHash     [32]byte
 	DataRoot      string
 	ImagePrefixes []string
+	EnvPrefix     string
 }
 
 // LoadClients reads registrations from JSON — either inline or from a file.

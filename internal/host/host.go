@@ -138,7 +138,8 @@ func New(cfg Config) (*Service, error) {
 		}
 		seenHash[hash] = true
 		clients = append(clients, client{
-			ID: cc.ID, tokenHash: hash, DataRoot: cc.DataRoot, ImagePrefixes: cc.ImagePrefixes,
+			ID: cc.ID, tokenHash: hash, DataRoot: cc.DataRoot,
+			ImagePrefixes: cc.ImagePrefixes, EnvPrefix: cc.EnvPrefix,
 		})
 	}
 	docker, err := dockerctl.New(cfg.DockerHost)
@@ -159,6 +160,11 @@ func (s *Service) Handler() http.Handler {
 		r.Post("/provision", s.handleProvision)
 		r.Post("/provision/recreate", s.handleRecreate)
 		r.Post("/provision/destroy", s.handleDestroy)
+
+		// Recovery: find and re-register servers the console lost the row
+		// for. Both are scoped to what the caller could have deployed.
+		r.Get("/discover", s.handleDiscover)
+		r.Post("/adopt", s.handleAdopt)
 
 		// The fleet view. Read-only, and the reason a second console can
 		// stop colliding with the first.

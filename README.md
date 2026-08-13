@@ -44,8 +44,12 @@ has a test:
 3. **Ownership labels cannot be forged.** They are applied last, and they
    are what every destroy and rebuild checks before touching anything.
 
-Nothing here ever returns a container's environment: it carries tokens and
-passwords, and a fleet view is not worth leaking them for.
+The fleet views never return a container's environment: it carries tokens
+and passwords. The one deliberate exception is `adopt`, which exists to
+recover exactly those secrets — the console's own provisioner injected
+them, so handing them back to that console's token stays inside the
+original trust boundary — and it is filtered to the caller's registered
+env namespace, so no console can read another's.
 
 ## Consoles are registered, not shared
 
@@ -90,6 +94,8 @@ All routes need `Authorization: Bearer <that console's token>`.
 | POST | `/v1/provision` | place a container from a spec |
 | POST | `/v1/provision/recreate` | rebuild one on a different image, keeping everything else |
 | POST | `/v1/provision/destroy` | remove one, keeping its data directory |
+| GET | `/v1/discover` | containers this console could adopt: its own, plus unlabelled ones under its image allowlist |
+| POST | `/v1/adopt` | recover one for re-registration, env filtered to the caller's `envPrefix` |
 | GET | `/v1/containers` | every container on the host, ours flagged |
 | GET | `/v1/ports` | every published host port and what holds it |
 
@@ -139,12 +145,16 @@ the neutral `ilmari.managed` / `ilmari.slug` / `ilmari.owner`.
 
 ## Status
 
-**Not yet deployable.** The service builds, tests and publishes, but it is
-missing two verbs the consoles depend on (`discover`, `adopt`), serves a
-health shape their current client cannot parse, and has never talked to a
-real Docker socket — every test so far runs against a fake.
+**Ready for Phase 1: a read-only deploy alongside the existing
+provisioners.** The API is complete (place, rebuild, destroy, discover,
+adopt, fleet views), per-console tokens enforce ownership, the image is
+published, and `deploy/truenas-app.yaml` is ready to paste.
 
-[`docs/migration.md`](docs/migration.md) is the plan from here to replacing
-both consoles' provisioners: what to build first, how to prove it against
-real Docker with no write path, and how to cut each console over with its
-old provisioner still standing.
+Two honest limits remain. Nothing here has talked to a real Docker socket —
+every test runs against a fake — which is exactly what Phase 1 exists to
+prove, at zero risk, because nothing points at Ilmari on day one. And the
+consoles cannot *use* it yet: each needs a small `ilmariclient` package
+before its cut-over, which is Phase 2's first step.
+
+[`docs/migration.md`](docs/migration.md) is the full plan from here to
+retiring both consoles' built-in provisioners.

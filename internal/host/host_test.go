@@ -46,6 +46,11 @@ func (f *fakeDocker) handler() http.Handler {
 		case r.URL.Path == "/containers/json":
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(f.containers))
+		case strings.HasPrefix(r.URL.Path, "/containers/") && strings.HasSuffix(r.URL.Path, "/json"):
+			// Inspect: env for adopt tests. Mixed namespaces on purpose, so
+			// the scoping has something to scope away.
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"Config":{"Env":["WKAGENT_MODE=supervisor","WKAGENT_TOKEN=wk-secret","PALAGENT_TOKEN=pal-secret","HOME=/tmp"]}}`))
 		default:
 			w.WriteHeader(http.StatusNoContent)
 		}
@@ -73,8 +78,8 @@ func newService(t *testing.T) (*httptest.Server, *fakeDocker, string) {
 	dataRoot := t.TempDir()
 	svc, err := host.New(host.Config{
 		Clients: []host.ClientConfig{
-			{ID: "wildskeeper", Token: wkToken, DataRoot: dataRoot},
-			{ID: "palcon", Token: palToken, DataRoot: filepath.Join(dataRoot, "pal")},
+			{ID: "wildskeeper", Token: wkToken, DataRoot: dataRoot, EnvPrefix: "WKAGENT_"},
+			{ID: "palcon", Token: palToken, DataRoot: filepath.Join(dataRoot, "pal"), EnvPrefix: "PALAGENT_"},
 		},
 		DockerHost: dockerSrv.URL,
 		Version:    "test", Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -384,5 +389,80 @@ func TestSharedTokensAreRefusedAtStartup(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "token") {
 		t.Errorf("shared tokens should refuse startup, got %v", err)
+	}
+}
+
+// Discovery is scoped like everything else: a console sees its own
+// containers (by label, legacy included) plus unmanaged containers whose
+// image falls under its allowlist — the paste-flow deploys that carry no
+// label at all. Another console's servers never appear, and neither does
+// anything unrelated.
+func TestDiscoverIsScopedToTheCaller(t *testing.T) {
+	srv, fake, _ := newService(t)
+	// twoConsoles plus a hand-deployed wkagent stack (no labels): the
+	// paste-flow case discovery exists for.
+	fake.containers = strings.TrimSuffix(twoConsoles, "\n]") + `,
+  {"Id":"c4","Names":["/wkagent-byhand"],"Image":"ghcr.io/safwyls/wkagent:latest","State":"running",
+   "Ports":[{"PrivatePort":7777,"PublicPort":9777,"Type":"udp"}]}
+]`
+
+	_, m := doAs(t, srv, wkToken, "GET", "/v1/discover", nil)
+	rows, _ := m["servers"].([]any)
+	names := map[string]bool{}
+	for _, r := range rows {
+		row, _ := r.(map[string]any)
+		names[fmt.Sprint(row["name"])] = true
+	}
+	if !names["wkagent-ashenfall"] || !names["wkagent-byhand"] {
+		t.Errorf("own and hand-deployed containers should be discoverable: %v", names)
+	}
+	if names["palagent-palhalla"] {
+		t.Error("another console's server was discoverable")
+	}
+	if names["nginx"] {
+		t.Error("an unrelated container was discoverable")
+	}
+}
+
+// Adopt returns the environment a console's own provisioner injected — and
+// only the caller's namespace of it. The trust argument is that the console
+// supplied these values in the first place; the scoping is what keeps that
+// argument honest when two consoles share a host.
+func TestAdoptReturnsOnlyTheCallersEnvNamespace(t *testing.T) {
+	srv, fake, _ := newService(t)
+	fake.containers = twoConsoles
+
+	resp, m := doAs(t, srv, wkToken, "POST", "/v1/adopt", map[string]any{"container": "wkagent-ashenfall"})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("adopt: %d %v", resp.StatusCode, m)
+	}
+	env, _ := m["env"].(map[string]any)
+	if env["WKAGENT_TOKEN"] != "wk-secret" || env["WKAGENT_MODE"] != "supervisor" {
+		t.Errorf("the caller's own namespace should come back: %v", env)
+	}
+	// The fake's env deliberately carries another console's variable and an
+	// unrelated one; neither may cross.
+	if _, leaked := env["PALAGENT_TOKEN"]; leaked {
+		t.Errorf("another console's env crossed the boundary: %v", env)
+	}
+	if _, leaked := env["HOME"]; leaked {
+		t.Errorf("unrelated env crossed: %v", env)
+	}
+}
+
+// Adoption across the console boundary is the same 403 as destroy and
+// rebuild — a foreign server is not recoverable with the wrong token, which
+// is most of the point of tokens: adopt returns secrets.
+func TestAdoptRefusesForeignContainers(t *testing.T) {
+	srv, fake, _ := newService(t)
+	fake.containers = twoConsoles
+
+	resp, _ := doAs(t, srv, wkToken, "POST", "/v1/adopt", map[string]any{"container": "palagent-palhalla"})
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("adopting a foreign container: status = %d, want 403", resp.StatusCode)
+	}
+	resp, _ = doAs(t, srv, wkToken, "POST", "/v1/adopt", map[string]any{"container": "nginx"})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("adopting an unrelated container: status = %d, want 400", resp.StatusCode)
 	}
 }

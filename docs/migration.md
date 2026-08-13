@@ -50,19 +50,26 @@ can suffer during its own install.)
 
 Ilmari cannot serve the consoles yet. Concretely:
 
-- [ ] **`GET /v1/discover`** — the Raise-a-server wizard calls it to offer
-      existing installs for adoption. Absent today, so that flow breaks.
-- [ ] **`POST /v1/adopt`** — same story.
+- [x] **`GET /v1/discover`** — scoped to the caller: its own containers
+      (legacy labels included) plus unmanaged ones under its image
+      allowlist, which is what catches paste-flow deploys that carry no
+      label. Another console's servers never appear (done 2026-08-13).
+- [x] **`POST /v1/adopt`** — returns the container's environment filtered
+      to the caller's registered `envPrefix` (`WKAGENT_*` for wildskeeper),
+      so a console recovers exactly the secrets its own provisioner
+      injected and nothing else's. Foreign containers get the same 403 as
+      destroy (done 2026-08-13).
 - [x] **Per-console registration** — tokens, data roots and allowlists are
       per client, with ownership enforced from the token (done 2026-08-13).
-- [ ] **A client package in each console.** `agentctl.Health` is a type
-      alias for `wkagent.Health`, so today's client cannot parse Ilmari's
-      response at all. Give Ilmari the shape it wants and write a small
-      `ilmariclient` in each console — don't contort the service into
-      wkagent's legacy shape, which is the thing being retired.
-- [ ] **Deploy artifact**: a compose block for TrueNAS "Install via YAML",
-      including the socket proxy wiring below.
-- [ ] **Confirm CI is green and `ghcr.io/safwyls/ilmari:latest` published.**
+- [x] **Deploy artifact** — `deploy/truenas-app.yaml`: Ilmari + its own
+      tecnativa socket proxy, attached to the shared `wildskeeper-net` so
+      consoles reach it by service name (done 2026-08-13).
+- [x] **CI green, `ghcr.io/safwyls/ilmari:latest` published** (verified
+      2026-08-13: three runs, all green, docker job publishing on main).
+
+One Phase 0 item moves to Phase 2, where it belongs: the **`ilmariclient`
+package in each console**. It is console-side code, needed for the
+cut-over, not for deploying the service — Phase 1 is pure curl.
 
 Socket proxy permissions Ilmari needs (tecnativa env flags):
 

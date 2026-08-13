@@ -362,6 +362,8 @@ type ManagedContainer struct {
 // showed Ilmari's would reproduce exactly that blindness one level up.
 // Nothing about a container's configuration is included — env carries
 // tokens and passwords, and a fleet view is not worth leaking them for.
+// (Adopt is the one deliberate exception, scoped to the caller's own env
+// namespace; its justification lives on AdoptResult.)
 func (s *Service) handleListContainers(w http.ResponseWriter, r *http.Request) {
 	containers, err := s.docker.ContainerList(r.Context())
 	if err != nil {
