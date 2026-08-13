@@ -62,8 +62,12 @@ Ilmari cannot serve the consoles yet. Concretely:
 - [x] **Per-console registration** — tokens, data roots and allowlists are
       per client, with ownership enforced from the token (done 2026-08-13).
 - [x] **Deploy artifact** — `deploy/truenas-app.yaml`: Ilmari + its own
-      tecnativa socket proxy, attached to the shared `wildskeeper-net` so
-      consoles reach it by service name (done 2026-08-13).
+      tecnativa socket proxy. Consoles reach it via the published port on
+      the host's LAN IP — deliberately not via any console's shared
+      network, which Ilmari must not depend on existing (done 2026-08-13,
+      corrected same day: the first cut hard-required `wildskeeper-net`,
+      which would fail the deploy on any host without wildskeeper's stack
+      and quietly made the neutral service depend on one console).
 - [x] **CI green, `ghcr.io/safwyls/ilmari:latest` published** (verified
       2026-08-13: three runs, all green, docker job publishing on main).
 

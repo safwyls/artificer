@@ -52,10 +52,7 @@ services:
       - /mnt/tank/apps/palworld-servers:/mnt/tank/apps/palworld-servers
     networks:
       - ilmari-net
-      # Attach to the shared external network the consoles already use, so
-      # they can reach Ilmari by service name (http://ilmari:8820) exactly
-      # as they reach their provisioners today.
-      - wildskeeper-net
+      - default
     depends_on:
       - ilmari-docker-proxy
 
@@ -75,8 +72,14 @@ services:
     networks:
       - ilmari-net
 
+# How the consoles reach Ilmari: the published port on the host's LAN IP
+# (http://<LAN-IP>:8820) — the same proven route the consoles already use
+# to reach provisioned agents. Deliberately NOT a shared external network:
+# an `external: true` network that doesn't exist fails the whole deploy,
+# and this service must not depend on any one console's stack being
+# present. If you want service-name DNS from a console that shares a
+# network (wildskeeper's stack exports wildskeeper-net), add it here and
+# under the ilmari service's networks — as an option, knowing the cost.
 networks:
   ilmari-net:
     internal: true
-  wildskeeper-net:
-    external: true
