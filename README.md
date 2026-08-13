@@ -106,7 +106,12 @@ the neutral `ilmari.managed` / `ilmari.slug` / `ilmari.owner`.
 
 ## Status
 
-Early. The API is versioned (`apiVersion` in `/v1/health`) but not yet
-stable, and no console has been switched over to it — wildskeeper still
-provisions through its own agent. That migration is the next step, and the
-reason the contract exists first.
+**Not yet deployable.** The service builds, tests and publishes, but it is
+missing two verbs the consoles depend on (`discover`, `adopt`), serves a
+health shape their current client cannot parse, and has never talked to a
+real Docker socket — every test so far runs against a fake.
+
+[`docs/migration.md`](docs/migration.md) is the plan from here to replacing
+both consoles' provisioners: what to build first, how to prove it against
+real Docker with no write path, and how to cut each console over with its
+old provisioner still standing.
