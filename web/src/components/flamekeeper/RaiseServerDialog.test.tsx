@@ -14,36 +14,40 @@ function open() {
 describe("RaiseServerDialog", () => {
   beforeEach(() => vi.restoreAllMocks());
 
-  // The owner id is the whole reason this dialog can't be a plain form:
-  // without one the game installs and then refuses to start, so the button
-  // must not be reachable until it's filled in.
-  it("will not raise a server without an owner id", async () => {
+  // The join password is a decision, not a requirement: blank means an
+  // open server, and the dialog says so where the choice is being made.
+  // The raise itself needs only a name (and a host, prefilled here).
+  it("carries the join password, and raises without one as an open server", async () => {
     vi.spyOn(api, "provisionDefaults").mockResolvedValue({ available: true, host: "10.0.0.9" });
-    const provision = vi.spyOn(api, "provisionServer");
+    const provision = vi.spyOn(api, "provisionServer").mockResolvedValue({
+      server: makeServer({ name: "Keep" }),
+      adminPassword: "pw",
+      agentToken: "tok",
+      stack: "services: {}",
+      deployed: true,
+    });
     const user = userEvent.setup();
     open();
 
     await waitFor(() => expect(api.provisionDefaults).toHaveBeenCalled());
-    await user.type(screen.getByPlaceholderText("Grimwood Bastion"), "Keep");
+    expect(screen.getByText(/open server/i)).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText("Emberhold"), "Keep");
+    await user.type(screen.getByLabelText(/join password/i), "the-word");
 
-    const raise = screen.getByRole("button", { name: /raise the server/i });
-    expect(raise).toBeDisabled();
-
-    await user.type(screen.getByLabelText(/owner id/i), "owner-abc");
-    await waitFor(() => expect(raise).toBeEnabled());
-    await user.click(raise);
+    await user.click(screen.getByRole("button", { name: /raise the server/i }));
     await waitFor(() => expect(provision).toHaveBeenCalled());
-    expect(provision.mock.calls[0][0]).toMatchObject({ ownerId: "owner-abc", name: "Keep" });
+    expect(provision.mock.calls[0][0]).toMatchObject({ joinPassword: "the-word", name: "Keep" });
   });
 
-  // The game binds the port above its own, so the dialog has to say so —
-  // an operator picking a port needs to know two are being taken.
-  it("says which port pair will be published", async () => {
-    vi.spyOn(api, "provisionDefaults").mockResolvedValue({ available: true, ports: { game: 7900, agent: 8900 } });
+  // One UDP port carries game and query both — the dialog must not imply
+  // a second one is being taken (the sibling consoles' games did).
+  it("says the single port carries game and query", async () => {
+    vi.spyOn(api, "provisionDefaults").mockResolvedValue({ available: true, ports: { game: 15700, agent: 8900 } });
     open();
     await waitFor(() => expect(api.provisionDefaults).toHaveBeenCalled());
-    await screen.findByText("7900");
-    expect(screen.getByText("7901")).toBeInTheDocument();
+    await screen.findByText("15700");
+    expect(screen.queryByText("15701")).not.toBeInTheDocument();
+    expect(screen.getByText(/game and the/i)).toBeInTheDocument();
   });
 
   // Without a provisioner there is nothing to deploy onto, so the dialog
@@ -71,8 +75,7 @@ describe("RaiseServerDialog", () => {
     open();
 
     await waitFor(() => expect(api.provisionDefaults).toHaveBeenCalled());
-    await user.type(screen.getByPlaceholderText("Grimwood Bastion"), "Keep");
-    await user.type(screen.getByLabelText(/owner id/i), "owner-abc");
+    await user.type(screen.getByPlaceholderText("Emberhold"), "Keep");
     await user.click(screen.getByRole("button", { name: /raise the server/i }));
 
     await screen.findByText(/is rising/i);

@@ -34,7 +34,7 @@ export function FeatureGate({ feature, children }: { feature: Feature; children:
     // min-h rather than flex-1: the route's parent isn't a stretching column,
     // so flex-1 alone left this pinned to the top of an empty page.
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-8 text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-wk-parchment/5 text-wk-parchment/40">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-fk-bone/5 text-fk-bone/40">
         <EyeOff className="h-5 w-5" />
       </span>
       <div>

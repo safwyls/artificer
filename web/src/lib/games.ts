@@ -20,12 +20,12 @@ export interface GameProfile {
   blurbs: Record<Feature, string>;
 }
 
-const DRAGONWILDS: GameProfile = {
-  id: "dragonwilds",
-  name: "RuneScape: Dragonwilds",
+const ENSHROUDED: GameProfile = {
+  id: "enshrouded",
+  name: "Enshrouded",
   labels: {
     map: "Map",
-    pals: "Adventurers",
+    pals: "Flameborn",
     inventory: "Inventory",
     storage: "Storage",
     paldex: "Bestiary",
@@ -36,30 +36,30 @@ const DRAGONWILDS: GameProfile = {
     logs: "Server log",
   },
   blurbs: {
-    map: "Where adventurers are in the world",
-    pals: "Who is on the server now, with join and leave history",
-    inventory: "What each adventurer is carrying",
-    storage: "What's stored at the settlement",
+    map: "Where players are in Embervale",
+    pals: "Who is at the fire now, with join and leave history",
+    inventory: "What each player is carrying",
+    storage: "What's stored at the base",
     paldex: "Creatures encountered",
     achievements: "Quests completed",
     guilds: "Party rosters",
-    calculators: "Skilling tools",
+    calculators: "Crafting tools",
     saves: "World save snapshots, downloadable by admins",
     logs: "The server's own log, join and leave lines included",
   },
 };
 
 const GAMES: Record<string, GameProfile> = {
-  [DRAGONWILDS.id]: DRAGONWILDS,
+  [ENSHROUDED.id]: ENSHROUDED,
 };
 
 /**
- * The profile for a game id. Falls back to Dragonwilds for an empty or
+ * The profile for a game id. Falls back to Enshrouded for an empty or
  * unknown id — the backend is the authority on which views exist, so an
  * unknown game still navigates correctly, just with borrowed words.
  */
 export function gameProfile(id: string | undefined): GameProfile {
-  return (id && GAMES[id]) || DRAGONWILDS;
+  return (id && GAMES[id]) || ENSHROUDED;
 }
 
 /** The label for one of a server's views. */

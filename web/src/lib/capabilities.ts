@@ -4,7 +4,9 @@ import { api, type CommandCapability } from "./api";
 /**
  * What this server's commands can do, asked once and shared.
  *
- * Capability moves with the dwbridge mod on the server, not with anything
+ * For Enshrouded the answers are stable "no"s with reasons that say where
+ * each ability actually lives — the probe exists so the UI never promises
+ * what a 501 would refuse, and it is not tied to anything
  * the console does, so this is deliberately not polled — a stale answer for
  * a minute is fine, and the command itself is still the authority when it
  * runs.

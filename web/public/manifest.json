@@ -1,13 +1,13 @@
 {
   "name": "Flamekeeper",
   "short_name": "Flamekeeper",
-  "description": "RuneScape: Dragonwilds server console",
+  "description": "Enshrouded server console",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#F2E8DF",
-  "theme_color": "#2B2420",
+  "background_color": "#101512",
+  "theme_color": "#101512",
   "icons": [
     {
       "src": "favicon-192.png",

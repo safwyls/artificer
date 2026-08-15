@@ -16,8 +16,8 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
     isActive
-      ? "border border-wk-ember/25 bg-wk-ember/15 font-semibold text-wk-ember"
-      : "text-wk-parchment/60 hover:bg-wk-panel hover:text-wk-parchment",
+      ? "border border-fk-spore/25 bg-fk-spore/15 font-semibold text-fk-spore"
+      : "text-fk-bone/60 hover:bg-fk-panel hover:text-fk-bone",
   );
 
 /** Desktop second column: the active server's identity + view navigation. */
@@ -46,7 +46,7 @@ export function ServerSubNav({ server }: { server: Server }) {
   const port = server.gamePort;
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-black/20 bg-wk-raise text-wk-parchment">
+    <aside className="flex w-56 shrink-0 flex-col border-r border-black/20 bg-fk-fog text-fk-bone">
       <div className="group border-b border-white/10 px-5 py-5">
         <div className="flex items-start justify-between gap-2">
           <p className="min-w-0 flex-1 truncate font-display text-lg font-bold leading-tight">{server.name}</p>
@@ -54,14 +54,14 @@ export function ServerSubNav({ server }: { server: Server }) {
           {isAdmin && (
             <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
               <button
-                className="rounded p-1 text-wk-parchment/50 hover:bg-wk-panel hover:text-wk-parchment"
+                className="rounded p-1 text-fk-bone/50 hover:bg-fk-panel hover:text-fk-bone"
                 title="Edit server"
                 onClick={() => setEditOpen(true)}
               >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
               <button
-                className="rounded p-1 text-wk-parchment/50 hover:bg-wk-panel hover:text-wk-ember"
+                className="rounded p-1 text-fk-bone/50 hover:bg-fk-panel hover:text-fk-spore"
                 title="Remove server"
                 onClick={() => setDeleteOpen(true)}
               >
@@ -74,16 +74,16 @@ export function ServerSubNav({ server }: { server: Server }) {
           <span
             className={cn(
               "h-1.5 w-1.5 shrink-0 rounded-full",
-              infoQuery.isSuccess ? "bg-wk-ok" : infoQuery.isError ? "bg-wk-ember" : "bg-wk-panel",
+              infoQuery.isSuccess ? "bg-fk-ok" : infoQuery.isError ? "bg-fk-spore" : "bg-fk-panel",
             )}
           />
-          <span className="truncate font-mono text-xs text-wk-parchment/60">
+          <span className="truncate font-mono text-xs text-fk-bone/60">
             {server.host}:{port}
           </span>
           {transport && (
             <Badge
               variant="outline"
-              className="border-wk-rune/40 bg-wk-rune/15 px-1 py-0 font-mono text-[10px] text-wk-rune"
+              className="border-fk-flame/40 bg-fk-flame/15 px-1 py-0 font-mono text-[10px] text-fk-flame"
             >
               {transport.toUpperCase()}
             </Badge>
@@ -109,7 +109,7 @@ export function ServerSubNav({ server }: { server: Server }) {
                   else — otherwise the only sign would be its absence from a
                   menu they can still use. */}
               {featureOff(server, feature) && (
-                <EyeOff className="ml-auto h-3.5 w-3.5 shrink-0 text-wk-parchment/30" aria-label="Hidden from everyone else" />
+                <EyeOff className="ml-auto h-3.5 w-3.5 shrink-0 text-fk-bone/30" aria-label="Hidden from everyone else" />
               )}
             </NavLink>
           ) : null,
@@ -128,7 +128,7 @@ export function ServerSubNav({ server }: { server: Server }) {
       </nav>
 
       {metricsQuery.isSuccess && (
-        <div className="border-t border-white/10 px-5 py-4 font-mono text-xs text-wk-parchment/40">
+        <div className="border-t border-white/10 px-5 py-4 font-mono text-xs text-fk-bone/40">
           Uptime · {formatUptime(metricsQuery.data.uptime)}
         </div>
       )}

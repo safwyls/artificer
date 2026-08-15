@@ -42,70 +42,35 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Literal Palworld palette tokens, for spots that need a specific
-        // hue rather than a semantic role (dark sidebar panel, per-category
-        // stat colors, rarity accent) — everything else uses the semantic
-        // tokens above so existing components didn't need rewriting.
-        brand: {
-          red: "#E8491D",
-          amber: "#F2A93B",
-        },
-        pal: {
-          green: "#4A9D7C",
-          blue: "#5B9BD5",
-        },
-        ink: {
-          DEFAULT: "#2B2420",
-          light: "#3D342D",
-          soft: "#544A40",
-          muted: "#5F5850",
-        },
-        paper: "#F5EDE1",
-        legendary: "#8B3A9E",
-        // Passive-skill tier colors, pixel-sampled from the game's own tier
-        // icons (via game8's passive table): slate is the dark ground the
-        // game draws passive rows on; ice/gold/red are the tier 1 / 2–3 /
-        // negative chevrons; aqua-on-indigo is the Rainbow tier and
-        // aqua-on-violet the World Tree tier.
-        tier: {
-          slate: "#1B2725",
-          ice: "#E9F8FA",
-          gold: "#FFE083",
-          red: "#FF4649",
-          aqua: "#7AFFF2",
-          indigo: "#334383",
-          violet: "#52359D",
-        },
-        // Flamekeeper (Dragonwilds) literal palette, verbatim from
-        // mocks/dragonwilds-dashboard.html in the flamekeeper workspace.
-        // Rule from the mock: brass is structure and interaction, rune cyan
-        // is *reserved* for live/active state, ember for danger. Semantic
-        // roles are remapped under .flamekeeper in index.css; these tokens
+        // Flamekeeper literal palette, verbatim from docs/design.md.
+        // The rule from the plan: stone is structure and interaction,
+        // flame is *reserved* for live/active state and focus, spore for
+        // danger. Semantic roles are mapped in index.css; these tokens
         // are for the spots that need the exact hue.
-        wk: {
-          bg: "#10141a",
-          raise: "#161c24",
-          panel: "#1b2330",
-          edge: "#232d3d",
-          brass: "#8a6f3a",
-          brasshi: "#c9a24b",
-          rune: "#52d8d0",
-          runedim: "#2b6f6c",
-          ember: "#e0704a",
-          emberdim: "#7a3d2c",
-          parchment: "#e6dcc4",
-          mist: "#8e9688",
-          ink: "#0b0e12",
-          ok: "#7fc46a",
+        fk: {
+          void: "#101512",
+          fog: "#182019",
+          panel: "#1e2822",
+          edge: "#2d3b32",
+          stone: "#98917c",
+          stonehi: "#c6bda4",
+          flame: "#7fc3f0",
+          flamehi: "#d3ecff",
+          flamedim: "#31536b",
+          spore: "#c95a4d",
+          sporedim: "#66312a",
+          bone: "#e2ded0",
+          lichen: "#87947e",
+          ok: "#82b378",
         },
       },
       fontFamily: {
-        display: ["Cinzel", "serif"],
-        body: ["Alegreya Sans", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        display: ["'Grenze Gotisch'", "serif"],
+        body: ["Karla", "system-ui", "sans-serif"],
+        mono: ["'IBM Plex Mono'", "monospace"],
         // Aliases kept so page code can name the theme explicitly.
-        wkdisplay: ["Cinzel", "serif"],
-        wkbody: ["Alegreya Sans", "system-ui", "sans-serif"],
+        fkdisplay: ["'Grenze Gotisch'", "serif"],
+        fkbody: ["Karla", "system-ui", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",

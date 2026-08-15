@@ -124,11 +124,11 @@ import { PublicStatus } from "./PublicStatus";
 import { ServerActivity } from "./ServerActivity";
 import { ServerAutomation } from "./ServerAutomation";
 import { Users } from "./Users";
-import { WkOverview } from "./flamekeeper/WkOverview";
-import { WkAdventurers } from "./flamekeeper/WkAdventurers";
-import { WkSaves } from "./flamekeeper/WkSaves";
-import { WkLogs } from "./flamekeeper/WkLogs";
-import { WkConfig } from "./flamekeeper/WkConfig";
+import { FkOverview } from "./flamekeeper/FkOverview";
+import { FkFlameborn } from "./flamekeeper/FkFlameborn";
+import { FkSaves } from "./flamekeeper/FkSaves";
+import { FkLogs } from "./flamekeeper/FkLogs";
+import { FkConfig } from "./flamekeeper/FkConfig";
 
 /** Renders a page at a route that supplies the params it reads, returning
  * the query client so a test can wait for the data to actually arrive. */
@@ -161,11 +161,11 @@ const pages: [string, ReactElement, string, string][] = [
   ["Users", <Users />, "/users", "/users"],
   ["ServerActivity", <ServerActivity />, SERVER_ROUTE, SERVER_PATH],
   ["ServerAutomation", <ServerAutomation />, SERVER_ROUTE, SERVER_PATH],
-  ["WkOverview", <WkOverview />, SERVER_ROUTE, SERVER_PATH],
-  ["WkAdventurers", <WkAdventurers />, SERVER_ROUTE, SERVER_PATH],
-  ["WkSaves", <WkSaves />, SERVER_ROUTE, SERVER_PATH],
-  ["WkLogs", <WkLogs />, SERVER_ROUTE, SERVER_PATH],
-  ["WkConfig", <WkConfig />, SERVER_ROUTE, SERVER_PATH],
+  ["FkOverview", <FkOverview />, SERVER_ROUTE, SERVER_PATH],
+  ["FkFlameborn", <FkFlameborn />, SERVER_ROUTE, SERVER_PATH],
+  ["FkSaves", <FkSaves />, SERVER_ROUTE, SERVER_PATH],
+  ["FkLogs", <FkLogs />, SERVER_ROUTE, SERVER_PATH],
+  ["FkConfig", <FkConfig />, SERVER_ROUTE, SERVER_PATH],
 ];
 
 /** React and testing-library warnings that say nothing about the page. */

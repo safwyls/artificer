@@ -1,28 +1,20 @@
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, type Player } from "../../lib/api";
-import { WkNote, WkPanel } from "../../components/flamekeeper/WkPanel";
+import { FkNote, FkPanel } from "../../components/flamekeeper/FkPanel";
 
 /**
- * Kick and Ban are rendered, disabled, with the reason — the mock's own
- * pattern. Hiding them would leave stewards wondering where moderation
- * went; a dead button that 502s would be a lie in the other direction.
- * They enable when the dwbridge command tier exists.
+ * Kick and Ban are rendered, disabled, with the reason — the established
+ * pattern here. Hiding them would leave stewards wondering where
+ * moderation went; a dead button that 502s would be a lie in the other
+ * direction. For Enshrouded they stay disabled by design: moderation
+ * lives in the in-game player menu, and the reason says so.
  */
-const KICK_REASON = "Kicking needs the dwbridge mod — no native console exists";
-const BAN_REASON = "Bans are managed in-game via Server Management";
+const KICK_REASON = "Kick from the in-game player menu — the server has no admin API";
+const BAN_REASON = "Ban from the in-game player menu; bans persist in enshrouded_server.json";
 
-/** A player's position, when the dwbridge telemetry supplied one. The
- * origin doubles as "no data": no legitimate player stands at exact 0,0
- * (open water in this world), and the log-only roster reports zeros. UE
- * units are centimetres — metres read better at a glance. */
-function formatPosition(p: Player): string | null {
-  if (!p.location_x && !p.location_y) return null;
-  return `${Math.round(p.location_x / 100).toLocaleString()}, ${Math.round(p.location_y / 100).toLocaleString()} m`;
-}
-
-/** The adventurer table rows, shared by the overview panel and this page. */
-export function WkPlayerRows({
+/** The player table rows, shared by the overview panel and this page. */
+export function FkPlayerRows({
   players,
   online,
   loading,
@@ -32,44 +24,42 @@ export function WkPlayerRows({
   online: boolean;
   loading: boolean;
 }) {
-  if (loading) return <p className="py-3 text-sm text-wk-mist">Reading the log…</p>;
-  if (!online) return <p className="py-3 text-sm text-wk-mist">The server is offline — nobody is in the world.</p>;
+  if (loading) return <p className="py-3 text-sm text-fk-lichen">Reading the log…</p>;
+  if (!online) return <p className="py-3 text-sm text-fk-lichen">The server is offline — nobody is in the world.</p>;
   if (players.length === 0)
-    return <p className="py-3 text-sm text-wk-mist">The walls stand empty — no adventurers online.</p>;
+    return <p className="py-3 text-sm text-fk-lichen">The fire burns alone — no Flameborn online.</p>;
   return (
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr>
-          <th className="px-2.5 pb-2 pt-1 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-wk-mist">
+          <th className="px-2.5 pb-2 pt-1 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-fk-lichen">
             Name
           </th>
-          <th className="px-2.5 pb-2 pt-1 text-right text-[11px] font-medium uppercase tracking-[0.12em] text-wk-mist" />
+          <th className="px-2.5 pb-2 pt-1 text-right text-[11px] font-medium uppercase tracking-[0.12em] text-fk-lichen" />
         </tr>
       </thead>
       <tbody>
         {players.map((p) => (
           <tr key={p.userId}>
-            <td className="border-t border-wk-edge px-2.5 py-2.5">
-              <span className="mr-2 inline-block h-[7px] w-[7px] rounded-full bg-wk-ok shadow-[0_0_5px_rgba(127,196,106,.6)]" />
-              <span className="font-bold text-wk-parchment">{p.name}</span>
-              {formatPosition(p) && (
-                <span className="ml-2 font-mono text-xs text-wk-mist" title="Live position (dwbridge)">
-                  {formatPosition(p)}
-                </span>
-              )}
+            <td className="border-t border-fk-edge px-2.5 py-2.5">
+              <span className="mr-2 inline-block h-[7px] w-[7px] rounded-full bg-fk-flame shadow-[0_0_5px_rgba(127,195,240,.6)]" />
+              {/* The log carries SteamID64s only, so the id doubles as the
+                  name until the A2S query (roadmap Phase 2) brings real
+                  ones. Mono, because it is an identifier being honest. */}
+              <span className="font-mono text-[13px] font-bold text-fk-bone">{p.name}</span>
             </td>
-            <td className="border-t border-wk-edge px-2.5 py-2.5 text-right">
+            <td className="border-t border-fk-edge px-2.5 py-2.5 text-right">
               <button
                 disabled
                 title={KICK_REASON}
-                className="cursor-not-allowed rounded-sm border border-wk-edge px-2.5 py-0.5 text-xs text-wk-mist opacity-40"
+                className="cursor-not-allowed rounded-sm border border-fk-edge px-2.5 py-0.5 text-xs text-fk-lichen opacity-40"
               >
                 Kick
               </button>
               <button
                 disabled
                 title={BAN_REASON}
-                className="ml-1.5 cursor-not-allowed rounded-sm border border-wk-edge px-2.5 py-0.5 text-xs text-wk-mist opacity-40"
+                className="ml-1.5 cursor-not-allowed rounded-sm border border-fk-edge px-2.5 py-0.5 text-xs text-fk-lichen opacity-40"
               >
                 Ban
               </button>
@@ -81,7 +71,7 @@ export function WkPlayerRows({
   );
 }
 
-export function WkAdventurers() {
+export function FkFlameborn() {
   const { serverID } = useParams();
   const id = Number(serverID);
 
@@ -105,53 +95,54 @@ export function WkAdventurers() {
   const online = !infoQuery.isError && !!infoQuery.data;
 
   return (
-    <div className="flamekeeper min-h-full font-wkbody">
+    <div className="flamekeeper min-h-full font-fkbody">
       <div className="mx-auto max-w-[1180px] space-y-3.5 p-4 lg:p-7">
-        <WkPanel
-          title="Adventurers"
-          meta="from the server log · live positions when the dwbridge mod is running"
+        <FkPanel
+          title="Flameborn"
+          meta="derived from the server log · Steam IDs until the A2S query lands"
           bodyClassName="pt-1.5"
         >
-          <WkPlayerRows
+          <FkPlayerRows
             serverId={id}
             players={playersQuery.data ?? []}
             online={online}
             loading={playersQuery.isLoading}
           />
-          <WkNote>
-            The Owner and Admin roles live in the in-game Server Management menu. Owner may ban and unban anyone,
-            offline included; Admins ban online adventurers only and cannot unban.
-          </WkNote>
-        </WkPanel>
+          <FkNote>
+            Moderation is role-based: joining with a kick/ban-capable role password (the admin password from the
+            raise, rotatable in Configuration) unlocks kick and ban in the in-game player menu. Bans persist to the
+            config's banned list.
+          </FkNote>
+        </FkPanel>
 
-        <WkPanel title="Comings and goings" meta="last 7 days">
-          {activityQuery.isLoading && <p className="text-sm text-wk-mist">Loading history…</p>}
+        <FkPanel title="Comings and goings" meta="last 7 days">
+          {activityQuery.isLoading && <p className="text-sm text-fk-lichen">Loading history…</p>}
           {activityQuery.data &&
             (activityQuery.data.events.length === 0 ? (
-              <p className="text-sm text-wk-mist">No joins or leaves recorded this week.</p>
+              <p className="text-sm text-fk-lichen">No joins or leaves recorded this week.</p>
             ) : (
               <ul className="space-y-1.5 text-sm">
                 {activityQuery.data.events.slice(0, 40).map((e) => (
-                  <li key={e.id} className="flex items-baseline justify-between gap-2 border-t border-wk-edge pt-1.5 first:border-t-0 first:pt-0">
+                  <li key={e.id} className="flex items-baseline justify-between gap-2 border-t border-fk-edge pt-1.5 first:border-t-0 first:pt-0">
                     <span>
                       <span
                         className={
                           e.event === "join"
-                            ? "mr-2 inline-block h-[7px] w-[7px] rounded-full bg-wk-ok"
+                            ? "mr-2 inline-block h-[7px] w-[7px] rounded-full bg-fk-ok"
                             : "mr-2 inline-block h-[7px] w-[7px] rounded-full bg-[#3a4148]"
                         }
                       />
-                      <b className="font-bold text-wk-parchment">{e.name}</b>{" "}
-                      <span className="text-wk-mist">{e.event === "join" ? "joined the world" : "left the world"}</span>
+                      <b className="font-bold text-fk-bone">{e.name}</b>{" "}
+                      <span className="text-fk-lichen">{e.event === "join" ? "joined the world" : "left the world"}</span>
                     </span>
-                    <span className="whitespace-nowrap font-mono text-xs text-wk-mist">
+                    <span className="whitespace-nowrap font-mono text-xs text-fk-lichen">
                       {new Date(e.ts).toLocaleString()}
                     </span>
                   </li>
                 ))}
               </ul>
             ))}
-        </WkPanel>
+        </FkPanel>
       </div>
     </div>
   );

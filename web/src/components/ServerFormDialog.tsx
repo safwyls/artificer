@@ -254,7 +254,7 @@ export function ServerFormDialog({
                 </p>
 
                 {strays.length > 0 && (
-                  <div className="rounded-xl border border-wk-brasshi/40 bg-wk-brasshi/10 px-3 py-2 text-xs text-wk-parchment/60">
+                  <div className="rounded-xl border border-fk-stonehi/40 bg-fk-stonehi/10 px-3 py-2 text-xs text-fk-bone/60">
                     <p>
                       This server still has a {joinNames(strays.map(([, name]) => name))} set. A supervised
                       deployment ignores {strays.length === 1 ? "it" : "them"} — the agent owns the files.
@@ -264,7 +264,7 @@ export function ServerFormDialog({
                       onClick={() =>
                         setForm({ ...form, containerName: "", savePath: "", configPath: "", installPath: "" })
                       }
-                      className="mt-1.5 font-semibold text-wk-ember hover:underline"
+                      className="mt-1.5 font-semibold text-fk-spore hover:underline"
                     >
                       Clear {strays.length === 1 ? "it" : "them"}
                     </button>
@@ -278,7 +278,7 @@ export function ServerFormDialog({
                     <Label>Container name (optional)</Label>
                     <Input
                       value={form.containerName}
-                      placeholder="dragonwilds"
+                      placeholder="enshrouded"
                       onChange={(e) => setForm({ ...form, containerName: e.target.value })}
                     />
                     <p className="text-xs text-muted-foreground">
@@ -298,9 +298,9 @@ export function ServerFormDialog({
                   <details
                     open={mountsOpen}
                     onToggle={(e) => setMountsOpen(e.currentTarget.open)}
-                    className="rounded-xl border border-wk-edge px-3 pb-3"
+                    className="rounded-xl border border-fk-edge px-3 pb-3"
                   >
-                    <summary className="cursor-pointer py-2 text-xs font-semibold text-wk-parchment/50">
+                    <summary className="cursor-pointer py-2 text-xs font-semibold text-fk-bone/50">
                       No agent? Mount the paths instead
                     </summary>
                     <div className="space-y-4">
@@ -325,7 +325,7 @@ export function ServerFormDialog({
                           onChange={(e) => setForm({ ...form, configPath: e.target.value })}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Container path to the folder holding <code>DedicatedServer.ini</code>, mounted
+                          Container path to the folder holding <code>enshrouded_server.json</code>, mounted
                           <strong> read-write</strong>. Turns on the settings editor. Keep it separate from the
                           save mount so save data stays read-only.
                         </p>
@@ -335,11 +335,11 @@ export function ServerFormDialog({
                         <Label>Install path (optional)</Label>
                         <Input
                           value={form.installPath}
-                          placeholder="/dragonwilds"
+                          placeholder="/enshrouded"
                           onChange={(e) => setForm({ ...form, installPath: e.target.value })}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Container path to the Dragonwilds install root (holds <code>steamapps</code>), mounted
+                          Container path to the Enshrouded install root (holds <code>steamapps</code>), mounted
                           <strong> read-write</strong>. Turns on clearing the SteamCMD cache when a game update
                           corrupts it.
                         </p>
@@ -356,7 +356,7 @@ export function ServerFormDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="clip-notch" disabled={save.isPending}>
+            <Button type="submit" disabled={save.isPending}>
               {save.isPending ? "Saving..." : mode === "create" ? "Add server" : "Save changes"}
             </Button>
           </DialogFooter>
@@ -370,7 +370,7 @@ export function ServerFormDialog({
  * behaves like the tablist it is rather than two adjacent buttons. */
 function ModeTabs({ kind, onChange }: { kind: Kind; onChange: (k: Kind) => void }) {
   return (
-    <div role="tablist" aria-label="Deployment mode" className="grid grid-cols-2 gap-1 rounded-xl border border-wk-edge bg-wk-parchment/5 p-1">
+    <div role="tablist" aria-label="Deployment mode" className="grid grid-cols-2 gap-1 rounded-xl border border-fk-edge bg-fk-bone/5 p-1">
       {KINDS.map(([value, label]) => (
         <button
           key={value}
@@ -392,8 +392,8 @@ function ModeTabs({ kind, onChange }: { kind: Kind; onChange: (k: Kind) => void 
           }}
           className={cn(
             "rounded-lg px-3 py-1.5 font-display text-xs font-bold transition",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wk-ember/50",
-            kind === value ? "bg-wk-panel text-wk-parchment shadow-sm" : "text-wk-parchment/50 hover:text-wk-parchment",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fk-spore/50",
+            kind === value ? "bg-fk-panel text-fk-bone shadow-sm" : "text-fk-bone/50 hover:text-fk-bone",
           )}
         >
           {label}
@@ -411,17 +411,17 @@ function ModeTabs({ kind, onChange }: { kind: Kind; onChange: (k: Kind) => void 
  */
 function WiringReadout({ caps, hint }: { caps: Cap[]; hint: string }) {
   return (
-    <div className="mt-3 rounded-xl border border-wk-edge bg-wk-parchment/5 px-3 py-2">
+    <div className="mt-3 rounded-xl border border-fk-edge bg-fk-bone/5 px-3 py-2">
       <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs">
         {caps.map((c) => (
-          <span key={c.label} className={c.on ? "text-wk-ok" : "text-wk-parchment/35"}>
+          <span key={c.label} className={c.on ? "text-fk-ok" : "text-fk-bone/35"}>
             <span aria-hidden="true">{c.on ? "✓" : "—"}</span>{" "}
             <span className="sr-only">{c.on ? "on:" : "off:"}</span>
             {c.label}
           </span>
         ))}
       </div>
-      <p className="mt-1.5 text-xs text-wk-parchment/50">{hint}</p>
+      <p className="mt-1.5 text-xs text-fk-bone/50">{hint}</p>
     </div>
   );
 }
@@ -431,7 +431,7 @@ function WiringReadout({ caps, hint }: { caps: Cap[]; hint: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-5 space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-wk-parchment/40">{title}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-fk-bone/40">{title}</p>
       {children}
     </section>
   );

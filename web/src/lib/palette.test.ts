@@ -38,11 +38,11 @@ describe("initials", () => {
 
 describe("pingColorClass", () => {
   it("steps at the 60/120ms boundaries", () => {
-    expect(pingColorClass(0)).toBe("text-wk-ok");
-    expect(pingColorClass(60)).toBe("text-wk-ok");
-    expect(pingColorClass(61)).toBe("text-wk-brasshi");
-    expect(pingColorClass(120)).toBe("text-wk-brasshi");
-    expect(pingColorClass(121)).toBe("text-wk-ember");
+    expect(pingColorClass(0)).toBe("text-fk-ok");
+    expect(pingColorClass(60)).toBe("text-fk-ok");
+    expect(pingColorClass(61)).toBe("text-fk-stonehi");
+    expect(pingColorClass(120)).toBe("text-fk-stonehi");
+    expect(pingColorClass(121)).toBe("text-fk-spore");
   });
 });
 

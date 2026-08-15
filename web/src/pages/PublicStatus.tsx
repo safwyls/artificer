@@ -42,19 +42,19 @@ export function PublicStatus() {
   const unknown = statusQuery.isError && statusQuery.error instanceof ApiError && statusQuery.error.status === 404;
 
   return (
-    <div className="app-min-height flex flex-col items-center justify-center bg-wk-bg p-6">
-      <main className="clip-notch-lg w-full max-w-md border border-wk-edge bg-wk-panel px-8 py-10 text-center shadow-sm">
+    <div className="app-min-height flex flex-col items-center justify-center bg-fk-void p-6">
+      <main className="w-full max-w-md border border-fk-edge bg-fk-panel px-8 py-10 text-center shadow-sm">
         {unknown ? (
           <>
             <h1 className="font-display text-2xl font-extrabold">No status here</h1>
-            <p className="mt-2 text-sm text-wk-parchment/60">
+            <p className="mt-2 text-sm text-fk-bone/60">
               This status page doesn't exist — the link may have been revoked.
             </p>
           </>
         ) : statusQuery.isLoading ? (
-          <p className="text-sm text-wk-parchment/50">Loading…</p>
+          <p className="text-sm text-fk-bone/50">Loading…</p>
         ) : statusQuery.isError ? (
-          <p className="text-sm text-wk-parchment/60">Status is unavailable right now. Refresh to try again.</p>
+          <p className="text-sm text-fk-bone/60">Status is unavailable right now. Refresh to try again.</p>
         ) : status ? (
           <>
             <h1 className="break-words font-display text-3xl font-extrabold">{status.name}</h1>
@@ -62,10 +62,10 @@ export function PublicStatus() {
             <p
               className={cn(
                 "mt-4 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold",
-                status.online ? "bg-wk-ok/15 text-wk-ok" : "bg-wk-parchment/10 text-wk-parchment/50",
+                status.online ? "bg-fk-ok/15 text-fk-ok" : "bg-fk-bone/10 text-fk-bone/50",
               )}
             >
-              <span className={cn("h-2.5 w-2.5 rounded-full", status.online ? "bg-wk-ok" : "bg-wk-parchment/30")} />
+              <span className={cn("h-2.5 w-2.5 rounded-full", status.online ? "bg-fk-ok" : "bg-fk-bone/30")} />
               {status.online ? "Online" : "Offline"}
             </p>
 
@@ -74,22 +74,22 @@ export function PublicStatus() {
                 <p className="font-mono text-5xl font-semibold tabular-nums">
                   {status.players}
                   {status.maxPlayers !== undefined && (
-                    <span className="text-2xl text-wk-parchment/35">/{status.maxPlayers}</span>
+                    <span className="text-2xl text-fk-bone/35">/{status.maxPlayers}</span>
                   )}
                 </p>
-                <p className="mt-1 text-xs uppercase tracking-widest text-wk-parchment/40">players online</p>
+                <p className="mt-1 text-xs uppercase tracking-widest text-fk-bone/40">players online</p>
               </div>
             )}
 
             {countdown && (
-              <p className="mt-6 text-sm text-wk-parchment/60">
-                Next scheduled restart <span className="font-mono font-semibold text-wk-parchment">{countdown}</span>
+              <p className="mt-6 text-sm text-fk-bone/60">
+                Next scheduled restart <span className="font-mono font-semibold text-fk-bone">{countdown}</span>
               </p>
             )}
           </>
         ) : null}
       </main>
-      <p className="mt-4 font-mono text-[11px] text-wk-parchment/35">powered by Flamekeeper</p>
+      <p className="mt-4 font-mono text-[11px] text-fk-bone/35">powered by Flamekeeper</p>
     </div>
   );
 }

@@ -58,7 +58,7 @@ export const PERMISSION_LABELS: Record<Permission, { label: string; help: string
   save: { label: "Save world", help: "Trigger a world save" },
   moderate: { label: "Moderate", help: "Kick, ban and unban players" },
   shutdown: { label: "In-game shutdown", help: "Shut the server down with a countdown" },
-  settings: { label: "Edit settings", help: "Read and edit DedicatedServer.ini" },
+  settings: { label: "Edit settings", help: "Read and edit enshrouded_server.json" },
 };
 
 export interface Me {
@@ -207,20 +207,18 @@ export interface ProvisionInput {
   name: string;
   host: string;
   dataPath: string;
-  /** Published UDP port. The game also uses the port above it, and both
-   * are published — so a proposal has to keep the pair free. */
+  /** Enshrouded's single published UDP port — game traffic and the Steam
+   * query share it. */
   gamePort: number;
   agentPort: number;
   imageTag: string;
-  /** The Player ID that owns the server. Required: the game refuses to
-   * start without one. */
-  ownerId: string;
-  /** Blank = generated server-side. */
+  /** Blank = generated server-side. Grants the admin role (kick/ban) at
+   * the join screen. */
   adminPassword?: string;
-  /** In-game ServerName; blank = the dashboard display name. */
+  /** The default role's password. Blank = an open server. */
+  joinPassword?: string;
+  /** Server-browser name; blank = the dashboard display name. */
   serverName?: string;
-  /** Names the world created on the server's first boot. */
-  worldName?: string;
   /** Container user:group; blank = 568:568, "root" = image default. */
   runAs?: string;
 }
@@ -268,25 +266,19 @@ export interface DiscoveredServer {
 }
 
 /**
- * Which of Dragonwilds' two dedicated-server builds the agent launches.
- *
- * Not a preference: the native Linux build cannot load UE4SS, so it can
- * never carry the dwbridge mod and its commands stay unavailable forever.
- * The Windows build under Wine can. The two also come from different Steam
- * depots, so switching means re-downloading the game — which is why
- * `installed` is per profile and worth showing.
+ * How the agent launches the game. Enshrouded ships one build (Windows,
+ * run under Wine), so this is read-mostly today: the selectable list
+ * holds a single entry, and a hand-configured custom command reports
+ * itself here.
  */
 export interface Launch {
   profile: string;
   label: string;
-  /** Whether this build can carry the mod, and so run commands at all. */
-  mods: boolean;
-  /** Whether the launcher exists on this agent at all. False for the Wine
-   * build on an agent image with no Wine in it — a different problem from
-   * "not installed", fixable only by moving the agent to another image. */
+  /** Whether the launcher exists on this agent at all — false for wine on
+   * an image with no Wine in it, a different problem from "not
+   * installed", fixable only by moving the agent to another image. */
   runnable: boolean;
-  /** Whether the selected build's files are present. False between a switch
-   * and the re-install it needs. */
+  /** Whether the game's files are present. */
   installed: boolean;
   /** Profiles the console may select. Empty when the agent runs an explicit
    * command, which must not be silently replaced. */
@@ -294,15 +286,10 @@ export interface Launch {
   /** The selection has changed since the running process started. */
   pendingRestart: boolean;
   configPath: string;
-  /** The agent's image carries the UE4SS kit, so one-click install exists. */
-  bridgeKit?: boolean;
-  /** A UE4SS install already sits next to the exe. */
-  bridgeInstalled?: boolean;
 }
 
 export const LAUNCH_PROFILES: Record<string, { label: string; blurb: string }> = {
-  native: { label: "Native Linux", blurb: "Simplest to run. No mod support, so commands stay unavailable." },
-  wine: { label: "Windows + mods", blurb: "Runs under Wine and can load the dwbridge mod, so on-demand saves work." },
+  wine: { label: "Windows under Wine", blurb: "The game's only build — there is no native Linux server." },
 };
 
 /** One command's answer from the capabilities probe. */
@@ -316,12 +303,12 @@ export interface CommandCapability {
 /**
  * What a server's commands can actually do right now.
  *
- * For Dragonwilds the answer moves with the dwbridge mod, which is a
- * property of the machine rather than the game — so it has to be asked, not
- * assumed. `probed` is false for a game whose client can't answer; every
- * command then reports supported, which is what the UI assumed before this
- * existed. Treat a failed request the same way: show the control and let a
- * 501 explain itself, rather than hiding a working button.
+ * For Enshrouded the probe answers a stable no for every command — the
+ * game has no command channel — with reasons that say where each ability
+ * actually lives. `probed` is false for a game whose client can't answer;
+ * every command then reports supported. Treat a failed request the same
+ * way: show the control and let a 501 explain itself, rather than hiding
+ * a working button.
  */
 export interface Capabilities {
   probed: boolean;
@@ -332,8 +319,8 @@ export interface ServerInfo {
   servername: string;
   version: string;
   playerCount: number;
-  /** Which transport answered. Always "agent" for Dragonwilds — the game
-   * has no query protocol of its own. */
+  /** Which transport answered. Always "agent" today; "a2s" arrives with
+   * the Phase 2 query client. */
   transport: string;
 }
 
@@ -365,7 +352,8 @@ export interface ConfigSetting {
   value: string;
   type: "bool" | "int" | "float" | "string" | "enum";
   /** The ini [section] the key sits under, for games with sectioned files
-   * (Dragonwilds). Display only — settings are addressed by key. */
+   * ("server" or "gameSettings" here). Display only — settings are
+   * addressed by key. */
   section?: string;
 }
 
@@ -609,39 +597,6 @@ export interface BackupSnapshot {
   name: string;
   ts: string;
   bytes: number;
-}
-
-/** World metadata parsed from the server's save file (Dragonwilds SPUD). */
-export interface WorldInfo {
-  worldName: string;
-  mapName: string;
-  /** Rendered as the server logs it (WorldSaveGuid, uppercase hex). */
-  saveGuid: string;
-  version: number;
-  /** Bumped by the game on every save — the autosave odometer. */
-  saveFileRevision: number;
-  friendlyFire: boolean;
-  survivalDifficulty: number;
-  hardcoreState: number;
-  crossplayEnabled: boolean;
-  sessionPrivacy: number;
-  hasSessionPassword: boolean;
-  ownerId: string;
-  ownerName: string;
-  lastSavedBy: string;
-  headerStamp: string;
-  timeOfSave: string;
-  levels: string[];
-  chunks: { id: string; bytes: number }[];
-  file: string;
-  /** When the save file was last written — the trustworthy freshness stamp. */
-  modTime: string;
-}
-
-export interface WorldResult {
-  /** False when nothing can be read: no save path, or a game with no reader. */
-  available: boolean;
-  world?: WorldInfo;
 }
 
 export interface BackupsResult {
@@ -939,13 +894,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ imageTag }),
     }),
-  /** One-click mod support: the agent lays its baked-in UE4SS+dwbridge kit
-   * next to the server exe. Only offered when the launch payload says the
-   * kit exists and nothing is installed yet. */
-  installBridge: (id: number) =>
-    request<{ installed: boolean; restartRequired: boolean }>(`/servers/${id}/bridge/install`, {
-      method: "POST",
-    }),
   setServerLaunch: (id: number, profile: string) =>
     request<Launch>(`/servers/${id}/launch`, { method: "PUT", body: JSON.stringify({ profile }) }),
   setWatchdog: (id: number, enabled: boolean) =>
@@ -957,8 +905,6 @@ export const api = {
     }),
   publicStatus: (token: string) => request<PublicStatus>(`/public/status/${token}`),
 
-  // The world as its save file tells it — admin-only, like the vault it sits above.
-  getWorld: (id: number) => request<WorldResult>(`/servers/${id}/world`),
 
   // Save backups — admin-only end to end (a snapshot is the whole world).
   listBackups: (id: number) => request<BackupsResult>(`/servers/${id}/backups`),
@@ -1018,14 +964,15 @@ export const api = {
   // REST-only — throws a 400 ApiError for servers configured RCON-only.
   serverSettings: (id: number) => request<Settings>(`/servers/${id}/settings`),
 
-  // PalWorldSettings.ini editor (needs the "settings" permission). Throws a
-  // 400 ApiError when the server has no config path configured.
+  // enshrouded_server.json editor (needs the "settings" permission). Throws
+  // a 400 ApiError when the server has no config path configured.
   serverConfig: (id: number) => request<ConfigResult>(`/servers/${id}/config`),
   updateServerConfig: (id: number, changes: Record<string, string>) =>
     request<ConfigResult>(`/servers/${id}/config`, { method: "PUT", body: JSON.stringify({ changes }) }),
-  // Writes a fresh random AdminPassword into the ini and returns it exactly
-  // once. Dragonwilds' one real remote-admin lever: the game revokes every
-  // password-session admin when it changes (applies on restart).
+  // Writes a fresh random password onto the admin role group and returns it
+  // exactly once. Enshrouded's one real remote-admin lever: whoever joins
+  // with it holds kick/ban; rotating locks out previous holders at their
+  // next join.
   rotateAdminPassword: (id: number) =>
     request<{ password: string }>(`/servers/${id}/config/rotate-admin-password`, { method: "POST" }),
   serverMetrics: (id: number) => request<Metrics>(`/servers/${id}/metrics`),

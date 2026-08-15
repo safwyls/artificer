@@ -49,92 +49,53 @@ describe("ServerPower launch mode", () => {
     });
   });
 
-  const nativeLaunch = {
-    profile: "native",
-    label: "Native Linux build",
-    mods: false,
+  const wineLaunch = {
+    profile: "wine",
+    label: "Windows build under Wine",
     installed: true,
     runnable: true,
-    available: ["native", "wine"],
+    available: ["wine"],
     pendingRestart: false,
-    configPath: "RSDragonwilds/Saved/Config/LinuxServer/DedicatedServer.ini",
+    configPath: "enshrouded_server.json",
   };
 
   function renderWithAgent() {
     return renderWithProviders(<ServerPower serverId={1} agentUrl="http://agent:8811" />);
   }
 
-  it("confirms before switching build, naming the re-download it costs", async () => {
-    vi.spyOn(api, "serverLaunch").mockResolvedValue(nativeLaunch);
-    const set = vi.spyOn(api, "setServerLaunch").mockResolvedValue({
-      ...nativeLaunch,
-      profile: "wine",
-      mods: true,
-      installed: false,
-    });
+  it("describes the one build and offers no switcher", async () => {
+    vi.spyOn(api, "serverLaunch").mockResolvedValue(wineLaunch);
     renderWithAgent();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Windows + mods" }));
-
-    // Switching depots is not a restart, and the dialog has to say so before
-    // the click, not after.
-    expect(await screen.findByText(/different Steam depots/i)).toBeInTheDocument();
-    expect(set).not.toHaveBeenCalled();
-
-    await userEvent.click(screen.getByRole("button", { name: "Use this build" }));
-    await waitFor(() => expect(set).toHaveBeenCalledWith(1, "wine"));
-    // The new build isn't downloaded, so the toast points at the next step
-    // rather than telling them to restart into something that isn't there.
-    expect(toastSuccess).toHaveBeenCalledWith(
-      expect.stringContaining("Windows + mods"),
-      expect.objectContaining({ description: expect.stringContaining("Update server") }),
-    );
+    await screen.findByText("Launch mode");
+    expect(screen.getByText(/only build/i)).toBeInTheDocument();
+    // One selectable profile means nothing to switch between — a
+    // single-button "chooser" would be furniture.
+    expect(screen.queryByRole("button", { name: /Windows under Wine/i })).not.toBeInTheDocument();
   });
 
-  it("marks the active build and does not re-select it", async () => {
-    vi.spyOn(api, "serverLaunch").mockResolvedValue(nativeLaunch);
-    const set = vi.spyOn(api, "setServerLaunch").mockResolvedValue(nativeLaunch);
+  it("points at Update server when the game isn't downloaded yet", async () => {
+    vi.spyOn(api, "serverLaunch").mockResolvedValue({ ...wineLaunch, installed: false });
     renderWithAgent();
 
-    const active = await screen.findByRole("button", { name: "Native Linux" });
-    expect(active).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(active);
-    expect(set).not.toHaveBeenCalled();
-    expect(screen.queryByText(/different Steam depots/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/isn't downloaded yet/i)).toBeInTheDocument();
   });
 
-  it("says a switch is waiting on a restart", async () => {
-    vi.spyOn(api, "serverLaunch").mockResolvedValue({
-      ...nativeLaunch,
-      profile: "wine",
-      mods: true,
-      pendingRestart: true,
-    });
-    renderWithAgent();
-
-    expect(await screen.findByText(/restart to switch to Windows \+ mods/i)).toBeInTheDocument();
-  });
-
-  it("offers to rebuild the agent when its image cannot run the chosen build", async () => {
-    // The Wine profile selected on an agent image with no Wine in it. This
-    // is the state a TrueNAS operator lands in: the container was
-    // provisioned from the plain image and nothing in their apps view can
-    // change it, so the console has to offer the rebuild itself.
-    vi.spyOn(api, "serverLaunch").mockResolvedValue({
-      ...nativeLaunch,
-      profile: "wine",
-      mods: true,
-      runnable: false,
-    });
+  it("offers to rebuild the agent when its image cannot run the game", async () => {
+    // Wine missing from the agent image — the state a TrueNAS operator
+    // lands in when a container was provisioned from a stale image and
+    // nothing in their apps view can change it, so the console has to
+    // offer the rebuild itself.
+    vi.spyOn(api, "serverLaunch").mockResolvedValue({ ...wineLaunch, runnable: false });
     const rebuild = vi.spyOn(api, "recreateAgent").mockResolvedValue({
-      container: "flameagent-ashenfall",
-      image: "ghcr.io/safwyls/flameagent:latest-wine",
-      previousImage: "ghcr.io/safwyls/flameagent:latest",
+      container: "flameagent-emberhold",
+      image: "ghcr.io/safwyls/flameagent:latest",
+      previousImage: "ghcr.io/safwyls/flameagent:old",
     });
     renderWithAgent();
 
-    expect(await screen.findByText(/has no Wine in it/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Rebuild agent on the Wine image/i }));
+    expect(await screen.findByText(/cannot run the game/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Rebuild the agent/i }));
 
     // Removing and recreating a container is worth confirming, and the
     // dialog has to say the world survives it.
@@ -142,20 +103,32 @@ describe("ServerPower launch mode", () => {
     expect(rebuild).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Rebuild agent" }));
-    await waitFor(() => expect(rebuild).toHaveBeenCalledWith(1, "latest-wine"));
+    await waitFor(() => expect(rebuild).toHaveBeenCalledWith(1, "latest"));
     expect(toastSuccess).toHaveBeenCalledWith("Agent rebuilt", expect.anything());
   });
 
-  it("does not offer a rebuild when the image can already run the build", async () => {
-    vi.spyOn(api, "serverLaunch").mockResolvedValue({ ...nativeLaunch, profile: "wine", mods: true, runnable: true });
+  it("does not offer a rebuild when the image can already run the game", async () => {
+    vi.spyOn(api, "serverLaunch").mockResolvedValue(wineLaunch);
     renderWithAgent();
 
     await screen.findByText("Launch mode");
-    expect(screen.queryByRole("button", { name: /Rebuild agent/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Rebuild/i })).not.toBeInTheDocument();
+  });
+
+  it("reports a custom command honestly", async () => {
+    vi.spyOn(api, "serverLaunch").mockResolvedValue({
+      ...wineLaunch,
+      profile: "custom",
+      label: "Custom command",
+      available: [],
+    });
+    renderWithAgent();
+
+    expect(await screen.findByText(/Custom launch command/i)).toBeInTheDocument();
   });
 
   it("shows no launch row for an agent that doesn't run the game", async () => {
-    // Companion mode answers 400 — there is no build to choose, so the
+    // Companion mode answers 400 — there is nothing being launched, so the
     // control should be absent rather than broken.
     vi.spyOn(api, "serverLaunch").mockRejectedValue(new ApiError(400, "this agent does not run the game"));
     renderWithAgent();
@@ -173,7 +146,7 @@ describe("ServerPower on-demand save", () => {
     vi.spyOn(api, "containerStatus").mockResolvedValue(runningState);
   });
 
-  it("saves the world from the power row", async () => {
+  it("saves the world from the power row while capability is unknown", async () => {
     const save = vi.spyOn(api, "save").mockResolvedValue(undefined);
     renderPower();
 
@@ -184,7 +157,7 @@ describe("ServerPower on-demand save", () => {
   });
 
   it("relays the game's own reason when the save is refused", async () => {
-    const reason = "an on-demand save needs the dwbridge mod";
+    const reason = "the server autosaves every 10 minutes and saves on shutdown";
     vi.spyOn(api, "save").mockRejectedValue(new ApiError(501, reason));
     renderPower();
 
@@ -223,8 +196,11 @@ describe("ServerPower on-demand save", () => {
     expect(screen.getByRole("button", { name: "Save world, then stop" })).toBeInTheDocument();
   });
 
-  it("disables Save world, with the reason, when the server has no way to save", async () => {
-    const reason = "an on-demand save needs the dwbridge mod";
+  it("hides Save world when the probe says this server can never save", async () => {
+    // Enshrouded's stable answer: no on-demand save exists, and the game
+    // saves on shutdown anyway. A permanently disabled button would be
+    // furniture; the honest rendering is absence.
+    const reason = "the server autosaves every 10 minutes and saves on shutdown";
     vi.spyOn(api, "serverCapabilities").mockResolvedValue({
       probed: true,
       commands: { save: { supported: false, reason } },
@@ -232,9 +208,8 @@ describe("ServerPower on-demand save", () => {
     const save = vi.spyOn(api, "save").mockResolvedValue(undefined);
     renderPower();
 
-    const button = await screen.findByRole("button", { name: "Save world" });
-    await waitFor(() => expect(button).toBeDisabled());
-    expect(button).toHaveAttribute("title", reason);
+    await screen.findByRole("button", { name: "Stop" });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Save world" })).not.toBeInTheDocument());
 
     // And the stop dialog stops offering a save-first path that could only
     // ever fail.

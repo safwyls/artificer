@@ -199,7 +199,7 @@ export function TierTile({
 }) {
   return (
     <section
-      className={cn("clip-notch-lg rounded-br-[10px] rounded-tl-[10px] border px-6 py-5 lg:px-8", className)}
+      className={cn("rounded-br-[10px] rounded-tl-[10px] border px-6 py-5 lg:px-8", className)}
       // The ramp only moves on a countdown tick, so a slow transition keeps
       // the step invisible; reduced-motion users lose nothing but the fade.
       style={{ ...tileStyle(look), transition: "background 1.2s linear, border-color 1.2s linear" }}

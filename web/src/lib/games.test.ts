@@ -4,26 +4,26 @@ import { FEATURE_ROUTES, featureBlurb, featureLabel, gameProfile } from "./games
 import { makeServer } from "../test/utils";
 
 describe("gameProfile", () => {
-  it("returns the Dragonwilds profile by id", () => {
-    expect(gameProfile("dragonwilds").name).toBe("RuneScape: Dragonwilds");
+  it("returns the Enshrouded profile by id", () => {
+    expect(gameProfile("enshrouded").name).toBe("Enshrouded");
   });
 
-  it("falls back to Dragonwilds for an empty id", () => {
-    expect(gameProfile("")).toBe(gameProfile("dragonwilds"));
-    expect(gameProfile(undefined)).toBe(gameProfile("dragonwilds"));
+  it("falls back to Enshrouded for an empty id", () => {
+    expect(gameProfile("")).toBe(gameProfile("enshrouded"));
+    expect(gameProfile(undefined)).toBe(gameProfile("enshrouded"));
   });
 
   it("falls back for a game this build doesn't know, so nav still works", () => {
     // The backend is the authority on which views exist; an unknown game
     // navigates correctly, just with borrowed words.
-    expect(gameProfile("ark")).toBe(gameProfile("dragonwilds"));
+    expect(gameProfile("ark")).toBe(gameProfile("enshrouded"));
   });
 });
 
 describe("featureLabel", () => {
   it("uses the game's own vocabulary", () => {
-    const server = makeServer({ game: "dragonwilds" });
-    expect(featureLabel(server, "pals" as Feature)).toBe("Adventurers");
+    const server = makeServer({ game: "enshrouded" });
+    expect(featureLabel(server, "pals" as Feature)).toBe("Flameborn");
     expect(featureLabel(server, "saves" as Feature)).toBe("World saves");
   });
 
@@ -38,7 +38,7 @@ describe("featureLabel", () => {
 
 describe("featureBlurb", () => {
   it("describes a view from the player's side", () => {
-    expect(featureBlurb(makeServer(), "map" as Feature)).toMatch(/where adventurers are/i);
+    expect(featureBlurb(makeServer(), "map" as Feature)).toMatch(/where players are/i);
   });
 
   it("is empty for an unknown feature", () => {
@@ -53,7 +53,7 @@ describe("FEATURE_ROUTES", () => {
   });
 
   it("covers every labelled feature", () => {
-    for (const key of Object.keys(gameProfile("dragonwilds").labels) as Feature[]) {
+    for (const key of Object.keys(gameProfile("enshrouded").labels) as Feature[]) {
       expect(FEATURE_ROUTES[key], key).toBeTruthy();
     }
   });

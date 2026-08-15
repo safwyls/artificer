@@ -3,12 +3,12 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { WkNote, WkPanel, wkLogTone } from "../../components/flamekeeper/WkPanel";
+import { FkNote, FkPanel, fkLogTone } from "../../components/flamekeeper/FkPanel";
 import { cn } from "../../lib/utils";
 
 const TAILS = [100, 300, 1000, 2000] as const;
 
-export function WkLogs() {
+export function FkLogs() {
   const { serverID } = useParams();
   const id = Number(serverID);
   const { can } = useAuth();
@@ -31,23 +31,23 @@ export function WkLogs() {
 
   if (!can("power")) {
     return (
-      <div className="flamekeeper min-h-full font-wkbody">
+      <div className="flamekeeper min-h-full font-fkbody">
         <div className="mx-auto max-w-[1180px] p-4 lg:p-7">
-          <WkPanel title="Server log">
-            <p className="text-sm text-wk-mist">
+          <FkPanel title="Server log">
+            <p className="text-sm text-fk-lichen">
               The log can carry chat and player identities, so it needs the power permission. Ask a steward for the
               grant.
             </p>
-          </WkPanel>
+          </FkPanel>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flamekeeper min-h-full font-wkbody">
+    <div className="flamekeeper min-h-full font-fkbody">
       <div className="mx-auto max-w-[1180px] p-4 lg:p-7">
-        <WkPanel
+        <FkPanel
           title="Server log"
           meta={
             <span className="flex items-center gap-3">
@@ -56,7 +56,7 @@ export function WkLogs() {
                 <select
                   value={tail}
                   onChange={(e) => setTail(Number(e.target.value))}
-                  className="rounded-sm border border-wk-edge bg-wk-ink px-1.5 py-0.5 font-mono text-xs text-wk-parchment"
+                  className="rounded-sm border border-fk-edge bg-fk-void px-1.5 py-0.5 font-mono text-xs text-fk-bone"
                 >
                   {TAILS.map((t) => (
                     <option key={t} value={t}>
@@ -69,7 +69,7 @@ export function WkLogs() {
                 onClick={() => setFollow((f) => !f)}
                 className={cn(
                   "rounded-sm border px-2 py-0.5 text-xs uppercase tracking-[0.08em] transition",
-                  follow ? "border-wk-runedim text-wk-rune" : "border-wk-edge text-wk-mist hover:text-wk-parchment",
+                  follow ? "border-fk-flamedim text-fk-flame" : "border-fk-edge text-fk-lichen hover:text-fk-bone",
                 )}
               >
                 {follow ? "following" : "paused"}
@@ -80,29 +80,29 @@ export function WkLogs() {
           <div
             ref={wellRef}
             aria-live="polite"
-            className="max-h-[65vh] overflow-y-auto rounded bg-wk-ink px-3.5 py-2.5 font-mono text-xs leading-[1.75]"
+            className="max-h-[65vh] overflow-y-auto rounded bg-fk-void px-3.5 py-2.5 font-mono text-xs leading-[1.75]"
           >
-            {logsQuery.isLoading && <span className="text-wk-mist">Fetching the log…</span>}
+            {logsQuery.isLoading && <span className="text-fk-lichen">Fetching the log…</span>}
             {logsQuery.isError && (
-              <span className="text-wk-ember">
+              <span className="text-fk-spore">
                 The log is out of reach. The flameagent serves it for supervised servers; a stopped agent or a
                 companion-mode setup has nothing to tail.
               </span>
             )}
             {lines.map((line, i) => (
-              <div key={i} className={wkLogTone(line)}>
+              <div key={i} className={fkLogTone(line)}>
                 {line}
               </div>
             ))}
             {!logsQuery.isLoading && !logsQuery.isError && lines.length === 0 && (
-              <span className="text-wk-mist">Nothing in the log yet.</span>
+              <span className="text-fk-lichen">Nothing in the log yet.</span>
             )}
           </div>
-          <WkNote>
-            Tailing the supervised process's output — the same stream as RSDragonwilds.log. Join and leave lines light
-            in rune; errors in ember.
-          </WkNote>
-        </WkPanel>
+          <FkNote>
+            Tailing the supervised process's output — the same stream as enshrouded_server.log. Join and leave lines
+            light in flame; errors in spore red.
+          </FkNote>
+        </FkPanel>
       </div>
     </div>
   );

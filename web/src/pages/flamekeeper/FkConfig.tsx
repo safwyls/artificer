@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { api, ApiError, type ConfigSetting } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { copyText } from "../../lib/utils";
-import { WkNote, WkPanel } from "../../components/flamekeeper/WkPanel";
+import { FkNote, FkPanel } from "../../components/flamekeeper/FkPanel";
 import {
   Dialog,
   DialogContent,
@@ -32,13 +32,13 @@ function SettingRow({
   const dirty = draft !== undefined && draft !== setting.value;
 
   return (
-    <div className="flex items-center gap-2.5 border-t border-wk-edge py-2 first:border-t-0">
-      <span className="w-44 shrink-0 font-mono text-xs text-wk-rune">{setting.key}</span>
+    <div className="flex items-center gap-2.5 border-t border-fk-edge py-2 first:border-t-0">
+      <span className="w-44 shrink-0 font-mono text-xs text-fk-flame">{setting.key}</span>
       {setting.type === "bool" ? (
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="rounded-sm border border-wk-edge bg-wk-ink px-2 py-1 font-mono text-xs text-wk-parchment"
+          className="rounded-sm border border-fk-edge bg-fk-void px-2 py-1 font-mono text-xs text-fk-bone"
         >
           <option value="True">True</option>
           <option value="False">False</option>
@@ -49,24 +49,24 @@ function SettingRow({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           spellCheck={false}
-          className="min-w-0 flex-1 rounded-sm border border-wk-edge bg-wk-ink px-2 py-1 font-mono text-xs text-wk-parchment outline-none focus:border-wk-runedim"
+          className="min-w-0 flex-1 rounded-sm border border-fk-edge bg-fk-void px-2 py-1 font-mono text-xs text-fk-bone outline-none focus:border-fk-flamedim"
         />
       )}
       {secret && (
         <button
           onClick={() => setRevealed((r) => !r)}
           title={revealed ? "Hide value" : "Reveal value"}
-          className="text-wk-mist transition hover:text-wk-parchment"
+          className="text-fk-lichen transition hover:text-fk-bone"
         >
           {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
         </button>
       )}
-      {dirty && <span className="text-[10px] uppercase tracking-[0.08em] text-wk-brasshi">edited</span>}
+      {dirty && <span className="text-[10px] uppercase tracking-[0.08em] text-fk-stonehi">edited</span>}
     </div>
   );
 }
 
-export function WkConfig() {
+export function FkConfig() {
   const { serverID } = useParams();
   const id = Number(serverID);
   const { can, isAdmin } = useAuth();
@@ -102,14 +102,13 @@ export function WkConfig() {
 
   if (!can("settings")) {
     return (
-      <div className="flamekeeper min-h-full font-wkbody">
+      <div className="flamekeeper min-h-full font-fkbody">
         <div className="mx-auto max-w-[1180px] p-4 lg:p-7">
-          <WkPanel title="DedicatedServer.ini">
-            <p className="text-sm text-wk-mist">
-              The config file holds the admin and world passwords in the clear, so reading it needs the settings
-              permission.
+          <FkPanel title="enshrouded_server.json">
+            <p className="text-sm text-fk-lichen">
+              The config file holds the role passwords in the clear, so reading it needs the settings permission.
             </p>
-          </WkPanel>
+          </FkPanel>
         </div>
       </div>
     );
@@ -123,24 +122,24 @@ export function WkConfig() {
   const dirtyCount = Object.keys(changes).length;
 
   return (
-    <div className="flamekeeper min-h-full font-wkbody">
+    <div className="flamekeeper min-h-full font-fkbody">
       <div className="mx-auto max-w-[1180px] space-y-3.5 p-4 lg:p-7">
-        <WkPanel title="DedicatedServer.ini" meta={config ? config.path : "restart to apply"}>
-          {configQuery.isLoading && <p className="text-sm text-wk-mist">Reading the file…</p>}
+        <FkPanel title="enshrouded_server.json" meta={config ? config.path : "restart to apply"}>
+          {configQuery.isLoading && <p className="text-sm text-fk-lichen">Reading the file…</p>}
           {noPath && (
-            <p className="text-sm text-wk-mist">
+            <p className="text-sm text-fk-lichen">
               No config path is set for this server. Point Settings → Config path at{" "}
-              <code className="font-mono text-xs text-wk-rune">Saved/Config/LinuxServer/DedicatedServer.ini</code> (or
-              its folder) to edit it here.
+              <code className="font-mono text-xs text-fk-flame">enshrouded_server.json</code> in the install root (or
+              the folder holding it) to edit it here.
             </p>
           )}
           {configQuery.isError && !noPath && (
-            <p className="text-sm text-wk-ember">{(configQuery.error as Error).message}</p>
+            <p className="text-sm text-fk-spore">{(configQuery.error as Error).message}</p>
           )}
           {config && (
             <>
               {!config.writable && (
-                <p className="mb-2 text-xs text-wk-ember">
+                <p className="mb-2 text-xs text-fk-spore">
                   The file is on a read-only mount — edits here will fail until it's mounted read-write.
                 </p>
               )}
@@ -154,18 +153,18 @@ export function WkConfig() {
                   />
                 ))}
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-wk-edge pt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-fk-edge pt-3">
                 <button
                   onClick={() => save.mutate(changes)}
                   disabled={dirtyCount === 0 || save.isPending}
-                  className="rounded border border-wk-brass bg-gradient-to-b from-[#2a2416] to-[#1e1a10] px-4 py-1.5 text-sm font-bold tracking-[0.05em] text-wk-brasshi transition hover:brightness-125 disabled:opacity-40"
+                  className="rounded border border-fk-stone bg-gradient-to-b from-[#2b2f26] to-[#1d211a] px-4 py-1.5 text-sm font-bold tracking-[0.05em] text-fk-stonehi transition hover:brightness-125 disabled:opacity-40"
                 >
                   {save.isPending ? "Saving…" : dirtyCount > 0 ? `Save ${dirtyCount} change${dirtyCount > 1 ? "s" : ""}` : "Save changes"}
                 </button>
                 {dirtyCount > 0 && (
                   <button
                     onClick={() => setDrafts({})}
-                    className="rounded border border-wk-edge px-3 py-1.5 text-sm text-wk-mist transition hover:text-wk-parchment"
+                    className="rounded border border-fk-edge px-3 py-1.5 text-sm text-fk-lichen transition hover:text-fk-bone"
                   >
                     Discard
                   </button>
@@ -174,36 +173,38 @@ export function WkConfig() {
                   <button
                     onClick={() => rotate.mutate()}
                     disabled={rotate.isPending}
-                    className="ml-auto rounded border border-wk-edge px-3 py-1.5 text-sm text-wk-mist transition hover:border-wk-brass hover:text-wk-brasshi disabled:opacity-50"
+                    className="ml-auto rounded border border-fk-edge px-3 py-1.5 text-sm text-fk-lichen transition hover:border-fk-stone hover:text-fk-stonehi disabled:opacity-50"
                   >
                     {rotate.isPending ? "Rotating…" : "Rotate admin password"}
                   </button>
                 )}
               </div>
-              <WkNote>
-                Edits apply on the next restart; the game overwrites live edits. Only existing keys can change, values
-                are checked against their current type, and the previous file is kept one level deep as{" "}
-                <code className="font-mono not-italic text-wk-rune">.flamekeeper.bak</code>. Rotating the admin password
-                revokes every active admin session once the server restarts.
-              </WkNote>
+              <FkNote>
+                Edits apply on the next restart. Only existing keys can change, values are checked against their
+                current type, and the previous file is kept one level deep as{" "}
+                <code className="font-mono not-italic text-fk-flame">.bak</code>. Role passwords and difficulty presets
+                beyond these scalars are Phase 2's role editor — until then the gameSettings block only applies when{" "}
+                <code className="font-mono not-italic text-fk-flame">gameSettingsPreset</code> is{" "}
+                <code className="font-mono not-italic text-fk-flame">Custom</code>.
+              </FkNote>
             </>
           )}
-        </WkPanel>
+        </FkPanel>
       </div>
 
       <Dialog open={rotated !== null} onOpenChange={(open) => !open && setRotated(null)}>
-        <DialogContent className="flamekeeper border-wk-edge bg-wk-panel font-wkbody text-wk-parchment">
+        <DialogContent className="flamekeeper border-fk-edge bg-fk-panel font-fkbody text-fk-bone">
           <DialogHeader>
-            <DialogTitle className="font-wkdisplay tracking-[0.06em] text-wk-brasshi">
+            <DialogTitle className="font-fkdisplay tracking-[0.06em] text-fk-stonehi">
               Admin password rotated
             </DialogTitle>
-            <DialogDescription className="text-wk-mist">
-              This is the only time the new password is shown. Every current admin session is revoked when the server
-              next restarts; hand this to the people who should keep the keys.
+            <DialogDescription className="text-fk-lichen">
+              This is the only time the new password is shown. It gates the next join — whoever should hold kick/ban
+              types it at the join screen; previous holders lose the role when they next rejoin.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center gap-2 rounded bg-wk-ink px-3 py-2.5">
-            <code className="flex-1 font-mono text-sm text-wk-parchment">{rotated}</code>
+          <div className="flex items-center gap-2 rounded bg-fk-void px-3 py-2.5">
+            <code className="flex-1 font-mono text-sm text-fk-bone">{rotated}</code>
             <button
               onClick={async () => {
                 if (rotated && (await copyText(rotated))) {
@@ -212,9 +213,9 @@ export function WkConfig() {
                 }
               }}
               title="Copy password"
-              className="text-wk-mist transition hover:text-wk-parchment"
+              className="text-fk-lichen transition hover:text-fk-bone"
             >
-              {copied ? <Check className="h-4 w-4 text-wk-ok" /> : <Copy className="h-4 w-4" />}
+              {copied ? <Check className="h-4 w-4 text-fk-ok" /> : <Copy className="h-4 w-4" />}
             </button>
           </div>
         </DialogContent>

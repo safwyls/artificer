@@ -9,7 +9,7 @@ import { serverColor, initials } from "../lib/palette";
 import { FEATURE_ROUTES, featureLabel } from "../lib/games";
 import { canSeeFeature, serverFeatures } from "../lib/visibility";
 import { cn, copyText, joinAddressFor } from "../lib/utils";
-import { WkServerRune } from "./flamekeeper/WkServerRune";
+import { FkServerFlame } from "./flamekeeper/FkServerFlame";
 import { ServerFormDialog } from "./ServerFormDialog";
 import { AddServerFlow } from "./AddServerFlow";
 import { DeleteServerDialog } from "./DeleteServerDialog";
@@ -21,7 +21,7 @@ import { ShutdownDialog } from "./ServerActionDialogs";
 const segmentClass = ({ isActive }: { isActive: boolean }) =>
   cn(
     "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-sm font-semibold transition",
-    isActive ? "bg-wk-ember text-wk-parchment" : "text-wk-parchment/60",
+    isActive ? "bg-fk-spore text-fk-bone" : "text-fk-bone/60",
   );
 
 /** Mobile top bar: active server identity, Dashboard/Live map segmented control,
@@ -65,10 +65,10 @@ export function MobileTopBar({ server }: { server: Server | null }) {
   });
 
   const menuItem =
-    "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-wk-parchment hover:bg-wk-parchment/5 transition-colors";
+    "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-fk-bone hover:bg-fk-bone/5 transition-colors";
 
   return (
-    <div className="shrink-0 bg-wk-ink px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] text-wk-parchment">
+    <div className="shrink-0 bg-fk-void px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] text-fk-bone">
       <div className="flex items-center justify-between">
         {server ? (
           <div className="flex min-w-0 items-center gap-2.5">
@@ -76,13 +76,13 @@ export function MobileTopBar({ server }: { server: Server | null }) {
               className="sphere-ring h-9 w-9 shrink-0 rounded-full p-[2px]"
               style={{ "--ring-color": serverColor(server.id) } as React.CSSProperties}
             >
-              <span className="flex h-full w-full items-center justify-center rounded-full bg-wk-raise font-display text-xs font-bold">
+              <span className="flex h-full w-full items-center justify-center rounded-full bg-fk-fog font-display text-xs font-bold">
                 {initials(server.name)}
               </span>
             </span>
             <div className="min-w-0">
               <p className="truncate font-display text-sm font-bold leading-tight">{server.name}</p>
-              <p className="font-mono text-[11px] text-wk-parchment/50">
+              <p className="font-mono text-[11px] text-fk-bone/50">
                 {infoQuery.isSuccess
                   ? `${infoQuery.data.playerCount} online`
                   : infoQuery.isError
@@ -93,7 +93,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
           </div>
         ) : (
           <div className="flex items-center gap-2.5">
-            <div className="clip-notch h-8 w-8 rounded-full bg-gradient-to-br from-wk-ember to-wk-brasshi" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-fk-stone bg-fk-panel font-fkdisplay text-base text-fk-flame">F</div>
             <p className="font-display text-sm font-bold">Flamekeeper</p>
           </div>
         )}
@@ -101,14 +101,14 @@ export function MobileTopBar({ server }: { server: Server | null }) {
         <div className="relative">
           <button
             onClick={() => setMenuOpen((o) => !o)}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-wk-panel text-sm text-wk-parchment/70"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-fk-panel text-sm text-fk-bone/70"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-10 z-30 w-52 overflow-hidden rounded-xl border border-wk-edge bg-wk-bg text-wk-parchment shadow-lg">
+              <div className="absolute right-0 top-10 z-30 w-52 overflow-hidden rounded-xl border border-fk-edge bg-fk-void text-fk-bone shadow-lg">
                 {server && (
                   <>
                     {/* Mobile has no page header, so the dashboard's refresh
@@ -132,7 +132,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                         }
                       }}
                     >
-                      <RefreshCw className="h-4 w-4 text-wk-parchment/50" /> Refresh
+                      <RefreshCw className="h-4 w-4 text-fk-bone/50" /> Refresh
                     </button>
                     {/* The join-address chip is desktop-header only, and a
                         phone is where you'd paste it into Discord. */}
@@ -144,7 +144,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                         if (await copyText(address)) toast.success(`Copied ${address}`);
                       }}
                     >
-                      <Gamepad2 className="h-4 w-4 text-wk-parchment/50" /> Copy join address
+                      <Gamepad2 className="h-4 w-4 text-fk-bone/50" /> Copy join address
                     </button>
                     {can("save") && (
                       <button
@@ -154,7 +154,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                           save.mutate();
                         }}
                       >
-                        <Save className="h-4 w-4 text-wk-parchment/50" /> Save world
+                        <Save className="h-4 w-4 text-fk-bone/50" /> Save world
                       </button>
                     )}
                     {can("shutdown") && (
@@ -165,7 +165,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                           setShutdownOpen(true);
                         }}
                       >
-                        <Power className="h-4 w-4 text-wk-ember" /> Shut down…
+                        <Power className="h-4 w-4 text-fk-spore" /> Shut down…
                       </button>
                     )}
                     {isAdmin && (
@@ -177,7 +177,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                             setEditOpen(true);
                           }}
                         >
-                          <Pencil className="h-4 w-4 text-wk-parchment/50" /> Edit server…
+                          <Pencil className="h-4 w-4 text-fk-bone/50" /> Edit server…
                         </button>
                         <button
                           className={menuItem}
@@ -186,11 +186,11 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                             setDeleteOpen(true);
                           }}
                         >
-                          <Trash2 className="h-4 w-4 text-wk-parchment/50" /> Remove server…
+                          <Trash2 className="h-4 w-4 text-fk-bone/50" /> Remove server…
                         </button>
                       </>
                     )}
-                    <div className="border-t border-wk-edge" />
+                    <div className="border-t border-fk-edge" />
                   </>
                 )}
                 <button
@@ -200,7 +200,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                     logout();
                   }}
                 >
-                  <LogOut className="h-4 w-4 text-wk-parchment/50" /> Log out {username}
+                  <LogOut className="h-4 w-4 text-fk-bone/50" /> Log out {username}
                 </button>
               </div>
             </>
@@ -209,7 +209,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
       </div>
 
       {server && (
-        <div ref={navRef} className="no-scrollbar scroll-fade-x mt-3 flex gap-0.5 overflow-x-auto rounded-xl bg-wk-panel p-1">
+        <div ref={navRef} className="no-scrollbar scroll-fade-x mt-3 flex gap-0.5 overflow-x-auto rounded-xl bg-fk-panel p-1">
           <NavLink to={`/servers/${server.id}`} end className={segmentClass}>
             Dashboard
           </NavLink>
@@ -257,9 +257,9 @@ export function MobileBottomRail({ servers, activeServerId }: { servers: Server[
   const goToServer = (id: number) => navigate(`/servers/${id}`);
 
   return (
-    <div className="flex shrink-0 items-center justify-around border-t border-black/20 bg-wk-ink pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
+    <div className="flex shrink-0 items-center justify-around border-t border-black/20 bg-fk-void pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
       {servers.map((server) => (
-        <WkServerRune
+        <FkServerFlame
           key={server.id}
           server={server}
           active={server.id === activeServerId}
@@ -270,7 +270,7 @@ export function MobileBottomRail({ servers, activeServerId }: { servers: Server[
         <>
           <button
             onClick={() => setAddOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-white/20 text-wk-parchment/40"
+            className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-white/20 text-fk-bone/40"
           >
             <Plus className="h-4 w-4" />
           </button>

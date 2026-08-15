@@ -24,12 +24,12 @@ const CONFIRM: Record<Action, { title: string; body: string; verb: string }> = {
   start: { title: "Start the server?", body: "The container will boot and players can connect once it's up.", verb: "Start" },
   stop: {
     title: "Stop the server?",
-    body: "Anyone playing will be disconnected. The stop is graceful, but the game does not save on shutdown — anything since the last autosave is lost.",
+    body: "Anyone playing will be disconnected. The stop is graceful and the game saves the world on the way down — nothing is lost.",
     verb: "Stop",
   },
   restart: {
     title: "Restart the server?",
-    body: "Anyone playing will be disconnected and the server will come straight back up. The game does not save on shutdown — anything since the last autosave is lost.",
+    body: "Anyone playing will be disconnected and the server will come straight back up. The game saves the world on the way down — nothing is lost.",
     verb: "Restart",
   },
 };
@@ -81,17 +81,17 @@ export function ServerPower({
     onError: (err) => toast.error(err instanceof Error ? err.message : "Action failed"),
   });
 
-  // On-demand world save, through the dwbridge mod. Support is discovered by
-  // doing: a game with no bridge answers 501 with its own explanation, which
-  // the toast relays — so the button shows for anyone with the save grant
-  // rather than guessing at capability up front.
+  // On-demand world save. Enshrouded has no trigger for one — the probe
+  // below answers a stable no and the button hides — but the machinery
+  // stays: it is the shared layer's, support is asked rather than assumed,
+  // and a future game (or a future Enshrouded API) lights it back up.
   const save = useMutation({
     mutationFn: () => api.save(serverId),
     onSuccess: () => {
       toast.success("World saved");
       // The proof is the world panel itself: "Last written" ticks to just
       // now and the save revision counts up.
-      queryClient.invalidateQueries({ queryKey: ["world", serverId] });
+      queryClient.invalidateQueries({ queryKey: ["backups", serverId] });
     },
     onError: (err) =>
       toast.error("Save failed", {
@@ -190,18 +190,18 @@ export function ServerPower({
   const agentPending = !!agentUrl && !agentAlive && updateStatus.isError;
 
   return (
-    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-wk-edge bg-wk-panel p-4 lg:p-5">
+    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-fk-edge bg-fk-panel p-4 lg:p-5">
       <div className="flex items-center gap-3">
         <span
           className={cn(
             "h-2.5 w-2.5 shrink-0 rounded-full",
             settingUp
-              ? "animate-pulse bg-wk-brasshi"
+              ? "animate-pulse bg-fk-stonehi"
               : running || (powerOff && agentAlive)
-                ? "bg-wk-ok"
+                ? "bg-fk-ok"
                 : agentPending
-                  ? "animate-pulse bg-wk-parchment/30"
-                  : "bg-wk-parchment/30",
+                  ? "animate-pulse bg-fk-bone/30"
+                  : "bg-fk-bone/30",
           )}
           aria-hidden
         />
@@ -213,7 +213,7 @@ export function ServerPower({
                 ? "Agent-managed"
                 : `Container ${running ? "running" : (state?.status ?? "unknown")}`}
           </p>
-          <p className="font-mono text-xs text-wk-parchment/40">
+          <p className="font-mono text-xs text-fk-bone/40">
             {powerOff ? (
               <>
                 {agentAlive ? "flameagent connected" : "flameagent unreachable — deploying, or the stack is down"} ·
@@ -237,7 +237,7 @@ export function ServerPower({
       {(!powerOff || canSave) && (
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {!powerOff && !allowed && (
-            <span className="text-xs text-wk-parchment/40">You don't have power permission</span>
+            <span className="text-xs text-fk-bone/40">You don't have power permission</span>
           )}
           <div className="flex flex-wrap items-center gap-2">
             {/* Logs share the power grant — same gate as the endpoint. */}
@@ -254,17 +254,15 @@ export function ServerPower({
                 reporting the container down, and the capability probe saying
                 this server has no way to save. Anything else stays clickable
                 and explains itself in the toast. */}
-            {canSave && (
+            {canSave && !saveBlocked && (
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={save.isPending || (!powerOff && powerAvailable && !running) || saveBlocked}
+                disabled={save.isPending || (!powerOff && powerAvailable && !running)}
                 title={
-                  saveBlocked
-                    ? saveCmd.reason
-                    : !powerOff && powerAvailable && !running
-                      ? "The server is not running"
-                      : "Ask the game to write the world to disk now"
+                  !powerOff && powerAvailable && !running
+                    ? "The server is not running"
+                    : "Ask the game to write the world to disk now"
                 }
                 onClick={() => save.mutate()}
               >
@@ -316,13 +314,13 @@ export function ServerPower({
           neither an agent nor an install path is configured — same principle
           as the card itself. */}
       {allowed && (agentUrl || installPath) && (
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-wk-edge pt-3">
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-fk-edge pt-3">
           <div>
             <p className="font-display text-sm font-bold">SteamCMD</p>
-            <p className="text-xs text-wk-parchment/40">
+            <p className="text-xs text-fk-bone/40">
               {jobRunning
                 ? "Updating the server install — this can take several minutes."
-                : "Stuck after a Dragonwilds patch? Clear the cache or re-run the update."}
+                : "Stuck after a game patch? Clear the cache or re-run the update."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -433,15 +431,11 @@ export function ServerPower({
                 >
                   {act.isPending ? "Working…" : CONFIRM[confirming].verb}
                 </Button>
-                {/* The warning above carries its own remedy: save first, and
-                    only go down if the save landed. A refused save (no
-                    dwbridge, agent down) toasts its reason and leaves the
-                    dialog open — plain Stop/Restart is still right there.
+                {/* Save-then-stop, for a game whose save can be asked for.
+                    Enshrouded's cannot (and saves on shutdown anyway), so
+                    the probe hides this; it stays for the shared layer.
                     Last in the footer so it takes the primary position in
-                    both directions the footer lays out: rightmost on a
-                    desktop row, topmost in the phone's reversed stack. The
-                    warning's own answer should not sit below the action it
-                    warns about. */}
+                    both directions the footer lays out. */}
                 {confirming !== "start" && canSave && !saveBlocked && (
                   <Button
                     variant="secondary"
@@ -466,21 +460,16 @@ export function ServerPower({
 }
 
 /**
- * Which of the game's two builds the agent launches.
- *
- * This is the setting the rest of the console reads capability from: the
- * native Linux build cannot load UE4SS, so a server on it will never save
- * on demand however healthy it looks. Switching is not a toggle — the two
- * builds come from different Steam depots — so the choice is confirmed, and
- * the consequences (re-download, restart) are stated before it is made
- * rather than discovered afterwards.
+ * Launch mode: how the agent runs the game. Enshrouded has exactly one
+ * build (Windows, under Wine), so this row is read-mostly — it exists to
+ * say what will run, to surface a custom command honestly, and to offer
+ * the agent-image rebuild when the image can't run the game at all.
  */
 function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean }) {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [switchTo, setSwitchTo] = useState<string | null>(null);
   const [rebuildOpen, setRebuildOpen] = useState(false);
-  const [installOpen, setInstallOpen] = useState(false);
 
   const launchQuery = useQuery({
     queryKey: ["launch", serverId],
@@ -522,25 +511,6 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
     onError: (err) => toast.error("Could not rebuild the agent", { description: errorDetail(err) }),
   });
 
-  // One-click mod support: the agent copies the UE4SS+dwbridge kit baked
-  // into its Wine image next to the server exe. Offered exactly when the
-  // agent says it can act (kit present, modded build selected, nothing
-  // installed yet) — every other state renders as text, not a dead button.
-  const installBridge = useMutation({
-    mutationFn: () => api.installBridge(serverId),
-    onSuccess: (res) => {
-      toast.success("Mod support installed", {
-        description: res.restartRequired
-          ? "The mod loads at process start — restart the server to activate it."
-          : "It will load when the server starts.",
-      });
-      setInstallOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["launch", serverId] });
-      queryClient.invalidateQueries({ queryKey: ["capabilities", serverId] });
-    },
-    onError: (err) => toast.error("Could not install mod support", { description: errorDetail(err) }),
-  });
-
   const launch = launchQuery.data;
   // A companion-mode agent (400) has no build to choose, and a server whose
   // agent is down shouldn't grow a broken control — in both cases the row
@@ -549,44 +519,30 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
   const options = launch.available ?? [];
 
   return (
-    <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-wk-edge pt-3">
+    <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-fk-edge pt-3">
       <div className="min-w-0">
         <p className="font-display text-sm font-bold">Launch mode</p>
-        <p className="text-xs text-wk-parchment/40">
+        <p className="text-xs text-fk-bone/40">
           {launch.runnable === false
-            ? "This agent's image has no Wine in it, so this build cannot start. Rebuild the agent on the Wine image."
+            ? "This agent's image cannot run the game (no Wine in it). Rebuild the agent on a current image."
             : launch.pendingRestart
-            ? `Running the previous build — restart to switch to ${LAUNCH_PROFILES[launch.profile]?.label ?? launch.profile}.`
+            ? `Running the previous selection — restart to switch to ${LAUNCH_PROFILES[launch.profile]?.label ?? launch.profile}.`
             : !launch.installed
-              ? "This build isn't downloaded yet — run Update server below, then start."
-              : (LAUNCH_PROFILES[launch.profile]?.blurb ??
-                (launch.mods ? "Can run the dwbridge mod." : "No mod support."))}
+              ? "The game isn't downloaded yet — run Update server below, then start."
+              : (LAUNCH_PROFILES[launch.profile]?.blurb ?? "Custom launch command, run exactly as configured.")}
         </p>
         {launch.runnable === false && isAdmin && (
           <button
             type="button"
             onClick={() => setRebuildOpen(true)}
-            className="mt-1 text-xs font-semibold text-wk-brasshi underline-offset-2 hover:underline"
+            className="mt-1 text-xs font-semibold text-fk-stonehi underline-offset-2 hover:underline"
           >
-            Rebuild agent on the Wine image →
-          </button>
-        )}
-        {/* The last mile from "the Windows build runs" to "commands work":
-            the agent lays its baked-in UE4SS+dwbridge kit next to the exe.
-            Gated on the agent's own report so the button can only appear
-            when the call would succeed. */}
-        {launch.mods && launch.runnable !== false && launch.installed && launch.bridgeKit && !launch.bridgeInstalled && canEdit && (
-          <button
-            type="button"
-            onClick={() => setInstallOpen(true)}
-            className="mt-1 text-xs font-semibold text-wk-brasshi underline-offset-2 hover:underline"
-          >
-            Install mod support →
+            Rebuild the agent →
           </button>
         )}
       </div>
       {options.length > 1 && (
-        <div className="flex items-center gap-1 rounded-lg bg-wk-ink p-1">
+        <div className="flex items-center gap-1 rounded-lg bg-fk-void p-1">
           {options.map((profile) => {
             const active = profile === launch.profile;
             return (
@@ -598,7 +554,7 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
                 onClick={() => !active && setSwitchTo(profile)}
                 className={cn(
                   "rounded-md px-3 py-1 text-xs font-semibold transition disabled:opacity-50",
-                  active ? "bg-wk-ember text-wk-parchment" : "text-wk-parchment/60 hover:text-wk-parchment",
+                  active ? "bg-fk-spore text-fk-bone" : "text-fk-bone/60 hover:text-fk-bone",
                 )}
               >
                 {LAUNCH_PROFILES[profile]?.label ?? profile}
@@ -611,42 +567,20 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
       <Dialog open={rebuildOpen} onOpenChange={(open) => !open && setRebuildOpen(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rebuild the agent on the Wine image?</DialogTitle>
+            <DialogTitle>Rebuild the agent?</DialogTitle>
             <DialogDescription>
               Flamekeeper stops this server, removes its agent container and creates it again from
-              <code className="mx-1 font-mono">flameagent:latest-wine</code>, keeping the same settings, ports and data
+              <code className="mx-1 font-mono">flameagent:latest</code>, keeping the same settings, ports and data
               directory. Your world and configuration live in the data directory and are not touched. The image is
-              large, so the pull can take several minutes.
+              large (Wine included), so the pull can take several minutes.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setRebuildOpen(false)}>
               Cancel
             </Button>
-            <Button disabled={rebuild.isPending} onClick={() => rebuild.mutate("latest-wine")}>
+            <Button disabled={rebuild.isPending} onClick={() => rebuild.mutate("latest")}>
               {rebuild.isPending ? "Rebuilding…" : "Rebuild agent"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={installOpen} onOpenChange={(open) => !open && setInstallOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Install mod support?</DialogTitle>
-            <DialogDescription>
-              Flamekeeper copies the proven UE4SS loader and the dwbridge mod from the agent&apos;s image into the
-              game install, next to the server executable. This is what makes on-demand saves (and any future
-              commands) work. Your world and settings are untouched, and nothing already installed is overwritten.
-              The mod loads when the game process starts, so a running server needs a restart afterwards.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setInstallOpen(false)}>
-              Cancel
-            </Button>
-            <Button disabled={installBridge.isPending} onClick={() => installBridge.mutate()}>
-              {installBridge.isPending ? "Installing…" : "Install mod support"}
             </Button>
           </DialogFooter>
         </DialogContent>

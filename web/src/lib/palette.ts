@@ -4,10 +4,10 @@
 // assignment (id/hash modulo palette) is all that's needed.
 
 export const PALETTE = [
-  "#4A9D7C", // wk-ok
-  "#5B9BD5", // wk-rune
-  "#E8491D", // wk-ember
-  "#F2A93B", // wk-brasshi
+  "#4A9D7C", // fk-ok
+  "#5B9BD5", // fk-flame
+  "#E8491D", // fk-spore
+  "#F2A93B", // fk-stonehi
   "#8B3A9E", // legendary
 ] as const;
 
@@ -34,9 +34,9 @@ export function initials(name: string): string {
 }
 
 export function pingColorClass(ping: number): string {
-  if (ping <= 60) return "text-wk-ok";
-  if (ping <= 120) return "text-wk-brasshi";
-  return "text-wk-ember";
+  if (ping <= 60) return "text-fk-ok";
+  if (ping <= 120) return "text-fk-stonehi";
+  return "text-fk-spore";
 }
 
 export function formatUptime(seconds: number): string {

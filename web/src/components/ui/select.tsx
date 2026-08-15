@@ -12,13 +12,13 @@ export function Select({ className, children, ...props }: React.SelectHTMLAttrib
       <select
         {...props}
         className={cn(
-          "w-full appearance-none rounded-lg border border-wk-edge bg-wk-panel py-1.5 pl-2.5 pr-8 text-sm text-wk-parchment transition-colors focus:border-wk-ember/50 focus:outline-none",
+          "w-full appearance-none rounded-lg border border-fk-edge bg-fk-panel py-1.5 pl-2.5 pr-8 text-sm text-fk-bone transition-colors focus:border-fk-spore/50 focus:outline-none",
           className,
         )}
       >
         {children}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-wk-parchment/40" />
+      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fk-bone/40" />
     </div>
   );
 }

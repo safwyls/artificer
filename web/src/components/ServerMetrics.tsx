@@ -40,21 +40,21 @@ export function ServerMetrics({
     {
       label: "Players online",
       value: `${m.currentplayernum} / ${m.maxplayernum}`,
-      color: "text-wk-ok",
+      color: "text-fk-ok",
       onClick: onPlayersClick,
     },
-    { label: "Server tick", value: `${m.serverframetime.toFixed(1)} ms`, color: "text-wk-rune" },
-    { label: "In-game days", value: String(m.days), color: "text-wk-brasshi" },
-    { label: "Uptime", value: formatUptime(m.uptime), color: "text-wk-parchment" },
+    { label: "Server tick", value: `${m.serverframetime.toFixed(1)} ms`, color: "text-fk-flame" },
+    { label: "In-game days", value: String(m.days), color: "text-fk-stonehi" },
+    { label: "Uptime", value: formatUptime(m.uptime), color: "text-fk-bone" },
   ];
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
       {stats.map((s) => {
-        const className = "rounded-2xl border border-wk-edge bg-wk-panel p-4 text-left lg:p-5";
+        const className = "rounded-2xl border border-fk-edge bg-fk-panel p-4 text-left lg:p-5";
         const body = (
           <>
-            <p className="text-xs font-semibold uppercase tracking-wide text-wk-parchment/50">{s.label}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-fk-bone/50">{s.label}</p>
             <p className={`mt-2 font-mono text-lg font-bold lg:text-2xl ${s.color}`}>{s.value}</p>
           </>
         );
@@ -62,7 +62,7 @@ export function ServerMetrics({
           <button
             key={s.label}
             onClick={s.onClick}
-            className={`${className} transition-colors hover:border-wk-ok/40 hover:bg-wk-ok/5`}
+            className={`${className} transition-colors hover:border-fk-ok/40 hover:bg-fk-ok/5`}
             title="Jump to the player list"
           >
             {body}

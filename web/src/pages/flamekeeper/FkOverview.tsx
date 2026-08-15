@@ -3,11 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { ServerPower } from "../../components/ServerPower";
-import { RuneSigil } from "../../components/flamekeeper/RuneSigil";
-import { WkNote, WkPanel, WkStat, wkLogTone } from "../../components/flamekeeper/WkPanel";
-import { WkPlayerRows } from "./WkAdventurers";
+import { FlameSigil } from "../../components/flamekeeper/FlameSigil";
+import { FkNote, FkPanel, FkStat, fkLogTone } from "../../components/flamekeeper/FkPanel";
+import { FkPlayerRows } from "./FkFlameborn";
 
-const MAX_PLAYERS = 6;
+// Enshrouded's hard slot cap. The configured slotCount can be lower; the
+// A2S query (roadmap Phase 2) is what will report the server's own number.
+const MAX_PLAYERS = 16;
 
 function uptimeLabel(seconds: number | undefined): string {
   if (!seconds || seconds <= 0) return "—";
@@ -28,7 +30,7 @@ function agoLabel(ts: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export function WkOverview() {
+export function FkOverview() {
   const { serverID } = useParams();
   const id = Number(serverID);
   const { can, isAdmin } = useAuth();
@@ -80,52 +82,55 @@ export function WkOverview() {
   const uptime = metricsQuery.data?.uptime;
   const lastEvent = activityQuery.data?.events[0];
   const latestBackup = backupsQuery.data?.snapshots?.[0];
-  // The official sizing rule, not a measurement: 2 GB base + 1 GB a player.
-  const memoryEstimate = 2 + count;
+  // The community sizing observation, not a measurement of this host:
+  // ~4.4 GB idle plus ~100 MB a player, growing with terrain edits
+  // (docs/enshrouded-recon.md, "Runtime behavior").
+  const memoryEstimate = Math.round((4.4 + count * 0.1) * 10) / 10;
 
   return (
-    <div className="flamekeeper min-h-full font-wkbody">
+    <div className="flamekeeper min-h-full font-fkbody">
       <div className="mx-auto max-w-[1180px] space-y-3.5 p-4 lg:p-7">
         {/* Hero */}
         <section
           aria-label="Server status"
-          className="wk-corners grid grid-cols-[96px,1fr] items-center gap-5 rounded-md border border-wk-brass bg-gradient-to-br from-wk-panel via-[#161d28] to-[#131a24] px-5 py-5 sm:grid-cols-[132px,1fr] sm:px-6"
+          className="fk-toplight grid grid-cols-[96px,1fr] items-center gap-5 rounded-md border border-fk-edge bg-gradient-to-br from-fk-panel via-[#1a231d] to-[#151c17] px-5 py-5 sm:grid-cols-[132px,1fr] sm:px-6"
         >
-          <RuneSigil lit={count} total={MAX_PLAYERS} online={online} size={132} />
+          <FlameSigil lit={count} total={MAX_PLAYERS} online={online} size={132} />
           <div>
-            <h2 className="font-wkdisplay text-xl font-semibold tracking-[0.04em] text-wk-parchment sm:text-2xl">
+            <h2 className="font-fkdisplay text-2xl font-medium text-fk-bone sm:text-3xl">
               {server.name}
             </h2>
-            <div className="mt-1 text-sm text-wk-mist">
+            <div className="fk-horizon mt-2" />
+            <div className="mt-2 text-sm text-fk-lichen">
               {online ? (
                 <>
-                  Uptime <b className="font-medium text-wk-brasshi">{uptimeLabel(uptime)}</b> · Port{" "}
-                  <b className="font-medium text-wk-brasshi">{server.gamePort}/udp</b>
+                  Uptime <b className="font-medium text-fk-stonehi">{uptimeLabel(uptime)}</b> · Port{" "}
+                  <b className="font-medium text-fk-stonehi">{server.gamePort}/udp</b>
                 </>
               ) : (
-                "The keep is dark — the server process is not running."
+                "The flame is out — the server process is not running."
               )}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <span
                 className={
                   online
-                    ? "rounded-sm border border-wk-runedim px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-wk-rune"
-                    : "rounded-sm border border-wk-emberdim px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-wk-ember"
+                    ? "rounded-sm border border-fk-flamedim px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-fk-flame"
+                    : "rounded-sm border border-fk-sporedim px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-fk-spore"
                 }
               >
                 ◈ {online ? "Online" : "Offline"}
               </span>
               {infoQuery.data?.version && (
-                <span className="rounded-sm border border-wk-edge px-2.5 py-0.5 font-mono text-[11.5px] text-wk-mist">
+                <span className="rounded-sm border border-fk-edge px-2.5 py-0.5 font-mono text-[11.5px] text-fk-lichen">
                   {infoQuery.data.version}
                 </span>
               )}
-              <span className="rounded-sm border border-wk-edge px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-wk-mist">
-                Epic auth
+              <span className="rounded-sm border border-fk-edge px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-fk-lichen">
+                Steam auth
               </span>
-              <span className="rounded-sm border border-wk-edge px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-wk-mist">
-                {MAX_PLAYERS}-player cap
+              <span className="rounded-sm border border-fk-edge px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-fk-lichen">
+                {MAX_PLAYERS}-slot cap
               </span>
             </div>
           </div>
@@ -138,30 +143,30 @@ export function WkOverview() {
 
         {/* Vitals */}
         <section aria-label="Vitals" className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
-          <WkStat
-            label="Adventurers"
+          <FkStat
+            label="Flameborn"
             value={online ? count : "—"}
             unit={`/ ${MAX_PLAYERS}`}
             hint={online ? `${MAX_PLAYERS - count} slots open` : "server offline"}
             meterPct={(count / MAX_PLAYERS) * 100}
           />
-          <WkStat
+          <FkStat
             label="Memory guide"
             value={online ? memoryEstimate : "—"}
             unit="GB"
-            hint="2 GB base + 1 GB × adventurer"
-            meterPct={(memoryEstimate / (2 + MAX_PLAYERS)) * 100}
+            hint="≈4 GB idle + ~100 MB × player; 16 GB floor"
+            meterPct={(memoryEstimate / 16) * 100}
             warm
           />
-          <WkStat label="Uptime" value={uptimeLabel(uptime)} hint={online ? "since last start" : "server offline"} />
+          <FkStat label="Uptime" value={uptimeLabel(uptime)} hint={online ? "since last start" : "server offline"} />
           {isAdmin ? (
-            <WkStat
+            <FkStat
               label="Latest backup"
               value={latestBackup ? agoLabel(latestBackup.ts) : "none"}
               hint={latestBackup ? latestBackup.name : "run one from World saves"}
             />
           ) : (
-            <WkStat
+            <FkStat
               label="Last event"
               value={lastEvent ? agoLabel(lastEvent.ts) : "—"}
               hint={lastEvent ? `${lastEvent.name} ${lastEvent.event === "join" ? "joined" : "left"}` : "nothing in 24h"}
@@ -171,73 +176,74 @@ export function WkOverview() {
 
         <div className="grid grid-cols-1 items-start gap-3.5 lg:grid-cols-5">
           <div className="space-y-3.5 lg:col-span-3">
-            <WkPanel
-              title="Adventurers"
+            <FkPanel
+              title="Flameborn"
               meta={
-                <Link to={`/servers/${id}/players`} className="text-wk-brasshi hover:text-wk-parchment">
+                <Link to={`/servers/${id}/players`} className="text-fk-stonehi hover:text-fk-bone">
                   view all →
                 </Link>
               }
               bodyClassName="pt-1.5"
             >
-              <WkPlayerRows serverId={id} players={players} online={online} loading={playersQuery.isLoading} />
-            </WkPanel>
+              <FkPlayerRows serverId={id} players={players} online={online} loading={playersQuery.isLoading} />
+            </FkPanel>
 
             {can("power") && (
-              <WkPanel
+              <FkPanel
                 title="Server log"
                 meta={
-                  <Link to={`/servers/${id}/logs`} className="text-wk-brasshi hover:text-wk-parchment">
+                  <Link to={`/servers/${id}/logs`} className="text-fk-stonehi hover:text-fk-bone">
                     open log →
                   </Link>
                 }
               >
-                <div className="max-h-[240px] overflow-y-auto rounded bg-wk-ink px-3.5 py-2.5 font-mono text-xs leading-[1.75]">
+                <div className="max-h-[240px] overflow-y-auto rounded bg-fk-void px-3.5 py-2.5 font-mono text-xs leading-[1.75]">
                   {logsQuery.data?.lines?.length ? (
                     logsQuery.data.lines.map((line, i) => (
-                      <div key={i} className={wkLogTone(line)}>
+                      <div key={i} className={fkLogTone(line)}>
                         {line}
                       </div>
                     ))
                   ) : (
-                    <span className="text-wk-mist">
+                    <span className="text-fk-lichen">
                       {logsQuery.isError ? "The log is out of reach — is the flameagent up?" : "No log lines yet."}
                     </span>
                   )}
                 </div>
-                <WkNote>
-                  No native console — command execution needs the <code className="font-mono not-italic text-wk-rune">dwbridge</code>{" "}
-                  mod. Everything above is log-tail and config driven.
-                </WkNote>
-              </WkPanel>
+                <FkNote>
+                  Enshrouded has no server console or admin API — everything
+                  above is derived from the log tail, and moderation lives in
+                  the in-game player menu.
+                </FkNote>
+              </FkPanel>
             )}
           </div>
 
           <div className="space-y-3.5 lg:col-span-2">
-            <WkPanel title="World saves" meta="ZFS-friendly archives">
+            <FkPanel title="World saves" meta="rolling copies + archives">
               {isAdmin ? (
                 latestBackup ? (
                   <div className="space-y-1 text-sm">
-                    <div className="font-mono text-xs text-wk-parchment">{latestBackup.name}</div>
-                    <div className="text-xs text-wk-mist">{agoLabel(latestBackup.ts)}</div>
-                    <Link to={`/servers/${id}/saves`} className="inline-block pt-1 text-xs text-wk-brasshi hover:text-wk-parchment">
+                    <div className="font-mono text-xs text-fk-bone">{latestBackup.name}</div>
+                    <div className="text-xs text-fk-lichen">{agoLabel(latestBackup.ts)}</div>
+                    <Link to={`/servers/${id}/saves`} className="inline-block pt-1 text-xs text-fk-stonehi hover:text-fk-bone">
                       manage saves →
                     </Link>
                   </div>
                 ) : (
-                  <div className="text-sm text-wk-mist">
+                  <div className="text-sm text-fk-lichen">
                     No snapshots yet.{" "}
-                    <Link to={`/servers/${id}/saves`} className="text-wk-brasshi hover:text-wk-parchment">
+                    <Link to={`/servers/${id}/saves`} className="text-fk-stonehi hover:text-fk-bone">
                       Take the first →
                     </Link>
                   </div>
                 )
               ) : (
-                <div className="text-sm text-wk-mist">Save snapshots are steward-only.</div>
+                <div className="text-sm text-fk-lichen">Save snapshots are steward-only.</div>
               )}
-            </WkPanel>
+            </FkPanel>
 
-            <WkPanel title="Recent activity" meta="last 24h">
+            <FkPanel title="Recent activity" meta="last 24h">
               {activityQuery.data?.events.length ? (
                 <ul className="space-y-1.5 text-sm">
                   {activityQuery.data.events.slice(0, 6).map((e) => (
@@ -246,21 +252,21 @@ export function WkOverview() {
                         <span
                           className={
                             e.event === "join"
-                              ? "mr-2 inline-block h-[7px] w-[7px] rounded-full bg-wk-ok"
+                              ? "mr-2 inline-block h-[7px] w-[7px] rounded-full bg-fk-ok"
                               : "mr-2 inline-block h-[7px] w-[7px] rounded-full bg-[#3a4148]"
                           }
                         />
-                        <b className="font-bold text-wk-parchment">{e.name}</b>{" "}
-                        <span className="text-wk-mist">{e.event === "join" ? "joined" : "left"}</span>
+                        <b className="font-bold text-fk-bone">{e.name}</b>{" "}
+                        <span className="text-fk-lichen">{e.event === "join" ? "joined" : "left"}</span>
                       </span>
-                      <span className="whitespace-nowrap text-xs text-wk-mist">{agoLabel(e.ts)}</span>
+                      <span className="whitespace-nowrap text-xs text-fk-lichen">{agoLabel(e.ts)}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="text-sm text-wk-mist">Quiet on the walls — no joins or leaves in 24 hours.</div>
+                <div className="text-sm text-fk-lichen">Quiet above the fog — no joins or leaves in 24 hours.</div>
               )}
-            </WkPanel>
+            </FkPanel>
           </div>
         </div>
       </div>

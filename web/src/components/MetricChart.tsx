@@ -117,19 +117,19 @@ export function MetricChart({
   }
 
   return (
-    <div className={cn("rounded-xl border border-wk-edge bg-wk-panel p-4", className)}>
+    <div className={cn("rounded-xl border border-fk-edge bg-fk-panel p-4", className)}>
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-wk-parchment/50">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-fk-bone/50">{label}</p>
         {hasData && activeValue !== null && (
           <p className="font-mono text-lg font-bold" style={{ color }}>
             {format(activeValue)}
-            {unit && <span className="ml-0.5 text-xs font-medium text-wk-parchment/40">{unit}</span>}
+            {unit && <span className="ml-0.5 text-xs font-medium text-fk-bone/40">{unit}</span>}
           </p>
         )}
       </div>
 
       {!hasData ? (
-        <p className="flex h-[90px] items-center justify-center text-xs text-wk-parchment/40">
+        <p className="flex h-[90px] items-center justify-center text-xs text-fk-bone/40">
           No samples in this window yet.
         </p>
       ) : (
@@ -183,7 +183,7 @@ export function MetricChart({
                   y1={0}
                   y2={H}
                   stroke="currentColor"
-                  className="text-wk-parchment/20"
+                  className="text-fk-bone/20"
                   strokeWidth={1}
                   vectorEffect="non-scaling-stroke"
                 />
@@ -200,7 +200,7 @@ export function MetricChart({
             )}
           </svg>
 
-          <div className="mt-1 flex justify-between font-mono text-[10px] text-wk-parchment/35">
+          <div className="mt-1 flex justify-between font-mono text-[10px] text-fk-bone/35">
             <span>
               low {format(dataLo)} · high {format(dataHi)}
             </span>

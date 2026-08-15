@@ -15,8 +15,8 @@ export function ServerUnreachable() {
         />
       </svg>
       <div>
-        <p className="font-wkdisplay text-lg font-semibold tracking-[0.05em] text-wk-parchment">The eye is dark</p>
-        <p className="mt-1 max-w-md text-sm text-wk-mist">
+        <p className="font-fkdisplay text-lg font-semibold tracking-[0.05em] text-fk-bone">The eye is dark</p>
+        <p className="mt-1 max-w-md text-sm text-fk-lichen">
           Couldn't reach the server — check that it's running and that its flameagent is reachable from Flamekeeper.
         </p>
       </div>
