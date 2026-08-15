@@ -131,6 +131,13 @@ before touching code, same drill as Phase 0.
   (docs/architecture.md).
 - Ilmari owns container placement; this console must never grow Docker
   rights back. "Adding a third console needs no code in Ilmari" is a
-  promise this repo relies on — keep it true from this side too.
+  promise this repo relies on — keep it true from this side too. The
+  deploy stacks therefore carry no docker socket at all (the sibling
+  consoles' scoped socket proxy was dropped, 2026-08-15): every power
+  path tries the flameagent first and an agent-supervised server never
+  reaches the docker branch. `DOCKER_HOST` stays supported in code for
+  an agentless server — a shape this console does not create — and if
+  that ever becomes common, the honest fix is teaching the watchdog to
+  work through the agent, not restoring the proxy by default.
 - Every capability claim in the UI must be probe-derived or honestly
   501-reasoned; a button that cannot work is a bug even when it renders.

@@ -29,29 +29,19 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      # Optional: enables the start/stop/restart controls. Points at the
-      # scoped proxy below, never at the host's docker socket directly —
-      # that socket is root-equivalent, and Flametender has no business
-      # holding it. Leave unset to run without power control. Servers run
-      # by a flameagent sidecar don't need this at all: power goes through
-      # the agent.
-      - DOCKER_HOST=tcp://docker-proxy:2375
-    restart: unless-stopped
-
-  # Grants exactly two things: reading container state, and POSTing
-  # start/stop/restart. It cannot create containers, mount volumes, or read
-  # images, so a compromise of Flametender can at worst bounce a game server.
-  # Only this container touches the docker socket.
-  docker-proxy:
-    image: ghcr.io/tecnativa/docker-socket-proxy:latest
-    environment:
-      - CONTAINERS=1   # inspect container state
-      - POST=1         # allow start/stop/restart (read-only without this)
-      # Stopping asks the game to exit cleanly first, so the container
-      # records exit code 0 rather than being SIGKILLed as "crashed".
-      # Everything else stays off. Notably IMAGES, VOLUMES, NETWORKS, EXEC
-      # and the swarm APIs, any of which would widen this well past
-      # "bounce a game server".
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # No DOCKER_HOST, and no docker socket anywhere in this stack. Every
+      # server Flametender raises is a supervisor-mode flameagent — the
+      # agent *is* the game process — so power, scheduled restarts, updates
+      # and logs all travel over the agent's own API, and every one of
+      # those paths tries the agent before it would ever reach docker
+      # (internal/api/power.go, internal/sched). Container placement is
+      # Ilmari's, which is the only thing on the host holding the socket.
+      #
+      # The code still accepts DOCKER_HOST for the one shape this console
+      # doesn't produce: a game server someone deployed as a plain
+      # container with no agent beside it. If you have one of those, add a
+      # scoped socket proxy (ghcr.io/tecnativa/docker-socket-proxy with
+      # CONTAINERS=1 and POST=1, socket mounted :ro) and point DOCKER_HOST
+      # at it — never at the host socket directly, which is
+      # root-equivalent.
     restart: unless-stopped

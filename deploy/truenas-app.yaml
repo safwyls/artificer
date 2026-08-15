@@ -55,12 +55,11 @@ services:
       <<: *secrets
       HTTP_ADDR: ":8080"
       DATA_DIR: /data
-      # Power control (start/stop/restart buttons) for game servers that
-      # run as containers on this box WITHOUT a flameagent sidecar. Servers
-      # fronted by a flameagent don't need this — power goes through the
-      # agent — so if every server has an agent you can drop this line
-      # and the docker-proxy service entirely.
-      DOCKER_HOST: tcp://docker-proxy:2375
+      # No DOCKER_HOST: every server this console raises is a
+      # supervisor-mode flameagent, so power, scheduled restarts, updates
+      # and logs travel over the agent's API and never need a socket. See
+      # the note at the bottom if you ever add an agentless server.
+      #
       # One-click provisioning from the "Raise a server" wizard, through
       # the shared Ilmari host service (github.com/safwyls/ilmari) already
       # running on this box for wildskeeper and palcon. Flametender ships
@@ -75,20 +74,6 @@ services:
     networks:
       - default
       - flametender-net
-
-  # Scoped docker socket proxy: Flametender never touches the socket
-  # directly (root-equivalent). This grants exactly container inspect +
-  # start/stop/restart — a compromised console can at worst bounce a game
-  # server. Remove if every game server is agent-managed (see above).
-  docker-proxy:
-    image: ghcr.io/tecnativa/docker-socket-proxy:latest
-    restart: unless-stopped
-    environment:
-      CONTAINERS: "1"   # inspect container state
-      POST: "1"         # allow start/stop/restart
-      # Everything else (IMAGES, VOLUMES, NETWORKS, EXEC, swarm) stays off.
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 networks:
   flametender-net:
@@ -116,3 +101,17 @@ networks:
 # The wizard proposes free ones; when wildskeeper or palcon share the
 # box, eyeball `docker ps` for collisions anyway — port proposals can't
 # see rows in the *other* consoles' databases, only live containers.
+#
+# Servers without an agent
+#
+# This stack holds no docker socket at all — it doesn't need one, and the
+# sibling consoles' scoped socket proxy was dropped here deliberately.
+# The code still honours DOCKER_HOST for the one shape this console never
+# creates: a game server deployed as a plain container with no flameagent
+# beside it. To manage one, add a scoped proxy service
+# (ghcr.io/tecnativa/docker-socket-proxy, CONTAINERS=1, POST=1, socket
+# mounted :ro) and set DOCKER_HOST to it — never the host socket itself,
+# which is root-equivalent. Note that Ilmari already holds the real
+# socket on this box; it deliberately exposes placement verbs only
+# (provision/recreate/destroy/discover/adopt), never start/stop, so it
+# cannot stand in for this.
