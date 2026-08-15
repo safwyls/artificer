@@ -1,18 +1,25 @@
 # Enshrouded dedicated server — recon
 
 Compiled 2026-08-15 from web sources and the two dominant community docker
-projects' tracked code. **Nothing in this document has been verified
-against a real server yet** — that is Phase 1's first deployment's job,
-and the "Verification ledger" at the bottom tracks what a live server has
-since confirmed. Until a fact is checked off there, treat it exactly as
-its confidence marker says.
+projects' tracked code, then **partly verified the same day against a real
+server** (build `b466cef15`, game version 1024233, raised through the
+wizard on the NAS with a real client joining). The "Verification ledger"
+at the bottom is the running record of what that server has and has not
+settled; until a fact is checked off there, treat it exactly as its
+confidence marker says.
 
-Confidence markers: **[official]** = Keen docs (enshrouded.zendesk.com) or
-first-party, directly or via mirrors; **[code]** = read directly from the
-docker projects' tracked source ([jsknnr/enshrouded-server], [mornedhels/
+Confidence markers: **[verified]** = observed on our own server, with the
+date; **[official]** = Keen docs (enshrouded.zendesk.com) or first-party,
+directly or via mirrors; **[code]** = read directly from the docker
+projects' tracked source ([jsknnr/enshrouded-server], [mornedhels/
 enshrouded-server]); **[community]** = hosting guides / wiki / forums,
 plausible but not first-party; **[uncertain]** = conflicting or
 unverifiable.
+
+The first capture already overturned one section outright: the log line
+vocabulary (see Logs) bore little resemblance to the community quotes,
+which is why the roster read empty on a server with someone playing on
+it. Treat every remaining **[community]** marker with that in mind.
 
 [jsknnr/enshrouded-server]: https://github.com/jsknnr/enshrouded-server
 [mornedhels/enshrouded-server]: https://github.com/mornedhels/enshrouded-server
@@ -87,13 +94,21 @@ Durations are **nanosecond int64s** — which is why esconfig parses with
 table, cross-checked against jsknnr's example) **[official via mirrors +
 code]**:
 
+Note the log's own dump renders these oddly — floats as quoted decimal
+strings, durations as `{"value": 1800000000000}`, and
+`perkUpgradeRecyclingFactor` as a float32 hex bit pattern. That is the
+*log* format, not the file's; `enshrouded_server.json` takes plain JSON
+numbers.
+
 floats 0.25–4ish (default 1 unless noted): `playerHealthFactor`,
 `playerManaFactor`, `playerStaminaFactor`, `playerBodyHeatFactor`
 (0.5–2), `playerDivingTimeFactor` (0.5–2), `foodBuffDurationFactor`
 (0.5–2), `shroudTimeFactor` (0.5–2), `miningDamageFactor` (0.5–2),
 `plantGrowthSpeedFactor` (0.25–2), `resourceDropStackAmountFactor`
 (0.25–2), `factoryProductionSpeedFactor` (0.25–2),
-`perkUpgradeRecyclingFactor` (0–1; default 0.5 vs 0.1 **[uncertain]**),
+`perkUpgradeRecyclingFactor` (0–1; default **0.5 [verified]** — a real
+server logs it as `"3f000000"`, the float32 bit pattern for 0.5, settling
+the jsknnr-vs-mornedhels disagreement),
 `perkCostFactor` (0.25–2), `experienceCombatFactor` (0.25–2),
 `experienceMiningFactor` (~0–2), `experienceExplorationQuestsFactor`
 (0.25–2), `enemyDamageFactor` (0.25–5), `enemyHealthFactor` (0.25–4),
@@ -159,31 +174,77 @@ explicitly required **no config changes** **[community]**.
 
 ## Logs
 
-- `<logDirectory>/enshrouded_server.log` (latest); older logs auto-archive
-  into `<logDirectory>/backup/`. The exe writes the file, not stdout —
-  jsknnr symlinks the log to the container's stdout. **[official via
-  mirrors + code]** Under flameagent the supervisor captures the process
-  stdout ring; whether the wine-run exe also mirrors to stdout is
-  **[unverified]** — if it doesn't, the agent will need to tail the log
-  file into its ring (a small, planned adjustment; see the ledger).
-- Line format: `[<I|W|E> HH:MM:SS,mmm] [component] message`; the
-  timestamp is time-since-start.
-- Exact lines (verbatim from user-posted logs in jsknnr issue #16 and
-  hosting KBs — **[community, verbatim quotes]**; the eslog RulesV1 table
-  is written against these):
-  - first line: `[enshrouded] Create logfile`
-  - version banner: `enshrouded_server(detached HEAD) - version <git-sha>
-    (master)` — a commit hash, **not** the marketing version.
-  - Steam up: `[OnlineProviderSteam] 'Initialize' (up)!`
-  - **ready**: `[Session] 'HostOnline' (up)!` then `[Session] finished
-    transition from 'Lobby' to 'Host_Online' …`
-  - **join**: `[online] Session accepted with peer ( id 76561198… ).`
-    then `[online] Added Peer #0.` — **SteamID64 only, no player name.**
-  - **leave**: `[online] Session failed for peer #0 with error 4.` then
-    `[online] Removed Peer #0.`
-  - save: `[server] Start Saving`; on failure `[server] Failed to save`.
-    The success-completion line is **[uncertain]** — verify on a real
-    server.
+**Rewritten 2026-08-15 from a real capture** (build `b466cef15`, game
+version 1024233, a real client joining and leaving). Everything in this
+section is now **[verified]** unless marked otherwise; the community
+quotes it replaces are kept at the bottom because the difference is the
+whole reason the rules table is versioned.
+
+- The exe writes `<logDirectory>/enshrouded_server.log`, **and the same
+  stream reaches stdout** — flameagent's supervisor ring captures it,
+  Wine's own startup chatter included. No logfile tail is needed.
+- **There is no timestamp or level prefix.** Lines begin directly with
+  their component tag: `[os]`, `[app]`, `[online]`, `[server]`,
+  `[Session]`, `[savedata]`, `[ecss]`. (The community-sourced
+  `[I 00:00:14,325] …` shape is not what a current build emits.)
+- Boot is thousands of lines: `[Server][Water] Added Water Dispenser: …`
+  per body of water, `[guid_registry]` entries, the full task-system
+  dump. An idle server then prints a session table every ~10 s (four
+  lines) plus `[ecss] Stats:` every minute. **Consequence:** the agent's
+  2000-line ring holds roughly 80 minutes of idle server, so anything
+  that must not be missed has to be read from the ring promptly rather
+  than reconstructed later.
+
+Load-bearing lines, verbatim (ids synthetic here):
+
+```
+enshrouded_server(detached HEAD) - version b466cef15… (master)   build hash
+Game Version (SVN): 1024233                                      the version number
+Config Parsed: 'Z:/enshrouded/enshrouded_server.json'            config read, Wine path
+[server] Game Settings 'Default'                                 preset in force, then a full dump
+[savedata] Start 'Open Container' on container 3ad85aea          the save slot
+[online] Server SteamId: 90291000105583638
+[OnlineProviderSteam] 'Initialize' (up)!                         steam up
+[Session] 'HostOnline' (up)!                                     READY — accepting joins
+[online] Session accepted with peer (steamid:76561190000000001)
+[online] Added peer 0(1) (steamid:76561190000000001)             JOIN — peer(machine) + id
+[online] Client '76561190000000001' authenticated by steam
+[server] Machine '1': Player '0(0)' logged in                    a player *handle*, not a name
+[server] Player 'Ember' logged in with Permissions:              NAME, then the role's perms
+[server] Start Saving … [server] Saved                           a world write, bracketed
+[server] Remove Player 'Ember'
+[online] Removed peer 0(1)                                       LEAVE
+```
+
+Three things this settles for the parser (`eslog`):
+
+1. **The join line carries the SteamID64 itself**, so nothing has to be
+   paired across lines to know who joined.
+2. **Names are in the log** — `[server] Player '<name>' logged in with
+   Permissions:` — which is why the A2S query is no longer the only route
+   to them. The name line carries no peer index, so names attach FIFO to
+   joins still awaiting one.
+3. **`[server] Machine 'M': Player 'P(x)' logged in` is a trap**: its
+   quoted value is a handle (`0(0)`), not a name. The `with Permissions`
+   tail is what tells the two apart.
+
+Also confirmed here: the permissions block printed at login lists exactly
+the capabilities of the role group whose password the player used
+(`CanAccessInventories`, `CanEditBase`, `CanEditWorld`, `CanExtendBase`,
+`CanReceiveEXP` for a non-admin group) — a direct read-back that the
+seeded `userGroups` are in force.
+
+**Not yet seen:** a failed save (`[server] Failed to save` is still
+community-sourced), a kick/ban, a second simultaneous joiner, and a
+version-mismatch join rejection.
+
+**Superseded community quotes** (jsknnr issue #16 and hosting KBs,
+2024-era builds) — `[online] Session accepted with peer ( id … ).`,
+`[online] Added Peer #0.`, `[online] Removed Peer #0.`, and "no player
+name in the log". `eslog` RulesV1 was written from these and matched
+nothing on a live server, which is exactly what the versioned rules table
+exists to absorb.
+
 - How the popular images derive state: mornedhels greps `'HostOnline'
   (up)!` for readiness and uses A2S for counts; jsknnr parses nothing and
   checks the UDP bind. **[code]**
@@ -242,29 +303,64 @@ explicitly required **no config changes** **[community]**.
 
 ## Verification ledger
 
-Facts the code currently *rests on* that a first real deployment must
-confirm. Check each off (with date and evidence) as it lands; a fact that
-fails moves its dependent code, not just this list.
+What a real server has settled, and what is still resting on someone
+else's report. First deployment: **2026-08-15**, TrueNAS, provisioned
+through Ilmari, one client joined and played.
 
-- [ ] SteamCMD installs app 2278520 with the windows platform override,
+Confirmed 2026-08-15:
+
+- [x] SteamCMD installs app 2278520 with the windows platform override,
       from flameagent's install job.
-- [ ] The exe boots under plain wine64 (no Proton) on the flameagent
-      image, headless, and creates `logs/` + `savegame/`.
-- [ ] The supervisor's stdout ring actually captures the game log under
-      Wine — or the agent needs to tail `logs/enshrouded_server.log`
-      instead (eslog is transport-agnostic either way).
-- [ ] `[Session] 'HostOnline' (up)!` appears verbatim; a real client join
-      emits the accepted/Added Peer pair with the SteamID64; leave emits
-      Removed Peer. (eslog RulesV1 is written from community captures.)
-- [ ] SIGINT to the process group reaches the exe and produces a clean
-      save-on-shutdown within the 120 s grace.
-- [ ] The seeded `enshrouded_server.json` is accepted by the game (it
-      boots, binds the seeded queryPort, both role passwords work at the
-      join screen).
-- [ ] The game honors `queryPort` enforcement on restart, and only the
-      one UDP port needs publishing.
-- [ ] Save layout matches: hex-named world file + `-index` JSON under
-      `savegame/`; the save bundle and backups capture a restorable set.
+- [x] The exe boots under plain wine64 (no Proton) on the flameagent
+      image, headless. Wine builds its prefix at
+      `/enshrouded/.wineprefix` on first run, as configured.
+- [x] The supervisor's stdout ring captures the game log — Wine's own
+      messages included. **No logfile tail is needed**, which was the
+      riskiest open assumption.
+- [x] The seeded `enshrouded_server.json` is read and accepted:
+      `Config Parsed: 'Z:/enshrouded/enshrouded_server.json'`, and the
+      Wine `Z:` mapping of the install root works.
+- [x] Role groups are in force: a joining player's logged permission list
+      is exactly the non-admin group's capabilities, so the seeded
+      passwords and `canKickBan` split work at the join screen.
+- [x] `[Session] 'HostOnline' (up)!` appears verbatim — readiness
+      detection is sound.
+- [x] Join, name and leave lines — **but not in the shape the community
+      quotes claimed**; see Logs. `eslog` RulesV2 is written from this
+      capture, and player *names* turn out to be in the log after all.
+- [x] The save slot is the hex-named container `3ad85aea`, as the
+      community tooling assumes.
+- [x] A world write is bracketed by `[server] Start Saving` …
+      `[server] Saved` (the completion line was previously
+      **[uncertain]**), and one fires when a player leaves.
+- [x] `perkUpgradeRecyclingFactor` defaults to 0.5.
+- [x] The server binds and is reachable on the single published UDP port;
+      a client found and joined it.
+
+Still open:
+
+- [ ] **SIGINT stop**: that the graceful stop reaches the exe through
+      Wine and produces a clean save-on-shutdown inside the 120 s grace.
+      (Observed only that a *player leave* triggers a save.)
+- [ ] **A2S from off-host** — the Phase 2 gate. Now worth less than
+      planned, since names come from the log; its remaining value is
+      authoritative presence, the real `slotCount`, and a liveness signal
+      that doesn't depend on log inference.
 - [ ] `bannedAccounts` element format (bare SteamID64 strings vs
       objects) — needed before the Phase 2 bans editor.
-- [ ] Whether A2S answers on the query port from off-host (Phase 2 gate).
+- [ ] A failed save (`[server] Failed to save`) is still community-sourced.
+- [ ] A second *simultaneous* joiner, which is the case the FIFO name
+      attachment in `eslog` is reasoned about but unproven against.
+- [ ] What a version-mismatch join rejection looks like in the log (the
+      Phase 4 update watcher would like to recognise it).
+- [ ] Whether the save layout grows the `-1`…`-10` rolling copies and the
+      `-index` pointer as documented — needs a few days of autosave
+      rotation, and gates the Phase 3 reader.
+
+Known gap, not a game fact: an idle server prints a session table every
+~10 s, so the agent's 2000-line ring holds roughly **80 minutes**. If the
+*console* restarts more than that after a player joined, their join line
+has scrolled out and they will be missing from the roster until they
+rejoin. (The game process can't outlive its agent, so an agent restart
+can't strand a session.) A2S closes this properly; the session table's
+`m#N` machine list is a cruder fallback if it ever bites.

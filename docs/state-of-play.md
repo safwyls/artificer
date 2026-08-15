@@ -67,7 +67,7 @@ and log-independent liveness.
 
 `go test ./...` and `cd web && npm test` green; production build fine.
 
-**Done on this branch:** the whole Phase 1 transplant — rename
+**Done:** the whole Phase 1 transplant — rename
 (wildskeeper→flametender, wkagent→flameagent, WKAGENT_*→FLAMEAGENT_*),
 the strips above, `internal/games/enshrouded` (definition + derived
 client + honest 501s), `esconfig` (parse/edit/seed/enforce with
@@ -77,26 +77,30 @@ profile, windows-depot SteamCMD, json config verbs with validation,
 savegame/ bundle, SIGINT stop), Ilmari-only wizard, deploy files, docs,
 and the Flametender frontend theme.
 
-**Verified against a real server: NOTHING YET.** This is the most
-important sentence in the file. Every game-facing fact is
-community-sourced (the recon doc's markers say which kind), and the recon
-doc's **verification ledger** is the first deployment's checklist. The
-riskiest assumptions, in order:
+**Deployed and played on 2026-08-15.** A server was raised through the
+wizard on the NAS, installed itself, booted under Wine, and a real client
+joined and played on it. The recon doc's **verification ledger** now
+records what that settled and what it didn't — read it before trusting
+any remaining **[community]** marker.
 
-1. **Does the supervisor's stdout ring see the game log at all under
-   Wine?** The exe writes `logs/enshrouded_server.log`; jsknnr symlinks
-   it to stdout, which suggests the exe itself may write little or
-   nothing to stdout. If the ring stays empty, the fix is small and
-   contained — the agent tails the log file into the same ring — but
-   until then the player list and eslog derive from an unproven source.
-2. **Wine-from-Debian actually runs the server headless** on the
-   flameagent image (guides prove wine64 works; this image's exact
-   package set is unproven — expect the first container boot to find a
-   missing dependency or a prefix quirk).
-3. **The log line vocabulary** (eslog RulesV1) is written from community
-   captures of 2024–2025 builds, not our own capture on v0.9.1.x.
-4. **The seeded config is accepted** and the role passwords work at the
-   join screen.
+What the first deployment proved, in the order the risks were ranked:
+
+1. **The stdout ring does see the game log** — the top risk, closed. No
+   logfile tail needed; Wine's own messages land in the same ring.
+2. **Wine-from-Debian runs the server headless** on the flameagent image,
+   building its prefix inside the install volume as configured.
+3. **The seeded config is accepted and the role groups work** — a joining
+   player's logged permissions are exactly the non-admin group's.
+4. **The log vocabulary was wrong**, and this was the one real bug: the
+   community-sourced lines (`Added Peer #0.`) bear no resemblance to what
+   a current build emits (`Added peer 0(1) (steamid:…)`), so the roster
+   read empty while someone was playing. `eslog` RulesV2 is now written
+   from our own capture — and the capture also showed that **player names
+   are in the log**, which the community sources denied.
+
+Still unproven: the SIGINT stop's clean save-on-shutdown, A2S from
+off-host, the ban list's element format, and the save's rolling-copy
+rotation. All are ledger rows.
 
 ## Running it locally
 
@@ -108,14 +112,15 @@ loop meanwhile.
 
 ## Suggested next steps
 
-1. **Deploy for real** (the Phase 1 exit): build the two images, register
-   flametender as an Ilmari client on the NAS, raise a server through
-   the wizard, join it, and work through the recon doc's verification
-   ledger — checking rows off with dates, and moving code where a fact
-   fails. Budget for the stdout-vs-logfile finding (risk #1 above).
-2. **Then Phase 2** (`docs/roadmap.md`): the A2S client is the highest
-   value-per-line item in the plan — names, real slotCount, and honest
-   liveness for a couple hundred lines of pure Go.
+1. **Finish the ledger**: the open rows are a clean stop (does SIGINT
+   reach the exe through Wine and save?), A2S reachability, the ban list
+   format, and the save's rolling-copy rotation after a few days. Each
+   one gates something later.
+2. **Then Phase 2** (`docs/roadmap.md`), re-scoped by the first capture:
+   names now come from the log, so the A2S client is worth less than
+   planned and the moderation surface (ban list, role editor) is worth
+   more. A2S still buys authoritative presence, the real `slotCount`, and
+   a roster that survives a console restart mid-session.
 3. Keep `docs/porting-to-another-game.md` honest if the seams move: it
    is the document the *fourth* console will be built from.
 

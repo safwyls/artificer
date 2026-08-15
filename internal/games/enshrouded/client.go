@@ -33,7 +33,7 @@ func trackerFor(agentURL string) *eslog.Tracker {
 	defer trackersMu.Unlock()
 	t, ok := trackers[agentURL]
 	if !ok {
-		t = eslog.NewTracker(eslog.RulesV1)
+		t = eslog.NewTracker(eslog.RulesV2)
 		trackers[agentURL] = t
 	}
 	return t
@@ -115,10 +115,13 @@ func (c *Client) Info(ctx context.Context) (*game.ServerInfo, error) {
 	}, nil
 }
 
-// Players is the log-derived session list. Enshrouded's log identifies
-// players by SteamID64 only — names never appear in it — so the id is
-// both the identity and, for now, the display name. The A2S player query
-// (roadmap Phase 2) is the path to real names.
+// Players is the log-derived session list. The join line carries the
+// SteamID64 and a login line a few lines later carries the display name
+// (verified against a real server, 2026-08-15), so both are real here:
+// the id is the identity, the name is the label. A session whose name
+// line hasn't arrived — or scrolled past before the console started
+// watching — falls back to the id, then to the peer index; a roster row
+// with a worse label beats a missing player.
 func (c *Client) Players(ctx context.Context) ([]game.Player, error) {
 	st, err := c.refresh(ctx)
 	if err != nil {
@@ -131,12 +134,17 @@ func (c *Client) Players(ctx context.Context) ([]game.Player, error) {
 	players := make([]game.Player, 0, len(sessions))
 	for _, s := range sessions {
 		uid := CanonicalUID(s.SteamID)
-		name := uid
+		name := s.Name
 		if name == "" {
-			// A session whose accepted-id line scrolled past unseen still
-			// deserves a row; the peer number is the only handle left.
+			name = uid
+		}
+		if uid == "" {
+			// Nothing identifying survived; the peer index is the only
+			// handle left, and it is at least stable for this session.
+			uid = fmt.Sprintf("peer-%d", s.Peer)
+		}
+		if name == "" {
 			name = fmt.Sprintf("Peer #%d", s.Peer)
-			uid = name
 		}
 		players = append(players, game.Player{
 			Name:      name,

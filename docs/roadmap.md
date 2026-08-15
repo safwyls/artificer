@@ -45,7 +45,11 @@ the game-specific packages.
 
 **Exit criterion:** the recon ledger's Phase-1 rows are checked against a
 real server raised through the wizard, and a real client has joined and
-played.
+played. **Met 2026-08-15**, with one bug found and fixed by it: the
+log-line vocabulary was community-sourced and wrong, so the roster read
+empty on a live server (`eslog` RulesV2 is written from our own capture
+now). The same capture showed player names *are* in the log — see the
+Phase 2 re-scope below.
 
 ## Phase 2 — live presence and moderation surface
 
@@ -53,14 +57,16 @@ played.
 ledger.**
 
 1. **A2S query client** (`esquery`, pure Go, ~200 lines: A2S_INFO +
-   A2S_PLAYER with the challenge handshake). This is the game's one
-   native query surface and upgrades three things at once: player
-   *names* (the log only carries SteamID64s), the real configured
-   `slotCount` for charts (Metrics currently reports the 16 cap), and a
-   liveness signal that doesn't depend on log inference. Console-side,
+   A2S_PLAYER with the challenge handshake). **Re-scoped 2026-08-15**:
+   names now come from the log, so this no longer gates the roster's
+   readability, and it drops below the moderation items in value. What it
+   still buys: authoritative presence ("right now", independent of log
+   inference), the real configured `slotCount` for charts (Metrics
+   reports the 16-slot cap today), and a roster that survives a console
+   restart later than the agent's ~80-minute log ring. Console-side,
    querying `host:gamePort` directly; falls back to log-derived when the
-   port isn't reachable from the console. Keep both sources honest: log
-   tracker owns join/leave *history*, A2S owns "right now".
+   port isn't reachable. Keep both honest: the log tracker owns join and
+   leave *history*, A2S owns the present.
 2. **Ready state**: surface eslog's `HostOnline` in the Overview
    ("starting" vs "accepting players"), since a booting server binds its
    port well before it accepts joins.

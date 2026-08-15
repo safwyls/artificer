@@ -197,18 +197,21 @@ func fakeEnshroudedAgent(t *testing.T, lines []string) string {
 	return srv.URL
 }
 
-// The player list is derived from the agent's log tail: an accepted-id
-// line supplies the SteamID64, the Added Peer line opens the session, and
-// Removed Peer closes it. Names never appear in Enshrouded's log, so the
-// id doubles as the display name.
+// The player list is derived from the agent's log tail, in the shapes a
+// real server emits (verified 2026-08-15): the join line carries the
+// SteamID64, a login line a few lines later carries the display name, and
+// the peer-removal line closes the session. Ids and names here are
+// synthetic — real player ids never enter the repo.
 func TestEnshroudedPlayersDerivedFromAgentLogs(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 	agentURL := fakeEnshroudedAgent(t, []string{
-		"[online] Session accepted with peer ( id 76561198000000001 ).",
-		"[online] Added Peer #0.",
-		"[online] Session accepted with peer ( id 76561198000000002 ).",
-		"[online] Added Peer #1.",
-		"[online] Removed Peer #1.",
+		"[Session] 'HostOnline' (up)!",
+		"[online] Added peer 0(1) (steamid:76561190000000001)",
+		"[server] Machine '1': Player '0(0)' logged in",
+		"[server] Player 'Ember' logged in with Permissions:",
+		"[online] Added peer 1(2) (steamid:76561190000000002)",
+		"[server] Player 'Wren' logged in with Permissions:",
+		"[online] Removed peer 1(2)",
 	})
 	id, err := app.store.CreateServer(context.Background(), &store.Server{
 		Name: "Grimwood", Game: "enshrouded", Host: "127.0.0.1", Enabled: true,
@@ -232,8 +235,10 @@ func TestEnshroudedPlayersDerivedFromAgentLogs(t *testing.T) {
 	if len(players) != 1 {
 		t.Fatalf("players = %+v, want just the peer that never left", players)
 	}
-	if players[0].PlayerUID != "76561198000000001" || players[0].Name != "76561198000000001" {
-		t.Errorf("player = %+v, want the SteamID64 as both id and name", players[0])
+	// The id identifies, the name labels — and the handle line's "0(0)"
+	// must never have been mistaken for either.
+	if players[0].PlayerUID != "76561190000000001" || players[0].Name != "Ember" {
+		t.Errorf("player = %+v, want the SteamID64 as id and the logged name as label", players[0])
 	}
 }
 

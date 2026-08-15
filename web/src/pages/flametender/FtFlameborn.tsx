@@ -43,9 +43,9 @@ export function FtPlayerRows({
           <tr key={p.userId}>
             <td className="border-t border-ft-edge px-2.5 py-2.5">
               <span className="mr-2 inline-block h-[7px] w-[7px] rounded-full bg-ft-flame shadow-[0_0_5px_rgba(127,195,240,.6)]" />
-              {/* The log carries SteamID64s only, so the id doubles as the
-                  name until the A2S query (roadmap Phase 2) brings real
-                  ones. Mono, because it is an identifier being honest. */}
+              {/* Usually the player's own name; the SteamID64 when the
+                  login line that carries it scrolled past unseen. Mono
+                  either way, since one of the two forms is an id. */}
               <span className="font-mono text-[13px] font-bold text-ft-bone">{p.name}</span>
             </td>
             <td className="border-t border-ft-edge px-2.5 py-2.5 text-right">
@@ -99,7 +99,7 @@ export function FtFlameborn() {
       <div className="mx-auto max-w-[1180px] space-y-3.5 p-4 lg:p-7">
         <FtPanel
           title="Flameborn"
-          meta="derived from the server log · Steam IDs until the A2S query lands"
+          meta="derived from the server log · name and Steam ID per join"
           bodyClassName="pt-1.5"
         >
           <FtPlayerRows
