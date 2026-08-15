@@ -198,51 +198,6 @@ func (c *Client) Job(ctx context.Context, id string) (*Job, error) {
 	return res.Job, nil
 }
 
-// BridgeCommand relays a dwbridge command to the agent, returning the mod's
-// data payload (which may be nil). The error vocabulary is the shared one:
-// ErrRejected when the mod doesn't implement the command (the agent's 400),
-// and a plain error carrying the agent's message on 503 when the bridge is
-// down. The timeout is generous because the far end is a game tick, not an
-// HTTP handler — the agent applies its own tighter bound on the mod round
-// trip and this only needs to outlast it.
-func (c *Client) BridgeCommand(ctx context.Context, command string, args map[string]string) (json.RawMessage, error) {
-	var res struct {
-		Data json.RawMessage `json:"data"`
-	}
-	body := map[string]any{"command": command, "args": args}
-	if err := c.do(ctx, http.MethodPost, "/v1/bridge/command", body, &res, 30*time.Second); err != nil {
-		return nil, err
-	}
-	return res.Data, nil
-}
-
-// BridgeState fetches the live telemetry the dwbridge mod publishes
-// (player roster with positions, world clock). Available=false is a normal
-// answer on a modless or stopped server, not an error.
-func (c *Client) BridgeState(ctx context.Context) (*flameagent.BridgeState, error) {
-	var out flameagent.BridgeState
-	if err := c.do(ctx, http.MethodGet, "/v1/bridge/state", nil, &out, 10*time.Second); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InstallBridgeKit asks the agent to lay its baked-in UE4SS+dwbridge kit
-// next to the server exe (Wine image only; the plain image answers 501).
-// RestartRequired is true when the game was running, since the mod only
-// loads at process start.
-func (c *Client) InstallBridgeKit(ctx context.Context) (restartRequired bool, err error) {
-	var out struct {
-		RestartRequired bool `json:"restartRequired"`
-	}
-	// The kit is a few hundred files; give a slow volume more than the
-	// default verb timeout.
-	if err := c.do(ctx, http.MethodPost, "/v1/bridge/install", nil, &out, 60*time.Second); err != nil {
-		return false, err
-	}
-	return out.RestartRequired, nil
-}
-
 // SetLaunchProfile chooses which of the game's builds the agent starts next
 // — native Linux, or the Windows build under Wine that can carry the
 // dwbridge mod. It applies at the next start by design: the two builds come

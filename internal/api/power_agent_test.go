@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/store"
 	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // supervisorServer registers a server whose agent supervises a fake game.
@@ -24,11 +24,11 @@ func supervisorServer(t *testing.T, app *testApp) int64 {
 	t.Helper()
 	install := t.TempDir()
 	game := `#!/bin/sh
-trap 'echo "caught TERM"; exit 0' TERM
-echo "Palworld server booting"
+trap 'echo "caught INT"; exit 0' INT TERM
+echo "Enshrouded server booting"
 while true; do sleep 0.05; done
 `
-	if err := os.WriteFile(filepath.Join(install, "RSDragonwildsServer.sh"), []byte(game), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(install, "game.sh"), []byte(game), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	steamcmd := filepath.Join(t.TempDir(), "steamcmd")
@@ -37,7 +37,7 @@ while true; do sleep 0.05; done
 	}
 	agent, err := flameagent.New(flameagent.Config{
 		Token: agentToken, InstallDir: install, SteamCmd: steamcmd, Version: "test",
-		Mode: "supervisor", StopGrace: time.Second,
+		Mode: "supervisor", GameCommand: "./game.sh", StopGrace: time.Second,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	if err != nil {

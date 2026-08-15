@@ -11,14 +11,15 @@ import (
 	"strings"
 
 	"github.com/safwyls/flamekeeper/internal/agentfiles"
-	"github.com/safwyls/flamekeeper/internal/games/dragonwilds/dwconfig"
+	"github.com/safwyls/flamekeeper/internal/games/enshrouded/esconfig"
 	"github.com/safwyls/flamekeeper/internal/store"
 )
 
-// configCodec is one game's ini reader/writer behind a common wire shape.
-// palconfig and dwconfig deliberately share their policy (never add or
-// remove keys, type-validate, .bak, atomic swap) but not their types; this
-// is the seam that keeps the handlers below game-blind.
+// configCodec is one game's config reader/writer behind a common wire
+// shape. The sibling consoles' ini codecs and esconfig deliberately share
+// their policy (never add or remove keys, type-validate, .bak, atomic
+// swap) but not their types; this is the seam that keeps the handlers
+// below game-blind.
 type configCodec struct {
 	// filename names the file for user-facing labels and 404s.
 	filename      string
@@ -37,24 +38,24 @@ type configPayload struct {
 	Writable bool   `json:"writable"`
 }
 
-var dragonwildsCodec = &configCodec{
-	filename:      "DedicatedServer.ini",
-	notConfigured: dwconfig.ErrNotConfigured,
+var enshroudedCodec = &configCodec{
+	filename:      "enshrouded_server.json",
+	notConfigured: esconfig.ErrNotConfigured,
 	read: func(path string) (*configPayload, error) {
-		res, err := dwconfig.Read(path)
+		res, err := esconfig.Read(path)
 		if err != nil {
 			return nil, err
 		}
 		return &configPayload{Settings: res.Settings, Path: res.Path, Writable: res.Writable}, nil
 	},
-	write:               dwconfig.Write,
-	rotateAdminPassword: dwconfig.RotateAdminPassword,
+	write:               esconfig.WriteChanges,
+	rotateAdminPassword: esconfig.RotateAdminPassword,
 }
 
-// codecFor picks the ini codec for a server's game. One game today; the
-// seam stays so a second game slots in as a codec, not a rewrite.
+// codecFor picks the config codec for a server's game. One game today;
+// the seam stays so a second game slots in as a codec, not a rewrite.
 func codecFor(srv *store.Server) *configCodec {
-	return dragonwildsCodec
+	return enshroudedCodec
 }
 
 // resolveConfigPath yields the local directory palconfig operates on: the
@@ -198,11 +199,12 @@ func (s *Server) respondFreshConfig(w http.ResponseWriter, r *http.Request, srv 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleRotateAdminPassword generates a fresh AdminPassword and writes it to
-// the server's ini. For Dragonwilds this is the one real remote-admin lever:
-// the game revokes every password-session admin when the password changes
-// (on restart). The new password is returned exactly once and never logged
-// or audited by value.
+// handleRotateAdminPassword generates a fresh admin-role password and
+// writes it into enshrouded_server.json. For Enshrouded this is the one
+// real remote-admin lever: whoever holds it can join with kick/ban
+// rights, and rotating it locks out the previous holders at their next
+// join. The new password is returned exactly once and never logged or
+// audited by value.
 func (s *Server) handleRotateAdminPassword(w http.ResponseWriter, r *http.Request) {
 	srv, ok := s.loadServer(w, r)
 	if !ok {

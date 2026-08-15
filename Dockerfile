@@ -20,9 +20,6 @@ RUN CGO_ENABLED=0 go build -o /out/flamekeeper ./cmd/flamekeeper
 
 # ---- runtime ----
 FROM docker.io/library/alpine:3.22
-# No python3: the plan expected the save reader to shell out to a Python
-# GVAS tool, but the format turned out to be SPUD and the reader (dwsave)
-# is pure Go inside the binary.
 # Overridable so deployments can match the host owner of the /data bind
 # mount (e.g. TrueNAS's apps user, 568:568) at build time; at runtime a
 # compose `user:` line does the same job without rebuilding — the binary

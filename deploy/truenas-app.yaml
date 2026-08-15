@@ -61,20 +61,15 @@ services:
       # agent — so if every server has an agent you can drop this line
       # and the docker-proxy service entirely.
       DOCKER_HOST: tcp://docker-proxy:2375
-      # One-click provisioning from the "Raise a server" wizard. Uncomment
-      # both lines (and the wkprovisioner service below) to enable; leave
-      # commented to use the copy-paste flow instead — on TrueNAS the paste
-      # flow is actually the nicer fit, since one-click containers appear
-      # as "discovered" containers rather than as TrueNAS apps.
-      # PROVISIONER_URL: http://wkprovisioner:8811
-      # PROVISIONER_TOKEN: "CHANGE-ME-same-token-as-wkprovisioner"
+      # One-click provisioning from the "Raise a server" wizard, through
+      # the shared Ilmari host service (github.com/safwyls/ilmari) already
+      # running on this box for wildskeeper and palcon. Flamekeeper ships
+      # no provisioner of its own — one host, one Docker-socket holder.
       #
-      # Ilmari migration (docs/migration.md in the ilmari repo): setting
-      # ILMARI_URL routes provisioning through the shared host service
-      # instead, and wins over PROVISIONER_URL. Leave the PROVISIONER_*
-      # lines in place during the migration — the rollback is deleting
-      # these two lines and redeploying. The token is flamekeeper's OWN
-      # ilmari client token, not the provisioner's and not palcon's.
+      # Register flamekeeper as an Ilmari client first (its clients file;
+      # see "Registering with Ilmari" below), then uncomment. The token is
+      # flamekeeper's OWN client token, not wildskeeper's and not palcon's.
+      # Leave commented to use the copy-paste flow instead.
       # ILMARI_URL: http://192.168.1.CHANGE-ME:8820
       # ILMARI_TOKEN: "CHANGE-ME-flamekeeper-ilmari-token"
     networks:
@@ -95,28 +90,29 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
-  # OPTIONAL one-click provisioner (docs/sidecar-agent.md, phase 5). The
-  # one deliberately privileged piece: it holds the real docker socket and
-  # runs as root so it can create per-server containers and chown their
-  # data dirs. It can only instantiate the locked Dragonwilds template —
-  # no arbitrary images/mounts are expressible. Uncomment together with
-  # the PROVISIONER_* lines above.
-  #
-  # wkprovisioner:
-  #   image: ghcr.io/safwyls/flameagent:latest
-  #   user: "0:0"
-  #   restart: unless-stopped
-  #   environment:
-  #     FLAMEAGENT_MODE: provisioner
-  #     FLAMEAGENT_TOKEN: "CHANGE-ME-same-token-as-PROVISIONER_TOKEN"
-  #     FLAMEAGENT_DATA_ROOT: /mnt/tank/apps/dragonwilds-servers
-  #     FLAMEAGENT_PUBLIC_HOST: 10.0.0.5        # LAN IP players/dashboard reach this box on
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #     # MUST be the identical path inside and out: the provisioner mkdirs
-  #     # here and hands docker the same string as a host bind.
-  #     - /mnt/tank/apps/dragonwilds-servers:/mnt/tank/apps/dragonwilds-servers
-
 networks:
   flamekeeper-net:
     external: true
+
+# Registering with Ilmari
+#
+# Ilmari's design promise is that a new console needs no code there — only
+# a client registration. On the Ilmari app, add to its clients file (the
+# ILMARI_CLIENTS_FILE JSON array):
+#
+#   {"id": "flamekeeper",
+#    "token": "<openssl rand -hex 24 — the ILMARI_TOKEN above>",
+#    "dataRoot": "/mnt/tank/apps/enshrouded-servers",
+#    "envPrefix": "FLAMEAGENT_",
+#    "imagePrefixes": ["ghcr.io/safwyls/flameagent"]}
+#
+# then create + chown the data root (chown -R 1000:1000, or whatever
+# run-as the wizard will use) and redeploy Ilmari. Provisioned servers
+# land under that data root, one directory per server slug, each mounted
+# at /enshrouded in its flameagent container.
+#
+# Ports: Enshrouded uses ONE UDP port per server (default 15637 — game
+# traffic and Steam query together) plus the agent's TCP port (8811+).
+# The wizard proposes free ones; when wildskeeper or palcon share the
+# box, eyeball `docker ps` for collisions anyway — port proposals can't
+# see rows in the *other* consoles' databases, only live containers.

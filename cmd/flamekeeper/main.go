@@ -1,5 +1,5 @@
 // Command flamekeeper is Flamekeeper: a self-hosted management console for
-// RuneScape: Dragonwilds dedicated servers.
+// Enshrouded dedicated servers.
 package main
 
 import (
@@ -10,12 +10,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/advisor"
-	"github.com/safwyls/flamekeeper/internal/agentctl"
 	"github.com/safwyls/flamekeeper/internal/agentfiles"
 	"github.com/safwyls/flamekeeper/internal/api"
 	"github.com/safwyls/flamekeeper/internal/backup"
@@ -24,10 +21,8 @@ import (
 	"github.com/safwyls/flamekeeper/internal/crypto"
 	"github.com/safwyls/flamekeeper/internal/db"
 	"github.com/safwyls/flamekeeper/internal/dockerctl"
-	"github.com/safwyls/flamekeeper/internal/games/dragonwilds/dwsave"
 	"github.com/safwyls/flamekeeper/internal/ilmari"
 	"github.com/safwyls/flamekeeper/internal/notify"
-	"github.com/safwyls/flamekeeper/internal/savecache"
 	"github.com/safwyls/flamekeeper/internal/sched"
 	"github.com/safwyls/flamekeeper/internal/store"
 	"github.com/safwyls/flamekeeper/internal/watchdog"
@@ -47,34 +42,11 @@ func main() {
 	}
 }
 
-// adoptLegacyDB renames a palcon.db left by a pre-rename deployment (the
-// app was palcon-derived and kept its DB filename until 2026-08) to the
-// current name, sidecar WAL/SHM files included, so the rename doesn't
-// silently start an empty database. No-op once flamekeeper.db exists.
-func adoptLegacyDB(cfg *config.Config, logger *slog.Logger) {
-	if _, err := os.Stat(cfg.DBPath()); err == nil {
-		return
-	}
-	for _, suffix := range []string{"", "-wal", "-shm"} {
-		legacy := filepath.Join(cfg.DataDir, "palcon.db"+suffix)
-		if _, err := os.Stat(legacy); err != nil {
-			continue
-		}
-		if err := os.Rename(legacy, cfg.DBPath()+suffix); err != nil {
-			logger.Error("adopting legacy palcon.db", "file", legacy, "error", err)
-			return
-		}
-		logger.Info("adopted legacy database file", "from", legacy)
-	}
-}
-
 func run(logger *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-
-	adoptLegacyDB(cfg, logger)
 
 	sqlDB, err := db.Open(cfg.DBPath())
 	if err != nil {
@@ -118,11 +90,10 @@ func run(logger *slog.Logger) error {
 	files := agentfiles.New(cfg.DataDir, logger)
 
 	// For agent-backed servers this loop drives the save sync that backups
-	// snapshot, and keeps the world-metadata parse warm so the Saves page
-	// opens onto a cache hit. The reader is dwsave, the Phase 3 SPUD
-	// parser; savecache adds the mtime keying and stale-serving around it.
-	worlds := savecache.New[dwsave.World](dwsave.Source{})
-	go collector.NewSaveRefresher(st, worlds, files, logger).Run(ctx)
+	// snapshot. The nil reader is honest: nothing parses Enshrouded's world
+	// blob (no public schema exists), so only the sync runs. A metadata
+	// reader for the save index is roadmap Phase 3.
+	go collector.NewSaveRefresher(st, nil, files, logger).Run(ctx)
 
 	// Optional: without DOCKER_HOST, power control is simply absent.
 	var docker *dockerctl.Client
@@ -150,50 +121,17 @@ func run(logger *slog.Logger) error {
 
 	apiServer := api.New(st, cfg.JWTSecret, logger, docker, notifier, backups, files)
 	apiServer.CookieSecure = cfg.CookieSecure
-	// The same cache the refresher warms serves GET /servers/{id}/world.
-	apiServer.Worlds = worlds
-	// Optional: the pal advisor rides whichever model key is set, Anthropic
-	// first when both are — a deterministic pick beats erroring on a config
-	// most operators set by copying one line from .env.example.
-	switch {
-	case cfg.AnthropicAPIKey != "":
-		apiServer.SetEnvAdvisor(advisor.NewClaude(cfg.AnthropicAPIKey, ""))
-		logger.Info("pal advisor enabled", "provider", "anthropic", "source", "env")
-	case cfg.GeminiAPIKey != "":
-		gem, err := advisor.NewGemini(ctx, cfg.GeminiAPIKey, "")
-		if err != nil {
-			return fmt.Errorf("configuring gemini advisor: %w", err)
-		}
-		apiServer.SetEnvAdvisor(gem)
-		logger.Info("pal advisor enabled", "provider", "gemini", "source", "env")
-	}
-	// A key saved through the admin UI wins over the environment. Unusable
-	// (rotated ENCRYPTION_KEY, say) is a warning, not a startup failure —
-	// the admin can paste a fresh key without touching the host.
-	if provider, err := apiServer.LoadStoredAdvisor(ctx); err != nil {
-		logger.Warn("stored advisor key unusable", "error", err)
-	} else if provider != "" {
-		logger.Info("pal advisor enabled", "provider", provider, "source", "ui")
-	}
-	// Optional one-click provisioning (docs/sidecar-agent.md phase 5).
-	// Ilmari wins when both are set: it is the cut-over flag of the
-	// migration, and the legacy provisioner stays configured underneath so
-	// the fallback is deleting one env var.
-	switch {
-	case cfg.IlmariURL != "":
+	// Optional one-click provisioning, through Ilmari and only Ilmari —
+	// this console holds no Docker rights of its own (the ilmari repo's
+	// README is the contract). Without ILMARI_URL the Raise-a-server
+	// wizard is simply absent and servers are registered by hand.
+	if cfg.IlmariURL != "" {
 		client, err := ilmari.New(cfg.IlmariURL, cfg.IlmariToken)
 		if err != nil {
 			return fmt.Errorf("configuring ilmari: %w", err)
 		}
 		apiServer.Provisioner = api.NewIlmariProvisioner(client)
 		logger.Info("provisioner enabled", "endpoint", cfg.IlmariURL, "via", "ilmari")
-	case cfg.ProvisionerURL != "":
-		provisioner, err := agentctl.New(cfg.ProvisionerURL, cfg.ProvisionerToken)
-		if err != nil {
-			return fmt.Errorf("configuring provisioner: %w", err)
-		}
-		apiServer.Provisioner = provisioner
-		logger.Info("provisioner enabled", "endpoint", cfg.ProvisionerURL, "via", "flameagent")
 	}
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,

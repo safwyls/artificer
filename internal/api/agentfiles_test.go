@@ -10,24 +10,27 @@ import (
 	"time"
 )
 
-// seedAgentWorld gives the agent's install dir a real-looking Dragonwilds
-// world (a .sav in SaveGames) and a DedicatedServer.ini.
+// seedAgentWorld gives the agent's install dir a real-looking Enshrouded
+// world (extensionless hex-named blobs under savegame/) and an
+// enshrouded_server.json at the install root. One file keeps a .sav name:
+// the save *sync* is extension-agnostic, but the console-side backup
+// archiver (internal/backup) still keys on .sav — the world file below is
+// what proves an agent-synced backup actually archives something.
 func seedAgentWorld(t *testing.T, install string) string {
 	t.Helper()
-	world := filepath.Join(install, "RSDragonwilds", "Saved", "SaveGames")
-	cfgDir := filepath.Join(install, "RSDragonwilds", "Saved", "Config", "LinuxServer")
-	for _, d := range []string{world, cfgDir} {
-		if err := os.MkdirAll(d, 0o755); err != nil {
+	world := filepath.Join(install, "savegame")
+	if err := os.MkdirAll(world, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	blob := make([]byte, 44)
+	copy(blob, "enshrouded-world-bytes")
+	for _, name := range []string{"3ad85aea", "3ad85aea-index", "world.sav"} {
+		if err := os.WriteFile(filepath.Join(world, name), blob, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	sav := append(make([]byte, 8), []byte("GVAS")...)
-	sav = append(sav, make([]byte, 32)...)
-	if err := os.WriteFile(filepath.Join(world, "Ashenfall.sav"), sav, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	ini := "[/Script/Dominion.DedicatedServerSettings]\nServerName=Grimwood\nOwnerId=owner-abc\nAdminPassword=old\n"
-	if err := os.WriteFile(filepath.Join(cfgDir, "DedicatedServer.ini"), []byte(ini), 0o644); err != nil {
+	cfg := `{"name":"Grimwood","queryPort":15637,"slotCount":16}`
+	if err := os.WriteFile(filepath.Join(install, "enshrouded_server.json"), []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return world
@@ -58,13 +61,13 @@ func TestConfigViaAgent(t *testing.T) {
 	}
 
 	// Edit a value; the change must land in the agent's file.
-	rec = app.do(t, "PUT", base, map[string]any{"changes": map[string]string{"ServerName": "Renamed Keep"}}, admin)
+	rec = app.do(t, "PUT", base, map[string]any{"changes": map[string]string{"name": "Renamed Keep"}}, admin)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("put config: %d (body %s)", rec.Code, rec.Body)
 	}
-	onAgent, err := os.ReadFile(filepath.Join(install, "RSDragonwilds", "Saved", "Config", "LinuxServer", "DedicatedServer.ini"))
-	if err != nil || !strings.Contains(string(onAgent), "ServerName=Renamed Keep") {
-		t.Errorf("agent-side ini = %q, %v — edit did not round-trip", onAgent, err)
+	onAgent, err := os.ReadFile(filepath.Join(install, "enshrouded_server.json"))
+	if err != nil || !strings.Contains(string(onAgent), `"name": "Renamed Keep"`) {
+		t.Errorf("agent-side json = %q, %v — edit did not round-trip", onAgent, err)
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -15,9 +14,7 @@ import (
 	"github.com/safwyls/flamekeeper/internal/agentfiles"
 	"github.com/safwyls/flamekeeper/internal/backup"
 	"github.com/safwyls/flamekeeper/internal/dockerctl"
-	"github.com/safwyls/flamekeeper/internal/games/dragonwilds/dwsave"
 	"github.com/safwyls/flamekeeper/internal/notify"
-	"github.com/safwyls/flamekeeper/internal/savecache"
 	"github.com/safwyls/flamekeeper/internal/store"
 )
 
@@ -41,22 +38,10 @@ type Server struct {
 	files *agentfiles.Syncer
 	// Provisioner, when set (like CookieSecure, assigned after New), lets
 	// the new-server wizard deploy stacks itself instead of handing the
-	// operator a file. Two implementations during the Ilmari migration:
-	// the legacy provisioner-mode flameagent, and the shared Ilmari host
-	// service — see provisioner.go.
-	Provisioner Provisioner
-	// Worlds, when set (assigned after New, like Provisioner), is the
-	// Dragonwilds save-reader cache behind GET /servers/{id}/world. Nil
-	// means the endpoint reports the world as unavailable — the pre-Phase-3
-	// behavior, and what api tests that don't care about saves get.
-	Worlds *savecache.Cache[dwsave.World]
-	// The pal advisor has two possible sources, resolved in advisor():
-	// a key saved through the admin UI (uiAdvisor, encrypted in the store)
-	// wins over one from the environment (envAdvisor, set by main). Both
-	// nil means the feature is simply absent — see internal/advisor.
-	advisorMu    sync.RWMutex
-	envAdvisor   AdvisorClient
-	uiAdvisor    AdvisorClient
+	// operator a file. Exactly one implementation exists: the shared Ilmari
+	// host service (see provisioner.go). This console deliberately has no
+	// built-in provisioner — one host, one Docker-socket holder.
+	Provisioner  Provisioner
 	loginLimiter *loginLimiter
 }
 
@@ -102,22 +87,6 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 			r.With(s.requireAdmin).Post("/users", s.handleCreateUser)
 			r.With(s.requireAdmin).Put("/users/{userID}", s.handleUpdateUser)
 			r.With(s.requireAdmin).Delete("/users/{userID}", s.handleDeleteUser)
-
-			// Advisor key management: process-wide (the advisor is one
-			// feature, not a per-server one), admin-only, stored encrypted.
-			// A key saved here wins over one from the environment.
-			r.With(s.requireAdmin).Put("/advisor/key", s.handleSetAdvisorKey)
-			r.With(s.requireAdmin).Delete("/advisor/key", s.handleDeleteAdvisorKey)
-			r.With(s.requireAdmin).Put("/advisor/settings", s.handleSetAdvisorSettings)
-			// Change which model a saved key runs, without re-entering it.
-			r.With(s.requireAdmin).Put("/advisor/key/model", s.handleSetAdvisorKeyModel)
-			r.Put("/me/advisor-key/model", s.handleSetUserAdvisorKeyModel)
-			// A user's own key, shadowing the shared one for their requests
-			// only. Any signed-in user; scoped to their account.
-			r.Put("/me/advisor-key", s.handleSetUserAdvisorKey)
-			r.Delete("/me/advisor-key", s.handleDeleteUserAdvisorKey)
-			// Embedded project docs, for the advisor's docs-search tool.
-			r.Get("/docs", s.handleDocs)
 
 			r.Get("/servers", s.handleListServers)
 			r.With(s.requireAdmin).Post("/servers", s.handleCreateServer)
@@ -165,19 +134,14 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				// Admin-only: it destroys and recreates a container, which
 				// is provisioning, not day-to-day power.
 				r.With(s.requireAdmin).Post("/agent/image", s.handleRecreateAgent)
-				// One-click mod support: the agent copies its baked-in
-				// UE4SS+dwbridge kit next to the exe. Power territory like
-				// the launch profile it depends on — it changes what the
-				// next start runs, not the machine it runs on.
-				r.With(s.requirePermission(store.PermPower)).Post("/bridge/install", s.handleInstallBridge)
 				r.With(s.requirePermission(store.PermPower)).Post("/steam-cache/clear", s.handleClearSteamCache)
 				r.With(s.requirePermission(store.PermPower)).Post("/steam/update", s.handleSteamUpdateStart)
 				r.With(s.requirePermission(store.PermPower)).Get("/steam/update", s.handleSteamUpdateStatus)
 				r.Get("/settings", s.handleServerSettings)
 
-				// Settings-ini editor (DedicatedServer.ini here; the codec
+				// Settings editor (enshrouded_server.json here; the codec
 				// is per-game, see config.go). Gated even for reading: the
-				// file holds the admin/join passwords in the clear.
+				// file holds the role passwords in the clear.
 				r.With(s.requirePermission(store.PermSettings)).Get("/config", s.handleGetConfig)
 				r.With(s.requirePermission(store.PermSettings)).Put("/config", s.handleUpdateConfig)
 				r.With(s.requirePermission(store.PermSettings)).Post("/config/rotate-admin-password", s.handleRotateAdminPassword)
@@ -196,10 +160,6 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.With(s.requireAdmin).Put("/watchdog", s.handleUpdateWatchdog)
 				r.With(s.requireAdmin).Put("/public", s.handleUpdatePublicStatus)
 
-				// The world as the save file tells it — see world.go for
-				// why it shares the backups' admin-only gate.
-				r.With(s.requireAdmin).Get("/world", s.handleServerWorld)
-
 				// Save backups: the archive is the whole world, so even
 				// listing is admin-only.
 				r.With(s.requireAdmin).Get("/backups", s.handleListBackups)
@@ -215,10 +175,6 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 
 				r.Get("/metrics", s.handleServerMetrics)
 				r.Get("/metrics/history", s.handleServerMetricsHistory)
-				// Pal advisor chat (Claude-backed). GET says whether the
-				// process has a key at all; POST answers one question.
-				r.Get("/advisor", s.handleAdvisorStatus)
-				r.Post("/advisor", s.handleAdvisorChat)
 
 				// Who can see what. Admin-only in both directions: the list of
 				// players who asked to be hidden is itself the sort of thing

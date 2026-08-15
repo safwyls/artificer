@@ -1,26 +1,94 @@
 package api_test
 
 import (
+	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
+	"errors"
+	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/safwyls/flamekeeper/internal/agentctl"
-	"github.com/safwyls/flamekeeper/internal/store"
 	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
+
+// fakeProvisioner implements api.Provisioner with configurable answers —
+// the wizard and delete paths are tested against the interface the Ilmari
+// adapter fills in production (the adapter's own translation has its own
+// tests in provisioner_ilmari_test.go).
+type fakeProvisioner struct {
+	mu           sync.Mutex
+	health       *agentctl.Health
+	healthErr    error
+	provisionReq *flameagent.ProvisionRequest
+	provisionRes *agentctl.ProvisionResult
+	provisionErr error
+	discovered   []agentctl.DiscoveredServer
+	discoverErr  error
+	adoptRes     *agentctl.AdoptResult
+	adoptErr     error
+	destroyRes   *agentctl.DestroyResult
+	destroyErr   error
+	destroyCalls int
+}
+
+func (f *fakeProvisioner) BaseURL() string { return "http://ilmari:8410" }
+
+func (f *fakeProvisioner) Health(ctx context.Context) (*agentctl.Health, error) {
+	if f.healthErr != nil {
+		return nil, f.healthErr
+	}
+	if f.health != nil {
+		return f.health, nil
+	}
+	return &agentctl.Health{Agent: "ilmari", Mode: "provisioner"}, nil
+}
+
+func (f *fakeProvisioner) Provision(ctx context.Context, req flameagent.ProvisionRequest) (*agentctl.ProvisionResult, error) {
+	f.mu.Lock()
+	f.provisionReq = &req
+	f.mu.Unlock()
+	if f.provisionErr != nil {
+		return nil, f.provisionErr
+	}
+	return f.provisionRes, nil
+}
+
+func (f *fakeProvisioner) Discover(ctx context.Context) ([]agentctl.DiscoveredServer, error) {
+	return f.discovered, f.discoverErr
+}
+
+func (f *fakeProvisioner) Adopt(ctx context.Context, container string) (*agentctl.AdoptResult, error) {
+	return f.adoptRes, f.adoptErr
+}
+
+func (f *fakeProvisioner) RecreateAgent(ctx context.Context, container, imageTag string) (*flameagent.RecreateResult, error) {
+	return nil, errors.New("not in these tests")
+}
+
+func (f *fakeProvisioner) Destroy(ctx context.Context, container string) (*agentctl.DestroyResult, error) {
+	f.mu.Lock()
+	f.destroyCalls++
+	f.mu.Unlock()
+	if f.destroyErr != nil {
+		return nil, f.destroyErr
+	}
+	if f.destroyRes != nil {
+		return f.destroyRes, nil
+	}
+	return &agentctl.DestroyResult{Container: container}, nil
+}
 
 func TestProvisionServer(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
-		"name": "Grimwood II", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/dw-g2",
-		"gamePort": 7877, "agentPort": 9811, "ownerId": "owner-abc",
+		"name": "Grimwood II", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/es-g2",
+		"gamePort": 25637, "agentPort": 9811, "joinPassword": "sesame-open",
 		"imageTag": "beta",
 	}, admin)
 	if rec.Code != http.StatusCreated {
@@ -43,7 +111,7 @@ func TestProvisionServer(t *testing.T) {
 	}
 
 	// The row is wired for the only channel this game has: the agent.
-	if res.Server.Host != "10.0.0.9" || res.Server.GamePort != 7877 ||
+	if res.Server.Host != "10.0.0.9" || res.Server.GamePort != 25637 ||
 		res.Server.AgentURL != "http://10.0.0.9:9811" || !res.Server.HasAgentToken {
 		t.Errorf("server row = %+v", res.Server)
 	}
@@ -67,57 +135,45 @@ func TestProvisionServer(t *testing.T) {
 		"FLAMEAGENT_MODE: supervisor",
 		"FLAMEAGENT_TOKEN: " + res.AgentToken,
 		"FLAMEAGENT_ADMIN_PASSWORD: " + res.AdminPassword,
-		`FLAMEAGENT_OWNER_ID: "owner-abc"`,
-		`"7877:7777/udp"`, `"7878:7778/udp"`, `"9811:8811"`,
-		"/mnt/pool/apps/dw-g2:/dragonwilds",
+		`FLAMEAGENT_SERVER_NAME: "Grimwood II"`,
+		`FLAMEAGENT_JOIN_PASSWORD: "sesame-open"`,
+		`"25637:15637/udp"`, `"9811:8811"`,
+		"/mnt/pool/apps/es-g2:/enshrouded",
 	} {
 		if !strings.Contains(res.Stack, want) {
 			t.Errorf("stack missing %q:\n%s", want, res.Stack)
 		}
 	}
+	// Enshrouded binds one UDP port, and its config has no owner concept —
+	// a second port line or an owner env var would be Dragonwilds leaking
+	// through the template.
+	for _, reject := range []string{"25638", "FLAMEAGENT_OWNER_ID", "FLAMEAGENT_WORLD_NAME"} {
+		if strings.Contains(res.Stack, reject) {
+			t.Errorf("stack carries %q, which this game has no use for:\n%s", reject, res.Stack)
+		}
+	}
 }
 
 // One-click: with a provisioner configured, provisioning also deploys.
-// The provisioner here is a real provisioner-mode flameagent over a fake
-// docker API — the full flamekeeper → provisioner → docker chain.
 func TestProvisionOneClickDeploy(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
-	var dockerCalls []string
-	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dockerCalls = append(dockerCalls, r.URL.Path)
-		switch {
-		case r.URL.Path == "/images/create":
-			w.Write([]byte(`{"status":"done"}` + "\n"))
-		case r.URL.Path == "/containers/create":
-			w.WriteHeader(http.StatusCreated)
-			w.Write([]byte(`{"Id":"cafe"}`))
-		default:
-			w.WriteHeader(http.StatusNoContent)
-		}
-	}))
-	t.Cleanup(dockerSrv.Close)
-
 	dataRoot := t.TempDir()
-	provAgent, err := flameagent.New(flameagent.Config{
-		Token: agentToken, InstallDir: t.TempDir(), Version: "test",
-		Mode: "provisioner", DockerHost: dockerSrv.URL, DataRoot: dataRoot,
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
-	if err != nil {
-		t.Fatal(err)
+	fake := &fakeProvisioner{
+		health: &agentctl.Health{
+			Agent: "ilmari", Mode: "provisioner",
+			Provision: &flameagent.ProvisionDefaults{DataRoot: dataRoot, RunAs: "568:568", ImageTag: "latest"},
+		},
+		provisionRes: &agentctl.ProvisionResult{
+			Container: "flameagent-one-click", DataDir: filepath.Join(dataRoot, "one-click"),
+		},
 	}
-	provSrv := httptest.NewServer(provAgent.Handler())
-	t.Cleanup(provSrv.Close)
-	app.api.Provisioner, err = agentctl.New(provSrv.URL, agentToken)
-	if err != nil {
-		t.Fatal(err)
-	}
+	app.api.Provisioner = fake
 
 	// No dataPath: the one-click wizard doesn't ask — the provisioner's
 	// data root decides, and the reference stack must reflect it.
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
-		"name": "One Click", "host": "10.0.0.9", "ownerId": "owner-abc",
+		"name": "One Click", "host": "10.0.0.9", "joinPassword": "sesame-open",
 	}, admin)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("provision: %d (body %s)", rec.Code, rec.Body)
@@ -137,15 +193,20 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	if !res.Deployed || res.DataDir != filepath.Join(dataRoot, "one-click") {
 		t.Errorf("result = %+v, want deployed into one-click", res)
 	}
-	if !strings.Contains(res.Stack, filepath.Join(dataRoot, "one-click")+":/dragonwilds") {
+	if !strings.Contains(res.Stack, filepath.Join(dataRoot, "one-click")+":/enshrouded") {
 		t.Errorf("stack volume line missing the resolved data dir:\n%s", res.Stack)
 	}
-	if res.Server.GamePort != 7777 {
-		t.Errorf("gamePort = %d, want default 7777", res.Server.GamePort)
+	if res.Server.GamePort != flameagent.DefaultGamePort {
+		t.Errorf("gamePort = %d, want the default %d", res.Server.GamePort, flameagent.DefaultGamePort)
 	}
-	joined := strings.Join(dockerCalls, " ")
-	if !strings.Contains(joined, "/containers/create") || !strings.Contains(joined, "/start") {
-		t.Errorf("docker never created/started: %v", dockerCalls)
+	// The deploy request carried the wizard's identity settings through to
+	// the provisioner, slug included.
+	if fake.provisionReq == nil {
+		t.Fatal("the provisioner was never asked to deploy")
+	}
+	if fake.provisionReq.Slug != "one-click" || fake.provisionReq.JoinPassword != "sesame-open" ||
+		fake.provisionReq.ServerName != "One Click" {
+		t.Errorf("provision request = %+v", fake.provisionReq)
 	}
 	// The row records the container the provisioner made — without it the
 	// destroy path has no name to pass back, and the logs viewer and
@@ -162,33 +223,13 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 func TestDeleteServerDestroysContainerWhenAsked(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
-	var dockerCalls []string
-	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dockerCalls = append(dockerCalls, r.Method+" "+r.URL.Path)
-		if r.URL.Path == "/containers/json" {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`[{"Id":"cafe","Names":["/flameagent-doomed"],"Image":"ghcr.io/safwyls/flameagent:latest",
-			  "State":"running","Labels":{"flamekeeper.provisioned":"true","flamekeeper.slug":"doomed"},"Ports":[]}]`))
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	t.Cleanup(dockerSrv.Close)
-
 	dataRoot := t.TempDir()
-	provAgent, err := flameagent.New(flameagent.Config{
-		Token: agentToken, InstallDir: t.TempDir(), Version: "test",
-		Mode: "provisioner", DockerHost: dockerSrv.URL, DataRoot: dataRoot,
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
-	if err != nil {
-		t.Fatal(err)
+	fake := &fakeProvisioner{
+		destroyRes: &agentctl.DestroyResult{
+			Container: "flameagent-doomed", DataDir: filepath.Join(dataRoot, "doomed"),
+		},
 	}
-	provSrv := httptest.NewServer(provAgent.Handler())
-	t.Cleanup(provSrv.Close)
-	if app.api.Provisioner, err = agentctl.New(provSrv.URL, agentToken); err != nil {
-		t.Fatal(err)
-	}
+	app.api.Provisioner = fake
 
 	newServer := func(t *testing.T, container string) string {
 		t.Helper()
@@ -213,12 +254,12 @@ func TestDeleteServerDestroysContainerWhenAsked(t *testing.T) {
 	if rec := app.do(t, "DELETE", "/api/servers/"+id, nil, admin); rec.Code != http.StatusNoContent {
 		t.Fatalf("plain delete: %d (body %s)", rec.Code, rec.Body)
 	}
-	if len(dockerCalls) != 0 {
-		t.Errorf("a plain delete reached docker: %v", dockerCalls)
+	if fake.destroyCalls != 0 {
+		t.Errorf("a plain delete reached the provisioner: %d destroy calls", fake.destroyCalls)
 	}
 
-	// With it, the container is stopped and removed, and the world's
-	// directory comes back so the operator knows what survived.
+	// With it, the container is destroyed, and the world's directory comes
+	// back so the operator knows what survived.
 	id = newServer(t, "flameagent-doomed")
 	rec := app.do(t, "DELETE", "/api/servers/"+id+"?removeContainer=true", nil, admin)
 	if rec.Code != http.StatusOK {
@@ -234,8 +275,8 @@ func TestDeleteServerDestroysContainerWhenAsked(t *testing.T) {
 	if res.Destroyed != "flameagent-doomed" || res.DataDir != filepath.Join(dataRoot, "doomed") {
 		t.Errorf("result = %+v", res)
 	}
-	if joined := strings.Join(dockerCalls, " | "); !strings.Contains(joined, "DELETE /containers/cafe") {
-		t.Errorf("container never removed: %s", joined)
+	if fake.destroyCalls != 1 {
+		t.Errorf("destroy calls = %d, want 1", fake.destroyCalls)
 	}
 	if rec := app.do(t, "GET", "/api/servers/"+id, nil, admin); rec.Code != http.StatusNotFound {
 		t.Errorf("row survived the destroy: %d", rec.Code)
@@ -248,32 +289,11 @@ func TestDeleteServerDestroysContainerWhenAsked(t *testing.T) {
 func TestDeleteServerKeepsRowWhenDestroyRefused(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
-	// A flameagent container with no flamekeeper.provisioned label — deployed by
-	// hand, so the provisioner won't unmake it.
-	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/containers/json" {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`[{"Id":"c1","Names":["/flameagent-byhand"],"Image":"ghcr.io/safwyls/flameagent:latest",
-			  "State":"running","Labels":{},"Ports":[]}]`))
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	t.Cleanup(dockerSrv.Close)
-
-	provAgent, err := flameagent.New(flameagent.Config{
-		Token: agentToken, InstallDir: t.TempDir(), Version: "test",
-		Mode: "provisioner", DockerHost: dockerSrv.URL, DataRoot: t.TempDir(),
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
-	if err != nil {
-		t.Fatal(err)
+	// A container deployed by hand, so the provisioner won't unmake it.
+	fake := &fakeProvisioner{
+		destroyErr: fmt.Errorf("%w: that container was not created by this console", agentctl.ErrRejected),
 	}
-	provSrv := httptest.NewServer(provAgent.Handler())
-	t.Cleanup(provSrv.Close)
-	if app.api.Provisioner, err = agentctl.New(provSrv.URL, agentToken); err != nil {
-		t.Fatal(err)
-	}
+	app.api.Provisioner = fake
 
 	rec := app.do(t, "POST", "/api/servers", map[string]any{
 		"name": "By Hand", "host": "10.0.0.9", "enabled": true, "containerName": "flameagent-byhand",
@@ -319,42 +339,15 @@ func TestDeleteServerRefusesDestroyWithoutProvisioner(t *testing.T) {
 func TestProvisionNameConflictRegistersNothing(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
-	created := false
-	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/containers/json":
-			w.Write([]byte(`[{"Id":"c1","Names":["/flameagent-taken"],"Image":"ghcr.io/safwyls/flameagent:latest","State":"running",
-			  "Ports":[{"PrivatePort":8811,"PublicPort":8811,"Type":"tcp"}]}]`))
-		case "/containers/c1/json":
-			w.Write([]byte(`{"Config":{"Env":["FLAMEAGENT_MODE=supervisor"]}}`))
-		case "/images/create":
-			w.Write([]byte(`{"status":"done"}` + "\n"))
-		case "/containers/create":
-			created = true
-			w.WriteHeader(http.StatusConflict)
-			w.Write([]byte(`{"message":"Conflict. The container name \"/flameagent-taken\" is already in use"}`))
-		default:
-			w.WriteHeader(http.StatusNoContent)
-		}
-	}))
-	t.Cleanup(dockerSrv.Close)
-
-	provAgent, err := flameagent.New(flameagent.Config{
-		Token: agentToken, InstallDir: t.TempDir(), Version: "test",
-		Mode: "provisioner", DockerHost: dockerSrv.URL, DataRoot: t.TempDir(),
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
-	if err != nil {
-		t.Fatal(err)
+	fake := &fakeProvisioner{
+		discovered: []agentctl.DiscoveredServer{
+			{Name: "flameagent-taken", Image: "ghcr.io/safwyls/flameagent:latest", Running: true, AgentPort: 8811},
+		},
 	}
-	provSrv := httptest.NewServer(provAgent.Handler())
-	t.Cleanup(provSrv.Close)
-	if app.api.Provisioner, err = agentctl.New(provSrv.URL, agentToken); err != nil {
-		t.Fatal(err)
-	}
+	app.api.Provisioner = fake
 
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
-		"name": "Taken", "host": "10.0.0.9", "ownerId": "owner-abc",
+		"name": "Taken", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/taken",
 	}, admin)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("provision onto a taken name: %d, want 409 (body %s)", rec.Code, rec.Body)
@@ -362,8 +355,8 @@ func TestProvisionNameConflictRegistersNothing(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "flameagent-taken") {
 		t.Errorf("error should name the container that's in the way: %s", rec.Body)
 	}
-	if created {
-		t.Error("docker create was attempted despite the name being visibly taken")
+	if fake.provisionReq != nil {
+		t.Error("a deploy was attempted despite the name being visibly taken")
 	}
 	servers, err := app.store.ListServers(t.Context())
 	if err != nil {
@@ -380,17 +373,13 @@ func TestProvisionNameConflictRegistersNothing(t *testing.T) {
 func TestProvisionKeepsRowWhenProvisionerUnreachable(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
-	dead := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	dead.Close() // nothing listens: every call fails at the transport
-	prov, err := agentctl.New(dead.URL, agentToken)
-	if err != nil {
-		t.Fatal(err)
+	unreachable := errors.New("ilmari unreachable: connection refused")
+	app.api.Provisioner = &fakeProvisioner{
+		healthErr: unreachable, discoverErr: unreachable, provisionErr: unreachable,
 	}
-	app.api.Provisioner = prov
 
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
 		"name": "Fallback", "host": "10.0.0.9", "dataPath": "/mnt/pool/apps/fallback",
-		"ownerId": "owner-abc",
 	}, admin)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("provision: %d, want 201 (body %s)", rec.Code, rec.Body)
@@ -418,44 +407,30 @@ func TestProvisionKeepsRowWhenProvisionerUnreachable(t *testing.T) {
 func TestProvisionDefaultsAndDiscover(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
-	dockerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/containers/json":
-			w.Write([]byte(`[
-			  {"Id":"c1","Names":["/flameagent-adopted"],"Image":"ghcr.io/safwyls/flameagent:beta","State":"running",
-			   "Ports":[{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"},{"PrivatePort":8212,"PublicPort":9212,"Type":"tcp"}]},
-			  {"Id":"c2","Names":["/flameagent-orphan"],"Image":"ghcr.io/safwyls/flameagent:beta","State":"exited",
-			   "Ports":[{"PrivatePort":8811,"PublicPort":9911,"Type":"tcp"}]}
-			]`))
-		case r.URL.Path == "/containers/c1/json", r.URL.Path == "/containers/c2/json":
-			w.Write([]byte(`{"Config":{"Env":["FLAMEAGENT_MODE=supervisor","FLAMEAGENT_TOKEN=adopted-token-0123456789abcdef","FLAMEAGENT_ADMIN_PASSWORD=adopted-pw","FLAMEAGENT_SERVER_NAME=Orphaned World"]}}`))
-		default:
-			w.WriteHeader(http.StatusNoContent)
-		}
-	}))
-	t.Cleanup(dockerSrv.Close)
-
-	provAgent, err := flameagent.New(flameagent.Config{
-		Token: agentToken, InstallDir: t.TempDir(), Version: "test",
-		Mode: "provisioner", DockerHost: dockerSrv.URL, DataRoot: t.TempDir(),
-		PublicHost: "10.99.0.5",
-		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
-	if err != nil {
-		t.Fatal(err)
+	fake := &fakeProvisioner{
+		health: &agentctl.Health{
+			Agent: "ilmari", Mode: "provisioner",
+			Provision: &flameagent.ProvisionDefaults{
+				DataRoot: "/data", PublicHost: "10.99.0.5", RunAs: "568:568", ImageTag: "latest",
+			},
+		},
+		discovered: []agentctl.DiscoveredServer{
+			{Name: "flameagent-adopted", Image: "ghcr.io/safwyls/flameagent:beta", Running: true, GamePort: 25637, AgentPort: 9811},
+			{Name: "flameagent-orphan", Image: "ghcr.io/safwyls/flameagent:beta", Running: false, GamePort: 25638, AgentPort: 9911},
+		},
+		adoptRes: &agentctl.AdoptResult{
+			Name: "flameagent-orphan", Mode: "supervisor", ServerName: "Orphaned World",
+			Token: "adopted-token-0123456789abcdef", AdminPassword: "adopted-pw",
+			GamePort: 25638, AgentPort: 9911,
+		},
 	}
-	provSrv := httptest.NewServer(provAgent.Handler())
-	t.Cleanup(provSrv.Close)
-	app.api.Provisioner, err = agentctl.New(provSrv.URL, agentToken)
-	if err != nil {
-		t.Fatal(err)
-	}
+	app.api.Provisioner = fake
 
 	// An existing row holding the default port set (and the "adopted"
 	// candidate's agent port) forces the proposal to a free offset and
 	// marks the candidate registered.
 	if _, err := app.store.CreateServer(t.Context(), &store.Server{
-		Name: "existing", Host: "10.99.0.5", GamePort: 7777,
+		Name: "existing", Host: "10.99.0.5", GamePort: flameagent.DefaultGamePort,
 		Enabled: true, AgentURL: "http://10.99.0.5:9811", AgentToken: agentToken,
 	}); err != nil {
 		t.Fatal(err)
@@ -477,18 +452,13 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 	if !defs.Available || defs.Host != "10.99.0.5" || defs.RunAs != "568:568" {
 		t.Errorf("defaults = %+v, want declared host + run-as", defs)
 	}
-	// Rows AND containers hold ports — the ghost container on 9911 has no
-	// row, and the proposal must still avoid it. 7778 is in the set
-	// because the existing row's 7777 implies its neighbour.
-	used := map[int]bool{7777: true, 7778: true, 9811: true, 9911: true}
+	// Rows AND containers hold ports — the orphan container on 9911 has no
+	// row, and the proposal must still avoid it.
+	used := map[int]bool{flameagent.DefaultGamePort: true, 25637: true, 25638: true, 9811: true, 9911: true}
 	for _, p := range defs.Ports {
 		if used[p] {
 			t.Errorf("proposed ports collide with tracked/container ones: %v", defs.Ports)
 		}
-	}
-	// The game binds a pair, so the proposal's neighbour must be free too.
-	if used[defs.Ports["game"]+1] {
-		t.Errorf("proposed game port %d has a taken neighbour: %v", defs.Ports["game"], defs.Ports)
 	}
 
 	rec = app.do(t, "GET", "/api/servers/provision/discover", nil, admin)
@@ -542,16 +512,14 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 func TestProvisionValidation(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 	cases := []map[string]any{
-		{"host": "h", "dataPath": "/x", "ownerId": "o"},                                                  // no name
-		{"name": "n", "dataPath": "/x", "ownerId": "o"},                                                  // no host
-		{"name": "n", "host": "h", "dataPath": "/x"},                                                     // no owner id
-		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "   "},                                   // blank owner id
-		{"name": "n", "host": "h", "ownerId": "o"},                                                       // no data path, no provisioner
-		{"name": "n", "host": "h", "dataPath": "relative/path", "ownerId": "o"},                          // non-absolute path
-		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "o", "gamePort": 65535},                  // no room for the port pair
-		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "o", "gamePort": 8811},                   // game pair swallows the agent port
-		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "o", "imageTag": "beta\n    evil: true"}, // yaml injection via tag
-		{"name": "n", "host": "h", "dataPath": "/x", "ownerId": "o", "imageTag": "beta beta"},            // not a docker tag
+		{"host": "h", "dataPath": "/x"},                                                  // no name
+		{"name": "n", "dataPath": "/x"},                                                  // no host
+		{"name": "n", "host": "h"},                                                       // no data path, no provisioner
+		{"name": "n", "host": "h", "dataPath": "relative/path"},                          // non-absolute path
+		{"name": "n", "host": "h", "dataPath": "/x", "gamePort": 8811},                   // game port collides with the agent port
+		{"name": "n\nevil", "host": "h", "dataPath": "/x"},                               // control chars in the name
+		{"name": "n", "host": "h", "dataPath": "/x", "imageTag": "beta\n    evil: true"}, // yaml injection via tag
+		{"name": "n", "host": "h", "dataPath": "/x", "imageTag": "beta beta"},            // not a docker tag
 	}
 	for i, body := range cases {
 		if rec := app.do(t, "POST", "/api/servers/provision", body, admin); rec.Code != http.StatusBadRequest {

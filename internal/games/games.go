@@ -10,5 +10,5 @@
 package games
 
 import (
-	_ "github.com/safwyls/flamekeeper/internal/games/dragonwilds"
+	_ "github.com/safwyls/flamekeeper/internal/games/enshrouded"
 )

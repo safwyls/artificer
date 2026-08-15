@@ -3,22 +3,16 @@ package api
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/safwyls/flamekeeper/internal/agentctl"
-	"github.com/safwyls/flamekeeper/internal/ilmari"
 	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flamekeeper/internal/ilmari"
 )
 
 // Provisioner is what the API layer needs from whatever places containers
-// on the host. Two implementations exist during the migration
-// (docs in the ilmari repo, docs/migration.md): the legacy provisioner-mode
-// flameagent (agentctl.Client, which satisfies this as-is) and Ilmari, the
-// shared host service. The interface speaks the legacy shapes on purpose —
-// they are what the wizard and its frontend already consume — and the
-// Ilmari implementation translates at the boundary. When the legacy path
-// is retired, the shapes can migrate toward Ilmari's; until then, one
-// vocabulary.
+// on the host. Exactly one implementation exists — Ilmari, the shared host
+// service — but the seam stays an interface: tests fake it, and the wizard
+// speaks these shapes rather than Ilmari's wire types.
 type Provisioner interface {
 	BaseURL() string
 	Health(ctx context.Context) (*agentctl.Health, error)
@@ -30,10 +24,7 @@ type Provisioner interface {
 }
 
 // Interface satisfaction is a compile-time fact, not a hope.
-var (
-	_ Provisioner = (*agentctl.Client)(nil)
-	_ Provisioner = (*IlmariProvisioner)(nil)
-)
+var _ Provisioner = (*IlmariProvisioner)(nil)
 
 // IlmariProvisioner adapts the Ilmari host service to the Provisioner
 // interface.
@@ -56,10 +47,10 @@ func (p *IlmariProvisioner) BaseURL() string { return p.c.BaseURL() }
 
 // The game's container-side port facts, in exactly one place.
 const (
-	gameContainerPort  = flameagent.DefaultGamePort // 7777/udp, and the pair partner above it
+	gameContainerPort  = flameagent.DefaultGamePort // the single game+query UDP port
 	agentContainerPort = 8811
 	agentImage         = "ghcr.io/safwyls/flameagent"
-	dataMount          = "/dragonwilds"
+	dataMount          = "/enshrouded"
 )
 
 // Health synthesizes the legacy health shape from Ilmari's. The wizard
@@ -91,17 +82,16 @@ func (p *IlmariProvisioner) Health(ctx context.Context) (*agentctl.Health, error
 // that handler is retired.
 func (p *IlmariProvisioner) Provision(ctx context.Context, req flameagent.ProvisionRequest) (*agentctl.ProvisionResult, error) {
 	env := map[string]string{
-		"HOME":                   "/tmp",
+		"HOME":                      "/tmp",
 		"FLAMEAGENT_MODE":           "supervisor",
 		"FLAMEAGENT_TOKEN":          req.Token,
 		"FLAMEAGENT_ADMIN_PASSWORD": req.AdminPassword,
-		"FLAMEAGENT_OWNER_ID":       strings.TrimSpace(req.OwnerID),
+	}
+	if req.JoinPassword != "" {
+		env["FLAMEAGENT_JOIN_PASSWORD"] = req.JoinPassword
 	}
 	if req.ServerName != "" {
 		env["FLAMEAGENT_SERVER_NAME"] = req.ServerName
-	}
-	if req.WorldName != "" {
-		env["FLAMEAGENT_WORLD_NAME"] = req.WorldName
 	}
 	tag := req.ImageTag
 	if tag == "" {
@@ -115,7 +105,6 @@ func (p *IlmariProvisioner) Provision(ctx context.Context, req flameagent.Provis
 		Env:   env,
 		Ports: []ilmari.PortMap{
 			{Host: req.GamePort, Container: gameContainerPort, Proto: "udp"},
-			{Host: req.GamePort + 1, Container: gameContainerPort + 1, Proto: "udp"},
 			{Host: req.AgentPort, Container: agentContainerPort, Proto: "tcp"},
 		},
 		DataMount: dataMount,
@@ -175,7 +164,6 @@ func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agent
 		ServerName:    a.Env["FLAMEAGENT_SERVER_NAME"],
 		Token:         a.Env["FLAMEAGENT_TOKEN"],
 		AdminPassword: a.Env["FLAMEAGENT_ADMIN_PASSWORD"],
-		OwnerID:       a.Env["FLAMEAGENT_OWNER_ID"],
 		GamePort:      hostPortFor(a.Ports, gameContainerPort, "udp"),
 		AgentPort:     hostPortFor(a.Ports, agentContainerPort, "tcp"),
 	}, nil

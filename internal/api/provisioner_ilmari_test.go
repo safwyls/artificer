@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/ilmari"
 	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flamekeeper/internal/ilmari"
 )
 
 // fakeIlmari records what the adapter sends, and answers with Ilmari's real
@@ -41,8 +41,7 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 			json.NewEncoder(w).Encode(map[string]any{"servers": []map[string]any{{
 				"name": "flameagent-ashenfall", "image": "ghcr.io/safwyls/flameagent:latest", "running": true, "managed": true,
 				"ports": []map[string]any{
-					{"host": 9777, "container": 7777, "proto": "udp"},
-					{"host": 9778, "container": 7778, "proto": "udp"},
+					{"host": 9777, "container": 15637, "proto": "udp"},
 					{"host": 9811, "container": 8811, "proto": "tcp"},
 				},
 			}}})
@@ -50,7 +49,7 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"name": "flameagent-ashenfall", "image": "ghcr.io/safwyls/flameagent:latest", "running": true,
 				"ports": []map[string]any{
-					{"host": 9777, "container": 7777, "proto": "udp"},
+					{"host": 9777, "container": 15637, "proto": "udp"},
 					{"host": 9811, "container": 8811, "proto": "tcp"},
 				},
 				"env": f.adoptEnv,
@@ -67,9 +66,9 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 	return f, NewIlmariProvisioner(client)
 }
 
-// The adapter is where flameagent's provisioning knowledge now lives, so this
-// asserts the exact translation the old handler performed: the FLAMEAGENT_*
-// environment, the UDP port pair plus agent port, the container name, the
+// The adapter is where flameagent's provisioning knowledge lives, so this
+// asserts the exact translation it performs: the FLAMEAGENT_* environment,
+// the game's single UDP port plus the agent port, the container name, the
 // image channel and the data mount. Any drift here provisions a container
 // that looks right and boots wrong.
 func TestIlmariProvisionCarriesTheGameShape(t *testing.T) {
@@ -78,7 +77,7 @@ func TestIlmariProvisionCarriesTheGameShape(t *testing.T) {
 	res, err := p.Provision(context.Background(), flameagent.ProvisionRequest{
 		Slug: "ashenfall", ImageTag: "latest-wine",
 		Token: "agent-token-0123456789abcdef", AdminPassword: "pw12345",
-		OwnerID: "owner-abc", ServerName: "Ashenfall", WorldName: "Grimwood",
+		JoinPassword: "friends-only", ServerName: "Ashenfall",
 		RunAs: "568:568", GamePort: 9777, AgentPort: 9811,
 	})
 	if err != nil {
@@ -95,27 +94,30 @@ func TestIlmariProvisionCarriesTheGameShape(t *testing.T) {
 	if body["image"] != "ghcr.io/safwyls/flameagent:latest-wine" {
 		t.Errorf("image = %v", body["image"])
 	}
-	if body["dataMount"] != "/dragonwilds" {
+	if body["dataMount"] != "/enshrouded" {
 		t.Errorf("dataMount = %v", body["dataMount"])
 	}
 	env, _ := body["env"].(map[string]any)
 	for key, want := range map[string]string{
 		"FLAMEAGENT_MODE": "supervisor", "FLAMEAGENT_TOKEN": "agent-token-0123456789abcdef",
-		"FLAMEAGENT_ADMIN_PASSWORD": "pw12345", "FLAMEAGENT_OWNER_ID": "owner-abc",
-		"FLAMEAGENT_SERVER_NAME": "Ashenfall", "FLAMEAGENT_WORLD_NAME": "Grimwood",
+		"FLAMEAGENT_ADMIN_PASSWORD": "pw12345", "FLAMEAGENT_JOIN_PASSWORD": "friends-only",
+		"FLAMEAGENT_SERVER_NAME": "Ashenfall",
 	} {
 		if env[key] != want {
 			t.Errorf("env[%s] = %v, want %q", key, env[key], want)
 		}
 	}
-	// The port trio: the game's UDP pair and the agent's TCP port. Getting
-	// the pair wrong is the silent kind of broken — the server boots and
-	// nobody can join.
+	// The port pair: the game's single UDP port and the agent's TCP port.
+	// Getting the UDP mapping wrong is the silent kind of broken — the
+	// server boots and nobody can join.
 	ports, _ := json.Marshal(body["ports"])
-	for _, want := range []string{`"host":9777`, `"host":9778`, `"container":7778`, `"host":9811`, `"container":8811`} {
+	for _, want := range []string{`"host":9777`, `"container":15637`, `"host":9811`, `"container":8811`} {
 		if !strings.Contains(string(ports), want) {
 			t.Errorf("ports missing %s: %s", want, ports)
 		}
+	}
+	if strings.Contains(string(ports), `"container":15638`) || strings.Contains(string(ports), `"host":9778`) {
+		t.Errorf("ports carry a phantom second game port: %s", ports)
 	}
 }
 

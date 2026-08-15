@@ -2,10 +2,12 @@ package flameagent
 
 import (
 	"archive/tar"
+
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/safwyls/flamekeeper/internal/games/enshrouded/esconfig"
 	"io"
 	"io/fs"
 	"net/http"
@@ -18,34 +20,31 @@ import (
 
 // The file verbs serve exactly two things, both at fixed locations under
 // the install root: the world save directory (as a tar bundle) and
-// DedicatedServer.ini. No client-supplied paths, ever — same stance as
-// the steam verbs.
+// enshrouded_server.json. No client-supplied paths, ever — same stance
+// as the steam verbs.
+//
+// configRelPath lives in launch.go beside the profile that owns it.
 
-// configRelPath is where the *native Linux* dedicated server keeps its
-// settings. UE names the config directory after the platform, so the
-// Windows build under Wine uses WindowsServer/ instead — supervisor mode
-// resolves the path from the active launch profile rather than this
-// constant. See Agent.configPath.
-const configRelPath = "RSDragonwilds/Saved/Config/LinuxServer/DedicatedServer.ini"
-
-// maxConfigBytes caps a config upload; a real DedicatedServer.ini is a
-// few KB.
+// maxConfigBytes caps a config upload; a real enshrouded_server.json with
+// a full Custom gameSettings block is a few KB.
 const maxConfigBytes = 1 << 20
 
-// findSaveDir locates the world save directory: the folder holding the
-// *.sav world files under RSDragonwilds/Saved/SaveGames. The casing of the
-// last segment differs between sources (SaveGames vs Savegames) and Linux
-// is case-sensitive, so both spellings are tried — recon doc, "Saves". A
-// fresh install (or one that hasn't booted yet) legitimately has none.
+// saveDirName is the game's default saveDirectory ("./savegame"),
+// resolved against the install root — the server's working directory.
+// The config can point it elsewhere; the agent deliberately does not
+// follow it (no client- or config-supplied paths near the file verbs),
+// and the supervisor never writes a non-default value.
+const saveDirName = "savegame"
+
+// findSaveDir locates the world save directory. A fresh install (or one
+// that hasn't booted yet) legitimately has none.
 func (a *Agent) findSaveDir() (string, error) {
-	for _, dir := range []string{"SaveGames", "Savegames"} {
-		full := filepath.Join(a.cfg.InstallDir, "RSDragonwilds", "Saved", dir)
-		matches, err := filepath.Glob(filepath.Join(full, "*.sav"))
-		if err == nil && len(matches) > 0 {
-			return full, nil
-		}
+	full := filepath.Join(a.cfg.InstallDir, saveDirName)
+	entries, err := os.ReadDir(full)
+	if err != nil || len(entries) == 0 {
+		return "", errors.New("no world save found under the install dir (has the server run yet?)")
 	}
-	return "", errors.New("no world save found under the install dir (has the server run yet?)")
+	return full, nil
 }
 
 // saveEntry is one file in the bundle.
@@ -55,10 +54,12 @@ type saveEntry struct {
 	mod  int64
 }
 
-// listSaveFiles walks the save directory for .sav files, skipping the
-// rolling backup folders some server images keep next to the save — the
-// same filter the backup archiver applies (internal/backup.writeArchive),
-// so an agent-synced backup archives the same set a mounted one would.
+// listSaveFiles walks the save directory, skipping rolling backup folders
+// kept next to the save — the same filter the backup archiver applies
+// (internal/backup.writeArchive), so an agent-synced backup archives the
+// same set a mounted one would. Enshrouded's save files are extensionless
+// hex-named blobs plus the -index and -info JSON sidecars (recon doc,
+// "Saves"), so every regular file in the directory belongs to the world.
 func listSaveFiles(saveDir string) ([]saveEntry, error) {
 	var out []saveEntry
 	err := filepath.WalkDir(saveDir, func(path string, d fs.DirEntry, err error) error {
@@ -69,9 +70,6 @@ func listSaveFiles(saveDir string) ([]saveEntry, error) {
 			if strings.EqualFold(d.Name(), "backup") || strings.EqualFold(d.Name(), "backups") {
 				return filepath.SkipDir
 			}
-			return nil
-		}
-		if !strings.EqualFold(filepath.Ext(d.Name()), ".sav") {
 			return nil
 		}
 		rel, err := filepath.Rel(saveDir, path)
@@ -157,11 +155,9 @@ func (a *Agent) handleGetSave(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Agent) configPath() string {
-	// Follow the launch profile wherever this agent runs the game. Serving
-	// LinuxServer/ to a console whose server is on the Wine profile would
-	// hand the settings editor a file the game never reads — edits would
-	// appear to save and change nothing, which is worse than an error.
-	// Companion mode launches nothing, so the Linux default stands.
+	// Follow the launch profile when the agent runs the game (a custom
+	// profile can relocate the exe and its json); companion mode launches
+	// nothing, so the default location stands.
 	if a.game != nil {
 		return filepath.Join(a.cfg.InstallDir, a.game.Profile().ConfigRel)
 	}
@@ -171,31 +167,39 @@ func (a *Agent) configPath() string {
 func (a *Agent) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 	data, err := os.ReadFile(a.configPath())
 	if errors.Is(err, os.ErrNotExist) {
-		writeError(w, http.StatusNotFound, "DedicatedServer.ini not found under the install dir")
+		writeError(w, http.StatusNotFound, "enshrouded_server.json not found under the install dir")
 		return
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_, _ = w.Write(data)
 }
 
-// handlePutConfig replaces DedicatedServer.ini atomically (tmp + rename),
-// so the game can never boot on a half-written file.
+// handlePutConfig replaces enshrouded_server.json atomically (tmp +
+// rename), so the game can never boot on a half-written file. It also
+// refuses a file that doesn't parse: a malformed json makes the server
+// regenerate defaults — an *open, password-less* server — which is a far
+// worse failure than a rejected edit.
 func (a *Agent) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxConfigBytes))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "config too large or unreadable")
 		return
 	}
+	if err := esconfig.Validate(data); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	path := a.configPath()
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		// Refuse to conjure a config where none exists — that means the
-		// install dir is wrong or the server never booted, and a stray
-		// file here would mask it.
-		writeError(w, http.StatusNotFound, "DedicatedServer.ini not found under the install dir")
+		// install dir is wrong or the server never booted (the supervisor
+		// seeds one before first start), and a stray file here would mask
+		// it.
+		writeError(w, http.StatusNotFound, "enshrouded_server.json not found under the install dir")
 		return
 	}
 	tmp := path + ".flameagent-tmp"

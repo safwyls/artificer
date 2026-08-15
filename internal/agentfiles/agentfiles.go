@@ -112,8 +112,8 @@ func (s *Syncer) SavePath(ctx context.Context, srv *store.Server) (string, error
 	return dir, nil
 }
 
-// ConfigPath returns a local directory holding DedicatedServer.ini for
-// palconfig to read/edit: the configured mount verbatim (viaAgent=false),
+// ConfigPath returns a local directory holding enshrouded_server.json for
+// the config editor to read/edit: the configured mount verbatim (viaAgent=false),
 // else a fresh copy from the agent (viaAgent=true — write-backs must go
 // through PushConfig).
 func (s *Syncer) ConfigPath(ctx context.Context, srv *store.Server) (path string, viaAgent bool, err error) {
@@ -140,20 +140,20 @@ func (s *Syncer) ConfigPath(ctx context.Context, srv *store.Server) (path string
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", false, err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "DedicatedServer.ini"), data, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "enshrouded_server.json"), data, 0o600); err != nil {
 		return "", false, err
 	}
 	return dir, true, nil
 }
 
-// PushConfig sends the (locally edited) cached ini back to the agent,
+// PushConfig sends the (locally edited) cached config back to the agent,
 // which writes it atomically next to the game.
 func (s *Syncer) PushConfig(ctx context.Context, srv *store.Server, dir string) error {
 	client, err := agentctl.New(srv.AgentURL, srv.AgentToken)
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "DedicatedServer.ini"))
+	data, err := os.ReadFile(filepath.Join(dir, "enshrouded_server.json"))
 	if err != nil {
 		return err
 	}

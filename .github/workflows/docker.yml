@@ -72,9 +72,6 @@ jobs:
             dockerfile: Dockerfile
           - image: flameagent
             dockerfile: Dockerfile.flameagent
-          - image: flameagent
-            dockerfile: Dockerfile.flameagent-wine
-            suffix: wine
     steps:
       - uses: actions/checkout@v5
 
@@ -91,10 +88,6 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
-          # flavor suffixes every tag for a variant build, so the Wine agent
-          # publishes :wine, :wine-1.2.3, :main-wine and never bare :latest.
-          flavor: |
-            suffix=${{ matrix.suffix && format('-{0}', matrix.suffix) || '' }},onlatest=true
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -112,5 +105,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           # Separate cache scopes — the two images share go module layers
           # conceptually but must not overwrite each other's buildx cache.
-          cache-from: type=gha,scope=${{ matrix.image }}${{ matrix.suffix }}
-          cache-to: type=gha,mode=min,scope=${{ matrix.image }}${{ matrix.suffix }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=min,scope=${{ matrix.image }}

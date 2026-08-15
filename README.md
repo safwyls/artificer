@@ -1,43 +1,54 @@
 # Flamekeeper (flamekeeper)
 
-A management console for a self-hosted **RuneScape: Dragonwilds** dedicated
-server — built on the reusable base extracted from
-[palcon](https://github.com/safwyls/palcon), its sibling project for
-Palworld.
+A management console for self-hosted **Enshrouded** dedicated servers —
+the third console on the reusable base shared with
+[palcon](https://github.com/safwyls/palcon) (Palworld) and
+[wildskeeper](https://github.com/safwyls/wildskeeper) (RuneScape:
+Dragonwilds), provisioned through
+[ilmari](https://github.com/safwyls/ilmari), the shared host service.
 
-Dragonwilds has no RCON, no HTTP admin API and no query protocol; all
-native administration is the in-game Server Management menu. Flamekeeper
-therefore *derives* everything: process liveness and uptime from its
-flameagent sidecar, the live player list from a state machine over the
-server's log tail, configuration from `DedicatedServer.ini` at rest.
-Commands that have no transport (broadcast, kick, ban) answer HTTP 501
-with the honest reason instead of pretending — they light up when the
-planned UE4SS command bridge exists.
+In Enshrouded you are Flameborn, and survival means keeping the Flame
+lit. That is also this dashboard's whole job.
 
-## What works today
+Enshrouded has no RCON, no HTTP admin API and no server console; all
+native administration is `enshrouded_server.json` plus the in-game player
+menu. Flamekeeper therefore *derives* everything: process liveness and
+uptime from its flameagent sidecar, the live player list from a state
+machine over the server's log tail, configuration from the JSON at rest.
+Commands that have no transport (broadcast, kick, on-demand save) answer
+HTTP 501 with the honest reason instead of pretending — the reasons say
+where each ability actually lives (kick/ban are in the in-game menu for
+anyone holding a kick/ban-capable role password; saves happen every 10
+minutes and on shutdown by themselves).
 
-- **Overview** — the rune sigil (six segments, one per player slot), power
-  controls through the agent, uptime/player vitals, log preview
-- **Adventurers** — who's online (log-derived), join/leave history and
-  playtime via the collector
-- **World saves** — snapshot, download, delete, scheduled backups of
-  `Saved/SaveGames`
-- **Configuration** — `DedicatedServer.ini` editor (never adds or removes
-  keys, type-validated, one-level `.bak`, atomic swap) plus one-click
-  admin-password rotation — the game's one real remote-admin lever
+## What works today (Phase 1)
+
+- **Overview** — status, power controls through the agent (stop is a
+  clean save: the game writes the world on SIGINT), uptime/player
+  vitals, log preview
+- **Flameborn** — who's online (log-derived SteamID64s; names arrive
+  with the Phase 2 A2S query), join/leave history and playtime
+- **World saves** — snapshot, download, scheduled backups of the
+  `savegame/` directory (world blob + rolling copies + index)
+- **Configuration** — `enshrouded_server.json` editor over the top-level
+  and `gameSettings` scalars (never adds or removes keys, type-validated
+  against the file, one `.bak`, atomic swap, JSON-validated at the agent
+  so a bad edit can never make the game regenerate an *open* default
+  config), plus one-click admin-role password rotation
 - **Server log** — live tail through the agent
-- **Raise a server** — one-click provisioning through a flameagent
-  provisioner (or a generated compose stack to deploy by hand): creates the
-  container, installs the game via SteamCMD, seeds `DedicatedServer.ini`
-  with your Owner ID, and starts it
-- Shared base: users/roles/permissions, audit trail, Discord notifications,
-  scheduled restarts, crash watchdog, SteamCMD update jobs (app id
-  4019830), public status page
+- **Raise a server** — one-click provisioning through Ilmari (or a
+  generated compose stack to deploy by hand): places the flameagent
+  container, installs the game via SteamCMD (app 2278520, Windows depot,
+  runs under Wine), seeds a private-by-default `enshrouded_server.json`,
+  and starts it
+- Shared base: users/roles/permissions, audit trail, Discord
+  notifications, scheduled restarts, crash watchdog, SteamCMD update
+  jobs, public status page
 
-`docs/dragonwilds-recon.md` records every externally-verified game fact and
-the open empirical gates (log line shapes, player-id format, save format,
-SIGTERM behavior, on-disk ban list). Facts marked UNVERIFIED there are not
-assumed anywhere in the code.
+`docs/enshrouded-recon.md` records every externally-sourced game fact
+with its confidence level, and its verification ledger tracks what a real
+server has confirmed. `docs/roadmap.md` is the phased plan from here
+(A2S presence, ban/role editors, save rollback, the 1.0 wave).
 
 ## Running it
 
@@ -47,50 +58,31 @@ go run ./cmd/flamekeeper          # backend on :8080
 cd web && npm install && npm run dev   # frontend dev server
 ```
 
-Production: `cd web && npm run build`, then `go build ./cmd/flamekeeper` (the Go
-binary embeds the bundle), or use the `Dockerfile` / `docker-compose.yml`.
+Production: `cd web && npm run build`, then `go build ./cmd/flamekeeper`
+(the Go binary embeds the bundle), or use the `Dockerfile` /
+`docker-compose.yml`. TrueNAS SCALE: `deploy/truenas-app.yaml`, including
+how to register flamekeeper as an Ilmari client.
 
 The game server itself runs under the `flameagent` sidecar
-(`Dockerfile.flameagent`). In supervisor mode the agent *is* the server: it
-installs the game with SteamCMD and runs
-`./RSDragonwildsServer.sh -log -Port=7777` as a child process. It needs
-`FLAMEAGENT_OWNER_ID` — the game refuses to start without an owner, and the
-agent seeds the config with it on first install. The Raise-a-server wizard
-sets all of this up; `docs/sidecar-agent.md` has the reference stack.
+(`Dockerfile.flameagent`, Wine included — Enshrouded ships no Linux
+server binary). In supervisor mode the agent *is* the server: it installs
+the game with SteamCMD and runs `enshrouded_server.exe` under Wine as a
+child process, enforcing the server name, port and role passwords into
+the config before every start. The Raise-a-server wizard sets all of this
+up; `docs/sidecar-agent.md` has the reference stack.
 
-## Testing against a real server
+## Provisioning is Ilmari's
 
-`scripts/dev-local.sh` stands the whole stack up locally — SteamCMD installs
-the game, the agent supervises it, and the dashboard drives the agent. It is
-the same shape as a real deployment on purpose: the game has no admin
-transport, so anything that bypasses the agent isn't exercising the real
-path.
+This console deliberately holds no Docker rights and ships no provisioner
+of its own. One host, one Docker-socket holder: Ilmari places, rebuilds
+and destroys the per-server containers for all three consoles, each under
+its own client token, data root and image allowlist. Adding Flamekeeper
+to a host is a client registration in Ilmari's config — no Ilmari code
+changes, which is exactly the promise its README makes.
+
+## Tests
 
 ```sh
-./scripts/dev-local.sh install   # one-off, ~5 GB
-./scripts/dev-local.sh up        # build + start agent and dashboard
-./scripts/dev-local.sh start     # start the game
-./scripts/dev-local.sh status    # health, info, players, metrics
-./scripts/dev-local.sh down      # stop everything
+go test ./...
+cd web && npm test
 ```
-
-Then open http://127.0.0.1:8080 (admin / localadmin123). To actually join
-the server from the game, set `DWDEV_OWNER_ID` to your Player ID first
-(in game: Settings, bottom-left "My Player ID") — otherwise a placeholder
-is used, which boots fine but won't make you the Owner.
-
-On Fedora, SteamCMD needs `sudo dnf install glibc.i686 libstdc++.i686` and a
-`/etc/ssl/certs/ca-certificates.crt` symlink to
-`/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem`; without them it reports
-"needs to be online" and gives up. `install` prints the exact commands.
-
-Tests: `go test ./...` and `cd web && npm test`.
-
-## Lineage
-
-The game-agnostic architecture — `game.Definition` registry, sidecar agent,
-savecache, collector, backup/notify/sched/watchdog — is palcon's, kept
-structurally identical so improvements can flow between the two projects.
-`docs/porting-to-another-game.md` describes the seam. Palworld-specific
-code was removed rather than ported; a second game would register beside
-Dragonwilds the same way Dragonwilds registered beside Palworld.

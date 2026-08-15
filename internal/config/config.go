@@ -34,29 +34,16 @@ type Config struct {
 	// Flamekeeper should never require access to a docker socket to run.
 	DockerHost string
 
-	// IlmariURL/Token point at the shared Ilmari host service. When set,
-	// it wins over ProvisionerURL — the cut-over flag of the Ilmari
-	// migration (docs/migration.md in the ilmari repo). Unset it and the
-	// console falls straight back to the legacy provisioner below.
+	// IlmariURL/Token point at the shared Ilmari host service
+	// (github.com/safwyls/ilmari) — the only component with Docker rights,
+	// and this console's only way to place containers. Empty means the
+	// Raise-a-server wizard is absent and servers are registered by hand.
 	IlmariURL   string
 	IlmariToken string
-	// ProvisionerURL/Token point at a provisioner-mode flameagent — the one
-	// component allowed to create containers. Empty means the new-server
-	// wizard hands the operator a stack file to paste instead.
-	ProvisionerURL   string
-	ProvisionerToken string
 
 	// CookieSecure marks the session cookie Secure for deployments behind
 	// TLS. Off by default so plain-HTTP LAN setups keep working.
 	CookieSecure bool
-
-	// AnthropicAPIKey / GeminiAPIKey enable the pal advisor chat (hosted-
-	// model analysis of pals and base crews) — set one or the other. Both
-	// empty disables the feature entirely: like DockerHost, absent means
-	// the UI never offers it, not that it breaks. If both are set,
-	// Anthropic wins (see cmd/flamekeeper).
-	AnthropicAPIKey string
-	GeminiAPIKey    string
 }
 
 func (c *Config) DBPath() string {
@@ -73,15 +60,10 @@ func Load() (*Config, error) {
 		AdminUsername: getEnv("ADMIN_USERNAME", "admin"),
 		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
 		DockerHost:    os.Getenv("DOCKER_HOST"),
-		// The phase 5 provisioner (docs/sidecar-agent.md): when set, the
-		// new-server wizard deploys stacks itself instead of handing the
-		// operator a file to paste.
-		IlmariURL:        os.Getenv("ILMARI_URL"),
-		IlmariToken:      os.Getenv("ILMARI_TOKEN"),
-		ProvisionerURL:   os.Getenv("PROVISIONER_URL"),
-		ProvisionerToken: os.Getenv("PROVISIONER_TOKEN"),
-		AnthropicAPIKey:  os.Getenv("ANTHROPIC_API_KEY"),
-		GeminiAPIKey:     os.Getenv("GEMINI_API_KEY"),
+		// One-click provisioning rides the shared Ilmari host service;
+		// when unset, the new-server wizard is simply absent.
+		IlmariURL:   os.Getenv("ILMARI_URL"),
+		IlmariToken: os.Getenv("ILMARI_TOKEN"),
 	}
 
 	cfg.CookieSecure = os.Getenv("COOKIE_SECURE") == "true" || os.Getenv("COOKIE_SECURE") == "1"

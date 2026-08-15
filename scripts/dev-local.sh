@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# Runs the whole stack locally against a real Dragonwilds server: the
-# flameagent sidecar in supervisor mode, and flamekeeper in front of it.
+# Runs the whole stack locally against a real game server: the flameagent
+# sidecar in supervisor mode, and flamekeeper in front of it.
+#
+# UNPORTED (see docs/state-of-play.md): this script still carries its
+# Dragonwilds-era paths and env below, and Enshrouded needs Wine plus the
+# Windows depot on the dev box. Port it alongside the first real
+# deployment — the shape (agent owns the game, console talks only to the
+# agent) is exactly right and stays.
 #
 # This is the manual-test path. It is deliberately the same shape as a real
 # deployment — the agent owns the game process and flamekeeper only talks to the

@@ -3,10 +3,10 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/safwyls/flamekeeper/internal/agentctl"
@@ -86,43 +86,6 @@ func TestSteamUpdateRefusedWhileTheSupervisedGameRuns(t *testing.T) {
 	}
 }
 
-// destroyStub is a provisioner that answers destroy however a test needs.
-type destroyStub struct {
-	mu     sync.Mutex
-	status int
-	body   string
-	calls  int
-}
-
-func newDestroyStub(t *testing.T) (*destroyStub, string) {
-	t.Helper()
-	d := &destroyStub{status: http.StatusOK, body: `{"container":"flameagent-main","dataDir":"/data/main"}`}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/v1/health" {
-			json.NewEncoder(w).Encode(map[string]any{
-				"agent": "flameagent", "mode": "provisioner", "apiVersion": 1,
-				"provision": map[string]any{"dataRoot": "/data", "runAs": "568:568", "imageTag": "latest"},
-			})
-			return
-		}
-		d.mu.Lock()
-		d.calls++
-		status, body := d.status, d.body
-		d.mu.Unlock()
-		w.WriteHeader(status)
-		w.Write([]byte(body))
-	}))
-	t.Cleanup(srv.Close)
-	return d, srv.URL
-}
-
-func (d *destroyStub) set(status int, body string) {
-	d.mu.Lock()
-	d.status, d.body = status, body
-	d.mu.Unlock()
-}
-
 // The retry trap: once the container is gone but the row survives — a
 // hand-run docker rm, or a destroy that succeeded before the row delete
 // failed — every retry hit the provisioner's 404 and 400'd forever, so the
@@ -130,11 +93,12 @@ func (d *destroyStub) set(status int, body string) {
 // for. "Already gone" is the end state that was wanted; proceed.
 func TestDeleteTreatsAnAlreadyGoneContainerAsDestroyed(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
-	stub, provURL := newDestroyStub(t)
-	withProvisioner(t, app, provURL)
+	fake := &fakeProvisioner{
+		destroyErr: fmt.Errorf("%w: no container with that name", agentctl.ErrNotFound),
+	}
+	app.api.Provisioner = fake
 
 	id := addProvisionedRow(t, app, "flameagent-main")
-	stub.set(http.StatusNotFound, `{"error":"no container with that name"}`)
 
 	rec := app.do(t, "DELETE", "/api/servers/"+itoa(id)+"?removeContainer=true", nil, admin)
 	if rec.Code != http.StatusOK && rec.Code != http.StatusNoContent {
@@ -148,11 +112,12 @@ func TestDeleteTreatsAnAlreadyGoneContainerAsDestroyed(t *testing.T) {
 // A refusal is not "already gone" and must still stop the delete.
 func TestDeleteStillStopsOnARefusedDestroy(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
-	stub, provURL := newDestroyStub(t)
-	withProvisioner(t, app, provURL)
+	fake := &fakeProvisioner{
+		destroyErr: fmt.Errorf("%w: that container was not created by this provisioner", agentctl.ErrRejected),
+	}
+	app.api.Provisioner = fake
 
 	id := addProvisionedRow(t, app, "flameagent-byhand")
-	stub.set(http.StatusBadRequest, `{"error":"that container was not created by this provisioner"}`)
 
 	if rec := app.do(t, "DELETE", "/api/servers/"+itoa(id)+"?removeContainer=true", nil, admin); rec.Code != http.StatusBadRequest {
 		t.Fatalf("refused destroy: %d (body %s), want 400", rec.Code, rec.Body)
@@ -166,8 +131,8 @@ func TestDeleteStillStopsOnARefusedDestroy(t *testing.T) {
 // any name). Destroying for one would unmake the other's server.
 func TestDeleteRefusesToDestroyASharedContainer(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
-	stub, provURL := newDestroyStub(t)
-	withProvisioner(t, app, provURL)
+	fake := &fakeProvisioner{}
+	app.api.Provisioner = fake
 
 	first := addProvisionedRow(t, app, "flameagent-shared")
 	addProvisionedRow(t, app, "flameagent-shared")
@@ -176,10 +141,7 @@ func TestDeleteRefusesToDestroyASharedContainer(t *testing.T) {
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("destroying a shared container: %d (body %s), want 409", rec.Code, rec.Body)
 	}
-	stub.mu.Lock()
-	calls := stub.calls
-	stub.mu.Unlock()
-	if calls != 0 {
+	if fake.destroyCalls != 0 {
 		t.Errorf("the provisioner was asked to destroy a shared container")
 	}
 	// Removing just the row is still allowed — that's the way out.
@@ -208,16 +170,6 @@ func TestPlainDeleteIsIdempotent(t *testing.T) {
 	if rec := app.do(t, "DELETE", "/api/servers/abc", nil, admin); rec.Code != http.StatusBadRequest {
 		t.Errorf("malformed id: %d, want 400", rec.Code)
 	}
-}
-
-// withProvisioner points the app's provisioner client at url.
-func withProvisioner(t *testing.T, app *testApp, url string) {
-	t.Helper()
-	client, err := agentctl.New(url, "prov-token-0123456789abcdef")
-	if err != nil {
-		t.Fatal(err)
-	}
-	app.api.Provisioner = client
 }
 
 // addProvisionedRow registers a row shaped like a one-click deploy.

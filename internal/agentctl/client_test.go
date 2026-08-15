@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -17,56 +16,6 @@ import (
 	"github.com/safwyls/flamekeeper/internal/flameagent"
 )
 
-// newProvisioner spins a real provisioner-mode flameagent over a fake docker
-// endpoint, so the client is exercised against the actual server rather
-// than a stub of it.
-func newProvisioner(t *testing.T) (*agentctl.Client, string) {
-	t.Helper()
-	docker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/images/create":
-			io.WriteString(w, `{"status":"done"}`+"\n")
-		case r.URL.Path == "/containers/create":
-			w.WriteHeader(http.StatusCreated)
-			io.WriteString(w, `{"Id":"cafe"}`)
-		case r.URL.Path == "/containers/json":
-			w.Header().Set("Content-Type", "application/json")
-			// flameagent-main is provisioner-made; nginx is a bystander with
-			// neither the image nor the label, so it is invisible to
-			// discovery and refused by destroy.
-			io.WriteString(w, `[{"Id":"cafe","Names":["/flameagent-main"],
-			  "Image":"ghcr.io/safwyls/flameagent:latest","State":"running",
-			  "Labels":{"flamekeeper.provisioned":"true","flamekeeper.slug":"main"},
-			  "Ports":[{"PrivatePort":8811,"PublicPort":9811,"Type":"tcp"}]},
-			 {"Id":"beef","Names":["/nginx"],"Image":"nginx:latest",
-			  "State":"running","Labels":{},"Ports":[]}]`)
-		case strings.HasSuffix(r.URL.Path, "/json"):
-			io.WriteString(w, `{"Config":{"Env":["FLAMEAGENT_MODE=supervisor","FLAMEAGENT_TOKEN=recovered-token","FLAMEAGENT_ADMIN_PASSWORD=recovered-pw","FLAMEAGENT_SERVER_NAME=Main"]}}`)
-		default:
-			w.WriteHeader(http.StatusNoContent)
-		}
-	}))
-	t.Cleanup(docker.Close)
-
-	dataRoot := t.TempDir()
-	agent, err := flameagent.New(flameagent.Config{
-		Token: token, InstallDir: t.TempDir(), Version: "test",
-		Mode: "provisioner", DockerHost: docker.URL, DataRoot: dataRoot,
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv := httptest.NewServer(agent.Handler())
-	t.Cleanup(srv.Close)
-
-	client, err := agentctl.New(srv.URL, token)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return client, dataRoot
-}
-
 func TestBaseURLIsTheConfiguredEndpoint(t *testing.T) {
 	client, err := agentctl.New("http://flameagent-main:8811/", token)
 	if err != nil {
@@ -77,96 +26,6 @@ func TestBaseURLIsTheConfiguredEndpoint(t *testing.T) {
 		t.Errorf("BaseURL = %q", client.BaseURL())
 	}
 }
-
-func TestProvisionDiscoverAdoptDestroy(t *testing.T) {
-	client, dataRoot := newProvisioner(t)
-	ctx := context.Background()
-
-	res, err := client.Provision(ctx, flameagent.ProvisionRequest{
-		Slug: "palhalla", ImageTag: "latest",
-		Token: "new-agent-token-0123456789abcdef", AdminPassword: "pw12345",
-		ServerName: "Palhalla", RunAs: "568:568",
-		OwnerID: "owner-abc", GamePort: 7777, AgentPort: 8811,
-	})
-	if err != nil {
-		t.Fatalf("Provision: %v", err)
-	}
-	if res.Container != "flameagent-palhalla" || res.DataDir != filepath.Join(dataRoot, "palhalla") {
-		t.Errorf("provision result = %+v", res)
-	}
-
-	found, err := client.Discover(ctx)
-	if err != nil {
-		t.Fatalf("Discover: %v", err)
-	}
-	if len(found) != 1 || found[0].Name != "flameagent-main" || found[0].AgentPort != 9811 {
-		t.Fatalf("discovered = %+v", found)
-	}
-
-	adopted, err := client.Adopt(ctx, "flameagent-main")
-	if err != nil {
-		t.Fatalf("Adopt: %v", err)
-	}
-	if adopted.Token != "recovered-token" || adopted.AdminPassword != "recovered-pw" {
-		t.Errorf("adopt did not recover the credentials: %+v", adopted)
-	}
-	if adopted.ServerName != "Main" || adopted.Mode != "supervisor" {
-		t.Errorf("adopt result = %+v", adopted)
-	}
-
-	destroyed, err := client.Destroy(ctx, "flameagent-main")
-	if err != nil {
-		t.Fatalf("Destroy: %v", err)
-	}
-	if destroyed.Container != "flameagent-main" || destroyed.DataDir != filepath.Join(dataRoot, "main") {
-		t.Errorf("destroy result = %+v", destroyed)
-	}
-}
-
-// A provisioner refusing a request is the caller's problem to report, so it
-// arrives as ErrRejected rather than a bare transport error.
-func TestProvisionerRefusalsAreRejections(t *testing.T) {
-	client, _ := newProvisioner(t)
-	ctx := context.Background()
-
-	if _, err := client.Adopt(ctx, ""); !errors.Is(err, agentctl.ErrRejected) {
-		t.Errorf("adopting nothing: %v, want ErrRejected", err)
-	}
-	// A slug the provisioner won't accept.
-	if _, err := client.Provision(ctx, flameagent.ProvisionRequest{Slug: "../escape"}); !errors.Is(err, agentctl.ErrRejected) {
-		t.Errorf("provisioning a traversal slug: %v, want ErrRejected", err)
-	}
-}
-
-// "It isn't there" and "I refuse" need to be separable: a caller destroying
-// a container can treat the first as success and carry on, where folding
-// both into ErrRejected leaves it unable to tell a finished job from a
-// forbidden one — and stuck retrying forever.
-func TestMissingIsDistinctFromRefused(t *testing.T) {
-	client, _ := newProvisioner(t)
-	ctx := context.Background()
-
-	err := errFrom(client.Destroy(ctx, "no-such-container"))
-	if !errors.Is(err, agentctl.ErrNotFound) {
-		t.Errorf("destroying a missing container: %v, want ErrNotFound", err)
-	}
-	if errors.Is(err, agentctl.ErrRejected) {
-		t.Errorf("a missing container must not also read as a refusal: %v", err)
-	}
-
-	// The label gate's refusal stays a refusal — a container that exists
-	// but isn't ours must not be mistaken for "already gone" and allowed to
-	// proceed to the row delete.
-	err = errFrom(client.Destroy(ctx, "nginx"))
-	if !errors.Is(err, agentctl.ErrRejected) {
-		t.Errorf("destroying an unlabelled container: %v, want ErrRejected", err)
-	}
-	if errors.Is(err, agentctl.ErrNotFound) {
-		t.Errorf("a refused destroy must not read as already-gone: %v", err)
-	}
-}
-
-func errFrom[T any](_ T, err error) error { return err }
 
 // Power and the file verbs are supervisor-mode features. A companion agent
 // answers 400, which the client surfaces as a rejection so flamekeeper can fall
@@ -190,34 +49,14 @@ func TestSupervisorOnlyVerbsAgainstACompanion(t *testing.T) {
 	}
 }
 
-// The provisioner verbs are equally mode-gated the other way.
-func TestProvisionerVerbsAgainstACompanion(t *testing.T) {
-	srv := newAgent(t, "exit 0")
-	client, err := agentctl.New(srv.URL, token)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := context.Background()
-
-	if _, err := client.Discover(ctx); !errors.Is(err, agentctl.ErrRejected) {
-		t.Errorf("Discover on a companion: %v, want ErrRejected", err)
-	}
-	if _, err := client.Destroy(ctx, "x"); !errors.Is(err, agentctl.ErrRejected) {
-		t.Errorf("Destroy on a companion: %v, want ErrRejected", err)
-	}
-}
-
-// newAgentWithConfig seeds the settings file the game writes on first boot;
-// the agent edits it in place rather than creating one, so an install that
-// has never run has nothing to serve.
-func newAgentWithConfig(t *testing.T, ini string) *agentctl.Client {
+// newAgentWithConfig seeds the settings file the supervisor (or the game)
+// writes before first boot; the agent edits it in place rather than
+// creating one, so an install that has never run has nothing to serve.
+func newAgentWithConfig(t *testing.T, cfg string) *agentctl.Client {
 	t.Helper()
 	install := t.TempDir()
-	cfgPath := filepath.Join(install, filepath.FromSlash("RSDragonwilds/Saved/Config/LinuxServer/DedicatedServer.ini"))
-	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(cfgPath, []byte(ini), 0o644); err != nil {
+	cfgPath := filepath.Join(install, "enshrouded_server.json")
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	agent, err := flameagent.New(flameagent.Config{
@@ -237,7 +76,9 @@ func newAgentWithConfig(t *testing.T, ini string) *agentctl.Client {
 }
 
 func TestConfigRoundTrip(t *testing.T) {
-	const seed = "[/Script/Dominion.DedicatedServerSettings]\nServerName=old\n"
+	// Valid JSON both ways: the agent validates uploads now, so the round
+	// trip has to speak the file's real shape.
+	const seed = `{"name":"old"}`
 	client := newAgentWithConfig(t, seed)
 	ctx := context.Background()
 
@@ -249,7 +90,7 @@ func TestConfigRoundTrip(t *testing.T) {
 		t.Errorf("GetConfig returned %q, want the seeded file", got)
 	}
 
-	const updated = "[/Script/Dominion.DedicatedServerSettings]\nServerName=new\n"
+	const updated = `{"name":"new"}`
 	if err := client.PutConfig(ctx, []byte(updated)); err != nil {
 		t.Fatalf("PutConfig: %v", err)
 	}

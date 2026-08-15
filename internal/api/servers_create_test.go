@@ -27,10 +27,10 @@ func TestCreateServerResponseMatchesStoredRow(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	if created.Game != "dragonwilds" {
+	if created.Game != "enshrouded" {
 		t.Errorf("create response game = %q, want the normalized id", created.Game)
 	}
-	if created.GamePort != 7777 {
+	if created.GamePort != 15637 {
 		t.Errorf("create response gamePort = %d, want the game default", created.GamePort)
 	}
 	// And the same values must come back on a re-read.

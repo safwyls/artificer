@@ -42,14 +42,11 @@ func authed(t *testing.T, method, url string, body any) (*http.Response, []byte)
 }
 
 type launchStatus struct {
-	Profile         string   `json:"profile"`
-	Mods            bool     `json:"mods"`
-	Installed       bool     `json:"installed"`
-	Available       []string `json:"available"`
-	PendingRestart  bool     `json:"pendingRestart"`
-	ConfigPath      string   `json:"configPath"`
-	BridgeKit       bool     `json:"bridgeKit"`
-	BridgeInstalled bool     `json:"bridgeInstalled"`
+	Profile        string   `json:"profile"`
+	Installed      bool     `json:"installed"`
+	Available      []string `json:"available"`
+	PendingRestart bool     `json:"pendingRestart"`
+	ConfigPath     string   `json:"configPath"`
 }
 
 func healthLaunch(t *testing.T, srv string) launchStatus {
@@ -64,94 +61,80 @@ func healthLaunch(t *testing.T, srv string) launchStatus {
 	return h.Launch
 }
 
-// The console has to be able to see, and change, which build runs — and the
-// answer has to survive the agent being recreated, or a redeploy would
-// silently put a modded server back on the vanilla build.
-func TestLaunchProfileIsSelectableAndPersists(t *testing.T) {
-	srv, _, install := newSupervisorAgent(t, steadyGame)
-
-	if got := healthLaunch(t, srv.URL); got.Profile != flameagent.ProfileNative {
-		t.Fatalf("profile = %q, want native by default", got.Profile)
-	}
-
-	resp, body := authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": flameagent.ProfileWine})
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("selecting wine: %d %s", resp.StatusCode, body)
-	}
-
-	got := healthLaunch(t, srv.URL)
-	if got.Profile != flameagent.ProfileWine {
-		t.Errorf("profile = %q, want wine", got.Profile)
-	}
-	if !got.Mods {
-		t.Error("the wine profile is the one that carries the mod")
-	}
-	// The Windows build is a different depot, so an install that only has
-	// the Linux files must report itself as not installed rather than
-	// looking ready and failing at exec.
-	if got.Installed {
-		t.Error("wine reported installed on a native-only install dir")
-	}
-	if !strings.Contains(got.ConfigPath, "WindowsServer") {
-		t.Errorf("config path = %q; the ini editor would edit a file the game never reads", got.ConfigPath)
-	}
-
-	// A recreated agent over the same volume — a redeploy — keeps the choice.
-	second, err := flameagent.New(flameagent.Config{
-		Token: testToken, InstallDir: install, SteamCmd: "steamcmd", Version: "test",
-		Mode: "supervisor", Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
+// newWineAgent builds a supervisor agent with no explicit game command, so
+// the default wine profile is in charge. The game is never started unless
+// the test also plants an exe and a wine stub.
+func newWineAgent(t *testing.T, cfg flameagent.Config) (*httptest.Server, string) {
+	t.Helper()
+	install := t.TempDir()
+	cfg.Token = testToken
+	cfg.InstallDir = install
+	cfg.SteamCmd = "/bin/true"
+	cfg.Version = "test"
+	cfg.Mode = "supervisor"
+	cfg.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	agent, err := flameagent.New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv2 := httptest.NewServer(second.Handler())
-	t.Cleanup(srv2.Close)
-	if got := healthLaunch(t, srv2.URL); got.Profile != flameagent.ProfileWine {
-		t.Errorf("a recreated agent forgot the selection: %q", got.Profile)
+	srv := httptest.NewServer(agent.Handler())
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() {
+		req, _ := http.NewRequest("POST", srv.URL+"/v1/power/stop", nil)
+		req.Header.Set("Authorization", "Bearer "+testToken)
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			resp.Body.Close()
+		}
+	})
+	return srv, install
+}
+
+// Enshrouded has exactly one build, so an agent with no explicit command
+// must default to the wine profile — and report the one selectable profile
+// and the json's fixed location, which is what the console renders.
+func TestDefaultProfileIsWine(t *testing.T) {
+	srv, _ := newWineAgent(t, flameagent.Config{})
+
+	got := healthLaunch(t, srv.URL)
+	if got.Profile != flameagent.ProfileWine {
+		t.Fatalf("profile = %q, want wine by default", got.Profile)
+	}
+	if len(got.Available) != 1 || got.Available[0] != flameagent.ProfileWine {
+		t.Errorf("available = %v, want just wine", got.Available)
+	}
+	if got.ConfigPath != "enshrouded_server.json" {
+		t.Errorf("config path = %q, want the json at the install root", got.ConfigPath)
 	}
 }
 
 func TestUnknownLaunchProfileIsRefused(t *testing.T) {
-	srv, _, _ := newSupervisorAgent(t, steadyGame)
+	srv, _ := newWineAgent(t, flameagent.Config{})
 	resp, _ := authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": "proton"})
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400 for an unknown profile", resp.StatusCode)
 	}
 }
 
-// Selecting a profile must not disturb a running game — the switch needs a
-// re-install, so bringing the server down mid-"settings change" would be
-// the worst possible surprise. It is reported as pending instead.
-func TestSelectingAProfileLeavesTheRunningGameAloneAndReportsPending(t *testing.T) {
+// An explicit game command is the operator having already said exactly
+// what to run. The agent reports it as the custom profile and refuses to
+// let the console silently swap it for a known one.
+func TestExplicitCommandReportsCustomAndRefusesSelection(t *testing.T) {
 	srv, _, _ := newSupervisorAgent(t, steadyGame)
 
-	if resp, body := authed(t, http.MethodPost, srv.URL+"/v1/power/start", nil); resp.StatusCode != http.StatusOK {
-		t.Fatalf("start: %d %s", resp.StatusCode, body)
-	}
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if healthLaunch(t, srv.URL).Profile != "" {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": flameagent.ProfileWine})
-
 	got := healthLaunch(t, srv.URL)
-	if !got.PendingRestart {
-		t.Error("a selection made while running should report as pending, not as in effect")
+	if got.Profile != flameagent.ProfileCustom {
+		t.Fatalf("profile = %q, want custom for an explicit command", got.Profile)
 	}
-	// The game itself is untouched.
-	_, body := authed(t, http.MethodGet, srv.URL+"/v1/health", nil)
-	var h struct {
-		Game struct {
-			State string `json:"state"`
-		} `json:"game"`
+	if len(got.Available) != 0 {
+		t.Errorf("available = %v, want none — the console must not offer to replace the operator's command", got.Available)
 	}
-	json.Unmarshal(body, &h)
-	if h.Game.State != "running" {
-		t.Errorf("game state = %q; selecting a profile stopped the server", h.Game.State)
+
+	resp, body := authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": flameagent.ProfileWine})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("selecting over an explicit command: %d %s, want 400", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), "explicit game command") {
+		t.Errorf("refusal should name the explicit command as the reason: %s", body)
 	}
 }
 
@@ -159,35 +142,33 @@ func TestSelectingAProfileLeavesTheRunningGameAloneAndReportsPending(t *testing.
 // stands in for the wine binary and records what it was handed. This is the
 // only place the profile's environment is proven to actually reach the
 // process — every piece of it fails silently in production if it doesn't.
-func TestWineProfileLaunchesThroughPathWithTheModEnvironment(t *testing.T) {
-	srv, _, install := newSupervisorAgent(t, steadyGame)
-
-	// A stub "wine" that dumps its arguments and the variables the mod
-	// stack depends on, then behaves like the game.
+func TestWineProfileLaunchesAndSeedsTheConfig(t *testing.T) {
+	// A stub "wine64" that dumps its arguments and environment, then
+	// behaves like the game (running until the supervisor's INT).
 	binDir := t.TempDir()
-	// printf, not echo: sh's echo expands backslash escapes, and the whole
-	// point of DWBRIDGE_DIR is that it is a backslash-separated Windows
-	// path — echo would turn the \t of Z:\tmp into a tab and the assertion
-	// would fail on the stub's mangling rather than on anything real.
 	stub := "#!/bin/sh\n" +
-		"{ printf '%s\\n' \"argv: $*\" \"WINEDLLOVERRIDES=$WINEDLLOVERRIDES\" \"DWBRIDGE_DIR=$DWBRIDGE_DIR\" \"PWD=$(pwd)\"; } > " +
+		"{ printf '%s\\n' \"argv: $*\" \"WINEPREFIX=$WINEPREFIX\" \"PWD=$(pwd)\"; } > " +
 		filepath.Join(binDir, "launched") + "\n" +
-		"trap 'exit 0' TERM\nwhile true; do sleep 0.05; done\n"
-	if err := os.WriteFile(filepath.Join(binDir, "wine"), []byte(stub), 0o755); err != nil {
+		"trap 'exit 0' INT TERM\nwhile true; do sleep 0.05; done\n"
+	if err := os.WriteFile(filepath.Join(binDir, "wine64"), []byte(stub), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// Before the agent is built: the wine binary is resolved when the
+	// profile is assembled, not at exec time.
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	// The Windows build's files, so the profile counts as installed.
-	exe := filepath.Join(install, "RSDragonwilds", "Binaries", "Win64", "RSDragonwildsServer-Win64-Shipping.exe")
-	if err := os.MkdirAll(filepath.Dir(exe), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(exe, []byte("MZ"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	srv, install := newWineAgent(t, flameagent.Config{
+		ServerName:    "Grimwood Bastion",
+		AdminPassword: "hunter2-but-longer",
+		JoinPassword:  "friends-only",
+		GamePort:      25637,
+		StopGrace:     500 * time.Millisecond,
+	})
 
-	authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": flameagent.ProfileWine})
+	// The Windows build's file, so the profile counts as installed.
+	if err := os.WriteFile(filepath.Join(install, "enshrouded_server.exe"), []byte("MZ"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if got := healthLaunch(t, srv.URL); !got.Installed {
 		t.Fatal("the wine profile should be installed once the exe exists")
 	}
@@ -211,84 +192,64 @@ func TestWineProfileLaunchesThroughPathWithTheModEnvironment(t *testing.T) {
 		t.Fatal("the wine stub was never executed — the profile's command did not reach exec")
 	}
 	got := string(out)
-	if !strings.Contains(got, "RSDragonwildsServer-Win64-Shipping.exe") {
+	if !strings.Contains(got, "enshrouded_server.exe") {
 		t.Errorf("wine was not handed the server exe: %s", got)
 	}
-	if !strings.Contains(got, "-Port=") {
-		t.Errorf("the port never reached the game: %s", got)
+	// The port is deliberately not a launch argument — the json owns it,
+	// and a stray flag would be silently ignored at best.
+	argv := ""
+	for _, line := range strings.Split(got, "\n") {
+		if strings.HasPrefix(line, "argv: ") {
+			argv = line
+		}
 	}
-	if !strings.Contains(got, "WINEDLLOVERRIDES=version=n,b") {
-		t.Errorf("the version.dll override is missing, so UE4SS would never inject: %s", got)
+	if strings.Contains(strings.ToLower(argv), "port") {
+		t.Errorf("argv carries a port flag; the json owns the port: %s", argv)
 	}
-	if !strings.Contains(got, `DWBRIDGE_DIR=Z:\`) {
-		t.Errorf("the mod would not find the bridge directory: %s", got)
+	// The prefix lives in the install volume so it survives agent
+	// recreation, and the working directory is the install root, where the
+	// server's relative ./savegame and ./logs belong.
+	if !strings.Contains(got, "WINEPREFIX="+filepath.Join(install, ".wineprefix")) {
+		t.Errorf("WINEPREFIX is not the install-volume prefix: %s", got)
 	}
-	// The rendezvous directory must exist by the time the game is up:
-	// neither the mod nor the bridge reader creates it, so a start on a
-	// modded profile that skips the mkdir leaves the mod heartbeating
-	// into the void (first real Wine deployment found exactly this).
-	if fi, err := os.Stat(filepath.Join(install, "dwbridge")); err != nil || !fi.IsDir() {
-		t.Errorf("starting the wine profile did not create the bridge directory: %v", err)
-	}
-}
-
-// Switching build must not cost the operator their settings or their world.
-// The two are different: the world is shared by both builds (saves live in
-// Saved/SaveGames, which is not platform-suffixed), but the config
-// directory *is* per platform, so the settings have to be carried across
-// deliberately.
-func TestSwitchingBuildCarriesSettingsAndLeavesTheWorldAlone(t *testing.T) {
-	srv, _, install := newSupervisorAgent(t, steadyGame)
-
-	linuxIni := filepath.Join(install, "RSDragonwilds", "Saved", "Config", "LinuxServer", "DedicatedServer.ini")
-	if err := os.MkdirAll(filepath.Dir(linuxIni), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	settings := "[/Script/Dominion.DedicatedServerSettings]\nServerName=Ashenfall\nOwnerId=abc\n"
-	if err := os.WriteFile(linuxIni, []byte(settings), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// A world, to prove it is untouched by the switch.
-	save := filepath.Join(install, "RSDragonwilds", "Saved", "SaveGames", "Ashenfall.sav")
-	if err := os.MkdirAll(filepath.Dir(save), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(save, []byte("SAVE-world-bytes"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": flameagent.ProfileWine})
-
-	windowsIni := filepath.Join(install, "RSDragonwilds", "Saved", "Config", "WindowsServer", "DedicatedServer.ini")
-	got, err := os.ReadFile(windowsIni)
+	realInstall, err := filepath.EvalSymlinks(install)
 	if err != nil {
-		t.Fatalf("settings were not carried to the Windows build: %v", err)
-	}
-	if string(got) != settings {
-		t.Errorf("carried settings = %q, want them intact", got)
-	}
-	// Saves are shared, so switching must not have touched the world.
-	if world, err := os.ReadFile(save); err != nil || string(world) != "SAVE-world-bytes" {
-		t.Errorf("the world changed across a build switch: %v %q", err, world)
-	}
-
-	// And the settings editor now serves the file the game will actually
-	// read — otherwise edits would appear to save and change nothing.
-	resp, body := authed(t, http.MethodGet, srv.URL+"/v1/files/config", nil)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("config after switch: %d %s", resp.StatusCode, body)
-	}
-	if !strings.Contains(string(body), "Ashenfall") {
-		t.Errorf("the config verb served something unexpected: %s", body)
-	}
-
-	// Switching back must not clobber the config that is already there.
-	if err := os.WriteFile(windowsIni, []byte(settings+"Edited=1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": flameagent.ProfileNative})
-	authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": flameagent.ProfileWine})
-	if back, _ := os.ReadFile(windowsIni); !strings.Contains(string(back), "Edited=1") {
-		t.Error("switching back overwrote a config that was already there")
+	pwd := ""
+	for _, line := range strings.Split(strings.TrimSpace(got), "\n") {
+		if rest, ok := strings.CutPrefix(line, "PWD="); ok {
+			pwd = rest
+		}
+	}
+	if pwd != install && pwd != realInstall {
+		t.Errorf("PWD = %q, want the install root %q", pwd, install)
+	}
+
+	// Starting also seeded the config: name, port and both role passwords
+	// were in place before the game's first boot could write open defaults.
+	data, err := os.ReadFile(filepath.Join(install, "enshrouded_server.json"))
+	if err != nil {
+		t.Fatalf("no enshrouded_server.json was seeded: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("seeded config does not parse: %v\n%s", err, data)
+	}
+	if doc["name"] != "Grimwood Bastion" {
+		t.Errorf("seeded name = %v", doc["name"])
+	}
+	if port, _ := doc["queryPort"].(float64); port != 25637 {
+		t.Errorf("seeded queryPort = %v, want 25637", doc["queryPort"])
+	}
+	if got := groupPassword(t, doc, true); got != "hunter2-but-longer" {
+		t.Errorf("seeded admin password = %q", got)
+	}
+	if got := groupPassword(t, doc, false); got != "friends-only" {
+		t.Errorf("seeded join password = %q", got)
+	}
+
+	if resp, body := authed(t, http.MethodPost, srv.URL+"/v1/power/stop", nil); resp.StatusCode != http.StatusOK {
+		t.Fatalf("stop: %d %s", resp.StatusCode, body)
 	}
 }

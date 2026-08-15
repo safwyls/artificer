@@ -14,10 +14,10 @@ import (
 func TestGeneratedStackIsValidYAML(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 	rec := app.do(t, "POST", "/api/servers/provision", map[string]any{
-		"name": "Grimwood Bastion", "host": "10.0.0.9", "dataPath": "/mnt/pool/dw",
+		"name": "Grimwood Bastion", "host": "10.0.0.9", "dataPath": "/mnt/pool/es",
 		// Quotes are legal in these; they must survive as data.
-		"ownerId": `P-88F2"weird`, "serverName": `Quote"Name`, "worldName": "Ashenfall-Prime",
-		"gamePort": 7877, "agentPort": 9811,
+		"serverName": `Quote"Name`, "joinPassword": `pass"word`,
+		"gamePort": 25637, "agentPort": 9811,
 	}, admin)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("provision: %d %s", rec.Code, rec.Body)
@@ -43,16 +43,18 @@ func TestGeneratedStackIsValidYAML(t *testing.T) {
 	if !ok {
 		t.Fatalf("no flameagent service in:\n%s", res.Stack)
 	}
-	if svc.Env["FLAMEAGENT_OWNER_ID"] != `P-88F2"weird` {
-		t.Errorf("owner id did not survive quoting: %q", svc.Env["FLAMEAGENT_OWNER_ID"])
-	}
 	if svc.Env["FLAMEAGENT_SERVER_NAME"] != `Quote"Name` {
 		t.Errorf("server name did not survive quoting: %q", svc.Env["FLAMEAGENT_SERVER_NAME"])
 	}
-	if len(svc.Ports) != 3 {
-		t.Errorf("ports = %v, want the game pair plus the agent", svc.Ports)
+	if svc.Env["FLAMEAGENT_JOIN_PASSWORD"] != `pass"word` {
+		t.Errorf("join password did not survive quoting: %q", svc.Env["FLAMEAGENT_JOIN_PASSWORD"])
 	}
-	if len(svc.Volumes) != 1 || svc.Volumes[0] != "/mnt/pool/dw:/dragonwilds" {
+	// Enshrouded binds one UDP port, so the stack publishes exactly it plus
+	// the agent's API.
+	if len(svc.Ports) != 2 {
+		t.Errorf("ports = %v, want the single game port plus the agent", svc.Ports)
+	}
+	if len(svc.Volumes) != 1 || svc.Volumes[0] != "/mnt/pool/es:/enshrouded" {
 		t.Errorf("volumes = %v", svc.Volumes)
 	}
 }
@@ -62,10 +64,10 @@ func TestGeneratedStackIsValidYAML(t *testing.T) {
 // that run on the host when the stack is pasted. Refused at the boundary.
 func TestProvisionRefusesStackInjection(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
-	fields := []string{"name", "host", "ownerId", "serverName", "worldName", "dataPath"}
+	fields := []string{"name", "host", "serverName", "dataPath"}
 	for _, field := range fields {
 		body := map[string]any{
-			"name": "Fine", "host": "10.0.0.9", "dataPath": "/mnt/pool/dw", "ownerId": "owner-abc",
+			"name": "Fine", "host": "10.0.0.9", "dataPath": "/mnt/pool/es",
 		}
 		body[field] = "x\nservices:\n  injected:\n    image: evil"
 		rec := app.do(t, "POST", "/api/servers/provision", body, admin)

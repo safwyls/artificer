@@ -3,53 +3,53 @@ For any UI/frontend task, always produce a written design plan (palette, type, l
 # Flamekeeper (flamekeeper)
 
 **Picking this up mid-flight? Read `docs/state-of-play.md` first** — it is
-the handoff: what's done, what's verified against a real server, what is
-still guessed, and what to do next.
+the handoff: what's done, what is still community-sourced rather than
+verified, and what to do next.
 
-A standalone Dragonwilds server console built on palcon's reusable base
-(sibling repo; architecture kept structurally identical on purpose). One
-game is registered: `internal/games/dragonwilds/` — client derived via the
-flameagent sidecar, `dwconfig` ini editor, `dwlog` log tracker, `dwsave`
-world-save reader (SPUD header metadata, served at `/servers/{id}/world`). Frontend is
-Flamekeeper throughout (design source: `mocks/dragonwilds-dashboard.html`;
-theme tokens are the `wk.*` literals in `web/tailwind.config.js`, mirrored
-onto shadcn semantic vars in `web/src/index.css`).
+A standalone Enshrouded server console built on palcon's reusable base
+(sibling repos palcon and wildskeeper; architecture kept structurally
+identical on purpose so fixes travel). One game is registered:
+`internal/games/enshrouded/` — client derived via the flameagent sidecar,
+`esconfig` JSON editor for `enshrouded_server.json`, `eslog` log tracker.
+Frontend is Flamekeeper throughout (design plan: `docs/design.md`; theme
+tokens are the `fk.*` literals in `web/tailwind.config.js`, mirrored onto
+shadcn semantic vars in `web/src/index.css`).
 
-Read `docs/dragonwilds-recon.md` before touching parsers or capability
-decisions. Its "Empirical findings" section is measured on a real server
-and outranks the web-sourced sections above it — notably: the save format
-is **SPUD, not GVAS**; the server does **not** save on shutdown (clean stop
-~2 s, exit 143); `OwnerId` is not format-validated. A real client joined on
-2026-08-09, so the join/leave log lines (`dwlog` RulesV1), player id shape,
-and ban location (ini `KnownPlayerList`) are now verified — see the recon
-doc's "Closed 2026-08-09" section. Steam app id 4019830 (dedicated server
-tool), native Linux build, no RCON/REST/query — commands reach the game
-through the **dwbridge** UE4SS mod (`tools/dwbridge`, Phase 4): `Save` works
-end to end, the rest return `game.UnsupportedError` (HTTP 501) until the mod
-implements them. See the recon doc's "Command surface" for the mapped game
-functions.
+Read `docs/enshrouded-recon.md` before touching parsers or capability
+decisions. **Nothing in it is verified against a real server yet** — its
+verification ledger is the checklist, and facts marked [uncertain] are
+not assumed anywhere in code. Key facts: Steam app 2278520, Windows-only
+binary run under Wine (no Linux build exists), ONE UDP port
+(queryPort 15637 = game + Steam A2S), config seeded before first boot
+because the game's own generated default is an open server, saves on
+shutdown + 10-minute autosave, graceful stop is SIGINT, no RCON/API —
+every command 501s with a reason saying where the ability actually lives.
+
+Provisioning is **Ilmari only** (github.com/safwyls/ilmari, the shared
+host service): `internal/ilmari` is the client, `api.IlmariProvisioner`
+the adapter holding all game-shaped provisioning knowledge (FLAMEAGENT_*
+env, single UDP port + agent 8811, image family, `/enshrouded` mount).
+This console must never grow Docker rights or a provisioner mode back —
+that was deliberately deleted in the transplant from wildskeeper.
 
 Shared-layer tests use the test-only game in `internal/game/gametest`
-(a REST-shaped client over httptest fakes) so they don't need a fake agent
-and synthetic logs; production code must never import it.
+(a REST-shaped client over httptest fakes) so they don't need a fake
+agent and synthetic logs; production code must never import it.
 
-The agent (`cmd/flameagent` — Flamekeeper agent; it was `palagent` while this
-repo was palcon-derived, renamed before first deploy) supervises the game
-directly: `./RSDragonwildsServer.sh -log -Port=7777`, publishing the
-7777/7778 UDP pair the game binds. `FLAMEAGENT_OWNER_ID` is effectively
-required — the game refuses to start without an owner, so the agent seeds
-`DedicatedServer.ini` with it when an install has none. Provisioning
-(`internal/flameagent/provisioner.go` + `internal/api/provision.go`) makes
-that whole stack from the Raise-a-server wizard.
-
-Deployed for real since 2026-08-10: TrueNAS SCALE custom apps from
-`deploy/truenas-app.yaml`, images on ghcr, one-click provisioning verified
-with a live game client — see state-of-play's "Deployed for real" for the
-deployment gotchas (key lengths, dataset chown, shared network, port
-collisions with palcon on the same host). Roadmap: `docs/roadmap.md`.
+The agent (`cmd/flameagent`) supervises the game directly: SteamCMD
+installs the Windows depot, then `wine64 enshrouded_server.exe` with
+WINEPREFIX inside the install volume. Before every start it seeds or
+enforces `enshrouded_server.json` (name, queryPort, role-group passwords
+by *capability*, never by group name). Stop sends SIGINT to the process
+group — the game saves the world on the way down — with a 120 s default
+grace before SIGKILL.
 
 Tests: `go test ./...` and `cd web && npm test`. Production build:
-`cd web && npm run build` then `go build ./cmd/flamekeeper` (embeds the bundle).
+`cd web && npm run build` then `go build ./cmd/flamekeeper` (embeds the
+bundle).
+
+Roadmap: `docs/roadmap.md` (Phase 2: A2S presence + names; Phase 3: save
+index reader + rollback; Phase 5: the 1.0 churn wave, 2026-10-15).
 
 Workflow: when a branch is pushed and ready for review, open the PR
 without asking — the maintainer has standing-approved PR creation

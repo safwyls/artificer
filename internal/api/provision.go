@@ -14,21 +14,17 @@ import (
 	"strings"
 
 	"github.com/safwyls/flamekeeper/internal/agentctl"
-	"github.com/safwyls/flamekeeper/internal/store"
 	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
-// Provisioning ("new server from the dashboard", docs/sidecar-agent.md
-// phase 4): flamekeeper deliberately holds no docker create rights, so this
-// endpoint does everything short of the paste — it registers a fully
-// wired server row (host, game port, agent URL + token) and generates the
-// matching supervisor-mode stack file. The human deploys the stack; the
-// agent installs the game on first boot, seeds DedicatedServer.ini with
-// the owner id, and starts it.
-//
-// The owner id is the one field with no Palworld analogue and no default:
-// the game refuses to start without it, so it is required here rather than
-// discovered later by a confused operator reading crash logs.
+// Provisioning ("new server from the dashboard"): flamekeeper deliberately
+// holds no docker create rights, so this endpoint does everything short of
+// placing the container — it registers a fully wired server row (host,
+// game port, agent URL + token), generates a supervisor-mode stack file
+// for manual deploys, and, when Ilmari is configured, asks it to place the
+// container now. The agent installs the game via SteamCMD on first boot,
+// seeds enshrouded_server.json, and starts the server under Wine.
 
 type provisionRequest struct {
 	Name string `json:"name"`
@@ -37,24 +33,23 @@ type provisionRequest struct {
 	Host string `json:"host"`
 	// DataPath is the host directory mounted as the install volume.
 	DataPath string `json:"dataPath"`
-	// GamePort is the published UDP port; the game also uses the port
-	// above it, and both are published. In-container they stay at the
-	// game's own default, and the agent's API at 8811.
+	// GamePort is the published UDP port — Enshrouded's single queryPort,
+	// which carries game traffic and the Steam query both. In-container it
+	// stays at the game's own default, and the agent's API at 8811.
 	GamePort  int `json:"gamePort"`
 	AgentPort int `json:"agentPort"`
 	// ImageTag selects the flameagent channel; default latest.
 	ImageTag string `json:"imageTag"`
-	// AdminPassword is generated when blank.
+	// AdminPassword is generated when blank: it becomes the Keepers role
+	// password in enshrouded_server.json — what an admin types at the join
+	// screen to hold kick/ban rights.
 	AdminPassword string `json:"adminPassword"`
-	// OwnerID is the Player ID that owns the server (in-game: Settings,
-	// bottom-left "My Player ID"). Required — the game will not start
-	// without it.
-	OwnerID string `json:"ownerId"`
-	// ServerName is the in-game server name, enforced on every start;
-	// WorldName names the world created on first boot. ServerName
-	// defaults to the dashboard display name.
+	// JoinPassword becomes the default role's password. Blank means an
+	// open server: anyone who finds it in the browser can join.
+	JoinPassword string `json:"joinPassword"`
+	// ServerName is the in-game server-browser name, enforced on every
+	// start; defaults to the dashboard display name.
 	ServerName string `json:"serverName"`
-	WorldName  string `json:"worldName"`
 	// RunAs is the container user:group; defaults to the TrueNAS apps
 	// user 568:568. Empty string is normalized to the default; "root"
 	// omits the user line entirely.
@@ -92,7 +87,6 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Host = strings.TrimSpace(req.Host)
 	req.DataPath = strings.TrimSpace(req.DataPath)
-	req.OwnerID = strings.TrimSpace(req.OwnerID)
 	switch {
 	case req.Name == "":
 		writeError(w, http.StatusBadRequest, "name is required")
@@ -100,12 +94,8 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	case req.Host == "":
 		writeError(w, http.StatusBadRequest, "host is required — the address Flamekeeper will reach the server on")
 		return
-	case req.OwnerID == "":
-		writeError(w, http.StatusBadRequest,
-			`owner id is required — the game will not start without one (in-game: Settings, bottom-left "My Player ID")`)
-		return
-	case controlChars.MatchString(req.Name + req.Host + req.OwnerID + req.ServerName + req.WorldName + req.DataPath):
-		writeError(w, http.StatusBadRequest, "names, paths and ids cannot contain line breaks or control characters")
+	case controlChars.MatchString(req.Name + req.Host + req.ServerName + req.DataPath):
+		writeError(w, http.StatusBadRequest, "names and paths cannot contain line breaks or control characters")
 		return
 	// With a provisioner configured the data path is its call (<data
 	// root>/<slug>) and the wizard doesn't even ask; a paste-flow deploy
@@ -133,19 +123,17 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	if req.AgentPort == 0 {
 		req.AgentPort = 8811
 	}
-	// The game binds GamePort and GamePort+1, so the pair has to fit and
-	// the agent must sit outside it.
-	if req.GamePort < 1 || req.GamePort > 65534 {
-		writeError(w, http.StatusBadRequest, "game port must be in 1-65534 — the game also uses the port above it")
+	if req.GamePort < 1 || req.GamePort > 65535 {
+		writeError(w, http.StatusBadRequest, "game port must be in 1-65535")
 		return
 	}
 	if req.AgentPort < 1 || req.AgentPort > 65535 {
 		writeError(w, http.StatusBadRequest, "agent port must be in 1-65535")
 		return
 	}
-	if req.AgentPort == req.GamePort || req.AgentPort == req.GamePort+1 {
+	if req.AgentPort == req.GamePort {
 		writeError(w, http.StatusBadRequest,
-			fmt.Sprintf("agent port %d collides with the game's port pair (%d-%d)", req.AgentPort, req.GamePort, req.GamePort+1))
+			fmt.Sprintf("agent port %d collides with the game port", req.AgentPort))
 		return
 	}
 	if req.ImageTag == "" {
@@ -196,15 +184,15 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 `, req.RunAs)
 	}
 	identityEnv := fmt.Sprintf("      FLAMEAGENT_SERVER_NAME: %q\n", req.ServerName)
-	if req.WorldName != "" {
-		identityEnv += fmt.Sprintf("      FLAMEAGENT_WORLD_NAME: %q\n", req.WorldName)
+	if req.JoinPassword != "" {
+		identityEnv += fmt.Sprintf("      FLAMEAGENT_JOIN_PASSWORD: %q\n", req.JoinPassword)
 	}
 
-	stack := fmt.Sprintf(`# %s — RuneScape: Dragonwilds server supervised by flameagent,
-# generated by Flamekeeper. Deploy as its own stack (TrueNAS custom app /
-# docker compose). On first boot the agent installs the game via SteamCMD —
+	stack := fmt.Sprintf(`# %s — Enshrouded server supervised by flameagent, generated by
+# Flamekeeper. Deploy as its own stack (TrueNAS custom app / docker
+# compose). On first boot the agent installs the game via SteamCMD —
 # watch progress from the server's dashboard card — seeds
-# DedicatedServer.ini with the owner id below, and starts the server.
+# enshrouded_server.json, and starts the server under Wine.
 services:
   flameagent:
     image: ghcr.io/safwyls/flameagent:%s
@@ -214,20 +202,16 @@ services:
       FLAMEAGENT_MODE: supervisor
       FLAMEAGENT_TOKEN: %s
       FLAMEAGENT_ADMIN_PASSWORD: %s
-      # The game refuses to start without an owner id.
-      FLAMEAGENT_OWNER_ID: %q
 %s    ports:
-      - "%d:%d/udp"   # game
-      - "%d:%d/udp"   # game (the server uses the port above its own)
+      - "%d:%d/udp"   # game + Steam query (Enshrouded's single UDP port)
       - "%d:8811"     # flameagent API — the dashboard's only channel
     volumes:
       # Must be writable by the container user — uid 1000 unless user:
-      # overrides it. Never run as root: the game refuses to boot.
-      - %s:/dragonwilds
+      # overrides it.
+      - %s:/enshrouded
     restart: unless-stopped
-`, req.Name, req.ImageTag, userLine, token, req.AdminPassword, req.OwnerID, identityEnv,
+`, req.Name, req.ImageTag, userLine, token, req.AdminPassword, identityEnv,
 		req.GamePort, flameagent.DefaultGamePort,
-		req.GamePort+1, flameagent.DefaultGamePort+1,
 		req.AgentPort, req.DataPath)
 
 	// One-click (phase 5): when a provisioner is configured, deploy the
@@ -248,9 +232,8 @@ services:
 			ImageTag:      req.ImageTag,
 			Token:         token,
 			AdminPassword: req.AdminPassword,
-			OwnerID:       req.OwnerID,
+			JoinPassword:  req.JoinPassword,
 			ServerName:    req.ServerName,
-			WorldName:     req.WorldName,
 			RunAs:         req.RunAs,
 			GamePort:      req.GamePort,
 			AgentPort:     req.AgentPort,
@@ -392,15 +375,13 @@ func (s *Server) inferHost(declared string, servers []*store.Server) string {
 	return best
 }
 
-// proposePorts finds the first offset where the game's port pair and the
-// agent's port are all free of anything flamekeeper tracks or the host's
-// containers hold. The pair moves together because the game binds both.
+// proposePorts finds the first offset where the game's single UDP port and
+// the agent's port are both free of anything flamekeeper tracks or the
+// host's containers hold.
 func proposePorts(servers []*store.Server, containerPorts []int) map[string]int {
 	used := map[int]bool{}
 	for _, srv := range servers {
-		// A game port implies its neighbour is spoken for too.
 		used[srv.GamePort] = true
-		used[srv.GamePort+1] = true
 		if u, err := url.Parse(srv.AgentURL); err == nil {
 			if p, err := strconv.Atoi(u.Port()); err == nil {
 				used[p] = true
@@ -410,12 +391,11 @@ func proposePorts(servers []*store.Server, containerPorts []int) map[string]int 
 	for _, p := range containerPorts {
 		if p != 0 {
 			used[p] = true
-			used[p+1] = true
 		}
 	}
 	for offset := 0; offset < 1000; offset++ {
-		game, agent := flameagent.DefaultGamePort+(offset*2), 8811+offset
-		if !used[game] && !used[game+1] && !used[agent] {
+		game, agent := flameagent.DefaultGamePort+offset, 8811+offset
+		if !used[game] && !used[agent] {
 			return map[string]int{"game": game, "agent": agent}
 		}
 	}
@@ -538,7 +518,7 @@ func slugify(name string) string {
 	slug = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(slug, "-")
 	slug = strings.Trim(slug, "-")
 	if slug == "" {
-		slug = "dragonwilds"
+		slug = "enshrouded"
 	}
 	if len(slug) > 40 {
 		slug = slug[:40]

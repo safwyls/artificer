@@ -1,7 +1,7 @@
 // Command flameagent is the per-server sidecar agent: it sits next to one
-// Dragonwilds game server (or supervises it directly), holding the install
-// volume and SteamCMD, and exposes a narrow authenticated API for flamekeeper to
-// drive. See docs/sidecar-agent.md for the design.
+// Enshrouded game server (or supervises it directly), holding the install
+// volume and SteamCMD, and exposes a narrow authenticated API for
+// flamekeeper to drive. See docs/sidecar-agent.md for the design.
 package main
 
 import (
@@ -59,8 +59,7 @@ func main() {
 	gamePort := 0
 	if v := os.Getenv("FLAMEAGENT_GAME_PORT"); v != "" {
 		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 || n > 65534 {
-			// 65535 is excluded on purpose: the game also uses port+1.
+		if err != nil || n < 1 || n > 65535 {
 			logger.Error("invalid FLAMEAGENT_GAME_PORT", "value", v)
 			os.Exit(1)
 		}
@@ -75,7 +74,7 @@ func main() {
 
 	agent, err := flameagent.New(flameagent.Config{
 		Token:       os.Getenv("FLAMEAGENT_TOKEN"),
-		InstallDir:  envOr("FLAMEAGENT_INSTALL_DIR", "/dragonwilds"),
+		InstallDir:  envOr("FLAMEAGENT_INSTALL_DIR", "/enshrouded"),
 		SteamCmd:    envOr("FLAMEAGENT_STEAMCMD", "steamcmd"),
 		AppID:       appID,
 		Mode:        envOr("FLAMEAGENT_MODE", "companion"),
@@ -84,29 +83,21 @@ func main() {
 		Launch: flameagent.LaunchConfig{
 			// The initial selection only applies to an install that has
 			// never been told otherwise — the persisted choice wins, so
-			// redeploying the container doesn't silently change which build
-			// the server runs.
-			Profile:      envOr("FLAMEAGENT_LAUNCH_PROFILE", flameagent.ProfileNative),
-			WineBin:      os.Getenv("FLAMEAGENT_WINE_BIN"),
-			WinePrefix:   os.Getenv("FLAMEAGENT_WINE_PREFIX"),
-			GameExe:      os.Getenv("FLAMEAGENT_GAME_EXE"),
-			NativeScript: os.Getenv("FLAMEAGENT_NATIVE_SCRIPT"),
+			// redeploying the container doesn't silently change how the
+			// server runs.
+			Profile:    envOr("FLAMEAGENT_LAUNCH_PROFILE", flameagent.ProfileWine),
+			WineBin:    os.Getenv("FLAMEAGENT_WINE_BIN"),
+			WinePrefix: os.Getenv("FLAMEAGENT_WINE_PREFIX"),
+			GameExe:    os.Getenv("FLAMEAGENT_GAME_EXE"),
 		},
-		BridgeKitDir:    os.Getenv("FLAMEAGENT_BRIDGE_KIT_DIR"),
-		GamePort:        gamePort,
-		StopGrace:       stopGrace,
-		AdminPassword:   os.Getenv("FLAMEAGENT_ADMIN_PASSWORD"),
-		OwnerID:         os.Getenv("FLAMEAGENT_OWNER_ID"),
-		ServerName:      os.Getenv("FLAMEAGENT_SERVER_NAME"),
-		WorldName:       os.Getenv("FLAMEAGENT_WORLD_NAME"),
-		DockerHost:      os.Getenv("FLAMEAGENT_DOCKER_HOST"),
-		DataRoot:        os.Getenv("FLAMEAGENT_DATA_ROOT"),
-		PublicHost:      os.Getenv("FLAMEAGENT_PUBLIC_HOST"),
-		DefaultRunAs:    os.Getenv("FLAMEAGENT_DEFAULT_RUN_AS"),
-		DefaultImageTag: os.Getenv("FLAMEAGENT_DEFAULT_IMAGE_TAG"),
-		Autostart:       autostart,
-		Version:         version,
-		Logger:          logger,
+		GamePort:      gamePort,
+		StopGrace:     stopGrace,
+		AdminPassword: os.Getenv("FLAMEAGENT_ADMIN_PASSWORD"),
+		JoinPassword:  os.Getenv("FLAMEAGENT_JOIN_PASSWORD"),
+		ServerName:    os.Getenv("FLAMEAGENT_SERVER_NAME"),
+		Autostart:     autostart,
+		Version:       version,
+		Logger:        logger,
 	})
 	if err != nil {
 		logger.Error("invalid configuration", "error", err)

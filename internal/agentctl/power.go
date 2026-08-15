@@ -47,79 +47,23 @@ func (c *Client) GameLogs(ctx context.Context, tail int) ([]string, error) {
 	return res.Lines, nil
 }
 
-// ProvisionResult reports what a provisioner-mode agent created.
+// The provisioning wire vocabulary, re-exported so the console's
+// provisioning code (the wizard, the Ilmari adapter) speaks one set of
+// names. The HTTP methods that used to drive a provisioner-mode agent are
+// gone with that mode — Ilmari is the only placer of containers now.
+
+// ProvisionResult reports what provisioning created.
 type ProvisionResult struct {
 	Container string `json:"container"`
 	ID        string `json:"id"`
 	DataDir   string `json:"dataDir"`
 }
 
-// Provision asks a provisioner-mode agent to instantiate the Palworld
-// supervisor template. The generous timeout covers the image pull a first
-// provision performs.
-func (c *Client) Provision(ctx context.Context, req flameagent.ProvisionRequest) (*ProvisionResult, error) {
-	var res ProvisionResult
-	if err := c.do(ctx, http.MethodPost, "/v1/provision", req, &res, 10*time.Minute); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-// DiscoveredServer mirrors the provisioner's wire type.
+// DiscoveredServer mirrors the agent wire type.
 type DiscoveredServer = flameagent.DiscoveredServer
 
-// Discover lists Palworld-shaped containers on the provisioner's host.
-func (c *Client) Discover(ctx context.Context) ([]DiscoveredServer, error) {
-	var res struct {
-		Servers []DiscoveredServer `json:"servers"`
-	}
-	if err := c.do(ctx, http.MethodGet, "/v1/discover", nil, &res, 30*time.Second); err != nil {
-		return nil, err
-	}
-	return res.Servers, nil
-}
-
-// DestroyResult mirrors the provisioner's wire type.
+// DestroyResult mirrors the agent wire type.
 type DestroyResult = flameagent.DestroyResult
 
-// Destroy asks the provisioner to remove a container it created.
-//
-// The budget has to clear the agent's own worst case with margin, per the
-// rule in dockerctl: a container list, then a stop that may use its full
-// 30s grace inside a 90s request, then a 60s remove. Aborting early would
-// report a gateway failure for a destroy the daemon goes on to complete,
-// leaving the row and the container disagreeing.
-func (c *Client) Destroy(ctx context.Context, container string) (*DestroyResult, error) {
-	var res DestroyResult
-	if err := c.do(ctx, http.MethodPost, "/v1/destroy",
-		map[string]string{"container": container}, &res, 3*time.Minute); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-// AdoptResult mirrors the provisioner's wire type.
+// AdoptResult mirrors the agent wire type.
 type AdoptResult = flameagent.AdoptResult
-
-// Adopt recovers a flameagent container's registration data (secrets
-// included) so flamekeeper can re-register a server whose row was lost.
-func (c *Client) Adopt(ctx context.Context, container string) (*AdoptResult, error) {
-	var res AdoptResult
-	if err := c.do(ctx, http.MethodPost, "/v1/adopt", map[string]string{"container": container}, &res, 30*time.Second); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-// RecreateAgent rebuilds a provisioned agent container on a different
-// flameagent image, keeping its configuration. The timeout is generous
-// because it pulls an image first — the Wine variant is well over a
-// gigabyte, and a slow pull is not a failure.
-func (c *Client) RecreateAgent(ctx context.Context, container, imageTag string) (*flameagent.RecreateResult, error) {
-	var res flameagent.RecreateResult
-	req := flameagent.RecreateRequest{Container: container, ImageTag: imageTag}
-	if err := c.do(ctx, http.MethodPost, "/v1/provision/recreate", req, &res, 15*time.Minute); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}

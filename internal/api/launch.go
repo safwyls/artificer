@@ -5,15 +5,13 @@ import (
 	"net/http"
 )
 
-// Launch profile: which of Dragonwilds' two dedicated-server builds the
-// agent starts.
-//
-// This is the one server-shaped setting that isn't a setting at all — it
-// decides what the server *is*. The native Linux build cannot load UE4SS,
-// so it can never carry the dwbridge mod, which means no on-demand save, no
-// commands, ever. The Windows build under Wine can. Everything else in the
-// console reads capability downstream of this choice, which is why it is
-// exposed rather than buried in agent environment variables.
+// Launch profile: how the agent starts the game. Enshrouded ships one
+// build (Windows, run under Wine), so today this is read-mostly — the
+// selectable list holds a single entry, and a hand-configured custom
+// command reports itself here. The endpoint stays because it is the seam
+// a second build (a native Linux server at 1.0?) would arrive through,
+// and because "what is this agent actually going to run" is worth being
+// able to ask.
 
 func (s *Server) handleGetLaunch(w http.ResponseWriter, r *http.Request) {
 	srv, ok := s.loadServer(w, r)
@@ -40,30 +38,6 @@ func (s *Server) handleGetLaunch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, health.Launch)
 }
 
-// handleInstallBridge forwards the one-click mod install to the agent. The
-// agent owns every precondition (kit present, Windows build selected and
-// installed, nothing already there) and answers with statuses the UI maps
-// to honest copy — this handler only adds auth and audit.
-func (s *Server) handleInstallBridge(w http.ResponseWriter, r *http.Request) {
-	srv, ok := s.loadServer(w, r)
-	if !ok {
-		return
-	}
-	agent := s.agentFor(srv)
-	if agent == nil {
-		writeError(w, http.StatusBadRequest, "no agent configured for this server")
-		return
-	}
-	restart, err := agent.InstallBridgeKit(r.Context())
-	if err != nil {
-		writeAgentError(w, err)
-		return
-	}
-	// Worth auditing: it changes what the next game start loads.
-	s.audit(r, srv.ID, "bridge-install", "ue4ss kit")
-	writeJSON(w, http.StatusOK, map[string]any{"installed": true, "restartRequired": restart})
-}
-
 func (s *Server) handleSetLaunch(w http.ResponseWriter, r *http.Request) {
 	srv, ok := s.loadServer(w, r)
 	if !ok {
@@ -86,21 +60,20 @@ func (s *Server) handleSetLaunch(w http.ResponseWriter, r *http.Request) {
 		writeAgentError(w, err)
 		return
 	}
-	// Worth auditing: it changes which build runs, and therefore whether
-	// this server can be saved on demand at all.
+	// Worth auditing: it changes what the next game start runs.
 	s.audit(r, srv.ID, "launch-profile", req.Profile)
 	writeJSON(w, http.StatusOK, status)
 }
 
 // handleRecreateAgent moves a provisioned server's agent onto a different
-// flameagent image — in practice, onto the Wine variant so it can run the
-// modded build.
+// flameagent image — a channel switch (latest to a pinned tag, say)
+// without touching the world.
 //
-// This exists because provisioner-created containers belong to no
-// orchestrator: they don't appear in a TrueNAS apps list or any compose
-// file, so changing their image otherwise means hand-writing docker
-// commands on the host. The provisioner made them and can rebuild them,
-// which makes this a button instead of a runbook.
+// This exists because provisioned containers belong to no orchestrator:
+// they don't appear in a TrueNAS apps list or any compose file, so
+// changing their image otherwise means hand-writing docker commands on
+// the host. Ilmari placed them and can rebuild them, which makes this a
+// button instead of a runbook.
 func (s *Server) handleRecreateAgent(w http.ResponseWriter, r *http.Request) {
 	srv, ok := s.loadServer(w, r)
 	if !ok {

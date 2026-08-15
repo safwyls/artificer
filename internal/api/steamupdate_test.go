@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/store"
 	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 const agentToken = "api-test-agent-token-0123456789"
@@ -24,7 +24,7 @@ func agentServer(t *testing.T, app *testApp) (int64, string) {
 	t.Helper()
 	install := fakeInstallDir(t)
 	steamcmd := filepath.Join(t.TempDir(), "steamcmd")
-	script := "#!/bin/sh\necho \"Success! App '4019830' fully installed.\"\n"
+	script := "#!/bin/sh\necho \"Success! App '2278520' fully installed.\"\n"
 	if err := os.WriteFile(steamcmd, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

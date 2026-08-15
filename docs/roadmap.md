@@ -1,200 +1,136 @@
-# Roadmap
+# Flamekeeper roadmap
 
-Written 2026-08-10, the day the stack first ran for real (TrueNAS, one-click
-provision, live client). Ordered by value-per-effort within each horizon.
-Ground rules inherited from the architecture: the agent is the only
-transport, the console never gains docker create rights, and anything the
-game can't do gets an honest 501 — features below must not bend those.
+The plan is deliberately shaped like the way this console will actually be
+used: **Phase 1 gets a private server online so play can start**, and
+every later phase is something that can land incrementally while the
+server is live, roughly in the order the pain will be felt. Each phase
+names its gate — the thing that must be true before the phase is worth
+starting — because half of this game's surface is still
+community-sourced (docs/enshrouded-recon.md) and some phases hang on a
+fact the first real deployment has to confirm.
 
-## Now — finish what's started
+## Phase 0 — recon (done)
 
-1. **Wine launch profile for the modded build** (state-of-play, Phase 4
-   item 1). Pure engineering, no unknowns: a wkagent profile that runs the
-   Windows build + UE4SS under Wine so the agent supervises the modded
-   process instead of it being hand-run. This is the gate in front of every
-   other dwbridge improvement — without it the command channel only exists
-   on dev boxes. Pin the UE4SS nightly; expect churn at Dragonwilds 1.0.
-2. **Ban via the ini** (Phase 4 item 2). One experiment stands between us
-   and offline ban/unban: hand-flip `bIsBanned` in `KnownPlayerList`, see
-   if the server honors it and when it re-reads the file. dwconfig already
-   owns that file safely; if the flag works, `ban`/`unban` become config
-   operations and skip the closed RPC path entirely.
-3. **Deepen `dwsave`: the player roster.** Player state in the save is
-   JSON inside SPUD properties, and a played world save exists locally.
-   Find the property values, `json.Unmarshal`, surface characters (name,
-   level, position, last-seen) on the Saves/world page. Identity still
-   routes through dwlog/ini (the EOS id isn't in the save).
-4. **Decide the orphaned advisor** (~1,100 dead lines, `internal/advisor`
-   + `internal/api/advisor.go`). Either delete it or re-point it at
-   Dragonwilds as a "world advisor" over dwsave data. Deletion is the
-   cheap, reversible default; it's all in git history.
+`docs/enshrouded-recon.md`: app id, config schema, ports, logs, saves,
+shutdown semantics, and the confidence marker on every fact. Its
+**verification ledger** is the working checklist for the first
+deployment; a recon fact that fails moves code, not just the doc.
 
-## Next — deployment quality of life
+## Phase 1 — bare-minimum hosting (this branch)
 
-Everything here was motivated by a real friction on 2026-08-10:
+**Goal: raise a private Enshrouded server from the dashboard and play on
+it.** Everything here is inherited machinery pointed at the new game plus
+the game-specific packages.
 
-5. **Startup config validation that names every problem at once.** The
-   first deploy died one env var at a time. Validate all of
-   JWT_SECRET/ENCRYPTION_KEY/ADMIN_PASSWORD/DATA_DIR in one pass and
-   report the full list in one fatal message.
-6. **Host-port awareness beyond our own containers.** The first provision
-   failed on a port palcon held. The provisioner already talks to docker:
-   have `/v1/provision` (or the defaults endpoint) list *all* containers'
-   published host ports — not just wkagent-shaped ones — so proposals
-   avoid them and a collision is refused before create, not discovered at
-   start. Keeps the created-but-not-started leftover from ever existing
-   (and if start still fails, clean up the half-made container).
-7. **Provisioner status surfaced in the UI.** "No provisioner is
-   configured" covered three different failures (unset URL, DNS,
-   token). A settings/status page that shows the configured endpoint,
-   last health result, and last error would have cut the debugging to
-   one glance. Same panel can host a "test connection" button.
-8. **A cleaner failed-provision story.** Today: 502 with the docker error
-   inlined and a manual `docker rm`. Wanted: the error classified
-   (port, name, pull, permission), the remedy stated, and the leftover
-   container removed or adoptable.
-9. **TLS / cross-host agents.** The pinned-fingerprint TLS scheme from
-   sidecar-agent.md, so agents on other machines aren't plain HTTP with a
-   bearer token. The deferred reverse-connection (agent dials out over
-   WebSocket) unlocks NAT'd hosts; verb surface unchanged.
+- Console: auth, users, server rows, metrics history, activity, audit,
+  Discord notices, scheduled restarts, crash watchdog, backups — all
+  inherited, game-blind, and kept.
+- `internal/games/enshrouded`: the game definition, the derived client
+  (liveness from flameagent health, players from the log tail via
+  `eslog`), honest 501s for every command with reasons that say where the
+  ability actually lives (kick/ban are in-game; saves are automatic).
+- `esconfig`: read/edit/seed/enforce `enshrouded_server.json` — including
+  seeding *before first boot* so a provisioned server is never the
+  game's own open-by-default config, and role-password enforcement by
+  capability.
+- flameagent: Wine launch profile (single build), SteamCMD windows-depot
+  install, SIGINT-then-KILL stop with a save-honoring grace, json config
+  verbs with validation, save bundle over the `savegame/` layout.
+- Provisioning: **Ilmari only.** The Raise-a-server wizard speaks to the
+  shared host service; this console ships no provisioner mode and holds
+  no Docker rights (the one wrinkle: register flamekeeper as an Ilmari
+  client — see `deploy/`).
+- Frontend: the Flamekeeper theme (docs/design.md), Overview / Flameborn
+  (players) / Configuration / World saves / Server log pages.
 
-## Later — features on top of a solid base
+**Exit criterion:** the recon ledger's Phase-1 rows are checked against a
+real server raised through the wizard, and a real client has joined and
+played.
 
-10. **World map / viewer.** Once dwsave yields positions, a map page
-    (player last-positions, points of interest) is the showpiece feature.
-    Needs coordinate-system recon against the real game first.
-11. **Play-session analytics.** dwlog already keys sessions by player id;
-    persist them into per-player playtime, first/last seen, session
-    history, and a small activity chart on the server page.
-12. **Backup restore.** Backups exist; restore is still "the operator
-    untars by hand". A deliberate restore verb on the agent (the one thing
-    the read-only save mount was waiting for), gated in the UI behind a
-    stopped server and a confirmation naming the save it overwrites.
-13. ~~**Scheduled-restart polish for the no-save-on-shutdown game.**~~
-    **Done (2026-08-11), and it was smaller than it looked.** The
-    scheduler already called `client.Save` before restarting, so the
-    warn → save → stop → start chain has been reaching dwbridge since the
-    mod landed — what was missing was any way to know whether the save
-    happened. The three outcomes (saved / no command bridge / failed) are
-    now distinguished by `errors.As` on `*game.UnsupportedError`, and each
-    one reaches the Discord restart notice, the audit trail (visible in
-    Activity) and the log. Nothing claims a save it didn't make.
-    The forward-looking half is done too: `game.CommandProber`
-    (`Supports(ctx, op)`) is served by the dragonwilds client from the
-    agent's `health.bridge` command list and exposed at
-    `GET /servers/{id}/capabilities`, so the Automation page, the power
-    row and the World-saves page describe *this* server rather than
-    listing both possibilities. The probe and the command share one
-    decision (`bridgeReady`) so they cannot drift, and a game with no
-    prober reports everything supported — the optimism every caller had
-    before it existed.
-14. **Update automation.** SteamCMD update through the agent exists as a
-    verb; add update checking (build id polling), a "update available"
-    badge, and an opt-in maintenance window that chains save → stop →
-    update → start.
-15. **Chat capture, if it exists in the log.** Still-open recon question.
-    If chat lines appear in the server log, dwlog grows a rule and the UI
-    gets a live chat panel (read-only; there is no send path).
-16. **Mod management via the agent.** The Wine/UE4SS stack (item 1) makes
-    mod files part of the deployment; a small manifest the agent applies
-    (dwbridge version pinning included) turns "the mod setup" from a doc
-    into a button.
+## Phase 2 — live presence and moderation surface
 
-## Structural, someday
+**Gate: a live server (Phase 1 deployed); the A2S off-host answer in the
+ledger.**
 
-17. **Extract the shared base into a library palcon and wildskeeper both
-    import.** The repos are kept structurally identical so fixes travel by
-    hand; a `go.mod`-level shared core would make them travel by `go get`.
-    Big, and only worth it if a third game ever appears — the current
-    copy-discipline works and keeps each repo independently deployable.
-    (A cheaper interim: a script that diffs the shared layers between the
-    two repos and reports drift.)
-18. **Multi-node.** Several game hosts, one console: provisioner-per-host
-    is already the model; what's missing is TLS (item 9), per-host
-    provisioner rows instead of one env var, and host labels in the UI.
-19. **Auth beyond bootstrap admin.** Users/roles exist; OIDC/proxy-auth
-    would let a TrueNAS/Authentik household SSO into it. Cookie-secure
-    and JWT plumbing are already in place.
+1. **A2S query client** (`esquery`, pure Go, ~200 lines: A2S_INFO +
+   A2S_PLAYER with the challenge handshake). This is the game's one
+   native query surface and upgrades three things at once: player
+   *names* (the log only carries SteamID64s), the real configured
+   `slotCount` for charts (Metrics currently reports the 16 cap), and a
+   liveness signal that doesn't depend on log inference. Console-side,
+   querying `host:gamePort` directly; falls back to log-derived when the
+   port isn't reachable from the console. Keep both sources honest: log
+   tracker owns join/leave *history*, A2S owns "right now".
+2. **Ready state**: surface eslog's `HostOnline` in the Overview
+   ("starting" vs "accepting players"), since a booting server binds its
+   port well before it accepts joins.
+3. **Ban list editor**: `bannedAccounts` in the config editor as a
+   first-class list (gate: ledger row on its element format), plus a
+   "ban by SteamID" action that edits the json and prompts the
+   restart-to-apply flow. This is offline moderation — the honest kind
+   this game allows.
+4. **Role-group editor**: userGroups CRUD in the UI (names, permissions,
+   reserved slots, per-group password rotation) replacing the flat-editor
+   omission. Join-password rotate joins admin-password rotate.
+5. **Version surfacing**: the log's build hash + Steam build id from the
+   update job, so "a game update dropped" is visible before friends hit
+   the version-mismatch join error.
 
-## Non-goals, so they don't creep back
+## Phase 3 — saves, rollback, and world lifecycle
 
-- **Kick/broadcast via the admin RPC.** Tested against a live player,
-  silently does nothing, and the working-looking alternatives wedge the
-  Lua VM. The recon doc's "Why the command tier stops at `save`" is the
-  tombstone; don't re-attempt without new information (a game update
-  changing the surface *is* new information).
-- **A query/RCON client.** The game has none; everything is derived, and
-  the derivations are now verified. Don't add speculative protocol code.
-- **The console holding docker create rights.** The provisioner split is
-  the security model, not an inconvenience.
+**Gate: the ledger's save-layout row; a few days of real autosave rotation
+to test against.**
 
-## Extracting the host provisioner (decided 2026-08-11)
+1. **Save index reader** (`essave`, a `savecache.Source`): parse
+   `<hex>-index` (the `latest` pointer and save time) and the `-info`
+   sidecar (world name) — metadata only, the world blob has no public
+   parser. Wire the `/world` endpoint back up (it was dropped in the
+   transplant) and give the World-saves page real facts: which copy is
+   live, when it was written, how deep the rollback window goes.
+2. **Rollback**: restore a rolling copy or a Flamekeeper backup — stop,
+   swap the pointed copy in (mornedhels' approach: place the copy, write
+   a fresh index with `latest: 0`), start. The UI must say what will be
+   lost (up to 10 minutes since the chosen copy).
+3. **World import/export**: singleplayer → server migration (upload a
+   world file over the hex slot + fix the index) and the reverse, since
+   the community does this by hand today.
+4. **Pre-update/pre-restart snapshot**: the scheduler and the Steam
+   update flow take a backup first; Enshrouded saves on shutdown so this
+   is cheap insurance, not a correctness need.
 
-Measured against palcon at `82aee47`, with naming normalised away, the two
-agents' `provisioner.go` differ by **zero structural lines**. Every
-difference is data: which fields the request carries (`ServerDesc`,
-`RESTPort`, `RCONPort` vs `OwnerID`, `WorldName`), which env vars they
-become, and the port-shape rule (Palworld's four distinct ports vs
-Dragonwilds' pair plus agent). Container creation, ownership labels, data
-directories, discovery and destroy are identical.
+## Phase 4 — running-it-for-months quality
 
-Divergence across the other shared packages, same method:
+No gate; each item independent.
 
-| package | lines | differing |
-|---|---|---|
-| `crypto`, `db`, `savecache` | 637 | 0% |
-| `store` | 2213 | 1% |
-| `agentfiles` | 161 | 4% |
-| `sched` | 995 | 8% |
-| `dockerctl`, `agentctl`, `notify` | 2555 | 13–14% |
-| `backup` | 1012 | 19% |
-| `steamcmd` | 98 | 27% |
+1. **Update watcher**: poll the Steam app build id; when a game update
+   ships, notify (Discord) and offer/schedule stop → update → start.
+   Version-gated joins make stale servers unjoinable, so this is the
+   feature that keeps the server *playable*, not just up.
+2. **Scheduler honesty pass**: restart warnings cannot reach players
+   in-game (no broadcast channel exists) — make the Discord notice the
+   first-class warning path and say so in the UI copy.
+3. **Log deep links**: the Activity page's join/leave history enriched
+   with A2S-resolved names, Steam profile links off SteamID64s.
+4. **Resource telemetry**: the game's RAM appetite grows with terrain
+   edits; surface container memory (via Ilmari's fleet view or agent-side
+   sampling) with the 16 GB context so "the server is getting heavy" is
+   visible before the OOM.
 
-So the plan is: one **host provisioner** service (its own repo, its own
-image, one per host), and a **shared library** for the packages above. The
-game agents (`supervisor`, `files`, `bridge`, launch profiles) stay per
-game — that is where the divergence actually lives, and it is real
-divergence, not drift.
+## Phase 5 — the 1.0 wave (2026-10-15)
 
-**The contract is profile-as-data, and it now exists** (`internal/wkagent/
-spec.go`): the console sends image, env, ports, slug and mount; the
-provisioner places the container and never learns what a "world name" is. A
-test places a *Palworld-shaped* server through the Dragonwilds
-provisioner, which is the evidence the boundary is real rather than
-aspirational. `/v1/provision` is now one caller of that path, not a second
-implementation.
+Enshrouded 1.0 lands PC + PS5 with crossplay planned. Assume churn:
+config schema, networking, possibly the log vocabulary (eslog rules are
+versioned tables for exactly this), possibly a real query/admin surface
+(watch for it — a first-party API would obsolete chunks of Phase 2 and
+should win if it appears). Budget a recon refresh against the 1.0 server
+before touching code, same drill as Phase 0.
 
-Two constraints are load-bearing and must survive the extraction, because a
-generic "place a container" verb is otherwise an arbitrary-code-execution
-primitive for whoever holds the token:
+## Standing constraints
 
-1. **Image allowlist.** Prefix-checked, defaulting to the project's own
-   registry namespace. A leaked token deploys a newer agent, not a payload.
-2. **No caller-controlled host paths.** The caller names a slug; the
-   provisioner decides the directory under its data root. There is
-   deliberately no bind-mount field.
-
-Order of work, so the risky part comes last:
-
-1. ~~Define the spec and route the existing handler through it.~~ **Done.**
-2. Host-port awareness across *all* containers (item 6 above) — the palcon
-   collision fix, and the first thing the shared service must do that
-   neither agent does today.
-3. Lift `internal/wkagent`'s provisioner mode into its own repo, with the
-   spec as its API. wkagent keeps supervisor and companion modes.
-4. Lift the 0–8% packages into the shared library; leave the 13–27% ones
-   alone until their divergence is understood — `steamcmd` and `backup`
-   differ for game reasons, not accidental drift.
-
-Migration note for step 3: existing containers carry
-`wildskeeper.provisioned` / `wildskeeper.slug`, and every destroy and
-recreate gate reads them. A neutral namespace means recognising both for a
-release, not relabelling live containers.
-
-What this trades away: independent deployability. Today each console owns
-its own provisioner and neither can break the other. A shared service is
-stronger coupling than a shared library — a version-skewed provisioner
-breaks a *running* console, and one down means neither can provision. That
-is the cost being accepted for one host view and one implementation, and
-it is why the wire contract wants to be stable before the split rather
-than after.
+- The agent remains the only transport; nothing may bypass it
+  (docs/architecture.md).
+- Ilmari owns container placement; this console must never grow Docker
+  rights back. "Adding a third console needs no code in Ilmari" is a
+  promise this repo relies on — keep it true from this side too.
+- Every capability claim in the UI must be probe-derived or honestly
+  501-reasoned; a button that cannot work is a bug even when it renders.

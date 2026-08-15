@@ -8,8 +8,8 @@ import (
 )
 
 // DefaultID is the game assumed for a server row that doesn't say — in this
-// console, Dragonwilds.
-const DefaultID = "dragonwilds"
+// console, Enshrouded.
+const DefaultID = "enshrouded"
 
 // Definition is everything the shared layer needs to know about one game:
 // how to talk to it, how to spell a player id, and which dashboard views it

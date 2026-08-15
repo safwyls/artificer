@@ -8,16 +8,18 @@ import (
 )
 
 // setProcessGroup puts the game in its own process group, so signals
-// reach the shipped binary (RSDragonwildsServer-Linux-Shipping) and not
-// just the RSDragonwildsServer.sh wrapper.
+// reach enshrouded_server.exe through Wine's own processes and not just
+// the wine wrapper.
 func setProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
 // signalGroup signals the whole group; kill=false sends the graceful
-// SIGTERM, kill=true the SIGKILL.
+// SIGINT — Enshrouded's clean-shutdown signal, on which it saves the
+// world; a SIGTERM to the wrapper is not reliably propagated — and
+// kill=true the SIGKILL.
 func signalGroup(pid int, kill bool) {
-	sig := syscall.SIGTERM
+	sig := syscall.SIGINT
 	if kill {
 		sig = syscall.SIGKILL
 	}

@@ -26,7 +26,7 @@ func newAgent(t *testing.T, script string) *httptest.Server {
 	if err := os.MkdirAll(filepath.Join(install, "steamapps"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(install, "steamapps", "appmanifest_4019830.acf"), []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(install, "steamapps", "appmanifest_2278520.acf"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	steamcmd := filepath.Join(t.TempDir(), "steamcmd")
@@ -55,7 +55,7 @@ func TestNewValidation(t *testing.T) {
 }
 
 func TestClientRoundTrip(t *testing.T) {
-	srv := newAgent(t, `echo "Success! App '4019830' fully installed."`)
+	srv := newAgent(t, `echo "Success! App '2278520' fully installed."`)
 	client, err := agentctl.New(srv.URL, token)
 	if err != nil {
 		t.Fatal(err)
@@ -92,13 +92,14 @@ func TestClientRoundTrip(t *testing.T) {
 }
 
 func TestClientSyncSave(t *testing.T) {
-	// newAgent's install dir isn't exposed; spin our own with a world.
+	// newAgent's install dir isn't exposed; spin our own with a world —
+	// Enshrouded's extensionless hex-named blob under savegame/.
 	install := t.TempDir()
-	world := filepath.Join(install, "RSDragonwilds", "Saved", "SaveGames")
+	world := filepath.Join(install, "savegame")
 	if err := os.MkdirAll(world, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(world, "Ashenfall.sav"), []byte("v1"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(world, "3ad85aea"), []byte("v1"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	agent, err := flameagent.New(flameagent.Config{
@@ -118,8 +119,8 @@ func TestClientSyncSave(t *testing.T) {
 	if err != nil || !changed || etag == "" {
 		t.Fatalf("first sync: etag=%q changed=%v err=%v", etag, changed, err)
 	}
-	if got, _ := os.ReadFile(filepath.Join(dest, "Ashenfall.sav")); string(got) != "v1" {
-		t.Fatalf("synced Level.sav = %q", got)
+	if got, _ := os.ReadFile(filepath.Join(dest, "3ad85aea")); string(got) != "v1" {
+		t.Fatalf("synced save blob = %q", got)
 	}
 
 	// Unchanged: 304 path, no rewrite.
@@ -128,14 +129,14 @@ func TestClientSyncSave(t *testing.T) {
 	}
 
 	// Save rewritten → new etag, new content.
-	if err := os.WriteFile(filepath.Join(world, "Ashenfall.sav"), []byte("v2-longer"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(world, "3ad85aea"), []byte("v2-longer"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, changed, err = client.SyncSave(ctx, dest, etag); err != nil || !changed {
 		t.Fatalf("changed sync: changed=%v err=%v", changed, err)
 	}
-	if got, _ := os.ReadFile(filepath.Join(dest, "Ashenfall.sav")); string(got) != "v2-longer" {
-		t.Errorf("resynced Level.sav = %q", got)
+	if got, _ := os.ReadFile(filepath.Join(dest, "3ad85aea")); string(got) != "v2-longer" {
+		t.Errorf("resynced save blob = %q", got)
 	}
 }
 
