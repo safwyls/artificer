@@ -97,17 +97,20 @@ Ilmari has never placed a real container; every test so far runs against an
 httptest fake. This phase fixes that at zero risk, because nothing points at
 it yet.
 
-1. [ ] Deploy Ilmari as a TrueNAS app **alongside** both existing
+1. [x] Deploy Ilmari as a TrueNAS app **alongside** both existing
        provisioners. Do not change `PROVISIONER_URL` on either console.
-2. [ ] `curl -H "Authorization: Bearer $TOKEN" http://<host>:8820/v1/health`
+       (Deployed 2026-08-14.)
+2. [x] `curl -H "Authorization: Bearer $TOKEN" http://<host>:8820/v1/health`
        → `dockerOk: true`. That alone proves socket access through the proxy.
-3. [ ] `GET /v1/containers` → **both** consoles' game servers appear with
+3. [x] `GET /v1/containers` → **both** consoles' game servers appear with
        `"managed": true`, via their legacy labels, with the right slugs and
        data directories. This is the single most valuable check in the whole
        migration: it validates legacy-label recognition against your actual
        running containers rather than my fixtures.
-4. [ ] `GET /v1/ports` → the real port map, including the 8811 that started
-       all this.
+4. [x] `GET /v1/ports` → the real port map, including the 8811 that started
+       all this. (All four checks confirmed by the operator against the
+       real NAS, 2026-08-15 — the service's first contact with a real
+       Docker socket, passed.)
 
 **Rollback:** stop the app. Nothing depended on it.
 
@@ -118,10 +121,14 @@ been exercised yet — deliberately.
 
 ## Phase 2 — wildskeeper cuts over, with its old provisioner still standing
 
-1. [ ] Add `ILMARI_URL` / `ILMARI_TOKEN` to wildskeeper. When set, the
+1. [x] Add `ILMARI_URL` / `ILMARI_TOKEN` to wildskeeper. When set, the
        console uses Ilmari; when unset, it uses `PROVISIONER_URL` exactly as
        today. A flag, not a replacement — so the fallback is one env var
-       away for the whole phase.
+       away for the whole phase. (Code merged 2026-08-15, wildskeeper #5:
+       `internal/ilmari` client + `api.IlmariProvisioner` adapter. Known
+       quirk recorded there: the legacy provisioner container appears in
+       discovery until Phase 4 deletes it; adopt refuses it with a clear
+       message.)
 2. [ ] Deploy the console with the flag set. **Leave `wkprovisioner`
        running.**
 3. [ ] Provision a throwaway server through the wizard. Check: container
