@@ -1,6 +1,6 @@
 For any UI/frontend task, always produce a written design plan (palette, type, layout, signature) and self-critique it against generic AI-design defaults before writing code — per the frontend-design skill.
 
-# Wildskeeper (wildskeeper)
+# Flamekeeper (flamekeeper)
 
 **Picking this up mid-flight? Read `docs/state-of-play.md` first** — it is
 the handoff: what's done, what's verified against a real server, what is
@@ -9,9 +9,9 @@ still guessed, and what to do next.
 A standalone Dragonwilds server console built on palcon's reusable base
 (sibling repo; architecture kept structurally identical on purpose). One
 game is registered: `internal/games/dragonwilds/` — client derived via the
-wkagent sidecar, `dwconfig` ini editor, `dwlog` log tracker, `dwsave`
+flameagent sidecar, `dwconfig` ini editor, `dwlog` log tracker, `dwsave`
 world-save reader (SPUD header metadata, served at `/servers/{id}/world`). Frontend is
-Wildskeeper throughout (design source: `mocks/dragonwilds-dashboard.html`;
+Flamekeeper throughout (design source: `mocks/dragonwilds-dashboard.html`;
 theme tokens are the `wk.*` literals in `web/tailwind.config.js`, mirrored
 onto shadcn semantic vars in `web/src/index.css`).
 
@@ -33,13 +33,13 @@ Shared-layer tests use the test-only game in `internal/game/gametest`
 (a REST-shaped client over httptest fakes) so they don't need a fake agent
 and synthetic logs; production code must never import it.
 
-The agent (`cmd/wkagent` — Wildskeeper agent; it was `palagent` while this
+The agent (`cmd/flameagent` — Flamekeeper agent; it was `palagent` while this
 repo was palcon-derived, renamed before first deploy) supervises the game
 directly: `./RSDragonwildsServer.sh -log -Port=7777`, publishing the
-7777/7778 UDP pair the game binds. `WKAGENT_OWNER_ID` is effectively
+7777/7778 UDP pair the game binds. `FLAMEAGENT_OWNER_ID` is effectively
 required — the game refuses to start without an owner, so the agent seeds
 `DedicatedServer.ini` with it when an install has none. Provisioning
-(`internal/wkagent/provisioner.go` + `internal/api/provision.go`) makes
+(`internal/flameagent/provisioner.go` + `internal/api/provision.go`) makes
 that whole stack from the Raise-a-server wizard.
 
 Deployed for real since 2026-08-10: TrueNAS SCALE custom apps from
@@ -49,7 +49,7 @@ deployment gotchas (key lengths, dataset chown, shared network, port
 collisions with palcon on the same host). Roadmap: `docs/roadmap.md`.
 
 Tests: `go test ./...` and `cd web && npm test`. Production build:
-`cd web && npm run build` then `go build ./cmd/wildskeeper` (embeds the bundle).
+`cd web && npm run build` then `go build ./cmd/flamekeeper` (embeds the bundle).
 
 Workflow: when a branch is pushed and ready for review, open the PR
 without asking — the maintainer has standing-approved PR creation

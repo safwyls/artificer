@@ -7,16 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/agentctl"
-	"github.com/safwyls/wildskeeper/internal/game"
-	"github.com/safwyls/wildskeeper/internal/games/dragonwilds/dwlog"
+	"github.com/safwyls/flamekeeper/internal/agentctl"
+	"github.com/safwyls/flamekeeper/internal/game"
+	"github.com/safwyls/flamekeeper/internal/games/dragonwilds/dwlog"
 )
 
 // errNoAgent is the config-level failure: without a sidecar there is no
 // transport to derive anything from. It maps to 502 like any other
 // unreachable-admin-interface error, which is accurate — the fix is
 // configuration, not a missing game capability.
-var errNoAgent = errors.New("dragonwilds servers are managed through a wkagent sidecar; set the server's agent URL and token")
+var errNoAgent = errors.New("dragonwilds servers are managed through a flameagent sidecar; set the server's agent URL and token")
 
 // trackers is the per-server session state, keyed by agent URL. Clients are
 // rebuilt from the row on every API call (store.Server.Client), so the
@@ -43,7 +43,7 @@ func trackerFor(agentURL string) *dwlog.Tracker {
 // at the same figure agent-side.
 const logTail = 2000
 
-// Client derives Dragonwilds state through the wkagent sidecar. It
+// Client derives Dragonwilds state through the flameagent sidecar. It
 // implements game.Client with the honest subset: Info and Players work,
 // commands return game.UnsupportedError until the dwbridge mod exists.
 type Client struct {

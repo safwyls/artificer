@@ -2,11 +2,11 @@
   dwbridge — the command bridge Dragonwilds has no native protocol for.
 
   RuneScape: Dragonwilds ships no RCON, REST, or query interface, so the
-  Wildskeeper console derives everything it can from logs and files. The one
+  Flamekeeper console derives everything it can from logs and files. The one
   thing it cannot derive is *action*: save-now, kick, ban, broadcast. This
   UE4SS Lua mod is that missing action channel.
 
-  Transport is the filesystem, because that is the one thing the wkagent
+  Transport is the filesystem, because that is the one thing the flameagent
   sidecar and this mod reliably share (a bind-mounted volume in the docker
   deployment, the install tree locally). No sockets, no ports: the game runs
   under Wine and opening a listener from Lua across that boundary is far more

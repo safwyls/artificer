@@ -180,7 +180,7 @@ export interface ServerWriteInput {
   containerName: string;
 }
 
-/** One background job on a server's wkagent sidecar. */
+/** One background job on a server's flameagent sidecar. */
 export interface SteamJob {
   id: string;
   kind: string;
@@ -255,7 +255,7 @@ export interface ProvisionDefaults {
   ports?: { game: number; agent: number };
 }
 
-/** A wkagent container found on the provisioner's host. */
+/** A flameagent container found on the provisioner's host. */
 export interface DiscoveredServer {
   name: string;
   image: string;
@@ -486,7 +486,7 @@ export interface PlayerInventory {
   /** Unix seconds; 0 when the save recorded none. A *login* stamp — see
    * PlayerPals.lastOnline. */
   lastOnline: number;
-  /** Unix seconds; 0 when wildskeeper never watched this player leave. */
+  /** Unix seconds; 0 when flamekeeper never watched this player leave. */
   lastSeen: number;
   platform: string;
 }
@@ -512,7 +512,7 @@ export interface PlayerPals {
    * never updates — so for anyone offline it says when they arrived, not when
    * they left. Use lastSeen for "last seen"; this is only its fallback. */
   lastOnline: number;
-  /** Unix seconds; wildskeeper's own observation of this player leaving, and 0
+  /** Unix seconds; flamekeeper's own observation of this player leaving, and 0
    * when it has none (a server it hasn't collected for, or history predating
    * the record). Unlike lastOnline this really is a last-seen time. */
   lastSeen: number;
@@ -555,7 +555,7 @@ export interface RestartSchedule {
   enabled: boolean;
   /** Weekdays, 0 (Sunday) through 6 (Saturday). */
   days: number[];
-  /** "HH:MM", 24-hour, in Wildskeeper's local timezone. */
+  /** "HH:MM", 24-hour, in Flamekeeper's local timezone. */
   timeOfDay: string;
   /** Warning broadcast lead times in minutes, descending. */
   warningMinutes: number[];
@@ -591,14 +591,14 @@ export interface DiscordWriteInput {
 
 export interface AutomationResult {
   schedules: RestartSchedule[];
-  /** Wildskeeper's local timezone name, which schedule times are read in. */
+  /** Flamekeeper's local timezone name, which schedule times are read in. */
   timezone: string;
   /** True when a scheduled restart can bounce the container itself. */
   dockerRestart: boolean;
   /** Absent for non-admins. */
   discord?: DiscordConfig;
   /** Absent for non-admins. `available` = docker control + container name. */
-  /** `supervised` means a wkagent owns the game process, which is why
+  /** `supervised` means a flameagent owns the game process, which is why
    * `available` is false: its own supervisor already does this job. */
   watchdog?: { enabled: boolean; available: boolean; supervised?: boolean };
   /** Absent for non-admins. Token is the /status/<token> URL segment. */
@@ -919,7 +919,7 @@ export const api = {
   // power permission and a configured install path.
   clearSteamCache: (id: number) =>
     request<{ removed: number }>(`/servers/${id}/steam-cache/clear`, { method: "POST" }),
-  // SteamCMD update via the server's wkagent sidecar. POST starts a job
+  // SteamCMD update via the server's flameagent sidecar. POST starts a job
   // on the agent (409 while the container runs or a job is in flight);
   // GET reports the running/last job so the UI can poll — and rediscover
   // an in-flight update after a reload.
@@ -932,7 +932,7 @@ export const api = {
   // Which game build the agent launches. Throws a 400 ApiError when the
   // server has no agent, or has one that doesn't run the game.
   serverLaunch: (id: number) => request<Launch>(`/servers/${id}/launch`),
-  // Rebuild this server's agent container on another wkagent image,
+  // Rebuild this server's agent container on another flameagent image,
   // through the provisioner that created it.
   recreateAgent: (id: number, imageTag: string) =>
     request<{ container: string; image: string; previousImage: string }>(`/servers/${id}/agent/image`, {

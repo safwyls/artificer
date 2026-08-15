@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/wildskeeper/internal/agentfiles"
-	"github.com/safwyls/wildskeeper/internal/backup"
+	"github.com/safwyls/flamekeeper/internal/agentfiles"
+	"github.com/safwyls/flamekeeper/internal/backup"
 )
 
 // Backups are admin-only end to end: a snapshot is the entire world,

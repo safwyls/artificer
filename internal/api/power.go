@@ -11,9 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/wildskeeper/internal/agentctl"
-	"github.com/safwyls/wildskeeper/internal/dockerctl"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentctl"
+	"github.com/safwyls/flamekeeper/internal/dockerctl"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // containerFor resolves the server's configured docker container,
@@ -21,7 +21,7 @@ import (
 // which half is missing.
 func (s *Server) containerFor(w http.ResponseWriter, srv *store.Server) (string, bool) {
 	if s.docker == nil {
-		writeError(w, http.StatusBadRequest, "docker control is not configured on this Wildskeeper instance")
+		writeError(w, http.StatusBadRequest, "docker control is not configured on this Flamekeeper instance")
 		return "", false
 	}
 	if srv.ContainerName == "" {
@@ -46,7 +46,7 @@ func (s *Server) agentSupervisor(ctx context.Context, srv *store.Server) (*agent
 func gameToContainerState(health *agentctl.Health) *dockerctl.State {
 	game := health.Game
 	st := &dockerctl.State{
-		Name:    "wkagent · supervisor",
+		Name:    "flameagent · supervisor",
 		Status:  game.State,
 		Running: game.State == "running",
 	}
@@ -209,7 +209,7 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 		// in-game shutdown lands on the engine mid-save and ends it at 143
 		// instead of 0. Let that exit finish first.
 		graceful := time.Duration(0)
-		if action != "start" && s.prepareForStop(ctx, r, "wkagent:"+srv.Name, actor) {
+		if action != "start" && s.prepareForStop(ctx, r, "flameagent:"+srv.Name, actor) {
 			graceful = gameSelfExitWindow
 		}
 		game, err := agent.Power(ctx, action, graceful)
@@ -219,7 +219,7 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.logger.Info("agent power action", "action", action, "server", srv.Name, "user", actor)
-		s.audit(r, srv.ID, "power-"+action, "wkagent")
+		s.audit(r, srv.ID, "power-"+action, "flameagent")
 		writeJSON(w, http.StatusOK, gameToContainerState(&agentctl.Health{Game: game}))
 		return
 	}

@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/crypto"
-	"github.com/safwyls/wildskeeper/internal/db"
-	"github.com/safwyls/wildskeeper/internal/game/gametest"
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/crypto"
+	"github.com/safwyls/flamekeeper/internal/db"
+	"github.com/safwyls/flamekeeper/internal/game/gametest"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/store"
 
-	_ "github.com/safwyls/wildskeeper/internal/games"
+	_ "github.com/safwyls/flamekeeper/internal/games"
 )
 
 // palSpy serves the two endpoints a sample touches: the player list (both

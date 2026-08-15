@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/store"
-	"github.com/safwyls/wildskeeper/internal/wkagent"
+	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/flameagent"
 )
 
 const agentToken = "api-test-agent-token-0123456789"
 
-// agentServer runs a real wkagent over a fake install dir and registers a
-// server row pointing at it, exercising the wildskeeper→agent path end to end.
+// agentServer runs a real flameagent over a fake install dir and registers a
+// server row pointing at it, exercising the flamekeeper→agent path end to end.
 func agentServer(t *testing.T, app *testApp) (int64, string) {
 	t.Helper()
 	install := fakeInstallDir(t)
@@ -28,7 +28,7 @@ func agentServer(t *testing.T, app *testApp) (int64, string) {
 	if err := os.WriteFile(steamcmd, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	agent, err := wkagent.New(wkagent.Config{
+	agent, err := flameagent.New(flameagent.Config{
 		Token: agentToken, InstallDir: install, SteamCmd: steamcmd, Version: "test",
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
@@ -92,7 +92,7 @@ func TestSteamUpdateLifecycle(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
 			t.Fatal(err)
 		}
-		if res.Agent.APIVersion != wkagent.APIVersion {
+		if res.Agent.APIVersion != flameagent.APIVersion {
 			t.Fatalf("status did not report agent apiVersion: %s", rec.Body)
 		}
 		if res.Job != nil && res.Job.State != "running" {

@@ -24,9 +24,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/agentfiles"
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentfiles"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 const (

@@ -1,9 +1,9 @@
-// Package dragonwilds implements wildskeeper's game contract for RuneScape:
+// Package dragonwilds implements flamekeeper's game contract for RuneScape:
 // Dragonwilds dedicated servers.
 //
 // The game has no RCON, no HTTP admin API and no query protocol — all
 // native administration is the in-game Server Management menu. Everything
-// wildskeeper shows is therefore *derived*: process liveness from the wkagent
+// flamekeeper shows is therefore *derived*: process liveness from the flameagent
 // sidecar's health, the player list from a state machine over the agent's
 // log tail (dwlog), config from DedicatedServer.ini (dwconfig). Commands
 // have no transport at all until the UE4SS command bridge exists, so the
@@ -18,11 +18,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/safwyls/wildskeeper/internal/game"
+	"github.com/safwyls/flamekeeper/internal/game"
 )
 
 // AppID is the Steam app id of the *dedicated server* tool (the game client
-// is 1374490). Deliberately duplicated in wkagent's Dragonwilds launch
+// is 1374490). Deliberately duplicated in flameagent's Dragonwilds launch
 // profile the same way palworld.AppID is — agreement tests keep them honest.
 const AppID = 4019830
 

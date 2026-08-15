@@ -301,7 +301,7 @@ function SchedulesCard({
           <p className="text-sm text-wk-parchment/60">No restart schedules yet.</p>
           {canEdit && (
             <p className="mt-1 text-sm text-wk-parchment/60">
-              Add one and Wildskeeper restarts the server on schedule.{" "}
+              Add one and Flamekeeper restarts the server on schedule.{" "}
               {saveCmd.known && !saveCmd.supported
                 ? "This server has no way to save on demand, so a restart loses anything since the game's last autosave."
                 : "The world is saved first, so a restart costs nothing."}
@@ -362,7 +362,7 @@ function SchedulesCard({
 
       <div className="space-y-1 border-t border-wk-edge px-5 py-3 text-xs text-wk-parchment/50">
         <p>
-          Times are {data.timezone} (Wildskeeper's clock).{" "}
+          Times are {data.timezone} (Flamekeeper's clock).{" "}
           {saveCmd.known && !saveCmd.supported ? (
             <>
               This server cannot be saved on demand — {saveCmd.reason} — so each restart costs whatever came after the
@@ -370,7 +370,7 @@ function SchedulesCard({
             </>
           ) : (
             <>
-              Wildskeeper saves the world before each restart, and records in Activity whether the save landed.
+              Flamekeeper saves the world before each restart, and records in Activity whether the save landed.
             </>
           )}
         </p>
@@ -439,7 +439,7 @@ function ScheduleDialog({
           <DialogTitle>{schedule ? "Edit schedule" : "Add restart schedule"}</DialogTitle>
           <DialogDescription>
             Each lead time sends a Discord warning; an in-game warning needs a dwbridge mod that can broadcast, and
-            none does yet. At the scheduled time Wildskeeper saves the world, then restarts the server.
+            none does yet. At the scheduled time Flamekeeper saves the world, then restarts the server.
           </DialogDescription>
         </DialogHeader>
 
@@ -548,15 +548,15 @@ function WatchdogCard({
           in Discord status notifications.
         </p>
         <p className="text-xs text-wk-parchment/45">
-          Clean stops are left alone — stopping through Wildskeeper always reads as one. Stopping the container behind
-          Wildskeeper's back (TrueNAS UI, docker stop) can end in a force-kill that looks like a crash and will be revived;
+          Clean stops are left alone — stopping through Flamekeeper always reads as one. Stopping the container behind
+          Flamekeeper's back (TrueNAS UI, docker stop) can end in a force-kill that looks like a crash and will be revived;
           turn the watchdog off first, or stop the server from here.
         </p>
         {!config.available && (
           <p className="text-xs text-wk-parchment/60">
             {config.supervised
               ? "This server's agent already restarts the game when it crashes, with the same backoff — the container itself never exits, so there's nothing here to watch."
-              : "Needs power control: a Docker endpoint on this Wildskeeper instance and a container name on this server."}
+              : "Needs power control: a Docker endpoint on this Flamekeeper instance and a container name on this server."}
           </p>
         )}
       </div>
@@ -640,7 +640,7 @@ function BackupsCard({ serverId }: { serverId: number }) {
         {data && !data.available && (
           <p className="text-sm text-wk-parchment/60">
             Backups snapshot the save directory, so this server needs a save path first (edit the server from the
-            sidebar). The save mount stays read-only — snapshots are written to Wildskeeper's own data directory.
+            sidebar). The save mount stays read-only — snapshots are written to Flamekeeper's own data directory.
           </p>
         )}
 
@@ -777,7 +777,7 @@ function PublicStatusCard({ serverId, config }: { serverId: number; config: { en
       <div className="space-y-3 px-5 py-4 text-sm text-wk-parchment/60">
         <p>
           A read-only page anyone with the link can open, no account needed: online or not, player count, and the
-          next scheduled restart. Served from Wildskeeper's own data — visitors never touch the game server. No player
+          next scheduled restart. Served from Flamekeeper's own data — visitors never touch the game server. No player
           names, no addresses.
         </p>
         {config.enabled && url && (

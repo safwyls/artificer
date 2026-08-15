@@ -39,15 +39,15 @@ func TestImagePullAndCreate(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	if err := c.ImagePull(ctx, "ghcr.io/safwyls/wkagent:beta"); err != nil {
+	if err := c.ImagePull(ctx, "ghcr.io/safwyls/flameagent:beta"); err != nil {
 		t.Fatalf("pull: %v", err)
 	}
-	if (*calls)[0] != "POST /images/create?fromImage=ghcr.io%2Fsafwyls%2Fwkagent&tag=beta" {
+	if (*calls)[0] != "POST /images/create?fromImage=ghcr.io%2Fsafwyls%2Fflameagent&tag=beta" {
 		t.Errorf("pull call = %q", (*calls)[0])
 	}
 
 	id, err := c.ContainerCreate(ctx, ContainerSpec{
-		Name: "wkagent-test", Image: "ghcr.io/safwyls/wkagent:beta",
+		Name: "flameagent-test", Image: "ghcr.io/safwyls/flameagent:beta",
 		User: "568:568", Env: []string{"A=b"},
 		Binds:                []string{"/data/test:/palworld"},
 		Ports:                map[int]string{9211: "8211/udp", 9811: "8811"},
@@ -57,7 +57,7 @@ func TestImagePullAndCreate(t *testing.T) {
 		t.Fatalf("create: id=%q err=%v", id, err)
 	}
 	p := *payload
-	if p["User"] != "568:568" || p["Image"] != "ghcr.io/safwyls/wkagent:beta" {
+	if p["User"] != "568:568" || p["Image"] != "ghcr.io/safwyls/flameagent:beta" {
 		t.Errorf("payload user/image = %v %v", p["User"], p["Image"])
 	}
 	hc := p["HostConfig"].(map[string]any)

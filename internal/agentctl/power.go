@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/wkagent"
+	"github.com/safwyls/flamekeeper/internal/flameagent"
 )
 
 // GameStatus mirrors the agent's wire type, like Job and Health.
-type GameStatus = wkagent.GameStatus
+type GameStatus = flameagent.GameStatus
 
 // Power performs start/stop/restart on a supervisor-mode agent's game and
 // returns the post-action status. Stop legitimately waits out the game's
@@ -57,7 +57,7 @@ type ProvisionResult struct {
 // Provision asks a provisioner-mode agent to instantiate the Palworld
 // supervisor template. The generous timeout covers the image pull a first
 // provision performs.
-func (c *Client) Provision(ctx context.Context, req wkagent.ProvisionRequest) (*ProvisionResult, error) {
+func (c *Client) Provision(ctx context.Context, req flameagent.ProvisionRequest) (*ProvisionResult, error) {
 	var res ProvisionResult
 	if err := c.do(ctx, http.MethodPost, "/v1/provision", req, &res, 10*time.Minute); err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (c *Client) Provision(ctx context.Context, req wkagent.ProvisionRequest) (*
 }
 
 // DiscoveredServer mirrors the provisioner's wire type.
-type DiscoveredServer = wkagent.DiscoveredServer
+type DiscoveredServer = flameagent.DiscoveredServer
 
 // Discover lists Palworld-shaped containers on the provisioner's host.
 func (c *Client) Discover(ctx context.Context) ([]DiscoveredServer, error) {
@@ -80,7 +80,7 @@ func (c *Client) Discover(ctx context.Context) ([]DiscoveredServer, error) {
 }
 
 // DestroyResult mirrors the provisioner's wire type.
-type DestroyResult = wkagent.DestroyResult
+type DestroyResult = flameagent.DestroyResult
 
 // Destroy asks the provisioner to remove a container it created.
 //
@@ -99,10 +99,10 @@ func (c *Client) Destroy(ctx context.Context, container string) (*DestroyResult,
 }
 
 // AdoptResult mirrors the provisioner's wire type.
-type AdoptResult = wkagent.AdoptResult
+type AdoptResult = flameagent.AdoptResult
 
-// Adopt recovers a wkagent container's registration data (secrets
-// included) so wildskeeper can re-register a server whose row was lost.
+// Adopt recovers a flameagent container's registration data (secrets
+// included) so flamekeeper can re-register a server whose row was lost.
 func (c *Client) Adopt(ctx context.Context, container string) (*AdoptResult, error) {
 	var res AdoptResult
 	if err := c.do(ctx, http.MethodPost, "/v1/adopt", map[string]string{"container": container}, &res, 30*time.Second); err != nil {
@@ -112,12 +112,12 @@ func (c *Client) Adopt(ctx context.Context, container string) (*AdoptResult, err
 }
 
 // RecreateAgent rebuilds a provisioned agent container on a different
-// wkagent image, keeping its configuration. The timeout is generous
+// flameagent image, keeping its configuration. The timeout is generous
 // because it pulls an image first — the Wine variant is well over a
 // gigabyte, and a slow pull is not a failure.
-func (c *Client) RecreateAgent(ctx context.Context, container, imageTag string) (*wkagent.RecreateResult, error) {
-	var res wkagent.RecreateResult
-	req := wkagent.RecreateRequest{Container: container, ImageTag: imageTag}
+func (c *Client) RecreateAgent(ctx context.Context, container, imageTag string) (*flameagent.RecreateResult, error) {
+	var res flameagent.RecreateResult
+	req := flameagent.RecreateRequest{Container: container, ImageTag: imageTag}
 	if err := c.do(ctx, http.MethodPost, "/v1/provision/recreate", req, &res, 15*time.Minute); err != nil {
 		return nil, err
 	}

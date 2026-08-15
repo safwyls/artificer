@@ -84,7 +84,7 @@ describe("copyText", () => {
 
   it("falls back to execCommand on plain-HTTP LAN deployments", async () => {
     // navigator.clipboard only exists in secure contexts, which is exactly
-    // where wildskeeper usually isn't.
+    // where flamekeeper usually isn't.
     vi.stubGlobal("isSecureContext", false);
     const exec = vi.fn().mockReturnValue(true);
     document.execCommand = exec;

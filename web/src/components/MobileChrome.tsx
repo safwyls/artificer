@@ -9,7 +9,7 @@ import { serverColor, initials } from "../lib/palette";
 import { FEATURE_ROUTES, featureLabel } from "../lib/games";
 import { canSeeFeature, serverFeatures } from "../lib/visibility";
 import { cn, copyText, joinAddressFor } from "../lib/utils";
-import { WkServerRune } from "./wildskeeper/WkServerRune";
+import { WkServerRune } from "./flamekeeper/WkServerRune";
 import { ServerFormDialog } from "./ServerFormDialog";
 import { AddServerFlow } from "./AddServerFlow";
 import { DeleteServerDialog } from "./DeleteServerDialog";
@@ -94,7 +94,7 @@ export function MobileTopBar({ server }: { server: Server | null }) {
         ) : (
           <div className="flex items-center gap-2.5">
             <div className="clip-notch h-8 w-8 rounded-full bg-gradient-to-br from-wk-ember to-wk-brasshi" />
-            <p className="font-display text-sm font-bold">Wildskeeper</p>
+            <p className="font-display text-sm font-bold">Flamekeeper</p>
           </div>
         )}
 

@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/safwyls/wildskeeper/internal/agentctl"
-	"github.com/safwyls/wildskeeper/internal/ilmari"
-	"github.com/safwyls/wildskeeper/internal/wkagent"
+	"github.com/safwyls/flamekeeper/internal/agentctl"
+	"github.com/safwyls/flamekeeper/internal/ilmari"
+	"github.com/safwyls/flamekeeper/internal/flameagent"
 )
 
 // Provisioner is what the API layer needs from whatever places containers
 // on the host. Two implementations exist during the migration
 // (docs in the ilmari repo, docs/migration.md): the legacy provisioner-mode
-// wkagent (agentctl.Client, which satisfies this as-is) and Ilmari, the
+// flameagent (agentctl.Client, which satisfies this as-is) and Ilmari, the
 // shared host service. The interface speaks the legacy shapes on purpose —
 // they are what the wizard and its frontend already consume — and the
 // Ilmari implementation translates at the boundary. When the legacy path
@@ -22,10 +22,10 @@ import (
 type Provisioner interface {
 	BaseURL() string
 	Health(ctx context.Context) (*agentctl.Health, error)
-	Provision(ctx context.Context, req wkagent.ProvisionRequest) (*agentctl.ProvisionResult, error)
+	Provision(ctx context.Context, req flameagent.ProvisionRequest) (*agentctl.ProvisionResult, error)
 	Discover(ctx context.Context) ([]agentctl.DiscoveredServer, error)
 	Adopt(ctx context.Context, container string) (*agentctl.AdoptResult, error)
-	RecreateAgent(ctx context.Context, container, imageTag string) (*wkagent.RecreateResult, error)
+	RecreateAgent(ctx context.Context, container, imageTag string) (*flameagent.RecreateResult, error)
 	Destroy(ctx context.Context, container string) (*agentctl.DestroyResult, error)
 }
 
@@ -38,7 +38,7 @@ var (
 // IlmariProvisioner adapts the Ilmari host service to the Provisioner
 // interface.
 //
-// This adapter is where the game knowledge that used to live in wkagent's
+// This adapter is where the game knowledge that used to live in flameagent's
 // provisioner mode now lives: which env vars configure a Dragonwilds
 // sidecar, that the game publishes a UDP port pair, that the agent listens
 // on 8811, which image family to deploy. Ilmari itself knows none of it —
@@ -56,9 +56,9 @@ func (p *IlmariProvisioner) BaseURL() string { return p.c.BaseURL() }
 
 // The game's container-side port facts, in exactly one place.
 const (
-	gameContainerPort  = wkagent.DefaultGamePort // 7777/udp, and the pair partner above it
+	gameContainerPort  = flameagent.DefaultGamePort // 7777/udp, and the pair partner above it
 	agentContainerPort = 8811
-	agentImage         = "ghcr.io/safwyls/wkagent"
+	agentImage         = "ghcr.io/safwyls/flameagent"
 	dataMount          = "/dragonwilds"
 )
 
@@ -75,9 +75,9 @@ func (p *IlmariProvisioner) Health(ctx context.Context) (*agentctl.Health, error
 	return &agentctl.Health{
 		Agent:      "ilmari",
 		Version:    h.Version,
-		APIVersion: wkagent.APIVersion,
+		APIVersion: flameagent.APIVersion,
 		Mode:       "provisioner",
-		Provision: &wkagent.ProvisionDefaults{
+		Provision: &flameagent.ProvisionDefaults{
 			DataRoot:   h.DataRoot,
 			PublicHost: h.PublicHost,
 			RunAs:      h.RunAs,
@@ -87,28 +87,28 @@ func (p *IlmariProvisioner) Health(ctx context.Context) (*agentctl.Health, error
 }
 
 // Provision translates the game-shaped request into Ilmari's spec — the
-// same assembly wkagent's own handler performs, kept in step with it until
+// same assembly flameagent's own handler performs, kept in step with it until
 // that handler is retired.
-func (p *IlmariProvisioner) Provision(ctx context.Context, req wkagent.ProvisionRequest) (*agentctl.ProvisionResult, error) {
+func (p *IlmariProvisioner) Provision(ctx context.Context, req flameagent.ProvisionRequest) (*agentctl.ProvisionResult, error) {
 	env := map[string]string{
 		"HOME":                   "/tmp",
-		"WKAGENT_MODE":           "supervisor",
-		"WKAGENT_TOKEN":          req.Token,
-		"WKAGENT_ADMIN_PASSWORD": req.AdminPassword,
-		"WKAGENT_OWNER_ID":       strings.TrimSpace(req.OwnerID),
+		"FLAMEAGENT_MODE":           "supervisor",
+		"FLAMEAGENT_TOKEN":          req.Token,
+		"FLAMEAGENT_ADMIN_PASSWORD": req.AdminPassword,
+		"FLAMEAGENT_OWNER_ID":       strings.TrimSpace(req.OwnerID),
 	}
 	if req.ServerName != "" {
-		env["WKAGENT_SERVER_NAME"] = req.ServerName
+		env["FLAMEAGENT_SERVER_NAME"] = req.ServerName
 	}
 	if req.WorldName != "" {
-		env["WKAGENT_WORLD_NAME"] = req.WorldName
+		env["FLAMEAGENT_WORLD_NAME"] = req.WorldName
 	}
 	tag := req.ImageTag
 	if tag == "" {
 		tag = "latest"
 	}
 	res, err := p.c.Provision(ctx, ilmari.Spec{
-		Name:  "wkagent-" + req.Slug,
+		Name:  "flameagent-" + req.Slug,
 		Slug:  req.Slug,
 		Image: agentImage + ":" + tag,
 		User:  req.RunAs,
@@ -151,20 +151,20 @@ func (p *IlmariProvisioner) Discover(ctx context.Context) ([]agentctl.Discovered
 }
 
 // Adopt recovers a registration from the env Ilmari returns — already
-// filtered to WKAGENT_* by this console's registration, so reading it here
+// filtered to FLAMEAGENT_* by this console's registration, so reading it here
 // is reading our own writes back.
 func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agentctl.AdoptResult, error) {
 	a, err := p.c.Adopt(ctx, container)
 	if err != nil {
 		return nil, err
 	}
-	mode := a.Env["WKAGENT_MODE"]
+	mode := a.Env["FLAMEAGENT_MODE"]
 	if mode == "" {
-		mode = "companion" // wkagent's default when unset
+		mode = "companion" // flameagent's default when unset
 	}
 	if mode == "provisioner" {
 		// The legacy provisioner container is discoverable (it runs the
-		// wkagent image, unlabelled) but is not a game server. The old
+		// flameagent image, unlabelled) but is not a game server. The old
 		// provisioner filtered it out of discovery; Ilmari cannot, so the
 		// refusal lands here instead.
 		return nil, fmt.Errorf("%s is a provisioner, not a game server — it is retired in the last step of the Ilmari migration", container)
@@ -172,21 +172,21 @@ func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agent
 	return &agentctl.AdoptResult{
 		Name:          a.Name,
 		Mode:          mode,
-		ServerName:    a.Env["WKAGENT_SERVER_NAME"],
-		Token:         a.Env["WKAGENT_TOKEN"],
-		AdminPassword: a.Env["WKAGENT_ADMIN_PASSWORD"],
-		OwnerID:       a.Env["WKAGENT_OWNER_ID"],
+		ServerName:    a.Env["FLAMEAGENT_SERVER_NAME"],
+		Token:         a.Env["FLAMEAGENT_TOKEN"],
+		AdminPassword: a.Env["FLAMEAGENT_ADMIN_PASSWORD"],
+		OwnerID:       a.Env["FLAMEAGENT_OWNER_ID"],
 		GamePort:      hostPortFor(a.Ports, gameContainerPort, "udp"),
 		AgentPort:     hostPortFor(a.Ports, agentContainerPort, "tcp"),
 	}, nil
 }
 
-func (p *IlmariProvisioner) RecreateAgent(ctx context.Context, container, imageTag string) (*wkagent.RecreateResult, error) {
+func (p *IlmariProvisioner) RecreateAgent(ctx context.Context, container, imageTag string) (*flameagent.RecreateResult, error) {
 	res, err := p.c.Recreate(ctx, container, agentImage+":"+imageTag)
 	if err != nil {
 		return nil, err
 	}
-	return &wkagent.RecreateResult{Container: res.Container, Image: res.Image, Previous: res.Previous}, nil
+	return &flameagent.RecreateResult{Container: res.Container, Image: res.Image, Previous: res.Previous}, nil
 }
 
 func (p *IlmariProvisioner) Destroy(ctx context.Context, container string) (*agentctl.DestroyResult, error) {

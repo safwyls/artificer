@@ -32,9 +32,9 @@ misplace every marker.
 
 `favicon-32.png`, `favicon-192.png`, `apple-touch-icon.png`, `icon-512.png`
 and `icon-maskable-512.png` (the last two referenced by `manifest.json`) are
-the Wildskeeper rune sigil in its fully awakened state — all six rune
+the Flamekeeper rune sigil in its fully awakened state — all six rune
 segments lit, the dragon-eye open — rendered from the same geometry as
-`src/components/wildskeeper/RuneSigil.tsx`.
+`src/components/flamekeeper/RuneSigil.tsx`.
 
 Regenerate with `node scripts/gen-icons.mjs` from `web/` (needs `sharp`,
 which is not a checked-in dependency — install it transiently). The script

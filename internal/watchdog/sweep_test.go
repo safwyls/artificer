@@ -11,11 +11,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/wildskeeper/internal/crypto"
-	"github.com/safwyls/wildskeeper/internal/db"
-	"github.com/safwyls/wildskeeper/internal/dockerctl"
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/crypto"
+	"github.com/safwyls/flamekeeper/internal/db"
+	"github.com/safwyls/flamekeeper/internal/dockerctl"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // fakeDocker answers inspect with a canned container state and records the
@@ -84,8 +84,8 @@ func newStore(t *testing.T) *store.Store {
 	return store.New(sqlDB, box)
 }
 
-const crashedContainer = `{"Name":"/wkagent-main","State":{"Status":"exited","Running":false,"ExitCode":137}}`
-const healthyContainer = `{"Name":"/wkagent-main","State":{"Status":"running","Running":true,"StartedAt":"2026-07-26T05:00:00Z"}}`
+const crashedContainer = `{"Name":"/flameagent-main","State":{"Status":"exited","Running":false,"ExitCode":137}}`
+const healthyContainer = `{"Name":"/flameagent-main","State":{"Status":"running","Running":true,"StartedAt":"2026-07-26T05:00:00Z"}}`
 
 func newWatchdog(t *testing.T, st *store.Store, docker *dockerctl.Client) *Watchdog {
 	t.Helper()
@@ -98,7 +98,7 @@ func addServer(t *testing.T, st *store.Store, over func(*store.Server)) *store.S
 	t.Helper()
 	srv := &store.Server{
 		Name: "main", Host: "10.0.0.5", Enabled: true,
-		Watchdog: true, ContainerName: "wkagent-main",
+		Watchdog: true, ContainerName: "flameagent-main",
 	}
 	if over != nil {
 		over(srv)

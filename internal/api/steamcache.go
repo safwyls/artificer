@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/safwyls/wildskeeper/internal/steamcmd"
+	"github.com/safwyls/flamekeeper/internal/steamcmd"
 )
 
 // handleClearSteamCache empties the SteamCMD cache directories — the

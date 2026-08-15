@@ -76,11 +76,11 @@ export default {
           indigo: "#334383",
           violet: "#52359D",
         },
-        // Wildskeeper (Dragonwilds) literal palette, verbatim from
-        // mocks/dragonwilds-dashboard.html in the wildskeeper workspace.
+        // Flamekeeper (Dragonwilds) literal palette, verbatim from
+        // mocks/dragonwilds-dashboard.html in the flamekeeper workspace.
         // Rule from the mock: brass is structure and interaction, rune cyan
         // is *reserved* for live/active state, ember for danger. Semantic
-        // roles are remapped under .wildskeeper in index.css; these tokens
+        // roles are remapped under .flamekeeper in index.css; these tokens
         // are for the spots that need the exact hue.
         wk: {
           bg: "#10141a",

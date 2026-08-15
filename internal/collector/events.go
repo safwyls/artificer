@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/game"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/game"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // downAfter is how many consecutive failed probes declare a server down.
@@ -101,7 +101,7 @@ func (c *Collector) watch(ctx context.Context, srv *store.Server, client game.Cl
 		}
 	}
 	// Written on every successful probe, not only the ones that produce an
-	// event: it's the record of how much wildskeeper actually watched.
+	// event: it's the record of how much flamekeeper actually watched.
 	if err := c.store.TouchWatch(ctx, srv.ID, now); err != nil {
 		c.logger.Error("collector: recording watch heartbeat", "server", srv.ID, "error", err)
 	}
@@ -137,14 +137,14 @@ func (c *Collector) watch(ctx context.Context, srv *store.Server, client game.Cl
 	}
 }
 
-// resume reconciles the events table on wildskeeper's first look at a server.
+// resume reconciles the events table on flamekeeper's first look at a server.
 //
-// Wildskeeper's own downtime is invisible from the server's side: a player who
+// Flamekeeper's own downtime is invisible from the server's side: a player who
 // was online at shutdown left a join with no leave, and anything reading
 // the log later has no way to know the session ended — it reads as still
 // running, growing by a day every day. So close everything still open at
-// the last instant wildskeeper was actually watching, then open a fresh session
-// for whoever is on the server now. Time wildskeeper did not observe belongs to
+// the last instant flamekeeper was actually watching, then open a fresh session
+// for whoever is on the server now. Time flamekeeper did not observe belongs to
 // nobody, which is the same rule a server outage already follows.
 func (c *Collector) resume(ctx context.Context, srv *store.Server, current map[string]watched, lastSeen, now time.Time) {
 	open, err := c.store.OpenSessions(ctx, srv.ID)
@@ -169,14 +169,14 @@ func (c *Collector) resume(ctx context.Context, srv *store.Server, current map[s
 		c.logger.Info("collector: closed sessions left open by a previous run",
 			"server", srv.ID, "sessions", len(open), "at", lastSeen)
 	}
-	// Deliberately silent on Discord: wildskeeper starting up is not player
+	// Deliberately silent on Discord: flamekeeper starting up is not player
 	// churn, exactly as a server coming back up isn't.
 	for userID, w := range current {
 		c.recordEvent(ctx, srv.ID, now, userID, w.uid, w.name, "join")
 	}
 }
 
-// closeSessions ends every session wildskeeper currently believes is open. Run
+// closeSessions ends every session flamekeeper currently believes is open. Run
 // on the way out so a restart doesn't strand them: the player was online up
 // to this instant, and what happens after is unobserved.
 func (c *Collector) closeSessions(ctx context.Context) {

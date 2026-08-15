@@ -9,7 +9,7 @@ import { NumberField } from "./ui/number-field";
 import { Label } from "./ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 
-/** How the game is deployed. These are the agent's own `WKAGENT_MODE`
+/** How the game is deployed. These are the agent's own `FLAMEAGENT_MODE`
  * values, so the tab a server sits under is the shape it really runs in. */
 type Kind = "supervised" | "companion";
 
@@ -20,9 +20,9 @@ const KINDS = [
 
 const KIND_BLURB: Record<Kind, string> = {
   supervised:
-    "One wkagent container runs the game itself. Power, updates, saves and settings all flow through the agent — no container name, no path mounts.",
+    "One flameagent container runs the game itself. Power, updates, saves and settings all flow through the agent — no container name, no path mounts.",
   companion:
-    "The game runs in its own container. Power goes through the docker proxy, and files come from a wkagent beside it — or from three paths mounted into Wildskeeper.",
+    "The game runs in its own container. Power goes through the docker proxy, and files come from a flameagent beside it — or from three paths mounted into Flamekeeper.",
 };
 
 const emptyForm: ServerWriteInput = {
@@ -61,7 +61,7 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
 /** Which tab an existing server opens on. A container name or a path mount
  * is what makes a deployment companion-shaped; a provisioned or adopted
  * supervisor row carries an agent URL and nothing else. A bare REST/RCON
- * server opens on Companion too — the game is running somewhere wildskeeper
+ * server opens on Companion too — the game is running somewhere flamekeeper
  * doesn't own, which is exactly what that tab describes. */
 function kindFor(mode: "create" | "edit", server?: Server): Kind {
   if (mode === "create" || !server) return "supervised";
@@ -179,7 +179,7 @@ export function ServerFormDialog({
         <Label>Agent URL</Label>
         <Input
           value={form.agentUrl}
-          placeholder="http://wkagent:8811"
+          placeholder="http://flameagent:8811"
           onChange={(e) => setForm({ ...form, agentUrl: e.target.value })}
         />
       </div>
@@ -209,7 +209,7 @@ export function ServerFormDialog({
             <DialogTitle>{mode === "create" ? "Add an existing server" : `Edit "${server?.name}"`}</DialogTitle>
             <DialogDescription>
               {mode === "create"
-                ? "Wildskeeper only needs to know how to reach it — pick the shape it runs in."
+                ? "Flamekeeper only needs to know how to reach it — pick the shape it runs in."
                 : "Leave the agent token blank to keep the stored one."}
             </DialogDescription>
           </DialogHeader>
@@ -249,8 +249,8 @@ export function ServerFormDialog({
               <Section title="Agent">
                 {agentFields}
                 <p className="text-xs text-muted-foreground">
-                  The <code>wkagent</code> container running this game. Token must match the agent's{" "}
-                  <code>WKAGENT_TOKEN</code> — the provisioner writes both when it generates the stack.
+                  The <code>flameagent</code> container running this game. Token must match the agent's{" "}
+                  <code>FLAMEAGENT_TOKEN</code> — the provisioner writes both when it generates the stack.
                 </p>
 
                 {strays.length > 0 && (
@@ -291,7 +291,7 @@ export function ServerFormDialog({
                 <Section title="File access">
                   {agentFields}
                   <p className="text-xs text-muted-foreground">
-                    A <code>wkagent</code> sidecar deployed next to the game container. Covers all three paths
+                    A <code>flameagent</code> sidecar deployed next to the game container. Covers all three paths
                     below at once: saves, the settings editor, backups and SteamCMD repair.
                   </p>
 

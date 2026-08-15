@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/safwyls/wildskeeper/internal/agentctl"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentctl"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // agentFor builds the agentctl client for a server row. Errors collapse to
@@ -43,7 +43,7 @@ func writeAgentError(w http.ResponseWriter, err error) {
 // app_update job. Gated on the power permission by the router. The one
 // safety the agent can't provide in companion mode lives here: the agent
 // shares a volume with the game server but not a PID namespace, so only
-// wildskeeper (via docker) knows whether the game is running — and updating
+// flamekeeper (via docker) knows whether the game is running — and updating
 // under a live server corrupts the very state this exists to repair.
 func (s *Server) handleSteamUpdateStart(w http.ResponseWriter, r *http.Request) {
 	srv, ok := s.loadServer(w, r)
@@ -58,11 +58,11 @@ func (s *Server) handleSteamUpdateStart(w http.ResponseWriter, r *http.Request) 
 
 	// Whether the *game* is running is the question; the container is only
 	// a proxy for it, and a bad one under a supervisor. A supervised
-	// container runs wkagent as PID 1, so it is always up even with the
+	// container runs flameagent as PID 1, so it is always up even with the
 	// game stopped — reading container state there would refuse every
 	// update forever, and stopping the container to satisfy it would kill
 	// the agent that has to perform the update. The agent answers
-	// first-hand instead (wkagent's own guard on game.Running), so wildskeeper
+	// first-hand instead (flameagent's own guard on game.Running), so flamekeeper
 	// asks it and skips the container entirely.
 	if _, health := s.agentSupervisor(r.Context(), srv); health != nil {
 		if health.Game.State == "running" {
@@ -71,7 +71,7 @@ func (s *Server) handleSteamUpdateStart(w http.ResponseWriter, r *http.Request) 
 		}
 	} else if s.docker != nil && srv.ContainerName != "" {
 		// Companion mode: the agent shares a volume with the game but not a
-		// PID namespace, so only wildskeeper (via docker) knows if it's running.
+		// PID namespace, so only flamekeeper (via docker) knows if it's running.
 		state, err := s.docker.Inspect(r.Context(), srv.ContainerName)
 		if err == nil && state.Running {
 			writeError(w, http.StatusConflict, "stop the server before updating — SteamCMD can't safely touch a live install")
@@ -108,7 +108,7 @@ func (s *Server) handleSteamUpdateStart(w http.ResponseWriter, r *http.Request) 
 
 // handleSteamUpdateStatus reports the agent's current (or last) job, from
 // its /v1/health. Going through health rather than a stored job id keeps
-// wildskeeper stateless about jobs — a wildskeeper restart mid-update rediscovers
+// flamekeeper stateless about jobs — a flamekeeper restart mid-update rediscovers
 // the work instead of forgetting it.
 func (s *Server) handleSteamUpdateStatus(w http.ResponseWriter, r *http.Request) {
 	srv, ok := s.loadServer(w, r)

@@ -26,7 +26,7 @@ build overlays fresher copies from the repo:
 - `version.dll` — built from `tools/ue4ss-wine-shim` sources by mingw during
   the image build.
 
-The assembled kit lands at `/opt/dwbridge-kit` in `wkagent:*-wine`, laid out
+The assembled kit lands at `/opt/dwbridge-kit` in `flameagent:*-wine`, laid out
 exactly as it must appear next to the server exe
 (`RSDragonwilds/Binaries/Win64/`). The agent's `POST /v1/bridge/install`
 copies it there when the operator clicks "Install mod support" — only ever

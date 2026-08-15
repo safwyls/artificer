@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/safwyls/wildskeeper/internal/agentfiles"
-	"github.com/safwyls/wildskeeper/internal/games/dragonwilds/dwconfig"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentfiles"
+	"github.com/safwyls/flamekeeper/internal/games/dragonwilds/dwconfig"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // configCodec is one game's ini reader/writer behind a common wire shape.
@@ -109,7 +109,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	// The cache path is an implementation detail; what the user should
 	// see is where the file actually lives.
 	if viaAgent {
-		res.Path = codec.filename + " · synced via wkagent"
+		res.Path = codec.filename + " · synced via flameagent"
 	}
 	writeJSON(w, http.StatusOK, res)
 }
@@ -189,7 +189,7 @@ func (s *Server) respondFreshConfig(w http.ResponseWriter, r *http.Request, srv 
 	if err == nil {
 		if res, rerr := codec.read(path); rerr == nil {
 			if viaAgent {
-				res.Path = codec.filename + " · synced via wkagent"
+				res.Path = codec.filename + " · synced via flameagent"
 			}
 			writeJSON(w, http.StatusOK, res)
 			return

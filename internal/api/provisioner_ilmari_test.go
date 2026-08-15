@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/wildskeeper/internal/ilmari"
-	"github.com/safwyls/wildskeeper/internal/wkagent"
+	"github.com/safwyls/flamekeeper/internal/ilmari"
+	"github.com/safwyls/flamekeeper/internal/flameagent"
 )
 
 // fakeIlmari records what the adapter sends, and answers with Ilmari's real
@@ -28,7 +28,7 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 		case "/v1/health":
 			json.NewEncoder(w).Encode(map[string]any{
 				"service": "ilmari", "version": "test", "apiVersion": 1,
-				"client": "wildskeeper", "dataRoot": "/mnt/tank/apps/dragonwilds-servers",
+				"client": "flamekeeper", "dataRoot": "/mnt/tank/apps/dragonwilds-servers",
 				"publicHost": "192.168.1.9", "runAs": "568:568", "dockerOk": true,
 			})
 		case "/v1/provision":
@@ -39,7 +39,7 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 			})
 		case "/v1/discover":
 			json.NewEncoder(w).Encode(map[string]any{"servers": []map[string]any{{
-				"name": "wkagent-ashenfall", "image": "ghcr.io/safwyls/wkagent:latest", "running": true, "managed": true,
+				"name": "flameagent-ashenfall", "image": "ghcr.io/safwyls/flameagent:latest", "running": true, "managed": true,
 				"ports": []map[string]any{
 					{"host": 9777, "container": 7777, "proto": "udp"},
 					{"host": 9778, "container": 7778, "proto": "udp"},
@@ -48,7 +48,7 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 			}}})
 		case "/v1/adopt":
 			json.NewEncoder(w).Encode(map[string]any{
-				"name": "wkagent-ashenfall", "image": "ghcr.io/safwyls/wkagent:latest", "running": true,
+				"name": "flameagent-ashenfall", "image": "ghcr.io/safwyls/flameagent:latest", "running": true,
 				"ports": []map[string]any{
 					{"host": 9777, "container": 7777, "proto": "udp"},
 					{"host": 9811, "container": 8811, "proto": "tcp"},
@@ -67,15 +67,15 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 	return f, NewIlmariProvisioner(client)
 }
 
-// The adapter is where wkagent's provisioning knowledge now lives, so this
-// asserts the exact translation the old handler performed: the WKAGENT_*
+// The adapter is where flameagent's provisioning knowledge now lives, so this
+// asserts the exact translation the old handler performed: the FLAMEAGENT_*
 // environment, the UDP port pair plus agent port, the container name, the
 // image channel and the data mount. Any drift here provisions a container
 // that looks right and boots wrong.
 func TestIlmariProvisionCarriesTheGameShape(t *testing.T) {
 	f, p := newFakeIlmari(t)
 
-	res, err := p.Provision(context.Background(), wkagent.ProvisionRequest{
+	res, err := p.Provision(context.Background(), flameagent.ProvisionRequest{
 		Slug: "ashenfall", ImageTag: "latest-wine",
 		Token: "agent-token-0123456789abcdef", AdminPassword: "pw12345",
 		OwnerID: "owner-abc", ServerName: "Ashenfall", WorldName: "Grimwood",
@@ -84,15 +84,15 @@ func TestIlmariProvisionCarriesTheGameShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Container != "wkagent-ashenfall" {
+	if res.Container != "flameagent-ashenfall" {
 		t.Errorf("container = %q", res.Container)
 	}
 
 	body := f.provisionBody
-	if body["name"] != "wkagent-ashenfall" || body["slug"] != "ashenfall" {
+	if body["name"] != "flameagent-ashenfall" || body["slug"] != "ashenfall" {
 		t.Errorf("name/slug = %v/%v", body["name"], body["slug"])
 	}
-	if body["image"] != "ghcr.io/safwyls/wkagent:latest-wine" {
+	if body["image"] != "ghcr.io/safwyls/flameagent:latest-wine" {
 		t.Errorf("image = %v", body["image"])
 	}
 	if body["dataMount"] != "/dragonwilds" {
@@ -100,9 +100,9 @@ func TestIlmariProvisionCarriesTheGameShape(t *testing.T) {
 	}
 	env, _ := body["env"].(map[string]any)
 	for key, want := range map[string]string{
-		"WKAGENT_MODE": "supervisor", "WKAGENT_TOKEN": "agent-token-0123456789abcdef",
-		"WKAGENT_ADMIN_PASSWORD": "pw12345", "WKAGENT_OWNER_ID": "owner-abc",
-		"WKAGENT_SERVER_NAME": "Ashenfall", "WKAGENT_WORLD_NAME": "Grimwood",
+		"FLAMEAGENT_MODE": "supervisor", "FLAMEAGENT_TOKEN": "agent-token-0123456789abcdef",
+		"FLAMEAGENT_ADMIN_PASSWORD": "pw12345", "FLAMEAGENT_OWNER_ID": "owner-abc",
+		"FLAMEAGENT_SERVER_NAME": "Ashenfall", "FLAMEAGENT_WORLD_NAME": "Grimwood",
 	} {
 		if env[key] != want {
 			t.Errorf("env[%s] = %v, want %q", key, env[key], want)
@@ -140,8 +140,8 @@ func TestIlmariHealthFeedsTheWizardDefaults(t *testing.T) {
 func TestIlmariDiscoverAndAdoptMapPorts(t *testing.T) {
 	f, p := newFakeIlmari(t)
 	f.adoptEnv = map[string]string{
-		"WKAGENT_MODE": "supervisor", "WKAGENT_TOKEN": "recovered-token",
-		"WKAGENT_ADMIN_PASSWORD": "recovered-pw", "WKAGENT_SERVER_NAME": "Ashenfall",
+		"FLAMEAGENT_MODE": "supervisor", "FLAMEAGENT_TOKEN": "recovered-token",
+		"FLAMEAGENT_ADMIN_PASSWORD": "recovered-pw", "FLAMEAGENT_SERVER_NAME": "Ashenfall",
 	}
 
 	found, err := p.Discover(context.Background())
@@ -152,7 +152,7 @@ func TestIlmariDiscoverAndAdoptMapPorts(t *testing.T) {
 		t.Errorf("discover = %+v", found)
 	}
 
-	adopted, err := p.Adopt(context.Background(), "wkagent-ashenfall")
+	adopted, err := p.Adopt(context.Background(), "flameagent-ashenfall")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,12 +162,12 @@ func TestIlmariDiscoverAndAdoptMapPorts(t *testing.T) {
 	}
 }
 
-// The legacy provisioner container is discoverable under Ilmari (wkagent
+// The legacy provisioner container is discoverable under Ilmari (flameagent
 // image, no labels) but must not be adoptable as a game server — the old
 // provisioner filtered it out of discovery; the refusal now lives here.
 func TestIlmariAdoptRefusesAProvisionerContainer(t *testing.T) {
 	f, p := newFakeIlmari(t)
-	f.adoptEnv = map[string]string{"WKAGENT_MODE": "provisioner", "WKAGENT_TOKEN": "x"}
+	f.adoptEnv = map[string]string{"FLAMEAGENT_MODE": "provisioner", "FLAMEAGENT_TOKEN": "x"}
 
 	_, err := p.Adopt(context.Background(), "wkprovisioner")
 	if err == nil || !strings.Contains(err.Error(), "provisioner") {

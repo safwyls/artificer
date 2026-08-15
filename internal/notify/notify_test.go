@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/crypto"
-	"github.com/safwyls/wildskeeper/internal/db"
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/crypto"
+	"github.com/safwyls/flamekeeper/internal/db"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // discordSpy stands in for the incoming webhook, capturing the payloads

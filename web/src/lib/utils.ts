@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Whether a host is only reachable from the same network — the RFC1918
- * ranges, loopback, link-local, .local names and IPv6 unique-local. Wildskeeper
+ * ranges, loopback, link-local, .local names and IPv6 unique-local. Flamekeeper
  * usually reaches a server on one of these, which makes it the wrong thing
  * to hand to someone joining from outside, so the dashboard says so.
  */
@@ -39,7 +39,7 @@ export function joinAddressFor(server: { host: string; gamePort: number; joinAdd
 /**
  * Copy text to the clipboard, working on plain-HTTP LAN deployments too:
  * navigator.clipboard only exists in secure contexts (HTTPS/localhost),
- * which is exactly where wildskeeper usually isn't. Falls back to the
+ * which is exactly where flamekeeper usually isn't. Falls back to the
  * deprecated-but-universal execCommand path.
  */
 export async function copyText(text: string): Promise<boolean> {

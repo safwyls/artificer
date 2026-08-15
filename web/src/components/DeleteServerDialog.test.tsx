@@ -35,9 +35,9 @@ describe("DeleteServerDialog", () => {
 
   it("offers only a plain removal when no provisioner is configured", async () => {
     vi.spyOn(api, "provisionDefaults").mockResolvedValue({ available: false });
-    open(makeServer({ containerName: "wkagent-palhalla" }));
+    open(makeServer({ containerName: "flameagent-palhalla" }));
 
-    await screen.findByText(/only removes it from Wildskeeper/i);
+    await screen.findByText(/only removes it from Flamekeeper/i);
     // Give the defaults query a chance to resolve before asserting absence,
     // or this passes for the wrong reason.
     await waitFor(() => expect(api.provisionDefaults).toHaveBeenCalled());
@@ -56,7 +56,7 @@ describe("DeleteServerDialog", () => {
   it("deletes the row only, when the option is left off", async () => {
     vi.spyOn(api, "provisionDefaults").mockResolvedValue({ available: true });
     const del = vi.spyOn(api, "deleteServer").mockResolvedValue(undefined);
-    open(makeServer({ containerName: "wkagent-palhalla" }));
+    open(makeServer({ containerName: "flameagent-palhalla" }));
 
     await screen.findByLabelText(/destroy the container/i);
     await userEvent.click(screen.getByRole("button", { name: "Remove" }));
@@ -68,10 +68,10 @@ describe("DeleteServerDialog", () => {
 
   it("names the container and renames the button once armed", async () => {
     vi.spyOn(api, "provisionDefaults").mockResolvedValue({ available: true });
-    open(makeServer({ containerName: "wkagent-palhalla" }));
+    open(makeServer({ containerName: "flameagent-palhalla" }));
 
     const toggle = await screen.findByLabelText(/destroy the container/i);
-    expect(screen.getByText("wkagent-palhalla")).toBeInTheDocument();
+    expect(screen.getByText("flameagent-palhalla")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
 
     await userEvent.click(toggle);
@@ -85,17 +85,17 @@ describe("DeleteServerDialog", () => {
   it("destroys the container and reports where the world was kept", async () => {
     vi.spyOn(api, "provisionDefaults").mockResolvedValue({ available: true });
     const del = vi.spyOn(api, "deleteServer").mockResolvedValue({
-      destroyed: "wkagent-palhalla",
+      destroyed: "flameagent-palhalla",
       dataDir: "/mnt/pool/apps/palworld-servers/palhalla",
     });
-    open(makeServer({ containerName: "wkagent-palhalla" }));
+    open(makeServer({ containerName: "flameagent-palhalla" }));
 
     await userEvent.click(await screen.findByLabelText(/destroy the container/i));
     await userEvent.click(screen.getByRole("button", { name: "Remove and destroy" }));
 
     await waitFor(() => expect(del).toHaveBeenCalledWith(1, true));
     expect(toastSuccess).toHaveBeenCalledWith(
-      'Removed "Palhalla" and destroyed wkagent-palhalla',
+      'Removed "Palhalla" and destroyed flameagent-palhalla',
       { description: "World data kept at /mnt/pool/apps/palworld-servers/palhalla" },
     );
   });
@@ -105,7 +105,7 @@ describe("DeleteServerDialog", () => {
     vi.spyOn(api, "deleteServer").mockRejectedValue(
       new Error("that container was not created by this provisioner"),
     );
-    open(makeServer({ containerName: "wkagent-byhand" }));
+    open(makeServer({ containerName: "flameagent-byhand" }));
 
     await userEvent.click(await screen.findByLabelText(/destroy the container/i));
     await userEvent.click(screen.getByRole("button", { name: "Remove and destroy" }));

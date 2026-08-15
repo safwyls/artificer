@@ -5,11 +5,11 @@ import { api, type DiscoveredServer } from "../lib/api";
 import { cn } from "../lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { ServerFormDialog } from "./ServerFormDialog";
-import { RaiseServerDialog } from "./wildskeeper/RaiseServerDialog";
+import { RaiseServerDialog } from "./flamekeeper/RaiseServerDialog";
 
 /**
  * The one front door for the + button. Three ways a server ends up in
- * Wildskeeper — adopt one that's already running, provision a new one,
+ * Flamekeeper — adopt one that's already running, provision a new one,
  * or describe an unmanaged one by hand — and none of them is "first" by
  * decree: the chooser asks the host what's actually there and leads with
  * that. Discovery finding unregistered containers puts adoption on top;
@@ -49,7 +49,7 @@ export function AddServerFlow({ open, onOpenChange }: { open: boolean; onOpenCha
   const hasProvisioner = Boolean(defaultsQuery.data?.available);
 
   // Which discoveries are offered for adoption. The legacy provisioner
-  // reports each container's WKAGENT_MODE, so "supervisor" means a game
+  // reports each container's FLAMEAGENT_MODE, so "supervisor" means a game
   // server and "provisioner" means itself. Ilmari doesn't read container
   // env for discovery, so its candidates arrive with mode "" — unknown is
   // not disqualifying, or the adopt list would be empty for every
@@ -146,7 +146,7 @@ export function AddServerFlow({ open, onOpenChange }: { open: boolean; onOpenCha
             >
               <p className="text-sm font-semibold text-wk-parchment/80">Add an existing server by hand</p>
               <p className="mt-1 text-xs text-wk-mist">
-                It already runs somewhere Wildskeeper doesn't manage — type in how to reach it.
+                It already runs somewhere Flamekeeper doesn't manage — type in how to reach it.
               </p>
             </button>
           </div>

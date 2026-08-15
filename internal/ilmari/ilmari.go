@@ -197,7 +197,7 @@ func (c *Client) Discover(ctx context.Context) ([]Discovered, error) {
 }
 
 // Adopted is a recovered registration: the container plus its environment,
-// filtered by Ilmari to this console's registered namespace (WKAGENT_*).
+// filtered by Ilmari to this console's registered namespace (FLAMEAGENT_*).
 type Adopted struct {
 	Name    string            `json:"name"`
 	Image   string            `json:"image"`

@@ -93,7 +93,7 @@ func (s *Server) handleSetLaunch(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRecreateAgent moves a provisioned server's agent onto a different
-// wkagent image — in practice, onto the Wine variant so it can run the
+// flameagent image — in practice, onto the Wine variant so it can run the
 // modded build.
 //
 // This exists because provisioner-created containers belong to no
@@ -115,7 +115,7 @@ func (s *Server) handleRecreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Provisioner == nil {
 		writeError(w, http.StatusBadRequest,
-			"no provisioner is configured, so Wildskeeper cannot rebuild this container — change its image where it was deployed")
+			"no provisioner is configured, so Flamekeeper cannot rebuild this container — change its image where it was deployed")
 		return
 	}
 	if srv.ContainerName == "" {

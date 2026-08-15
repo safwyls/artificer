@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Runs the whole stack locally against a real Dragonwilds server: the
-# wkagent sidecar in supervisor mode, and wildskeeper in front of it.
+# flameagent sidecar in supervisor mode, and flamekeeper in front of it.
 #
 # This is the manual-test path. It is deliberately the same shape as a real
-# deployment — the agent owns the game process and wildskeeper only talks to the
+# deployment — the agent owns the game process and flamekeeper only talks to the
 # agent — because Dragonwilds has no admin transport of its own, so anything
 # that skips the agent isn't testing the real thing.
 #
@@ -52,7 +52,7 @@ api() { curl -sS --connect-timeout 3 --max-time 120 -b "$COOKIES" "$@"; }
 # first and says which thing to run, rather than surfacing a curl error.
 require_agent() {
   if ! curl -sS --connect-timeout 2 -o /dev/null "$AGENT/healthz" 2>/dev/null; then
-    echo "The wkagent isn't listening on $AGENT." >&2
+    echo "The flameagent isn't listening on $AGENT." >&2
     echo "It runs as a background process, so a WSL restart or reboot stops it." >&2
     echo "Start the stack with:  $0 up" >&2
     exit 1
@@ -89,28 +89,28 @@ up)
   R="$(repo_root)"
   mkdir -p "$RUN_DIR/data"
   echo "==> building"
-  (cd "$R" && go build -o "$RUN_DIR/wkagent" ./cmd/wkagent && go build -o "$RUN_DIR/wildskeeper" ./cmd/wildskeeper)
+  (cd "$R" && go build -o "$RUN_DIR/flameagent" ./cmd/flameagent && go build -o "$RUN_DIR/flamekeeper" ./cmd/flamekeeper)
   [ -d "$R/web/dist" ] || (cd "$R/web" && npm run build)
 
-  echo "==> starting wkagent (supervisor) on :$AGENT_PORT"
-  WKAGENT_MODE=supervisor \
-  WKAGENT_TOKEN="$AGENT_TOKEN" \
-  WKAGENT_INSTALL_DIR="$SERVER_DIR" \
-  WKAGENT_ADDR=":$AGENT_PORT" \
-  WKAGENT_GAME_PORT="$GAME_PORT" \
-  WKAGENT_STEAMCMD="$STEAMCMD_DIR/steamcmd.sh" \
-  WKAGENT_ADMIN_PASSWORD="local-admin-pw" \
-  WKAGENT_OWNER_ID="$OWNER_ID" \
-  WKAGENT_SERVER_NAME="Grimwood Bastion" \
-  WKAGENT_AUTOSTART=false \
-    nohup "$RUN_DIR/wkagent" > "$RUN_DIR/agent.log" 2>&1 < /dev/null &
+  echo "==> starting flameagent (supervisor) on :$AGENT_PORT"
+  FLAMEAGENT_MODE=supervisor \
+  FLAMEAGENT_TOKEN="$AGENT_TOKEN" \
+  FLAMEAGENT_INSTALL_DIR="$SERVER_DIR" \
+  FLAMEAGENT_ADDR=":$AGENT_PORT" \
+  FLAMEAGENT_GAME_PORT="$GAME_PORT" \
+  FLAMEAGENT_STEAMCMD="$STEAMCMD_DIR/steamcmd.sh" \
+  FLAMEAGENT_ADMIN_PASSWORD="local-admin-pw" \
+  FLAMEAGENT_OWNER_ID="$OWNER_ID" \
+  FLAMEAGENT_SERVER_NAME="Grimwood Bastion" \
+  FLAMEAGENT_AUTOSTART=false \
+    nohup "$RUN_DIR/flameagent" > "$RUN_DIR/agent.log" 2>&1 < /dev/null &
 
-  echo "==> starting wildskeeper on :$HTTP_PORT"
+  echo "==> starting flamekeeper on :$HTTP_PORT"
   JWT_SECRET="0123456789abcdef0123456789abcdef0123456789abcdef" \
   ENCRYPTION_KEY="0123456789abcdef0123456789abcdef" \
   ADMIN_USERNAME=admin ADMIN_PASSWORD="$ADMIN_PW" \
   DATA_DIR="$RUN_DIR/data" HTTP_ADDR=":$HTTP_PORT" \
-    nohup "$RUN_DIR/wildskeeper" > "$RUN_DIR/wildskeeper.log" 2>&1 < /dev/null &
+    nohup "$RUN_DIR/flamekeeper" > "$RUN_DIR/flamekeeper.log" 2>&1 < /dev/null &
 
   sleep 4
   login
@@ -150,8 +150,8 @@ down)
   agent_curl -X POST "$AGENT/v1/power/stop" > /dev/null 2>&1 || true
   # -x matches the process name exactly. -f would also match any shell
   # whose command line mentions these paths, including this script's caller.
-  pkill -x wkagent 2>/dev/null || true
-  pkill -x wildskeeper 2>/dev/null || true
+  pkill -x flameagent 2>/dev/null || true
+  pkill -x flamekeeper 2>/dev/null || true
   echo "stopped"
   ;;
 

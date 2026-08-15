@@ -23,7 +23,7 @@ const overrides: Record<string, unknown> = {
   serverInfo: { servername: "Palhalla", playerCount: 0, transport: "rest" },
   serverPlayers: [],
   listUsers: [],
-  containerStatus: { name: "wkagent-main", status: "running", running: true },
+  containerStatus: { name: "flameagent-main", status: "running", running: true },
   containerLogs: { lines: [] },
   serverMetrics: {
     serverfps: 60,
@@ -124,11 +124,11 @@ import { PublicStatus } from "./PublicStatus";
 import { ServerActivity } from "./ServerActivity";
 import { ServerAutomation } from "./ServerAutomation";
 import { Users } from "./Users";
-import { WkOverview } from "./wildskeeper/WkOverview";
-import { WkAdventurers } from "./wildskeeper/WkAdventurers";
-import { WkSaves } from "./wildskeeper/WkSaves";
-import { WkLogs } from "./wildskeeper/WkLogs";
-import { WkConfig } from "./wildskeeper/WkConfig";
+import { WkOverview } from "./flamekeeper/WkOverview";
+import { WkAdventurers } from "./flamekeeper/WkAdventurers";
+import { WkSaves } from "./flamekeeper/WkSaves";
+import { WkLogs } from "./flamekeeper/WkLogs";
+import { WkConfig } from "./flamekeeper/WkConfig";
 
 /** Renders a page at a route that supplies the params it reads, returning
  * the query client so a test can wait for the data to actually arrive. */

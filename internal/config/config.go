@@ -31,7 +31,7 @@ type Config struct {
 
 	// DockerHost points at a scoped docker socket proxy used to start and
 	// stop game server containers. Empty disables power control entirely —
-	// Wildskeeper should never require access to a docker socket to run.
+	// Flamekeeper should never require access to a docker socket to run.
 	DockerHost string
 
 	// IlmariURL/Token point at the shared Ilmari host service. When set,
@@ -40,7 +40,7 @@ type Config struct {
 	// console falls straight back to the legacy provisioner below.
 	IlmariURL   string
 	IlmariToken string
-	// ProvisionerURL/Token point at a provisioner-mode wkagent — the one
+	// ProvisionerURL/Token point at a provisioner-mode flameagent — the one
 	// component allowed to create containers. Empty means the new-server
 	// wizard hands the operator a stack file to paste instead.
 	ProvisionerURL   string
@@ -54,13 +54,13 @@ type Config struct {
 	// model analysis of pals and base crews) — set one or the other. Both
 	// empty disables the feature entirely: like DockerHost, absent means
 	// the UI never offers it, not that it breaks. If both are set,
-	// Anthropic wins (see cmd/wildskeeper).
+	// Anthropic wins (see cmd/flamekeeper).
 	AnthropicAPIKey string
 	GeminiAPIKey    string
 }
 
 func (c *Config) DBPath() string {
-	return filepath.Join(c.DataDir, "wildskeeper.db")
+	return filepath.Join(c.DataDir, "flamekeeper.db")
 }
 
 // Load reads configuration from the environment. Required variables are

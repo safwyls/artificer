@@ -1,6 +1,6 @@
 # dwbridge — the Dragonwilds command channel
 
-RuneScape: Dragonwilds ships no RCON, REST, or query protocol, so Wildskeeper
+RuneScape: Dragonwilds ships no RCON, REST, or query protocol, so Flamekeeper
 derives everything it shows from logs and files. The one thing it cannot
 derive is *action* — save-now, kick, ban, broadcast. dwbridge is that missing
 channel: a [UE4SS](https://github.com/UE4SS-RE/RE-UE4SS) Lua mod that calls the
@@ -8,12 +8,12 @@ game's own functions on request.
 
 Proven end to end 2026-08-09: `POST /api/servers/{id}/save` in the console
 wrote the world on a headless server with no player connected —
-wildskeeper → wkagent → this mod → `PersistenceSubsystem:SaveGame`.
+flamekeeper → flameagent → this mod → `PersistenceSubsystem:SaveGame`.
 
 ## How it fits together
 
 ```
-wildskeeper  ──HTTP──▶  wkagent  ──files──▶  dwbridge (this mod)  ──▶  game
+flamekeeper  ──HTTP──▶  flameagent  ──files──▶  dwbridge (this mod)  ──▶  game
        /save      /v1/bridge/command    DWBRIDGE_DIR               UFunction
 ```
 

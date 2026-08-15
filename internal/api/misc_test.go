@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 func TestListServers(t *testing.T) {

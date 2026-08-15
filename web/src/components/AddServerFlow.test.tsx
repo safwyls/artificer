@@ -15,7 +15,7 @@ vi.mock("sonner", () => ({
 }));
 
 function discovered(name: string, mode: string, registered = false): DiscoveredServer {
-  return { name, image: "ghcr.io/safwyls/wkagent:latest", mode, running: true, agentPort: 8821, registered };
+  return { name, image: "ghcr.io/safwyls/flameagent:latest", mode, running: true, agentPort: 8821, registered };
 }
 
 function openFlow() {
@@ -40,34 +40,34 @@ describe("AddServerFlow chooser", () => {
     vi.spyOn(api, "provisionDiscover").mockResolvedValue({
       available: true,
       servers: [
-        discovered("wkagent-legacy", "supervisor"),
-        discovered("wkagent-via-ilmari", ""),
+        discovered("flameagent-legacy", "supervisor"),
+        discovered("flameagent-via-ilmari", ""),
         discovered("wkprovisioner", "provisioner"),
-        discovered("wkagent-already-here", "", true),
+        discovered("flameagent-already-here", "", true),
       ],
     });
     openFlow();
 
-    expect(await screen.findByText("wkagent-legacy")).toBeInTheDocument();
-    expect(screen.getByText("wkagent-via-ilmari")).toBeInTheDocument();
+    expect(await screen.findByText("flameagent-legacy")).toBeInTheDocument();
+    expect(screen.getByText("flameagent-via-ilmari")).toBeInTheDocument();
     expect(screen.queryByText("wkprovisioner")).not.toBeInTheDocument();
-    expect(screen.queryByText("wkagent-already-here")).not.toBeInTheDocument();
+    expect(screen.queryByText("flameagent-already-here")).not.toBeInTheDocument();
     expect(screen.getByText(/2 servers are running on your host/i)).toBeInTheDocument();
   });
 
   it("adopts a candidate with one click", async () => {
     vi.spyOn(api, "provisionDiscover").mockResolvedValue({
       available: true,
-      servers: [discovered("wkagent-ashenfall", "")],
+      servers: [discovered("flameagent-ashenfall", "")],
     });
     const adopt = vi.spyOn(api, "adoptServer").mockResolvedValue({
       server: makeServer({ name: "Ashenfall" }),
     });
     openFlow();
 
-    await userEvent.click(await screen.findByText("wkagent-ashenfall"));
+    await userEvent.click(await screen.findByText("flameagent-ashenfall"));
 
-    await waitFor(() => expect(adopt).toHaveBeenCalledWith("wkagent-ashenfall", "192.168.1.9"));
+    await waitFor(() => expect(adopt).toHaveBeenCalledWith("flameagent-ashenfall", "192.168.1.9"));
     expect(toastSuccess).toHaveBeenCalledWith('Adopted "Ashenfall"');
   });
 

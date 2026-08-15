@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/wildskeeper/internal/dockerctl"
+	"github.com/safwyls/flamekeeper/internal/dockerctl"
 )
 
 // dockerSpy records the requests a client makes and answers with canned
@@ -61,12 +61,12 @@ func TestRestartSendsTheStopGrace(t *testing.T) {
 	spy, client := newSpy(t, "")
 	spy.set(http.StatusNoContent, "")
 
-	if err := client.Restart(context.Background(), "wkagent-main"); err != nil {
+	if err := client.Restart(context.Background(), "flameagent-main"); err != nil {
 		t.Fatalf("Restart: %v", err)
 	}
 	// The grace period is what gives Palworld time to flush its world
 	// instead of taking a SIGKILL.
-	if got := spy.last(); !strings.Contains(got, "/containers/wkagent-main/restart?t=") {
+	if got := spy.last(); !strings.Contains(got, "/containers/flameagent-main/restart?t=") {
 		t.Errorf("restart request = %q", got)
 	}
 }
@@ -115,8 +115,8 @@ func TestContainerRemoveReportsARunningContainer(t *testing.T) {
 
 func TestContainerList(t *testing.T) {
 	_, client := newSpy(t, `[
-	  {"Id":"c1","Names":["/wkagent-main"],"Image":"ghcr.io/safwyls/wkagent:latest","State":"running",
-	   "Labels":{"wildskeeper.provisioned":"true","wildskeeper.slug":"main"},
+	  {"Id":"c1","Names":["/flameagent-main"],"Image":"ghcr.io/safwyls/flameagent:latest","State":"running",
+	   "Labels":{"flamekeeper.provisioned":"true","flamekeeper.slug":"main"},
 	   "Ports":[{"PrivatePort":8211,"PublicPort":9211,"Type":"udp"},
 	            {"PrivatePort":8811,"PublicPort":0,"Type":"tcp"}]},
 	  {"Id":"c2","Names":[],"Image":"nginx","State":"exited","Labels":null,"Ports":[]}
@@ -133,10 +133,10 @@ func TestContainerList(t *testing.T) {
 	first := list[0]
 	// The leading slash docker puts on every name is stripped, so callers
 	// can compare against the name they asked for.
-	if first.Name != "wkagent-main" {
+	if first.Name != "flameagent-main" {
 		t.Errorf("Name = %q, want the slash stripped", first.Name)
 	}
-	if first.Labels["wildskeeper.slug"] != "main" {
+	if first.Labels["flamekeeper.slug"] != "main" {
 		t.Errorf("labels = %v", first.Labels)
 	}
 	if first.Ports["8211/udp"] != 9211 {
@@ -162,13 +162,13 @@ func TestContainerListReportsADeadDaemon(t *testing.T) {
 }
 
 func TestInspectEnv(t *testing.T) {
-	_, client := newSpy(t, `{"Config":{"Env":["WKAGENT_MODE=supervisor","WKAGENT_TOKEN=secret"]}}`)
+	_, client := newSpy(t, `{"Config":{"Env":["FLAMEAGENT_MODE=supervisor","FLAMEAGENT_TOKEN=secret"]}}`)
 
 	env, err := client.InspectEnv(context.Background(), "c1")
 	if err != nil {
 		t.Fatalf("InspectEnv: %v", err)
 	}
-	if len(env) != 2 || env[0] != "WKAGENT_MODE=supervisor" {
+	if len(env) != 2 || env[0] != "FLAMEAGENT_MODE=supervisor" {
 		t.Errorf("env = %v", env)
 	}
 }

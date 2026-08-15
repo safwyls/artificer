@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/wildskeeper/internal/config"
+	"github.com/safwyls/flamekeeper/internal/config"
 )
 
 const (
@@ -46,9 +46,9 @@ func TestLoadDefaults(t *testing.T) {
 		t.Errorf("AdminUsername = %q, want the admin default", cfg.AdminUsername)
 	}
 	if cfg.CookieSecure {
-		t.Error("CookieSecure should default off — wildskeeper is usually plain HTTP on a LAN")
+		t.Error("CookieSecure should default off — flamekeeper is usually plain HTTP on a LAN")
 	}
-	if cfg.DBPath() != filepath.Join(dir, "wildskeeper.db") {
+	if cfg.DBPath() != filepath.Join(dir, "flamekeeper.db") {
 		t.Errorf("DBPath = %q", cfg.DBPath())
 	}
 }

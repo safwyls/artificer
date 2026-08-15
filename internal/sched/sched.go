@@ -6,7 +6,7 @@
 // schedules, so edits in the UI take effect by the next tick with no
 // signaling. Firing is deduplicated in memory per (schedule, occurrence);
 // on process restart the dedupe map is empty, but the stale window below
-// keeps a rebooted Wildskeeper from replaying events that are more than a
+// keeps a rebooted Flamekeeper from replaying events that are more than a
 // couple of minutes old.
 package sched
 
@@ -17,11 +17,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/agentctl"
-	"github.com/safwyls/wildskeeper/internal/dockerctl"
-	"github.com/safwyls/wildskeeper/internal/game"
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentctl"
+	"github.com/safwyls/flamekeeper/internal/dockerctl"
+	"github.com/safwyls/flamekeeper/internal/game"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 const (
@@ -283,7 +283,7 @@ func (s *Scheduler) restart(ctx context.Context, srv *store.Server, sc *store.Re
 	// power flow checks it first. It matters more here since provisioning
 	// began recording container names: a provisioned server now has both an
 	// agent and a container name, and only the agent is guaranteed to be
-	// looking at the same machine wildskeeper's docker proxy is.
+	// looking at the same machine flamekeeper's docker proxy is.
 	agent, _ := agentctl.Supervisor(ctx, srv.AgentURL, srv.AgentToken)
 	useDocker := agent == nil && s.docker != nil && srv.ContainerName != ""
 

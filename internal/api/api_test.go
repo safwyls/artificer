@@ -18,13 +18,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/safwyls/wildskeeper/internal/agentfiles"
-	"github.com/safwyls/wildskeeper/internal/api"
-	"github.com/safwyls/wildskeeper/internal/backup"
-	"github.com/safwyls/wildskeeper/internal/crypto"
-	"github.com/safwyls/wildskeeper/internal/db"
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentfiles"
+	"github.com/safwyls/flamekeeper/internal/api"
+	"github.com/safwyls/flamekeeper/internal/backup"
+	"github.com/safwyls/flamekeeper/internal/crypto"
+	"github.com/safwyls/flamekeeper/internal/db"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 const (
@@ -149,7 +149,7 @@ func TestLoginAndSessionRoundTrip(t *testing.T) {
 	if rec := app.do(t, "GET", "/api/me", nil, nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("no cookie: got %d, want 401", rec.Code)
 	}
-	garbage := []*http.Cookie{{Name: "wildskeeper_session", Value: "not-a-jwt"}}
+	garbage := []*http.Cookie{{Name: "flamekeeper_session", Value: "not-a-jwt"}}
 	if rec := app.do(t, "GET", "/api/me", nil, garbage); rec.Code != http.StatusUnauthorized {
 		t.Errorf("garbage cookie: got %d, want 401", rec.Code)
 	}
@@ -226,7 +226,7 @@ func TestJWTAlgorithmPinned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign none-token: %v", err)
 	}
-	cookies := []*http.Cookie{{Name: "wildskeeper_session", Value: signed}}
+	cookies := []*http.Cookie{{Name: "flamekeeper_session", Value: signed}}
 	if rec := app.do(t, "GET", "/api/me", nil, cookies); rec.Code != http.StatusUnauthorized {
 		t.Errorf("alg=none token: got %d, want 401", rec.Code)
 	}

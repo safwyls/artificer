@@ -14,17 +14,17 @@ import (
 	"time"
 )
 
-// This file exists for the wkagent provisioner, not for wildskeeper: wildskeeper's
+// This file exists for the flameagent provisioner, not for flamekeeper: flamekeeper's
 // proxy deliberately can't create containers (see the package comment).
 // The provisioner is the one component allowed to hold create rights, and
 // even it only ever instantiates the locked Palworld template
-// (internal/wkagent/provisioner.go).
+// (internal/flameagent/provisioner.go).
 
-// pullTimeout bounds an image pull; the wkagent image is a few hundred
+// pullTimeout bounds an image pull; the flameagent image is a few hundred
 // MB and cached after the first provision.
 const pullTimeout = 10 * time.Minute
 
-// ImagePull pulls ref (e.g. ghcr.io/safwyls/wkagent:beta), consuming the
+// ImagePull pulls ref (e.g. ghcr.io/safwyls/flameagent:beta), consuming the
 // progress stream until the daemon reports completion.
 func (c *Client) ImagePull(ctx context.Context, ref string) error {
 	name, tag := ref, "latest"
@@ -78,7 +78,7 @@ type ContainerSpec struct {
 	Binds []string
 	// Ports maps host port -> container "port/proto" (e.g. "8211/udp").
 	Ports map[int]string
-	// Labels tag the container (e.g. as wildskeeper-provisioned, for discovery).
+	// Labels tag the container (e.g. as flamekeeper-provisioned, for discovery).
 	Labels map[string]string
 	// RestartUnlessStopped applies docker's unless-stopped policy.
 	RestartUnlessStopped bool

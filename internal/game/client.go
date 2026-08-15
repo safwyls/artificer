@@ -1,4 +1,4 @@
-// Package game defines the contracts wildskeeper needs from a dedicated game
+// Package game defines the contracts flamekeeper needs from a dedicated game
 // server, with no knowledge of which game it is.
 //
 // The moderation, power, metrics-collection, scheduling and watchdog paths
@@ -7,7 +7,7 @@
 // registry.go) with nothing in that layer changing.
 //
 // The save-reading views are not there yet — internal/api still imports
-// games/palworld's save and config readers directly, and cmd/wildskeeper wires
+// games/palworld's save and config readers directly, and cmd/flamekeeper wires
 // the Palworld save reader concretely. docs/porting-to-another-game.md
 // tracks what remains Palworld-shaped; this comment should not be read as
 // claiming more than that document does.
@@ -65,7 +65,7 @@ type Metrics struct {
 	Days int `json:"days"`
 }
 
-// Client is the set of operations wildskeeper needs from a game server,
+// Client is the set of operations flamekeeper needs from a game server,
 // regardless of which transport carries them.
 type Client interface {
 	Info(ctx context.Context) (*ServerInfo, error)
@@ -144,7 +144,7 @@ type Conn struct {
 	// PreferREST asks for the game's HTTP admin API where it has one, with
 	// RCON as the fallback. Games with no HTTP API ignore it.
 	PreferREST bool
-	// AgentURL and AgentToken reach the server's wkagent sidecar. Games with
+	// AgentURL and AgentToken reach the server's flameagent sidecar. Games with
 	// no query protocol of their own (Dragonwilds) derive their state through
 	// the agent — process liveness from its health, players from its log tail
 	// — so for them the agent is the admin transport, not an extra.

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // mustTime parses a local wall-clock time for test fixtures.

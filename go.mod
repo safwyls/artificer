@@ -1,4 +1,4 @@
-module github.com/safwyls/wildskeeper
+module github.com/safwyls/flamekeeper
 
 go 1.26
 

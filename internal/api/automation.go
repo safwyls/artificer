@@ -10,13 +10,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/sched"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/sched"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // scheduleJSON is the wire form of a restart schedule. Times are the
-// wildskeeper host's local wall clock; the automation payload carries the
+// flamekeeper host's local wall clock; the automation payload carries the
 // timezone name so the UI can label them honestly.
 type scheduleJSON struct {
 	ID             int64   `json:"id"`
@@ -112,7 +112,7 @@ func (s *Server) handleGetAutomation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp["discord"] = discord
-		// A supervised server's container runs wkagent as PID 1, so it
+		// A supervised server's container runs flameagent as PID 1, so it
 		// stays up whatever the game does — the watchdog would inspect it
 		// forever and never see the crash it exists to catch. The agent's
 		// own supervisor already restarts the game with backoff, so the

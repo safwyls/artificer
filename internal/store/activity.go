@@ -65,7 +65,7 @@ type OpenSession struct {
 }
 
 // OpenSessions returns the players whose most recent event is a join.
-// After a clean run that is exactly who is online; after wildskeeper was killed
+// After a clean run that is exactly who is online; after flamekeeper was killed
 // it also includes everyone whose leave was never observed.
 func (s *Store) OpenSessions(ctx context.Context, serverID int64) ([]OpenSession, error) {
 	// Newest-per-player by id rather than ts: events land in observation
@@ -104,12 +104,12 @@ func (s *Store) OpenSessions(ctx context.Context, serverID int64) ([]OpenSession
 // This exists because the saves cannot answer it. A player save's
 // LastOnlineDateTime is written at login and never updated, so reading it as
 // "last seen" reports when someone arrived, short by however long they then
-// stayed. Wildskeeper's own observations are the only record of when a player
+// stayed. Flamekeeper's own observations are the only record of when a player
 // actually went away.
 //
 // A player whose newest event is a join is still on the server as far as the
 // events table knows, so their last-seen is the collector's own heartbeat —
-// the last moment wildskeeper can honestly claim to have watched them, which after
+// the last moment flamekeeper can honestly claim to have watched them, which after
 // a crash stops advancing instead of drifting into the present.
 //
 // Rows predating the player_uid column carry no uid and are skipped: their
@@ -147,7 +147,7 @@ func (s *Store) LastSeen(ctx context.Context, serverID int64) (map[string]time.T
 		}
 		if event == "join" {
 			// Never claim to have seen them before they arrived: a heartbeat
-			// older than the join means wildskeeper has not looked since.
+			// older than the join means flamekeeper has not looked since.
 			if at.Before(watch) {
 				at = watch
 			}
@@ -158,7 +158,7 @@ func (s *Store) LastSeen(ctx context.Context, serverID int64) (map[string]time.T
 }
 
 // TouchWatch records that the collector just observed this server's player
-// list, bounding how much of an open session wildskeeper may later claim to have
+// list, bounding how much of an open session flamekeeper may later claim to have
 // watched if it dies before writing the matching leave.
 func (s *Store) TouchWatch(ctx context.Context, serverID int64, at time.Time) error {
 	_, err := s.db.ExecContext(ctx, `
@@ -196,7 +196,7 @@ func (s *Store) PrunePlayerEvents(ctx context.Context, before time.Time) (int64,
 	return res.RowsAffected()
 }
 
-// AuditEntry is one management action taken through Wildskeeper.
+// AuditEntry is one management action taken through Flamekeeper.
 type AuditEntry struct {
 	ID       int64     `json:"id"`
 	TS       time.Time `json:"ts"`

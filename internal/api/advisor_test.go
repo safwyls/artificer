@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/advisor"
+	"github.com/safwyls/flamekeeper/internal/advisor"
 )
 
 // fakeAdvisor answers without a network, recording what the handler passed.

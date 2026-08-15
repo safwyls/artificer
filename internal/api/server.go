@@ -12,13 +12,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/safwyls/wildskeeper/internal/agentfiles"
-	"github.com/safwyls/wildskeeper/internal/backup"
-	"github.com/safwyls/wildskeeper/internal/dockerctl"
-	"github.com/safwyls/wildskeeper/internal/games/dragonwilds/dwsave"
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/savecache"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentfiles"
+	"github.com/safwyls/flamekeeper/internal/backup"
+	"github.com/safwyls/flamekeeper/internal/dockerctl"
+	"github.com/safwyls/flamekeeper/internal/games/dragonwilds/dwsave"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/savecache"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 type Server struct {
@@ -42,7 +42,7 @@ type Server struct {
 	// Provisioner, when set (like CookieSecure, assigned after New), lets
 	// the new-server wizard deploy stacks itself instead of handing the
 	// operator a file. Two implementations during the Ilmari migration:
-	// the legacy provisioner-mode wkagent, and the shared Ilmari host
+	// the legacy provisioner-mode flameagent, and the shared Ilmari host
 	// service — see provisioner.go.
 	Provisioner Provisioner
 	// Worlds, when set (assigned after New, like Provisioner), is the
@@ -87,7 +87,7 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 		r.Post("/login", s.handleLogin)
 
 		// The only unauthenticated data endpoint: token-gated, read-only,
-		// served entirely from Wildskeeper's own database. See public.go.
+		// served entirely from Flamekeeper's own database. See public.go.
 		r.Get("/public/status/{token}", s.handlePublicStatus)
 
 		r.Group(func(r chi.Router) {
@@ -153,7 +153,7 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.With(s.requirePermission(store.PermPower)).Get("/container/logs", s.handleContainerLogs)
 				// SteamCMD repair & update — power territory: they exist
 				// to get a broken container updating again. Runs via the
-				// server's wkagent when configured, else the local
+				// server's flameagent when configured, else the local
 				// install-path mount (cache clear only).
 				// Which game build the agent launches. Reading is open to
 				// anyone signed in (it explains why commands do or don't
@@ -161,7 +161,7 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				// the next start actually runs.
 				r.Get("/launch", s.handleGetLaunch)
 				r.With(s.requirePermission(store.PermPower)).Put("/launch", s.handleSetLaunch)
-				// Rebuild this server's agent on another wkagent image.
+				// Rebuild this server's agent on another flameagent image.
 				// Admin-only: it destroys and recreates a container, which
 				// is provisioning, not day-to-day power.
 				r.With(s.requireAdmin).Post("/agent/image", s.handleRecreateAgent)

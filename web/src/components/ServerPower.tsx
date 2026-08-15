@@ -107,7 +107,7 @@ export function ServerPower({
   const saveBlocked = saveCmd.known && !saveCmd.supported;
 
   // Polls only while the agent reports a running job; also runs once on
-  // mount, so a reload (or a wildskeeper restart) rediscovers an in-flight
+  // mount, so a reload (or a flamekeeper restart) rediscovers an in-flight
   // update instead of forgetting it.
   const updateStatus = useQuery({
     queryKey: ["steam-update", serverId],
@@ -216,7 +216,7 @@ export function ServerPower({
           <p className="font-mono text-xs text-wk-parchment/40">
             {powerOff ? (
               <>
-                {agentAlive ? "wkagent connected" : "wkagent unreachable — deploying, or the stack is down"} ·
+                {agentAlive ? "flameagent connected" : "flameagent unreachable — deploying, or the stack is down"} ·
                 docker power control not configured
               </>
             ) : (
@@ -613,8 +613,8 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
           <DialogHeader>
             <DialogTitle>Rebuild the agent on the Wine image?</DialogTitle>
             <DialogDescription>
-              Wildskeeper stops this server, removes its agent container and creates it again from
-              <code className="mx-1 font-mono">wkagent:latest-wine</code>, keeping the same settings, ports and data
+              Flamekeeper stops this server, removes its agent container and creates it again from
+              <code className="mx-1 font-mono">flameagent:latest-wine</code>, keeping the same settings, ports and data
               directory. Your world and configuration live in the data directory and are not touched. The image is
               large, so the pull can take several minutes.
             </DialogDescription>
@@ -635,7 +635,7 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
           <DialogHeader>
             <DialogTitle>Install mod support?</DialogTitle>
             <DialogDescription>
-              Wildskeeper copies the proven UE4SS loader and the dwbridge mod from the agent&apos;s image into the
+              Flamekeeper copies the proven UE4SS loader and the dwbridge mod from the agent&apos;s image into the
               game install, next to the server executable. This is what makes on-demand saves (and any future
               commands) work. Your world and settings are untouched, and nothing already installed is overwritten.
               The mod loads when the game process starts, so a running server needs a restart afterwards.

@@ -26,7 +26,7 @@ vi.mock("sonner", () => ({
 }));
 
 const runningState = {
-  name: "wkagent-main",
+  name: "flameagent-main",
   status: "running",
   running: true,
   startedAt: "2026-08-11T00:00:00Z",
@@ -127,9 +127,9 @@ describe("ServerPower launch mode", () => {
       runnable: false,
     });
     const rebuild = vi.spyOn(api, "recreateAgent").mockResolvedValue({
-      container: "wkagent-ashenfall",
-      image: "ghcr.io/safwyls/wkagent:latest-wine",
-      previousImage: "ghcr.io/safwyls/wkagent:latest",
+      container: "flameagent-ashenfall",
+      image: "ghcr.io/safwyls/flameagent:latest-wine",
+      previousImage: "ghcr.io/safwyls/flameagent:latest",
     });
     renderWithAgent();
 

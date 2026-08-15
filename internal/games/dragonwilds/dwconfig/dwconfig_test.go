@@ -126,7 +126,7 @@ func TestWriteEditsInPlaceAndKeepsEverythingElse(t *testing.T) {
 		}
 	}
 	// One-level undo exists and holds the pre-edit contents.
-	bak, err := os.ReadFile(file + ".wildskeeper.bak")
+	bak, err := os.ReadFile(file + ".flamekeeper.bak")
 	if err != nil {
 		t.Fatalf("backup: %v", err)
 	}

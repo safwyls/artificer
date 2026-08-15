@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/safwyls/wildskeeper/internal/game"
+	"github.com/safwyls/flamekeeper/internal/game"
 )
 
 // Views an admin can switch off per server. The keys double as the frontend's

@@ -51,12 +51,12 @@ jobs:
       - name: Go tests
         run: go test ./...
 
-  # Three images from one repo: the dashboard (Dockerfile), the wkagent
-  # sidecar (Dockerfile.wkagent, docs/sidecar-agent.md), and the same agent
+  # Three images from one repo: the dashboard (Dockerfile), the flameagent
+  # sidecar (Dockerfile.flameagent, docs/sidecar-agent.md), and the same agent
   # with Wine for the modded launch profile. The first two share a tag
   # scheme so a compose stack can pin one channel across the pair; the Wine
   # build is a *variant* of the agent, so it carries a suffix instead —
-  # ghcr.io/safwyls/wkagent:wine — and must never take plain :latest, which
+  # ghcr.io/safwyls/flameagent:wine — and must never take plain :latest, which
   # would silently swap a 200 MB agent for a 1.5 GB one under every
   # deployment that never asked for mods.
   docker:
@@ -68,12 +68,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - image: wildskeeper
+          - image: flamekeeper
             dockerfile: Dockerfile
-          - image: wkagent
-            dockerfile: Dockerfile.wkagent
-          - image: wkagent
-            dockerfile: Dockerfile.wkagent-wine
+          - image: flameagent
+            dockerfile: Dockerfile.flameagent
+          - image: flameagent
+            dockerfile: Dockerfile.flameagent-wine
             suffix: wine
     steps:
       - uses: actions/checkout@v5

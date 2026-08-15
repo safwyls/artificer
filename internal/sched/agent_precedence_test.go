@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/dockerctl"
-	"github.com/safwyls/wildskeeper/internal/game/gametest"
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/dockerctl"
+	"github.com/safwyls/flamekeeper/internal/game/gametest"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
-// agentSpy is a wkagent that reports whichever mode a test asks for and
+// agentSpy is a flameagent that reports whichever mode a test asks for and
 // records the power verbs it receives.
 type agentSpy struct {
 	mu    sync.Mutex
@@ -45,7 +45,7 @@ func newAgentSpy(t *testing.T, mode string) (*agentSpy, string) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.URL.Path == "/v1/health":
-			body := map[string]any{"agent": "wkagent", "mode": mode, "apiVersion": 1}
+			body := map[string]any{"agent": "flameagent", "mode": mode, "apiVersion": 1}
 			// Only a supervisor reports a game; a companion's is null, which
 			// is half of what marks it as not owning the process.
 			if mode == "supervisor" {
@@ -133,7 +133,7 @@ func schedulerWithDocker(t *testing.T, st *store.Store, docker *dockerctl.Client
 }
 
 // The regression this guards: a provisioned server carries both an agent
-// and a container name, and wildskeeper's docker proxy may be pointed at a
+// and a container name, and flamekeeper's docker proxy may be pointed at a
 // different daemon than the one running it. The agent is the only half
 // guaranteed to be looking at the right machine, so it wins — exactly as
 // the manual Restart button decides it.
@@ -142,7 +142,7 @@ func TestSupervisorAgentRestartsInsteadOfDocker(t *testing.T) {
 	game, gameURL := newGameSpy(t)
 	agent, agentURL := newAgentSpy(t, "supervisor")
 	docker, dockerClient := newDockerSpy(t)
-	srv := addAgentServer(t, st, gameURL, agentURL, "wkagent-main")
+	srv := addAgentServer(t, st, gameURL, agentURL, "flameagent-main")
 	sc := addSchedule(t, st, srv.ID, time.Now().Truncate(time.Minute), nil, true)
 
 	schedulerWithDocker(t, st, dockerClient).restart(context.Background(), srv, sc)
@@ -182,7 +182,7 @@ func TestCompanionAgentFallsBackToDocker(t *testing.T) {
 	_, gameURL := newGameSpy(t)
 	agent, agentURL := newAgentSpy(t, "companion")
 	docker, dockerClient := newDockerSpy(t)
-	srv := addAgentServer(t, st, gameURL, agentURL, "wkagent-main")
+	srv := addAgentServer(t, st, gameURL, agentURL, "flameagent-main")
 	sc := addSchedule(t, st, srv.ID, time.Now().Truncate(time.Minute), nil, true)
 
 	schedulerWithDocker(t, st, dockerClient).restart(context.Background(), srv, sc)
@@ -203,7 +203,7 @@ func TestUnreachableAgentFallsBackToDocker(t *testing.T) {
 	agent, agentURL := newAgentSpy(t, "supervisor")
 	agent.setDown(true)
 	docker, dockerClient := newDockerSpy(t)
-	srv := addAgentServer(t, st, gameURL, agentURL, "wkagent-main")
+	srv := addAgentServer(t, st, gameURL, agentURL, "flameagent-main")
 	sc := addSchedule(t, st, srv.ID, time.Now().Truncate(time.Minute), nil, true)
 
 	schedulerWithDocker(t, st, dockerClient).restart(context.Background(), srv, sc)
@@ -242,10 +242,10 @@ func TestCountdownMatchesWhoIsRestarting(t *testing.T) {
 		return wait
 	}
 
-	if got := waitFor(t, "supervisor", true, "wkagent-main"); got != 1 {
+	if got := waitFor(t, "supervisor", true, "flameagent-main"); got != 1 {
 		t.Errorf("agent-restarted countdown = %v, want 1", got)
 	}
-	if got := waitFor(t, "", true, "wkagent-main"); got != 1 {
+	if got := waitFor(t, "", true, "flameagent-main"); got != 1 {
 		t.Errorf("docker-restarted countdown = %v, want 1", got)
 	}
 	// Nothing configured to restart it: the shutdown is the restart, so

@@ -4,7 +4,7 @@ import { LogOut, Plus, Users as UsersIcon } from "lucide-react";
 import { type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
-import { WkServerRune } from "./wildskeeper/WkServerRune";
+import { WkServerRune } from "./flamekeeper/WkServerRune";
 import { AddServerFlow } from "./AddServerFlow";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -19,7 +19,7 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
 
   return (
     <aside className="flex w-[72px] shrink-0 flex-col items-center gap-3 border-r border-black/20 bg-wk-ink py-4">
-      <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full border border-wk-brass bg-wk-panel font-wkdisplay text-sm font-bold text-wk-brasshi" title="Wildskeeper">W</div>
+      <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full border border-wk-brass bg-wk-panel font-wkdisplay text-sm font-bold text-wk-brasshi" title="Flamekeeper">W</div>
 
       {servers.map((server) => (
         <WkServerRune

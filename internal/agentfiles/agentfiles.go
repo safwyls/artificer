@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/agentctl"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentctl"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // ErrNotConfigured means the server has neither a local path nor an agent

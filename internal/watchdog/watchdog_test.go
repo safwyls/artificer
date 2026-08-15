@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/dockerctl"
+	"github.com/safwyls/flamekeeper/internal/dockerctl"
 )
 
 var t0 = time.Date(2026, 7, 26, 5, 0, 0, 0, time.UTC)

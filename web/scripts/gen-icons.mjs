@@ -1,4 +1,4 @@
-// Rasterizes the Wildskeeper rune sigil — fully awakened (all six segments
+// Rasterizes the Flamekeeper rune sigil — fully awakened (all six segments
 // lit, eye bright) — into the favicon/PWA set in web/public.
 // Mirrors RuneSigil.tsx geometry, with strokes fattened and the glow baked
 // in so it survives 32px.

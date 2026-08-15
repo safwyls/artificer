@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/safwyls/wildskeeper/internal/game"
+	"github.com/safwyls/flamekeeper/internal/game"
 )
 
 // The status split is the contract the frontend reads: 501 means "this game

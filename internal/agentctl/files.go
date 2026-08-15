@@ -58,7 +58,7 @@ func (c *Client) raw(ctx context.Context, method, path string, header http.Heade
 		case resp.StatusCode == http.StatusNotFound && msg == "":
 			// A JSON-less 404 is the router, not a handler: the agent
 			// predates this verb.
-			return nil, nil, fmt.Errorf("%w: the agent does not support this operation — update the wkagent image", ErrRejected)
+			return nil, nil, fmt.Errorf("%w: the agent does not support this operation — update the flameagent image", ErrRejected)
 		case resp.StatusCode == http.StatusNotFound, resp.StatusCode == http.StatusBadRequest:
 			return nil, nil, fmt.Errorf("%w: %s", ErrRejected, msg)
 		}

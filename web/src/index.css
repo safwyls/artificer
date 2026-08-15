@@ -2,15 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Wildskeeper theme — this app has no light/dark toggle. Values are the
+/* Flamekeeper theme — this app has no light/dark toggle. Values are the
    HSL equivalents of tailwind.config.js's wk.* literal palette (deep night
    ground, brass structure, rune-cyan live state, ember danger, parchment
    text), mapped onto shadcn's semantic tokens so shared components need no
    per-component work. Design source: mocks/dragonwilds-dashboard.html.
-   `.wildskeeper` is kept as an alias so page-scoped styling reads
+   `.flamekeeper` is kept as an alias so page-scoped styling reads
    intentionally; both selectors must stay identical. */
 :root,
-.wildskeeper {
+.flamekeeper {
   --background: 215 24% 8%; /* wk.bg #10141a */
   --foreground: 44 40% 84%; /* wk.parchment #e6dcc4 */
   --card: 217 28% 15%; /* wk.panel #1b2330 */

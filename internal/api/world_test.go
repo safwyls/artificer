@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/safwyls/wildskeeper/internal/games/dragonwilds/dwsave"
-	"github.com/safwyls/wildskeeper/internal/savecache"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/games/dragonwilds/dwsave"
+	"github.com/safwyls/flamekeeper/internal/savecache"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // realSaveDir is a directory holding the genuine Dragonwilds capture, as a

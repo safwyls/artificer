@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/agentfiles"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentfiles"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // fakeReader stands in for a game's save reader, recording which paths the

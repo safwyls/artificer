@@ -10,7 +10,7 @@
 // The write policy is palconfig's, copied deliberately (see
 // docs/porting-to-another-game.md): never add or remove keys, validate each
 // new value against the type inferred from the existing one so a bad edit
-// can't brick the server's boot, keep a one-level .wildskeeper.bak, swap the file
+// can't brick the server's boot, keep a one-level .flamekeeper.bak, swap the file
 // in atomically. Config is the one mount this package touches; saves stay on
 // their own read-only mount.
 package dwconfig
@@ -299,14 +299,14 @@ func writable(file string) bool {
 }
 
 // atomicWrite replaces file's contents in one rename, after stashing the
-// previous contents in a sibling .wildskeeper.bak for one-level undo.
+// previous contents in a sibling .flamekeeper.bak for one-level undo.
 func atomicWrite(file string, data []byte) error {
 	dir := filepath.Dir(file)
 	mode := os.FileMode(0o644)
 	if info, err := os.Stat(file); err == nil {
 		mode = info.Mode().Perm()
 		if orig, err := os.ReadFile(file); err == nil {
-			_ = os.WriteFile(file+".wildskeeper.bak", orig, mode)
+			_ = os.WriteFile(file+".flamekeeper.bak", orig, mode)
 		}
 	}
 

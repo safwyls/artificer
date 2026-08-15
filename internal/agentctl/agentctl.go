@@ -1,4 +1,4 @@
-// Package agentctl is wildskeeper's client for a server's wkagent sidecar
+// Package agentctl is flamekeeper's client for a server's flameagent sidecar
 // (docs/sidecar-agent.md) — the same role dockerctl plays for the docker
 // socket proxy: a small, scoped client with errors worth showing a user.
 package agentctl
@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/wkagent"
+	"github.com/safwyls/flamekeeper/internal/flameagent"
 )
 
 // ErrNotConfigured means this server has no agent URL; agent-backed
@@ -40,8 +40,8 @@ var ErrNotFound = errors.New("the agent has no such thing")
 // Job and Health mirror the agent's wire types; the agent package owns
 // them so the two binaries can't drift.
 type (
-	Job    = wkagent.Job
-	Health = wkagent.Health
+	Job    = flameagent.Job
+	Health = flameagent.Health
 )
 
 type Client struct {
@@ -50,7 +50,7 @@ type Client struct {
 	http  *http.Client
 }
 
-// New builds a client for an agent URL like http://wkagent-main:8811.
+// New builds a client for an agent URL like http://flameagent-main:8811.
 // An empty URL returns ErrNotConfigured so callers can treat "feature off"
 // distinctly.
 func New(rawURL, token string) (*Client, error) {
@@ -146,7 +146,7 @@ const GameSelfExitWindow = 20 * time.Second
 // nil, so callers fall back to docker uniformly instead of each inventing
 // their own idea of "is there an agent here".
 //
-// One implementation on purpose. Wildskeeper asks this question in at least
+// One implementation on purpose. Flamekeeper asks this question in at least
 // three places — the power handlers, the scheduler, and the SteamCMD gate —
 // and a server that answers differently depending on which one asked is
 // precisely the class of bug this exists to prevent.
@@ -219,8 +219,8 @@ func (c *Client) BridgeCommand(ctx context.Context, command string, args map[str
 // BridgeState fetches the live telemetry the dwbridge mod publishes
 // (player roster with positions, world clock). Available=false is a normal
 // answer on a modless or stopped server, not an error.
-func (c *Client) BridgeState(ctx context.Context) (*wkagent.BridgeState, error) {
-	var out wkagent.BridgeState
+func (c *Client) BridgeState(ctx context.Context) (*flameagent.BridgeState, error) {
+	var out flameagent.BridgeState
 	if err := c.do(ctx, http.MethodGet, "/v1/bridge/state", nil, &out, 10*time.Second); err != nil {
 		return nil, err
 	}
@@ -248,8 +248,8 @@ func (c *Client) InstallBridgeKit(ctx context.Context) (restartRequired bool, er
 // dwbridge mod. It applies at the next start by design: the two builds come
 // from different Steam depots, so switching is a re-install rather than a
 // restart, and the agent refuses to decide that timing for anyone.
-func (c *Client) SetLaunchProfile(ctx context.Context, profile string) (*wkagent.LaunchStatus, error) {
-	var out wkagent.LaunchStatus
+func (c *Client) SetLaunchProfile(ctx context.Context, profile string) (*flameagent.LaunchStatus, error) {
+	var out flameagent.LaunchStatus
 	body := map[string]string{"profile": profile}
 	if err := c.do(ctx, http.MethodPut, "/v1/launch", body, &out, 15*time.Second); err != nil {
 		return nil, err

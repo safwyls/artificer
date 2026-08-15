@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // Dev server proxies /api to the Go backend so `npm run dev` works against
-// a locally running `go run ./cmd/wildskeeper` without CORS headaches.
+// a locally running `go run ./cmd/flamekeeper` without CORS headaches.
 export default defineConfig({
   plugins: [react()],
   server: {

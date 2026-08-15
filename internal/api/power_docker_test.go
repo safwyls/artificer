@@ -13,14 +13,14 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/safwyls/wildskeeper/internal/agentfiles"
-	"github.com/safwyls/wildskeeper/internal/api"
-	"github.com/safwyls/wildskeeper/internal/backup"
-	"github.com/safwyls/wildskeeper/internal/crypto"
-	"github.com/safwyls/wildskeeper/internal/db"
-	"github.com/safwyls/wildskeeper/internal/dockerctl"
-	"github.com/safwyls/wildskeeper/internal/notify"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/agentfiles"
+	"github.com/safwyls/flamekeeper/internal/api"
+	"github.com/safwyls/flamekeeper/internal/backup"
+	"github.com/safwyls/flamekeeper/internal/crypto"
+	"github.com/safwyls/flamekeeper/internal/db"
+	"github.com/safwyls/flamekeeper/internal/dockerctl"
+	"github.com/safwyls/flamekeeper/internal/notify"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // dockerFake answers the handful of endpoints the power handlers use and
@@ -34,7 +34,7 @@ type dockerFake struct {
 
 func newDockerFake(t *testing.T) (*dockerFake, *dockerctl.Client) {
 	t.Helper()
-	f := &dockerFake{state: `{"Name":"/wkagent-main","State":{"Status":"running","Running":true,"StartedAt":"2026-08-04T10:00:00Z"}}`}
+	f := &dockerFake{state: `{"Name":"/flameagent-main","State":{"Status":"running","Running":true,"StartedAt":"2026-08-04T10:00:00Z"}}`}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.actions = append(f.actions, r.Method+" "+r.URL.Path)
@@ -117,7 +117,7 @@ func addContainerServer(t *testing.T, app *testApp, container string) int64 {
 func TestContainerStatus(t *testing.T) {
 	_, docker := newDockerFake(t)
 	app, admin := newTestAppWithDocker(t, docker)
-	base := "/api/servers/" + itoa(addContainerServer(t, app, "wkagent-main"))
+	base := "/api/servers/" + itoa(addContainerServer(t, app, "flameagent-main"))
 
 	rec := app.do(t, "GET", base+"/container", nil, admin)
 	if rec.Code != http.StatusOK {
@@ -131,7 +131,7 @@ func TestContainerStatus(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &state); err != nil {
 		t.Fatal(err)
 	}
-	if state.Name != "wkagent-main" || !state.Running || state.Status != "running" {
+	if state.Name != "flameagent-main" || !state.Running || state.Status != "running" {
 		t.Errorf("state = %+v", state)
 	}
 }
@@ -153,7 +153,7 @@ func TestContainerStatusWithNoContainerNameSet(t *testing.T) {
 func TestContainerStatusWhenDockerIsUnwell(t *testing.T) {
 	fake, docker := newDockerFake(t)
 	app, admin := newTestAppWithDocker(t, docker)
-	base := "/api/servers/" + itoa(addContainerServer(t, app, "wkagent-main"))
+	base := "/api/servers/" + itoa(addContainerServer(t, app, "flameagent-main"))
 	fake.setFail(true)
 
 	if rec := app.do(t, "GET", base+"/container", nil, admin); rec.Code != http.StatusBadGateway {
@@ -164,7 +164,7 @@ func TestContainerStatusWhenDockerIsUnwell(t *testing.T) {
 func TestContainerActions(t *testing.T) {
 	fake, docker := newDockerFake(t)
 	app, admin := newTestAppWithDocker(t, docker)
-	id := addContainerServer(t, app, "wkagent-main")
+	id := addContainerServer(t, app, "flameagent-main")
 	base := "/api/servers/" + itoa(id)
 
 	for _, action := range []string{"start", "stop", "restart"} {
@@ -193,7 +193,7 @@ func TestContainerActions(t *testing.T) {
 func TestContainerActionRejectsAnUnknownVerb(t *testing.T) {
 	fake, docker := newDockerFake(t)
 	app, admin := newTestAppWithDocker(t, docker)
-	base := "/api/servers/" + itoa(addContainerServer(t, app, "wkagent-main"))
+	base := "/api/servers/" + itoa(addContainerServer(t, app, "flameagent-main"))
 
 	if rec := app.do(t, "POST", base+"/container/explode", nil, admin); rec.Code != http.StatusBadRequest {
 		t.Errorf("unknown action: %d, want 400", rec.Code)
@@ -206,7 +206,7 @@ func TestContainerActionRejectsAnUnknownVerb(t *testing.T) {
 func TestContainerActionsNeedThePowerPermission(t *testing.T) {
 	fake, docker := newDockerFake(t)
 	app, admin := newTestAppWithDocker(t, docker)
-	base := "/api/servers/" + itoa(addContainerServer(t, app, "wkagent-main"))
+	base := "/api/servers/" + itoa(addContainerServer(t, app, "flameagent-main"))
 	app.createUser(t, admin, "peon", "peonpass12345", "user", nil)
 	peon := app.login(t, "peon", "peonpass12345")
 
@@ -223,7 +223,7 @@ func TestContainerActionsNeedThePowerPermission(t *testing.T) {
 func TestContainerLogs(t *testing.T) {
 	_, docker := newDockerFake(t)
 	app, admin := newTestAppWithDocker(t, docker)
-	base := "/api/servers/" + itoa(addContainerServer(t, app, "wkagent-main"))
+	base := "/api/servers/" + itoa(addContainerServer(t, app, "flameagent-main"))
 
 	rec := app.do(t, "GET", base+"/container/logs", nil, admin)
 	if rec.Code != http.StatusOK {

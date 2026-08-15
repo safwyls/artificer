@@ -1,6 +1,6 @@
 package store
 
-import "github.com/safwyls/wildskeeper/internal/game"
+import "github.com/safwyls/flamekeeper/internal/game"
 
 // This file is the one place a stored server row becomes a live game client.
 // It lives in store because store.Server is where the connection details are

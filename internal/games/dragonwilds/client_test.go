@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/game"
-	"github.com/safwyls/wildskeeper/internal/games/dragonwilds"
+	"github.com/safwyls/flamekeeper/internal/game"
+	"github.com/safwyls/flamekeeper/internal/games/dragonwilds"
 )
 
-// fakeAgent is a wkagent just complete enough for the derived client:
+// fakeAgent is a flameagent just complete enough for the derived client:
 // /v1/health with a supervised-game status, /v1/power/logs with a ring.
 type fakeAgent struct {
 	mu        sync.Mutex
@@ -44,7 +44,7 @@ func newFakeAgent(t *testing.T) (*fakeAgent, string) {
 		switch r.URL.Path {
 		case "/v1/health":
 			h := map[string]any{
-				"agent": "wkagent", "apiVersion": 1, "mode": "supervisor",
+				"agent": "flameagent", "apiVersion": 1, "mode": "supervisor",
 				"game": map[string]any{"state": f.state, "startedAt": f.startedAt},
 				"job":  nil,
 			}

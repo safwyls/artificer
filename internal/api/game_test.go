@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/safwyls/wildskeeper/internal/game"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/game"
+	"github.com/safwyls/flamekeeper/internal/store"
 
 	// The registry is populated by importing this, exactly as the binary
 	// does. Without it every server row resolves to "unknown game" — a
 	// failure no compiler catches, which is what the tests below are for.
-	_ "github.com/safwyls/wildskeeper/internal/games"
+	_ "github.com/safwyls/flamekeeper/internal/games"
 )
 
 // A server row must resolve to a live client. This is the wiring the binary

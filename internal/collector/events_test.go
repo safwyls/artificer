@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/crypto"
-	"github.com/safwyls/wildskeeper/internal/db"
-	"github.com/safwyls/wildskeeper/internal/game"
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/crypto"
+	"github.com/safwyls/flamekeeper/internal/db"
+	"github.com/safwyls/flamekeeper/internal/game"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // stubClient serves a fixed player list; only Players is exercised by the
@@ -77,15 +77,15 @@ func eventsFor(t *testing.T, st *store.Store, srv *store.Server) []event {
 	return out
 }
 
-// The bug this guards: wildskeeper restarting while someone is online used to
+// The bug this guards: flamekeeper restarting while someone is online used to
 // strand their join with no matching leave, and a dangling join reads as a
 // session still running now — a full extra day of playtime per day since.
 func TestRestartClosesSessionsAtLastObservation(t *testing.T) {
 	ctx := context.Background()
 	c1, st, srv := newTestCollector(t)
 
-	// Run 1: Kyoshi is on when wildskeeper starts watching, and still on when
-	// wildskeeper is killed without a chance to clean up.
+	// Run 1: Kyoshi is on when flamekeeper starts watching, and still on when
+	// flamekeeper is killed without a chance to clean up.
 	c1.watch(ctx, srv, online("Kyoshi"))
 	lastSeen, err := st.LastWatch(ctx, srv.ID)
 	if err != nil || lastSeen.IsZero() {
@@ -105,14 +105,14 @@ func TestRestartClosesSessionsAtLastObservation(t *testing.T) {
 	if !got[1].ts.Equal(lastSeen.UTC().Truncate(time.Second)) {
 		t.Errorf("leave at %v, want the last observation %v", got[1].ts, lastSeen)
 	}
-	// The session must be bounded by what wildskeeper watched, not open-ended.
+	// The session must be bounded by what flamekeeper watched, not open-ended.
 	if d := got[1].ts.Sub(got[0].ts); d < 0 || d > time.Minute {
 		t.Errorf("session lasted %v, want roughly the length of run 1", d)
 	}
 }
 
 // A player still online across a restart gets their session closed where
-// observation stopped and a new one opened where it resumed, so wildskeeper's
+// observation stopped and a new one opened where it resumed, so flamekeeper's
 // downtime is credited to nobody — the same rule a server outage follows.
 func TestRestartReopensSessionForPlayerStillOnline(t *testing.T) {
 	ctx := context.Background()
@@ -140,7 +140,7 @@ func TestRestartReopensSessionForPlayerStillOnline(t *testing.T) {
 	}
 }
 
-// The graceful path: stopping wildskeeper ends the sessions it knows about, so a
+// The graceful path: stopping flamekeeper ends the sessions it knows about, so a
 // restart has nothing left to reconcile and no downtime is attributed.
 func TestCloseSessionsOnShutdown(t *testing.T) {
 	ctx := context.Background()

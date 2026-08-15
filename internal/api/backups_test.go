@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // fakeSaveDir writes a minimal save with a valid container magic, enough

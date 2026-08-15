@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/wildskeeper/internal/store"
+	"github.com/safwyls/flamekeeper/internal/store"
 )
 
 // lastRestartAudit returns the detail recorded for the scheduled restart.
