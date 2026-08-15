@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/flameagent"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // supervisorServer registers a server whose agent supervises a fake game.

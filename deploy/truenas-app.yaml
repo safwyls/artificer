@@ -1,6 +1,6 @@
-# Flamekeeper on TrueNAS SCALE (24.10+ / Electric Eel and later)
+# Flametender on TrueNAS SCALE (24.10+ / Electric Eel and later)
 #
-# Install as: Apps → Discover → ⋮ → Install via YAML, name it "flamekeeper",
+# Install as: Apps → Discover → ⋮ → Install via YAML, name it "flametender",
 # and paste this file. TrueNAS custom apps are plain Docker Compose, so
 # everything in docker-compose.yml applies — this variant just bakes in the
 # TrueNAS conventions (host-path dataset, the shared external network, the
@@ -8,10 +8,10 @@
 #
 # Before installing:
 #
-# 1. Make a dataset for the app's state, e.g. /mnt/tank/apps/flamekeeper,
+# 1. Make a dataset for the app's state, e.g. /mnt/tank/apps/flametender,
 #    and chown it to whatever user the container runs as. The user: line
 #    below defaults to TrueNAS's conventional apps user (568:568):
-#        chown -R 568:568 /mnt/tank/apps/flamekeeper
+#        chown -R 568:568 /mnt/tank/apps/flametender
 #    Any other uid:gid works too — the binary only needs a writable /data —
 #    just keep user: and the chown in agreement. (The image's baked-in
 #    default is 1000:1000 if you remove the user: line.)
@@ -21,7 +21,7 @@
 #    (docs/sidecar-agent.md "Deployment rule: separate stacks" — the
 #    console and each game server are separate apps so tearing one down
 #    can never take the other with it):
-#        docker network create flamekeeper-net
+#        docker network create flametender-net
 #
 # 3. Fill in the x-secrets values below. The lengths are enforced at
 #    startup — wrong lengths make the container exit immediately with a
@@ -38,8 +38,8 @@ x-secrets: &secrets
   ADMIN_PASSWORD: "CHANGE-ME"
 
 services:
-  flamekeeper:
-    image: ghcr.io/safwyls/flamekeeper:latest
+  flametender:
+    image: ghcr.io/safwyls/flametender:latest
     # TrueNAS's compose backend defaults to pull_policy "missing": once the
     # tag exists locally, redeploys silently reuse the stale image. "always"
     # re-resolves :latest against ghcr on every app update/redeploy.
@@ -50,7 +50,7 @@ services:
     ports:
       - "8080:8080"        # web UI + API; put TrueNAS's nginx or Traefik in front if you want TLS
     volumes:
-      - /mnt/tank/apps/flamekeeper:/data   # ← your dataset (owned by uid 1000)
+      - /mnt/tank/apps/flametender:/data   # ← your dataset (owned by uid 1000)
     environment:
       <<: *secrets
       HTTP_ADDR: ":8080"
@@ -63,20 +63,20 @@ services:
       DOCKER_HOST: tcp://docker-proxy:2375
       # One-click provisioning from the "Raise a server" wizard, through
       # the shared Ilmari host service (github.com/safwyls/ilmari) already
-      # running on this box for wildskeeper and palcon. Flamekeeper ships
+      # running on this box for wildskeeper and palcon. Flametender ships
       # no provisioner of its own — one host, one Docker-socket holder.
       #
-      # Register flamekeeper as an Ilmari client first (its clients file;
+      # Register flametender as an Ilmari client first (its clients file;
       # see "Registering with Ilmari" below), then uncomment. The token is
-      # flamekeeper's OWN client token, not wildskeeper's and not palcon's.
+      # flametender's OWN client token, not wildskeeper's and not palcon's.
       # Leave commented to use the copy-paste flow instead.
       # ILMARI_URL: http://192.168.1.CHANGE-ME:8820
-      # ILMARI_TOKEN: "CHANGE-ME-flamekeeper-ilmari-token"
+      # ILMARI_TOKEN: "CHANGE-ME-flametender-ilmari-token"
     networks:
       - default
-      - flamekeeper-net
+      - flametender-net
 
-  # Scoped docker socket proxy: Flamekeeper never touches the socket
+  # Scoped docker socket proxy: Flametender never touches the socket
   # directly (root-equivalent). This grants exactly container inspect +
   # start/stop/restart — a compromised console can at worst bounce a game
   # server. Remove if every game server is agent-managed (see above).
@@ -91,7 +91,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
 networks:
-  flamekeeper-net:
+  flametender-net:
     external: true
 
 # Registering with Ilmari
@@ -100,7 +100,7 @@ networks:
 # a client registration. On the Ilmari app, add to its clients file (the
 # ILMARI_CLIENTS_FILE JSON array):
 #
-#   {"id": "flamekeeper",
+#   {"id": "flametender",
 #    "token": "<openssl rand -hex 24 — the ILMARI_TOKEN above>",
 #    "dataRoot": "/mnt/tank/apps/enshrouded-servers",
 #    "envPrefix": "FLAMEAGENT_",

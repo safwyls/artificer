@@ -11,11 +11,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/safwyls/flamekeeper/internal/agentfiles"
-	"github.com/safwyls/flamekeeper/internal/backup"
-	"github.com/safwyls/flamekeeper/internal/dockerctl"
-	"github.com/safwyls/flamekeeper/internal/notify"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/agentfiles"
+	"github.com/safwyls/flametender/internal/backup"
+	"github.com/safwyls/flametender/internal/dockerctl"
+	"github.com/safwyls/flametender/internal/notify"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 type Server struct {
@@ -72,7 +72,7 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 		r.Post("/login", s.handleLogin)
 
 		// The only unauthenticated data endpoint: token-gated, read-only,
-		// served entirely from Flamekeeper's own database. See public.go.
+		// served entirely from Flametender's own database. See public.go.
 		r.Get("/public/status/{token}", s.handlePublicStatus)
 
 		r.Group(func(r chi.Router) {

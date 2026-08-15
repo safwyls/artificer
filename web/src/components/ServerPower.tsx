@@ -107,7 +107,7 @@ export function ServerPower({
   const saveBlocked = saveCmd.known && !saveCmd.supported;
 
   // Polls only while the agent reports a running job; also runs once on
-  // mount, so a reload (or a flamekeeper restart) rediscovers an in-flight
+  // mount, so a reload (or a flametender restart) rediscovers an in-flight
   // update instead of forgetting it.
   const updateStatus = useQuery({
     queryKey: ["steam-update", serverId],
@@ -190,18 +190,18 @@ export function ServerPower({
   const agentPending = !!agentUrl && !agentAlive && updateStatus.isError;
 
   return (
-    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-fk-edge bg-fk-panel p-4 lg:p-5">
+    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ft-edge bg-ft-panel p-4 lg:p-5">
       <div className="flex items-center gap-3">
         <span
           className={cn(
             "h-2.5 w-2.5 shrink-0 rounded-full",
             settingUp
-              ? "animate-pulse bg-fk-stonehi"
+              ? "animate-pulse bg-ft-stonehi"
               : running || (powerOff && agentAlive)
-                ? "bg-fk-ok"
+                ? "bg-ft-ok"
                 : agentPending
-                  ? "animate-pulse bg-fk-bone/30"
-                  : "bg-fk-bone/30",
+                  ? "animate-pulse bg-ft-bone/30"
+                  : "bg-ft-bone/30",
           )}
           aria-hidden
         />
@@ -213,7 +213,7 @@ export function ServerPower({
                 ? "Agent-managed"
                 : `Container ${running ? "running" : (state?.status ?? "unknown")}`}
           </p>
-          <p className="font-mono text-xs text-fk-bone/40">
+          <p className="font-mono text-xs text-ft-bone/40">
             {powerOff ? (
               <>
                 {agentAlive ? "flameagent connected" : "flameagent unreachable — deploying, or the stack is down"} ·
@@ -237,7 +237,7 @@ export function ServerPower({
       {(!powerOff || canSave) && (
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {!powerOff && !allowed && (
-            <span className="text-xs text-fk-bone/40">You don't have power permission</span>
+            <span className="text-xs text-ft-bone/40">You don't have power permission</span>
           )}
           <div className="flex flex-wrap items-center gap-2">
             {/* Logs share the power grant — same gate as the endpoint. */}
@@ -314,10 +314,10 @@ export function ServerPower({
           neither an agent nor an install path is configured — same principle
           as the card itself. */}
       {allowed && (agentUrl || installPath) && (
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-fk-edge pt-3">
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-ft-edge pt-3">
           <div>
             <p className="font-display text-sm font-bold">SteamCMD</p>
-            <p className="text-xs text-fk-bone/40">
+            <p className="text-xs text-ft-bone/40">
               {jobRunning
                 ? "Updating the server install — this can take several minutes."
                 : "Stuck after a game patch? Clear the cache or re-run the update."}
@@ -519,10 +519,10 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
   const options = launch.available ?? [];
 
   return (
-    <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-fk-edge pt-3">
+    <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-ft-edge pt-3">
       <div className="min-w-0">
         <p className="font-display text-sm font-bold">Launch mode</p>
-        <p className="text-xs text-fk-bone/40">
+        <p className="text-xs text-ft-bone/40">
           {launch.runnable === false
             ? "This agent's image cannot run the game (no Wine in it). Rebuild the agent on a current image."
             : launch.pendingRestart
@@ -535,14 +535,14 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
           <button
             type="button"
             onClick={() => setRebuildOpen(true)}
-            className="mt-1 text-xs font-semibold text-fk-stonehi underline-offset-2 hover:underline"
+            className="mt-1 text-xs font-semibold text-ft-stonehi underline-offset-2 hover:underline"
           >
             Rebuild the agent →
           </button>
         )}
       </div>
       {options.length > 1 && (
-        <div className="flex items-center gap-1 rounded-lg bg-fk-void p-1">
+        <div className="flex items-center gap-1 rounded-lg bg-ft-void p-1">
           {options.map((profile) => {
             const active = profile === launch.profile;
             return (
@@ -554,7 +554,7 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
                 onClick={() => !active && setSwitchTo(profile)}
                 className={cn(
                   "rounded-md px-3 py-1 text-xs font-semibold transition disabled:opacity-50",
-                  active ? "bg-fk-spore text-fk-bone" : "text-fk-bone/60 hover:text-fk-bone",
+                  active ? "bg-ft-spore text-ft-bone" : "text-ft-bone/60 hover:text-ft-bone",
                 )}
               >
                 {LAUNCH_PROFILES[profile]?.label ?? profile}
@@ -569,7 +569,7 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
           <DialogHeader>
             <DialogTitle>Rebuild the agent?</DialogTitle>
             <DialogDescription>
-              Flamekeeper stops this server, removes its agent container and creates it again from
+              Flametender stops this server, removes its agent container and creates it again from
               <code className="mx-1 font-mono">flameagent:latest</code>, keeping the same settings, ports and data
               directory. Your world and configuration live in the data directory and are not touched. The image is
               large (Wine included), so the pull can take several minutes.

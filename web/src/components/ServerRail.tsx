@@ -4,7 +4,7 @@ import { LogOut, Plus, Users as UsersIcon } from "lucide-react";
 import { type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
-import { FkServerFlame } from "./flamekeeper/FkServerFlame";
+import { FtServerFlame } from "./flametender/FtServerFlame";
 import { AddServerFlow } from "./AddServerFlow";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -18,11 +18,11 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
   const goToServer = (id: number) => navigate(`/servers/${id}`);
 
   return (
-    <aside className="flex w-[72px] shrink-0 flex-col items-center gap-3 border-r border-black/20 bg-fk-void py-4">
-      <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full border border-fk-stone bg-fk-panel font-fkdisplay text-base font-bold text-fk-flame" title="Flamekeeper">F</div>
+    <aside className="flex w-[72px] shrink-0 flex-col items-center gap-3 border-r border-black/20 bg-ft-void py-4">
+      <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-full border border-ft-stone bg-ft-panel font-ftdisplay text-base font-bold text-ft-flame" title="Flametender">F</div>
 
       {servers.map((server) => (
-        <FkServerFlame
+        <FtServerFlame
           key={server.id}
           server={server}
           active={server.id === activeServerId}
@@ -36,7 +36,7 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
           <TooltipTrigger asChild>
             <button
               onClick={() => setAddOpen(true)}
-              className="mt-1 flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/20 text-fk-bone/40 transition hover:border-white/40 hover:text-fk-bone/70"
+              className="mt-1 flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/20 text-ft-bone/40 transition hover:border-white/40 hover:text-ft-bone/70"
             >
               <Plus className="h-5 w-5" />
             </button>
@@ -55,8 +55,8 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
               className={cn(
                 "flex h-10 w-10 items-center justify-center rounded-full transition",
                 location.pathname === "/users"
-                  ? "bg-fk-panel text-fk-bone"
-                  : "text-fk-bone/40 hover:bg-fk-panel hover:text-fk-bone",
+                  ? "bg-ft-panel text-ft-bone"
+                  : "text-ft-bone/40 hover:bg-ft-panel hover:text-ft-bone",
               )}
             >
               <UsersIcon className="h-4 w-4" />
@@ -70,7 +70,7 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
         <TooltipTrigger asChild>
           <button
             onClick={() => logout()}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-fk-bone/40 transition hover:bg-fk-panel hover:text-fk-bone"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-ft-bone/40 transition hover:bg-ft-panel hover:text-ft-bone"
           >
             <LogOut className="h-4 w-4" />
           </button>

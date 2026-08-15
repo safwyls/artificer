@@ -100,7 +100,7 @@ type Enforcement struct {
 
 // adminGroup and joinGroup are the groups the agent seeds when a config
 // has none. Names are plain on purpose — they surface in the game's own
-// permission model, not in Flamekeeper's theme.
+// permission model, not in Flametender's theme.
 func adminGroup(password string) map[string]any {
 	return map[string]any{
 		"name":                 "Admins",

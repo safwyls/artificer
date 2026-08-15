@@ -1,7 +1,7 @@
 // Command flameagent is the per-server sidecar agent: it sits next to one
 // Enshrouded game server (or supervises it directly), holding the install
 // volume and SteamCMD, and exposes a narrow authenticated API for
-// flamekeeper to drive. See docs/sidecar-agent.md for the design.
+// flametender to drive. See docs/sidecar-agent.md for the design.
 package main
 
 import (
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flametender/internal/flameagent"
 )
 
 // version is stamped by the release build via

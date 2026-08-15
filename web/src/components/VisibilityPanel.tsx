@@ -38,8 +38,8 @@ function Toggle({
       onClick={() => onChange(!on)}
       className={cn(
         "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fk-spore",
-        on ? "bg-fk-ok" : "bg-fk-bone/20",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ft-spore",
+        on ? "bg-ft-ok" : "bg-ft-bone/20",
       )}
     >
       {/* left-0.5 is load-bearing: without an explicit inset an absolutely
@@ -48,7 +48,7 @@ function Toggle({
           whichever way the switch is set. */}
       <span
         className={cn(
-          "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-fk-panel shadow-sm transition-transform",
+          "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-ft-panel shadow-sm transition-transform",
           on ? "translate-x-4" : "translate-x-0",
         )}
       />
@@ -143,14 +143,14 @@ export function VisibilityPanel({ serverId }: { serverId: number }) {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-fk-edge bg-fk-panel">
-      <div className="flex flex-wrap items-center gap-3 border-b border-fk-edge px-5 py-4">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-fk-spore/15 text-fk-spore">
+    <section className="overflow-hidden rounded-2xl border border-ft-edge bg-ft-panel">
+      <div className="flex flex-wrap items-center gap-3 border-b border-ft-edge px-5 py-4">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ft-spore/15 text-ft-spore">
           <Eye className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-base font-bold">Who can see what</h2>
-          <p className="text-xs text-fk-bone/50">
+          <p className="text-xs text-ft-bone/50">
             Turn a view off for everyone, or hide one player's data while the view stays on. Admins
             see through both — the locked-chest switch at the bottom is the one exception, and it
             applies to you too.
@@ -160,14 +160,14 @@ export function VisibilityPanel({ serverId }: { serverId: number }) {
           <button
             onClick={() => save.mutate()}
             disabled={save.isPending}
-            className="shrink-0 bg-fk-spore px-4 py-2 text-sm font-semibold text-fk-bone transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="shrink-0 bg-ft-spore px-4 py-2 text-sm font-semibold text-ft-bone transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
         )}
       </div>
 
-      <div className="divide-y divide-fk-edge">
+      <div className="divide-y divide-ft-edge">
         {(query.data?.allFeatures ?? []).map((feature) => {
           const visible = !hiddenFeatures.includes(feature);
           const label = featureLabel(server, feature as Feature);
@@ -175,7 +175,7 @@ export function VisibilityPanel({ serverId }: { serverId: number }) {
             <div key={feature} className="flex items-center justify-between gap-4 px-5 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">{label}</p>
-                <p className="text-xs text-fk-bone/40">{featureBlurb(server, feature as Feature)}</p>
+                <p className="text-xs text-ft-bone/40">{featureBlurb(server, feature as Feature)}</p>
               </div>
               <Toggle on={visible} onChange={(next) => setFeature(feature as Feature, next)} label={label} />
             </div>
@@ -189,7 +189,7 @@ export function VisibilityPanel({ serverId }: { serverId: number }) {
         <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">Search password-locked chests</p>
-            <p className="text-xs text-fk-bone/40">
+            <p className="text-xs text-ft-bone/40">
               A password on a chest is a player saying its contents are theirs. Off keeps those
               chests out of Storage results entirely — for you as well.
             </p>
@@ -205,12 +205,12 @@ export function VisibilityPanel({ serverId }: { serverId: number }) {
         </div>
       </div>
 
-      <div className="border-t border-fk-edge px-5 py-4">
+      <div className="border-t border-ft-edge px-5 py-4">
         <div className="flex items-baseline gap-2">
-          <h3 className="text-[10px] font-semibold uppercase tracking-wide text-fk-bone/40">Per player</h3>
-          <span className="font-mono text-[11px] text-fk-bone/30">{rows.length}</span>
+          <h3 className="text-[10px] font-semibold uppercase tracking-wide text-ft-bone/40">Per player</h3>
+          <span className="font-mono text-[11px] text-ft-bone/30">{rows.length}</span>
         </div>
-        <p className="mt-1 text-xs text-fk-bone/45">
+        <p className="mt-1 text-xs text-ft-bone/45">
           Hiding a player's pals also removes them from Paldex and Calculators — all three read the
           same data, so splitting them would be a switch that doesn't switch anything.
         </p>
@@ -228,13 +228,13 @@ export function VisibilityPanel({ serverId }: { serverId: number }) {
             <table className="w-full min-w-[26rem] max-w-2xl border-separate border-spacing-0">
               <thead>
                 <tr>
-                  <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wide text-fk-bone/40">
+                  <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wide text-ft-bone/40">
                     Player
                   </th>
                   {STREAMS.map((stream) => (
                     <th
                       key={stream}
-                      className="pb-2 pl-4 text-right text-[10px] font-semibold uppercase tracking-wide text-fk-bone/40"
+                      className="pb-2 pl-4 text-right text-[10px] font-semibold uppercase tracking-wide text-ft-bone/40"
                       title={STREAM_HINTS[stream]}
                     >
                       {STREAM_LABELS[stream]}
@@ -247,7 +247,7 @@ export function VisibilityPanel({ serverId }: { serverId: number }) {
                   const hidden = players[p.uid] ?? [];
                   return (
                     <tr key={p.uid}>
-                      <td className="border-t border-fk-edge py-2 pr-4">
+                      <td className="border-t border-ft-edge py-2 pr-4">
                         <div className="flex items-center gap-2">
                           <span
                             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-display text-[10px] font-bold"
@@ -259,18 +259,18 @@ export function VisibilityPanel({ serverId }: { serverId: number }) {
                             <span className="block truncate text-sm text-foreground">
                               {p.nickname || p.uid.slice(0, 8)}
                             </span>
-                            {p.level > 0 && <span className="font-mono text-[11px] text-fk-bone/35">Lv.{p.level}</span>}
+                            {p.level > 0 && <span className="font-mono text-[11px] text-ft-bone/35">Lv.{p.level}</span>}
                             {!p.nickname && (
-                              <span className="font-mono text-[11px] text-fk-bone/35">not in this save</span>
+                              <span className="font-mono text-[11px] text-ft-bone/35">not in this save</span>
                             )}
                           </span>
                           {hidden.length > 0 && (
-                            <EyeOff className="h-3.5 w-3.5 shrink-0 text-fk-bone/30" aria-label="Partly hidden" />
+                            <EyeOff className="h-3.5 w-3.5 shrink-0 text-ft-bone/30" aria-label="Partly hidden" />
                           )}
                         </div>
                       </td>
                       {STREAMS.map((stream) => (
-                        <td key={stream} className="border-t border-fk-edge py-2 pl-4 text-right">
+                        <td key={stream} className="border-t border-ft-edge py-2 pl-4 text-right">
                           <span className="inline-flex justify-end">
                             <Toggle
                               on={!hidden.includes(stream)}
@@ -290,7 +290,7 @@ export function VisibilityPanel({ serverId }: { serverId: number }) {
       </div>
 
       {!dirty && save.isSuccess && (
-        <p className="flex items-center gap-1.5 border-t border-fk-edge px-5 py-2.5 text-xs text-fk-ok">
+        <p className="flex items-center gap-1.5 border-t border-ft-edge px-5 py-2.5 text-xs text-ft-ok">
           <Check className="h-3.5 w-3.5" /> Saved
         </p>
       )}

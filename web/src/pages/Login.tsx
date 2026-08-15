@@ -34,8 +34,8 @@ export function Login() {
     <div className="app-min-height flex items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <Flame className="mb-1 h-8 w-8 text-fk-flame" />
-          <h1 className="font-display text-xl font-bold text-foreground">Flamekeeper</h1>
+          <Flame className="mb-1 h-8 w-8 text-ft-flame" />
+          <h1 className="font-display text-xl font-bold text-foreground">Flametender</h1>
           <p className="text-sm text-muted-foreground">Sign in to tend the Flame</p>
         </CardHeader>
         <CardContent>

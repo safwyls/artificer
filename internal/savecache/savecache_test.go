@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/savecache"
+	"github.com/safwyls/flametender/internal/savecache"
 )
 
 // world is a stand-in for a game's parsed save.

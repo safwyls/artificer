@@ -11,9 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/flamekeeper/internal/agentctl"
-	"github.com/safwyls/flamekeeper/internal/dockerctl"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/agentctl"
+	"github.com/safwyls/flametender/internal/dockerctl"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // containerFor resolves the server's configured docker container,
@@ -21,7 +21,7 @@ import (
 // which half is missing.
 func (s *Server) containerFor(w http.ResponseWriter, srv *store.Server) (string, bool) {
 	if s.docker == nil {
-		writeError(w, http.StatusBadRequest, "docker control is not configured on this Flamekeeper instance")
+		writeError(w, http.StatusBadRequest, "docker control is not configured on this Flametender instance")
 		return "", false
 	}
 	if srv.ContainerName == "" {

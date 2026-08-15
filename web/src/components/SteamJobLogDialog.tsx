@@ -61,14 +61,14 @@ export function SteamJobLogDialog({
           <DialogTitle className="flex flex-wrap items-center gap-x-3 gap-y-1">
             SteamCMD update
             {job && (
-              <span className="flex items-center gap-1.5 font-mono text-xs font-normal text-fk-bone/45">
+              <span className="flex items-center gap-1.5 font-mono text-xs font-normal text-ft-bone/45">
                 {job.state === "running"
                   ? `running · ${duration(job.startedAt)}`
                   : `${job.state} · ${duration(job.startedAt, job.finishedAt)}`}
                 <span
                   className={cn(
                     "h-1.5 w-1.5 rounded-full",
-                    running ? "animate-pulse bg-fk-ok" : job.state === "done" ? "bg-fk-ok" : "bg-fk-spore",
+                    running ? "animate-pulse bg-ft-ok" : job.state === "done" ? "bg-ft-ok" : "bg-ft-spore",
                   )}
                   title={running ? "Live" : job.state}
                 />
@@ -78,19 +78,19 @@ export function SteamJobLogDialog({
         </DialogHeader>
 
         {job?.error && (
-          <p className="rounded-lg bg-fk-spore/10 px-3 py-2 font-mono text-xs text-fk-spore">{job.error}</p>
+          <p className="rounded-lg bg-ft-spore/10 px-3 py-2 font-mono text-xs text-ft-spore">{job.error}</p>
         )}
 
         <div className="flex items-center gap-2">
           <button
-            className="flex items-center gap-1.5 rounded-lg border border-fk-edge px-2.5 py-1.5 text-xs font-semibold text-fk-bone/60 hover:bg-fk-bone/5 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-ft-edge px-2.5 py-1.5 text-xs font-semibold text-ft-bone/60 hover:bg-ft-bone/5 disabled:opacity-50"
             disabled={lines.length === 0}
             onClick={download}
           >
             <Download className="h-3.5 w-3.5" />
             Download
           </button>
-          <span className="text-xs text-fk-bone/40">Last {lines.length} lines from the agent</span>
+          <span className="text-xs text-ft-bone/40">Last {lines.length} lines from the agent</span>
         </div>
 
         <pre
@@ -99,7 +99,7 @@ export function SteamJobLogDialog({
             const el = e.currentTarget;
             pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
           }}
-          className="min-h-48 flex-1 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-fk-void p-4 font-mono text-[11px] leading-relaxed text-fk-bone/80"
+          className="min-h-48 flex-1 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-ft-void p-4 font-mono text-[11px] leading-relaxed text-ft-bone/80"
         >
           {lines.length > 0
             ? lines.join("\n")

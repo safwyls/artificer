@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/flamekeeper/internal/collector"
-	"github.com/safwyls/flamekeeper/internal/sched"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/collector"
+	"github.com/safwyls/flametender/internal/sched"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // handlePublicStatus is the one unauthenticated data endpoint: a read-only

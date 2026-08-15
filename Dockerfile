@@ -16,7 +16,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend /app/web/dist ./web/dist
-RUN CGO_ENABLED=0 go build -o /out/flamekeeper ./cmd/flamekeeper
+RUN CGO_ENABLED=0 go build -o /out/flametender ./cmd/flametender
 
 # ---- runtime ----
 FROM docker.io/library/alpine:3.22
@@ -26,15 +26,15 @@ FROM docker.io/library/alpine:3.22
 # only needs a writable DATA_DIR, nothing tied to this account.
 ARG UID=1000
 ARG GID=1000
-RUN addgroup -g "$GID" flamekeeper && adduser -D -u "$UID" -G flamekeeper flamekeeper
+RUN addgroup -g "$GID" flametender && adduser -D -u "$UID" -G flametender flametender
 WORKDIR /app
-COPY --from=backend /out/flamekeeper ./flamekeeper
-RUN mkdir -p /data && chown flamekeeper:flamekeeper /data
-USER flamekeeper
+COPY --from=backend /out/flametender ./flametender
+RUN mkdir -p /data && chown flametender:flametender /data
+USER flametender
 # The app otherwise defaults to ./data, which this non-root user can't
 # create — so an image run without DATA_DIR set died with a confusing
 # "permission denied" despite /data existing and being owned correctly.
 ENV DATA_DIR=/data
 VOLUME /data
 EXPOSE 8080
-ENTRYPOINT ["./flamekeeper"]
+ENTRYPOINT ["./flametender"]

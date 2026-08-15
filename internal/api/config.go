@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/safwyls/flamekeeper/internal/agentfiles"
-	"github.com/safwyls/flamekeeper/internal/games/enshrouded/esconfig"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/agentfiles"
+	"github.com/safwyls/flametender/internal/games/enshrouded/esconfig"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // configCodec is one game's config reader/writer behind a common wire

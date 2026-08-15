@@ -71,7 +71,7 @@ export function DeleteServerDialog({
         <DialogHeader>
           <DialogTitle>Remove "{server.name}"?</DialogTitle>
           <DialogDescription>
-            This only removes it from Flamekeeper — it does not affect the actual game server.
+            This only removes it from Flametender — it does not affect the actual game server.
           </DialogDescription>
         </DialogHeader>
 

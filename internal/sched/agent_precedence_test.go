@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/dockerctl"
-	"github.com/safwyls/flamekeeper/internal/game/gametest"
-	"github.com/safwyls/flamekeeper/internal/notify"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/dockerctl"
+	"github.com/safwyls/flametender/internal/game/gametest"
+	"github.com/safwyls/flametender/internal/notify"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // agentSpy is a flameagent that reports whichever mode a test asks for and
@@ -133,7 +133,7 @@ func schedulerWithDocker(t *testing.T, st *store.Store, docker *dockerctl.Client
 }
 
 // The regression this guards: a provisioned server carries both an agent
-// and a container name, and flamekeeper's docker proxy may be pointed at a
+// and a container name, and flametender's docker proxy may be pointed at a
 // different daemon than the one running it. The agent is the only half
 // guaranteed to be looking at the right machine, so it wins — exactly as
 // the manual Restart button decides it.

@@ -20,7 +20,7 @@ type ProvisionRequest struct {
 	Slug string `json:"slug"`
 	// ImageTag selects the flameagent channel for the new server.
 	ImageTag string `json:"imageTag"`
-	// Token is the new agent's bearer token (flamekeeper generated it).
+	// Token is the new agent's bearer token (flametender generated it).
 	Token string `json:"token"`
 	// AdminPassword becomes the password of the admin role group in
 	// enshrouded_server.json (FLAMEAGENT_ADMIN_PASSWORD), enforced on every
@@ -44,7 +44,7 @@ type ProvisionRequest struct {
 // how servers land on its host.
 type ProvisionDefaults struct {
 	DataRoot string `json:"dataRoot"`
-	// PublicHost is the address flamekeeper (and players) reach the host on.
+	// PublicHost is the address flametender (and players) reach the host on.
 	// Inside containers "localhost" means the container itself, so this
 	// must be declared, not guessed.
 	PublicHost string `json:"publicHost,omitempty"`
@@ -65,7 +65,7 @@ type DiscoveredServer struct {
 	AgentPort int `json:"agentPort,omitempty"`
 }
 
-// AdoptResult carries everything flamekeeper needs to re-register an
+// AdoptResult carries everything flametender needs to re-register an
 // existing flameagent container — including its secrets. Deliberately: the
 // console's own provisioning injected those secrets in the first place, so
 // returning them to the (token-authenticated) control plane stays within

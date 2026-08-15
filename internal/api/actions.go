@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/safwyls/flamekeeper/internal/game"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/game"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 var errBadServerID = errors.New("invalid server id")

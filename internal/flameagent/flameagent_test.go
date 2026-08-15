@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flametender/internal/flameagent"
 )
 
 const testToken = "test-token-0123456789abcdef"
@@ -168,7 +168,7 @@ func TestAgentUpdateJob(t *testing.T) {
 		t.Errorf("log = %v, want the script's 2 lines", log)
 	}
 
-	// The finished job is discoverable via health (flamekeeper-restart path).
+	// The finished job is discoverable via health (flametender-restart path).
 	_, health := do(t, srv, "GET", "/v1/health", testToken, nil)
 	if health["job"].(map[string]any)["id"] != id {
 		t.Error("health does not report the last job")

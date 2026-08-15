@@ -27,20 +27,20 @@ export function ServerPerformance({ serverId }: { serverId: number }) {
   const intervalSeconds = historyQuery.data?.intervalSeconds ?? 30;
 
   return (
-    <section className="rounded-2xl border border-fk-edge bg-fk-panel p-5">
+    <section className="rounded-2xl border border-ft-edge bg-ft-panel p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-base font-bold">Performance</h2>
-          <p className="mt-0.5 text-xs text-fk-bone/40">Sampled every 30s, kept for 7 days</p>
+          <p className="mt-0.5 text-xs text-ft-bone/40">Sampled every 30s, kept for 7 days</p>
         </div>
-        <div className="inline-flex rounded-lg border border-fk-edge bg-fk-bone/5 p-0.5">
+        <div className="inline-flex rounded-lg border border-ft-edge bg-ft-bone/5 p-0.5">
           {RANGES.map((r) => (
             <button
               key={r.minutes}
               onClick={() => setMinutes(r.minutes)}
               className={cn(
                 "rounded-md px-2.5 py-1 font-mono text-xs transition-colors",
-                r.minutes === minutes ? "bg-fk-spore text-fk-bone" : "text-fk-bone/50 hover:text-fk-bone",
+                r.minutes === minutes ? "bg-ft-spore text-ft-bone" : "text-ft-bone/50 hover:text-ft-bone",
               )}
             >
               {r.label}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the whole stack locally against a real game server: the flameagent
-# sidecar in supervisor mode, and flamekeeper in front of it.
+# sidecar in supervisor mode, and flametender in front of it.
 #
 # UNPORTED (see docs/state-of-play.md): this script still carries its
 # Dragonwilds-era paths and env below, and Enshrouded needs Wine plus the
@@ -9,7 +9,7 @@
 # agent) is exactly right and stays.
 #
 # This is the manual-test path. It is deliberately the same shape as a real
-# deployment — the agent owns the game process and flamekeeper only talks to the
+# deployment — the agent owns the game process and flametender only talks to the
 # agent — because Dragonwilds has no admin transport of its own, so anything
 # that skips the agent isn't testing the real thing.
 #
@@ -95,7 +95,7 @@ up)
   R="$(repo_root)"
   mkdir -p "$RUN_DIR/data"
   echo "==> building"
-  (cd "$R" && go build -o "$RUN_DIR/flameagent" ./cmd/flameagent && go build -o "$RUN_DIR/flamekeeper" ./cmd/flamekeeper)
+  (cd "$R" && go build -o "$RUN_DIR/flameagent" ./cmd/flameagent && go build -o "$RUN_DIR/flametender" ./cmd/flametender)
   [ -d "$R/web/dist" ] || (cd "$R/web" && npm run build)
 
   echo "==> starting flameagent (supervisor) on :$AGENT_PORT"
@@ -111,12 +111,12 @@ up)
   FLAMEAGENT_AUTOSTART=false \
     nohup "$RUN_DIR/flameagent" > "$RUN_DIR/agent.log" 2>&1 < /dev/null &
 
-  echo "==> starting flamekeeper on :$HTTP_PORT"
+  echo "==> starting flametender on :$HTTP_PORT"
   JWT_SECRET="0123456789abcdef0123456789abcdef0123456789abcdef" \
   ENCRYPTION_KEY="0123456789abcdef0123456789abcdef" \
   ADMIN_USERNAME=admin ADMIN_PASSWORD="$ADMIN_PW" \
   DATA_DIR="$RUN_DIR/data" HTTP_ADDR=":$HTTP_PORT" \
-    nohup "$RUN_DIR/flamekeeper" > "$RUN_DIR/flamekeeper.log" 2>&1 < /dev/null &
+    nohup "$RUN_DIR/flametender" > "$RUN_DIR/flametender.log" 2>&1 < /dev/null &
 
   sleep 4
   login
@@ -157,7 +157,7 @@ down)
   # -x matches the process name exactly. -f would also match any shell
   # whose command line mentions these paths, including this script's caller.
   pkill -x flameagent 2>/dev/null || true
-  pkill -x flamekeeper 2>/dev/null || true
+  pkill -x flametender 2>/dev/null || true
   echo "stopped"
   ;;
 

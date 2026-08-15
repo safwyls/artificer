@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flametender/internal/flameagent"
 )
 
 // newSupervisorAgent builds a supervisor-mode agent whose "game" is the

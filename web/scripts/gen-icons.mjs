@@ -1,4 +1,4 @@
-// Rasterizes the Flamekeeper flame sigil — the fire lit, every seat
+// Rasterizes the Flametender flame sigil — the fire lit, every seat
 // filled — into the favicon/PWA set in web/public.
 // Mirrors FlameSigil.tsx geometry, with pips fattened and the glow baked
 // in so it survives 32px.

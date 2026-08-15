@@ -5,13 +5,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/crypto"
-	"github.com/safwyls/flamekeeper/internal/db"
-	"github.com/safwyls/flamekeeper/internal/game"
+	"github.com/safwyls/flametender/internal/crypto"
+	"github.com/safwyls/flametender/internal/db"
+	"github.com/safwyls/flametender/internal/game"
 
 	// Registers the games, so the definition lookups below resolve for real
 	// instead of skipping.
-	_ "github.com/safwyls/flamekeeper/internal/games"
+	_ "github.com/safwyls/flametender/internal/games"
 )
 
 // Existing installs upgrade in place, and a server row that predates the game

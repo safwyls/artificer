@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/game/gametest"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/game/gametest"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // fakeGame is a Palworld REST API just complete enough for the action
@@ -265,7 +265,7 @@ func TestServerActionsPassThroughTheirArguments(t *testing.T) {
 	}
 }
 
-// A game that answers with an error is a bad gateway, not a 500: flamekeeper is
+// A game that answers with an error is a bad gateway, not a 500: flametender is
 // working, the thing behind it isn't.
 func TestServerActionsReportGameFailureAsBadGateway(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)

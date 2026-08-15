@@ -42,12 +42,12 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Flamekeeper literal palette, verbatim from docs/design.md.
+        // Flametender literal palette, verbatim from docs/design.md.
         // The rule from the plan: stone is structure and interaction,
         // flame is *reserved* for live/active state and focus, spore for
         // danger. Semantic roles are mapped in index.css; these tokens
         // are for the spots that need the exact hue.
-        fk: {
+        ft: {
           void: "#101512",
           fog: "#182019",
           panel: "#1e2822",
@@ -69,8 +69,8 @@ export default {
         body: ["Karla", "system-ui", "sans-serif"],
         mono: ["'IBM Plex Mono'", "monospace"],
         // Aliases kept so page code can name the theme explicitly.
-        fkdisplay: ["'Grenze Gotisch'", "serif"],
-        fkbody: ["Karla", "system-ui", "sans-serif"],
+        ftdisplay: ["'Grenze Gotisch'", "serif"],
+        ftbody: ["Karla", "system-ui", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",

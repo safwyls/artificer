@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // Visibility is two switches on the same data.

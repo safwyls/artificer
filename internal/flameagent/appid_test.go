@@ -3,8 +3,8 @@ package flameagent_test
 import (
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
-	"github.com/safwyls/flamekeeper/internal/games/enshrouded"
+	"github.com/safwyls/flametender/internal/flameagent"
+	"github.com/safwyls/flametender/internal/games/enshrouded"
 )
 
 // The agent spells the Steam app id and the game's UDP port out itself

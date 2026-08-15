@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // An Enshrouded server end to end through the API: the config editor speaks

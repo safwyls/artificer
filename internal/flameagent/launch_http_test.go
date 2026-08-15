@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flametender/internal/flameagent"
 )
 
 // authed issues a request with the agent's bearer token.

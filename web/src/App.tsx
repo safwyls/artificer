@@ -6,11 +6,11 @@ import { Users } from "./pages/Users";
 import { ServerAutomation } from "./pages/ServerAutomation";
 import { ServerActivity } from "./pages/ServerActivity";
 import { PublicStatus } from "./pages/PublicStatus";
-import { FkOverview } from "./pages/flamekeeper/FkOverview";
-import { FkFlameborn } from "./pages/flamekeeper/FkFlameborn";
-import { FkSaves } from "./pages/flamekeeper/FkSaves";
-import { FkLogs } from "./pages/flamekeeper/FkLogs";
-import { FkConfig } from "./pages/flamekeeper/FkConfig";
+import { FtOverview } from "./pages/flametender/FtOverview";
+import { FtFlameborn } from "./pages/flametender/FtFlameborn";
+import { FtSaves } from "./pages/flametender/FtSaves";
+import { FtLogs } from "./pages/flametender/FtLogs";
+import { FtConfig } from "./pages/flametender/FtConfig";
 import { AppShell } from "./components/AppShell";
 import { FeatureGate } from "./components/FeatureGate";
 import { Toaster } from "./components/ui/sonner";
@@ -55,15 +55,15 @@ export function App() {
               </RequireAdmin>
             }
           />
-          <Route path="/servers/:serverID" element={<FkOverview />} />
-          <Route path="/servers/:serverID/settings" element={<FkConfig />} />
+          <Route path="/servers/:serverID" element={<FtOverview />} />
+          <Route path="/servers/:serverID/settings" element={<FtConfig />} />
           <Route path="/servers/:serverID/automation" element={<ServerAutomation />} />
           <Route path="/servers/:serverID/activity" element={<ServerActivity />} />
           <Route
             path="/servers/:serverID/players"
             element={
               <FeatureGate feature="pals">
-                <FkFlameborn />
+                <FtFlameborn />
               </FeatureGate>
             }
           />
@@ -71,7 +71,7 @@ export function App() {
             path="/servers/:serverID/saves"
             element={
               <FeatureGate feature="saves">
-                <FkSaves />
+                <FtSaves />
               </FeatureGate>
             }
           />
@@ -79,7 +79,7 @@ export function App() {
             path="/servers/:serverID/logs"
             element={
               <FeatureGate feature="logs">
-                <FkLogs />
+                <FtLogs />
               </FeatureGate>
             }
           />

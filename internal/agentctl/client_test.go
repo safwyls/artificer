@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/agentctl"
-	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flametender/internal/agentctl"
+	"github.com/safwyls/flametender/internal/flameagent"
 )
 
 func TestBaseURLIsTheConfiguredEndpoint(t *testing.T) {
@@ -28,7 +28,7 @@ func TestBaseURLIsTheConfiguredEndpoint(t *testing.T) {
 }
 
 // Power and the file verbs are supervisor-mode features. A companion agent
-// answers 400, which the client surfaces as a rejection so flamekeeper can fall
+// answers 400, which the client surfaces as a rejection so flametender can fall
 // back to the docker proxy instead of reporting an outage.
 func TestSupervisorOnlyVerbsAgainstACompanion(t *testing.T) {
 	srv := newAgent(t, "exit 0")
@@ -117,7 +117,7 @@ func TestGetConfigOnAnUnbootedInstall(t *testing.T) {
 }
 
 // An agent that isn't there at all is a transport failure, not a rejection —
-// the distinction is what lets flamekeeper say "unreachable" rather than
+// the distinction is what lets flametender say "unreachable" rather than
 // "misconfigured".
 func TestUnreachableAgentIsNotARejection(t *testing.T) {
 	client, err := agentctl.New("http://127.0.0.1:1", token)

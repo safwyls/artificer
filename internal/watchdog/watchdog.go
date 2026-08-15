@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/dockerctl"
-	"github.com/safwyls/flamekeeper/internal/notify"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/dockerctl"
+	"github.com/safwyls/flametender/internal/notify"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 const (

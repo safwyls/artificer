@@ -31,7 +31,7 @@ type Config struct {
 
 	// DockerHost points at a scoped docker socket proxy used to start and
 	// stop game server containers. Empty disables power control entirely —
-	// Flamekeeper should never require access to a docker socket to run.
+	// Flametender should never require access to a docker socket to run.
 	DockerHost string
 
 	// IlmariURL/Token point at the shared Ilmari host service
@@ -47,7 +47,7 @@ type Config struct {
 }
 
 func (c *Config) DBPath() string {
-	return filepath.Join(c.DataDir, "flamekeeper.db")
+	return filepath.Join(c.DataDir, "flametender.db")
 }
 
 // Load reads configuration from the environment. Required variables are

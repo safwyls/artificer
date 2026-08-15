@@ -1,15 +1,15 @@
 services:
-  flamekeeper:
+  flametender:
     build: .
     # For TrueNAS/production, swap the line above for the published image
     # instead of building locally:
-    # image: ghcr.io/safwyls/flamekeeper:latest
+    # image: ghcr.io/safwyls/flametender:latest
     ports:
       - "8080:8080"
     volumes:
       - ./data:/data
       # Only needed for servers WITHOUT a flameagent sidecar — with an agent,
-      # Flamekeeper pulls saves and config over its API and neither mount
+      # Flametender pulls saves and config over its API and neither mount
       # below is used.
       #
       # World saves: bind-mount the server's savegame directory READ-ONLY,
@@ -31,7 +31,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       # Optional: enables the start/stop/restart controls. Points at the
       # scoped proxy below, never at the host's docker socket directly —
-      # that socket is root-equivalent, and Flamekeeper has no business
+      # that socket is root-equivalent, and Flametender has no business
       # holding it. Leave unset to run without power control. Servers run
       # by a flameagent sidecar don't need this at all: power goes through
       # the agent.
@@ -40,7 +40,7 @@ services:
 
   # Grants exactly two things: reading container state, and POSTing
   # start/stop/restart. It cannot create containers, mount volumes, or read
-  # images, so a compromise of Flamekeeper can at worst bounce a game server.
+  # images, so a compromise of Flametender can at worst bounce a game server.
   # Only this container touches the docker socket.
   docker-proxy:
     image: ghcr.io/tecnativa/docker-socket-proxy:latest

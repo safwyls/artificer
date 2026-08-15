@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/crypto"
-	"github.com/safwyls/flamekeeper/internal/db"
+	"github.com/safwyls/flametender/internal/crypto"
+	"github.com/safwyls/flametender/internal/db"
 )
 
 func newTestStore(t *testing.T) (*Store, *sql.DB) {

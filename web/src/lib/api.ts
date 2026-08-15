@@ -474,7 +474,7 @@ export interface PlayerInventory {
   /** Unix seconds; 0 when the save recorded none. A *login* stamp — see
    * PlayerPals.lastOnline. */
   lastOnline: number;
-  /** Unix seconds; 0 when flamekeeper never watched this player leave. */
+  /** Unix seconds; 0 when flametender never watched this player leave. */
   lastSeen: number;
   platform: string;
 }
@@ -500,7 +500,7 @@ export interface PlayerPals {
    * never updates — so for anyone offline it says when they arrived, not when
    * they left. Use lastSeen for "last seen"; this is only its fallback. */
   lastOnline: number;
-  /** Unix seconds; flamekeeper's own observation of this player leaving, and 0
+  /** Unix seconds; flametender's own observation of this player leaving, and 0
    * when it has none (a server it hasn't collected for, or history predating
    * the record). Unlike lastOnline this really is a last-seen time. */
   lastSeen: number;
@@ -543,7 +543,7 @@ export interface RestartSchedule {
   enabled: boolean;
   /** Weekdays, 0 (Sunday) through 6 (Saturday). */
   days: number[];
-  /** "HH:MM", 24-hour, in Flamekeeper's local timezone. */
+  /** "HH:MM", 24-hour, in Flametender's local timezone. */
   timeOfDay: string;
   /** Warning broadcast lead times in minutes, descending. */
   warningMinutes: number[];
@@ -579,7 +579,7 @@ export interface DiscordWriteInput {
 
 export interface AutomationResult {
   schedules: RestartSchedule[];
-  /** Flamekeeper's local timezone name, which schedule times are read in. */
+  /** Flametender's local timezone name, which schedule times are read in. */
   timezone: string;
   /** True when a scheduled restart can bounce the container itself. */
   dockerRestart: boolean;

@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/flameagent"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 const agentToken = "api-test-agent-token-0123456789"
 
 // agentServer runs a real flameagent over a fake install dir and registers a
-// server row pointing at it, exercising the flamekeeper→agent path end to end.
+// server row pointing at it, exercising the flametender→agent path end to end.
 func agentServer(t *testing.T, app *testApp) (int64, string) {
 	t.Helper()
 	install := fakeInstallDir(t)

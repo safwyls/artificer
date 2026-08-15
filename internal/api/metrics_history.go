@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/collector"
+	"github.com/safwyls/flametender/internal/collector"
 )
 
 // metricPointDTO is one charted sample. Fields are pointers so a gap in the

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/agentctl"
-	"github.com/safwyls/flamekeeper/internal/game"
-	"github.com/safwyls/flamekeeper/internal/games/enshrouded/eslog"
+	"github.com/safwyls/flametender/internal/agentctl"
+	"github.com/safwyls/flametender/internal/game"
+	"github.com/safwyls/flametender/internal/games/enshrouded/eslog"
 )
 
 // errNoAgent is the config-level failure: without a sidecar there is no

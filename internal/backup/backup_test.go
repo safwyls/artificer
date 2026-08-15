@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/agentfiles"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/agentfiles"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // fakeSave lays out a save directory shaped like a real Dragonwilds world:

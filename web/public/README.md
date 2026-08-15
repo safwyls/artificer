@@ -2,9 +2,9 @@
 
 `favicon-32.png`, `favicon-192.png`, `apple-touch-icon.png`, `icon-512.png`
 and `icon-maskable-512.png` (the last two referenced by `manifest.json`) are
-the Flamekeeper flame sigil in its fully lit state — the fire burning, all
+the Flametender flame sigil in its fully lit state — the fire burning, all
 sixteen seats filled — rendered from the same geometry as
-`src/components/flamekeeper/FlameSigil.tsx`.
+`src/components/flametender/FlameSigil.tsx`.
 
 Regenerate with `node scripts/gen-icons.mjs` from `web/` (needs `sharp`,
 which is not a checked-in dependency — install it transiently, e.g.

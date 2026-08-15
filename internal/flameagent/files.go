@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/safwyls/flamekeeper/internal/games/enshrouded/esconfig"
+	"github.com/safwyls/flametender/internal/games/enshrouded/esconfig"
 	"io"
 	"io/fs"
 	"net/http"
@@ -89,7 +89,7 @@ func listSaveFiles(saveDir string) ([]saveEntry, error) {
 
 // bundleETag fingerprints the file set: any added, removed, resized or
 // rewritten .sav changes it. Content is not hashed — modtime+size is how
-// the rest of flamekeeper detects save changes too.
+// the rest of flametender detects save changes too.
 func bundleETag(entries []saveEntry) string {
 	h := sha256.New()
 	for _, e := range entries {

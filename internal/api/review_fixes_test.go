@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/agentctl"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/agentctl"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // supervisorAgent is a flameagent reporting supervisor mode with the game in

@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/agentfiles"
-	"github.com/safwyls/flamekeeper/internal/crypto"
-	"github.com/safwyls/flamekeeper/internal/db"
-	"github.com/safwyls/flamekeeper/internal/notify"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/agentfiles"
+	"github.com/safwyls/flametender/internal/crypto"
+	"github.com/safwyls/flametender/internal/db"
+	"github.com/safwyls/flametender/internal/notify"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 func newStore(t *testing.T) *store.Store {

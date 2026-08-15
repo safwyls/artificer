@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // TestDiscord proves a pasted webhook works, so it is the one notification
@@ -55,7 +55,7 @@ func TestDiscordTestEndpoint(t *testing.T) {
 		t.Errorf("posts = %d, want 1", got)
 	}
 
-	// A revoked webhook is a bad gateway: flamekeeper works, Discord refused.
+	// A revoked webhook is a bad gateway: flametender works, Discord refused.
 	mu.Lock()
 	status = http.StatusNotFound
 	mu.Unlock()
@@ -76,7 +76,7 @@ func TestDiscordTestIsAdminOnly(t *testing.T) {
 }
 
 // The public status page is the one unauthenticated endpoint, and it serves
-// entirely from flamekeeper's own database — never by probing the game.
+// entirely from flametender's own database — never by probing the game.
 func TestPublicStatus(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 	id := createTestServer(t, app)

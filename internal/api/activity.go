@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/collector"
+	"github.com/safwyls/flametender/internal/collector"
 )
 
 // audit records a management action against a server. Best-effort by

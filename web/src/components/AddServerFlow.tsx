@@ -5,11 +5,11 @@ import { api, type DiscoveredServer } from "../lib/api";
 import { cn } from "../lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { ServerFormDialog } from "./ServerFormDialog";
-import { RaiseServerDialog } from "./flamekeeper/RaiseServerDialog";
+import { RaiseServerDialog } from "./flametender/RaiseServerDialog";
 
 /**
  * The one front door for the + button. Three ways a server ends up in
- * Flamekeeper — adopt one that's already running, provision a new one,
+ * Flametender — adopt one that's already running, provision a new one,
  * or describe an unmanaged one by hand — and none of them is "first" by
  * decree: the chooser asks the host what's actually there and leads with
  * that. Discovery finding unregistered containers puts adoption on top;
@@ -96,7 +96,7 @@ export function AddServerFlow({ open, onOpenChange }: { open: boolean; onOpenCha
             <div className="space-y-1.5">
               {/* The host report: this dialog already looked. Recognizing
                   your own container beats understanding our taxonomy. */}
-              <p className="text-xs text-fk-bone/60">
+              <p className="text-xs text-ft-bone/60">
                 {candidates.length === 1
                   ? "One server is running on your host that isn't here yet."
                   : `${candidates.length} servers are running on your host that aren't here yet.`}
@@ -107,12 +107,12 @@ export function AddServerFlow({ open, onOpenChange }: { open: boolean; onOpenCha
                   type="button"
                   disabled={adopt.isPending}
                   onClick={() => adopt.mutate(c)}
-                  className="flex w-full items-center gap-2 rounded-xl border border-fk-edge px-3 py-2 text-left text-xs transition hover:border-fk-stone hover:bg-fk-bone/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fk-spore/50 disabled:opacity-50"
+                  className="flex w-full items-center gap-2 rounded-xl border border-ft-edge px-3 py-2 text-left text-xs transition hover:border-ft-stone hover:bg-ft-bone/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ft-spore/50 disabled:opacity-50"
                 >
-                  <span className={cn("h-2 w-2 shrink-0 rounded-full", c.running ? "bg-fk-ok" : "bg-fk-bone/30")} />
+                  <span className={cn("h-2 w-2 shrink-0 rounded-full", c.running ? "bg-ft-ok" : "bg-ft-bone/30")} />
                   <span className="font-mono">{c.name}</span>
-                  <span className="text-fk-bone/40">agent :{c.agentPort || "?"}</span>
-                  <span className="ml-auto font-semibold text-fk-spore">
+                  <span className="text-ft-bone/40">agent :{c.agentPort || "?"}</span>
+                  <span className="ml-auto font-semibold text-ft-spore">
                     {adopt.isPending ? "Adopting…" : "Adopt"}
                   </span>
                 </button>
@@ -125,14 +125,14 @@ export function AddServerFlow({ open, onOpenChange }: { open: boolean; onOpenCha
               type="button"
               onClick={() => setStage("raise")}
               className={cn(
-                "w-full rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fk-spore/50",
+                "w-full rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ft-spore/50",
                 hasProvisioner
-                  ? "border-fk-stone bg-gradient-to-b from-[#2b2f26]/70 to-transparent hover:brightness-125"
-                  : "border-fk-edge hover:bg-fk-bone/5",
+                  ? "border-ft-stone bg-gradient-to-b from-[#2b2f26]/70 to-transparent hover:brightness-125"
+                  : "border-ft-edge hover:bg-ft-bone/5",
               )}
             >
-              <p className="font-fkdisplay text-sm font-bold tracking-[0.05em] text-fk-stonehi">Raise a new server</p>
-              <p className="mt-1 text-xs text-fk-lichen">
+              <p className="font-ftdisplay text-sm font-bold tracking-[0.05em] text-ft-stonehi">Raise a new server</p>
+              <p className="mt-1 text-xs text-ft-lichen">
                 {hasProvisioner
                   ? "The provisioner builds the whole deployment for you — container, game install, agent."
                   : "No provisioner is configured, so this registers the server and generates a stack to deploy by hand."}
@@ -142,11 +142,11 @@ export function AddServerFlow({ open, onOpenChange }: { open: boolean; onOpenCha
             <button
               type="button"
               onClick={() => setStage("manual")}
-              className="w-full rounded-xl border border-fk-edge px-4 py-3 text-left transition hover:bg-fk-bone/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fk-spore/50"
+              className="w-full rounded-xl border border-ft-edge px-4 py-3 text-left transition hover:bg-ft-bone/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ft-spore/50"
             >
-              <p className="text-sm font-semibold text-fk-bone/80">Add an existing server by hand</p>
-              <p className="mt-1 text-xs text-fk-lichen">
-                It already runs somewhere Flamekeeper doesn't manage — type in how to reach it.
+              <p className="text-sm font-semibold text-ft-bone/80">Add an existing server by hand</p>
+              <p className="mt-1 text-xs text-ft-lichen">
+                It already runs somewhere Flametender doesn't manage — type in how to reach it.
               </p>
             </button>
           </div>

@@ -1,4 +1,4 @@
-# Flamekeeper roadmap
+# Flametender roadmap
 
 The plan is deliberately shaped like the way this console will actually be
 used: **Phase 1 gets a private server online so play can start**, and
@@ -38,9 +38,9 @@ the game-specific packages.
   verbs with validation, save bundle over the `savegame/` layout.
 - Provisioning: **Ilmari only.** The Raise-a-server wizard speaks to the
   shared host service; this console ships no provisioner mode and holds
-  no Docker rights (the one wrinkle: register flamekeeper as an Ilmari
+  no Docker rights (the one wrinkle: register flametender as an Ilmari
   client — see `deploy/`).
-- Frontend: the Flamekeeper theme (docs/design.md), Overview / Flameborn
+- Frontend: the Flametender theme (docs/design.md), Overview / Flameborn
   (players) / Configuration / World saves / Server log pages.
 
 **Exit criterion:** the recon ledger's Phase-1 rows are checked against a
@@ -87,7 +87,7 @@ to test against.**
    parser. Wire the `/world` endpoint back up (it was dropped in the
    transplant) and give the World-saves page real facts: which copy is
    live, when it was written, how deep the rollback window goes.
-2. **Rollback**: restore a rolling copy or a Flamekeeper backup — stop,
+2. **Rollback**: restore a rolling copy or a Flametender backup — stop,
    swap the pointed copy in (mornedhels' approach: place the copy, write
    a fresh index with `latest: 0`), start. The UI must say what will be
    lost (up to 10 minutes since the chosen copy).

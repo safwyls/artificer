@@ -10,13 +10,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/flamekeeper/internal/notify"
-	"github.com/safwyls/flamekeeper/internal/sched"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/notify"
+	"github.com/safwyls/flametender/internal/sched"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // scheduleJSON is the wire form of a restart schedule. Times are the
-// flamekeeper host's local wall clock; the automation payload carries the
+// flametender host's local wall clock; the automation payload carries the
 // timezone name so the UI can label them honestly.
 type scheduleJSON struct {
 	ID             int64   `json:"id"`

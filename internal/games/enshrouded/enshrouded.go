@@ -1,10 +1,10 @@
-// Package enshrouded implements flamekeeper's game contract for Enshrouded
+// Package enshrouded implements flametender's game contract for Enshrouded
 // dedicated servers.
 //
 // The game has no RCON, no HTTP admin API and no server console — all
 // native administration is enshrouded_server.json (edit + restart) plus
 // the in-game player menu for whoever holds a kick/ban-capable role
-// password. Everything flamekeeper shows is therefore *derived*: process
+// password. Everything flametender shows is therefore *derived*: process
 // liveness from the flameagent sidecar's health, the player list from a
 // state machine over the agent's log tail (eslog), config from
 // enshrouded_server.json at rest (esconfig). The one native query surface
@@ -19,7 +19,7 @@ package enshrouded
 import (
 	"strings"
 
-	"github.com/safwyls/flamekeeper/internal/game"
+	"github.com/safwyls/flametender/internal/game"
 )
 
 // AppID is the Steam app id of the *dedicated server* tool (the game

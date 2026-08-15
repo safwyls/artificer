@@ -1,6 +1,6 @@
 For any UI/frontend task, always produce a written design plan (palette, type, layout, signature) and self-critique it against generic AI-design defaults before writing code — per the frontend-design skill.
 
-# Flamekeeper (flamekeeper)
+# Flametender (flametender)
 
 **Picking this up mid-flight? Read `docs/state-of-play.md` first** — it is
 the handoff: what's done, what is still community-sourced rather than
@@ -11,7 +11,7 @@ A standalone Enshrouded server console built on palcon's reusable base
 identical on purpose so fixes travel). One game is registered:
 `internal/games/enshrouded/` — client derived via the flameagent sidecar,
 `esconfig` JSON editor for `enshrouded_server.json`, `eslog` log tracker.
-Frontend is Flamekeeper throughout (design plan: `docs/design.md`; theme
+Frontend is Flametender throughout (design plan: `docs/design.md`; theme
 tokens are the `fk.*` literals in `web/tailwind.config.js`, mirrored onto
 shadcn semantic vars in `web/src/index.css`).
 
@@ -45,7 +45,7 @@ group — the game saves the world on the way down — with a 120 s default
 grace before SIGKILL.
 
 Tests: `go test ./...` and `cd web && npm test`. Production build:
-`cd web && npm run build` then `go build ./cmd/flamekeeper` (embeds the
+`cd web && npm run build` then `go build ./cmd/flametender` (embeds the
 bundle).
 
 Roadmap: `docs/roadmap.md` (Phase 2: A2S presence + names; Phase 3: save

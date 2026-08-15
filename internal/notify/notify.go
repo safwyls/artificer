@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // Discord embed accent colors, decimal RGB.
@@ -226,7 +226,7 @@ func (n *Notifier) Test(ctx context.Context, srv *store.Server) error {
 		return err
 	}
 	return n.post(ctx, w.WebhookURL, embed{
-		Title:       "👋 Flamekeeper test",
+		Title:       "👋 Flametender test",
 		Description: fmt.Sprintf("Notifications for **%s** are wired up.", srv.Name),
 		Color:       colorGreen,
 	})
@@ -273,7 +273,7 @@ func (n *Notifier) send(ctx context.Context, srv *store.Server, ev Event, e embe
 
 func (n *Notifier) post(ctx context.Context, webhookURL string, e embed) error {
 	payload, err := json.Marshal(map[string]any{
-		"username": "Flamekeeper",
+		"username": "Flametender",
 		"embeds":   []embed{e},
 		// Player names are arbitrary input; never let one ping a role or
 		// @everyone, no matter what it contains.
@@ -300,7 +300,7 @@ func (n *Notifier) post(ctx context.Context, webhookURL string, e embed) error {
 }
 
 // ValidateWebhookURL accepts only real Discord incoming-webhook endpoints,
-// so a typo'd or malicious URL can't turn Flamekeeper into a generic HTTP
+// so a typo'd or malicious URL can't turn Flametender into a generic HTTP
 // client for someone else's server.
 func ValidateWebhookURL(raw string) error {
 	u, err := url.Parse(raw)

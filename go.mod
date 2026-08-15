@@ -1,4 +1,4 @@
-module github.com/safwyls/flamekeeper
+module github.com/safwyls/flametender
 
 go 1.26
 

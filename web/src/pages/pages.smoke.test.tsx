@@ -124,11 +124,11 @@ import { PublicStatus } from "./PublicStatus";
 import { ServerActivity } from "./ServerActivity";
 import { ServerAutomation } from "./ServerAutomation";
 import { Users } from "./Users";
-import { FkOverview } from "./flamekeeper/FkOverview";
-import { FkFlameborn } from "./flamekeeper/FkFlameborn";
-import { FkSaves } from "./flamekeeper/FkSaves";
-import { FkLogs } from "./flamekeeper/FkLogs";
-import { FkConfig } from "./flamekeeper/FkConfig";
+import { FtOverview } from "./flametender/FtOverview";
+import { FtFlameborn } from "./flametender/FtFlameborn";
+import { FtSaves } from "./flametender/FtSaves";
+import { FtLogs } from "./flametender/FtLogs";
+import { FtConfig } from "./flametender/FtConfig";
 
 /** Renders a page at a route that supplies the params it reads, returning
  * the query client so a test can wait for the data to actually arrive. */
@@ -161,11 +161,11 @@ const pages: [string, ReactElement, string, string][] = [
   ["Users", <Users />, "/users", "/users"],
   ["ServerActivity", <ServerActivity />, SERVER_ROUTE, SERVER_PATH],
   ["ServerAutomation", <ServerAutomation />, SERVER_ROUTE, SERVER_PATH],
-  ["FkOverview", <FkOverview />, SERVER_ROUTE, SERVER_PATH],
-  ["FkFlameborn", <FkFlameborn />, SERVER_ROUTE, SERVER_PATH],
-  ["FkSaves", <FkSaves />, SERVER_ROUTE, SERVER_PATH],
-  ["FkLogs", <FkLogs />, SERVER_ROUTE, SERVER_PATH],
-  ["FkConfig", <FkConfig />, SERVER_ROUTE, SERVER_PATH],
+  ["FtOverview", <FtOverview />, SERVER_ROUTE, SERVER_PATH],
+  ["FtFlameborn", <FtFlameborn />, SERVER_ROUTE, SERVER_PATH],
+  ["FtSaves", <FtSaves />, SERVER_ROUTE, SERVER_PATH],
+  ["FtLogs", <FtLogs />, SERVER_ROUTE, SERVER_PATH],
+  ["FtConfig", <FtConfig />, SERVER_ROUTE, SERVER_PATH],
 ];
 
 /** React and testing-library warnings that say nothing about the page. */

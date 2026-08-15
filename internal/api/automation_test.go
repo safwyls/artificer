@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // createTestServer inserts a server row directly; automation endpoints

@@ -1,4 +1,4 @@
-# Flamekeeper (flamekeeper)
+# Flametender (flametender)
 
 A management console for self-hosted **Enshrouded** dedicated servers —
 the third console on the reusable base shared with
@@ -12,7 +12,7 @@ lit. That is also this dashboard's whole job.
 
 Enshrouded has no RCON, no HTTP admin API and no server console; all
 native administration is `enshrouded_server.json` plus the in-game player
-menu. Flamekeeper therefore *derives* everything: process liveness and
+menu. Flametender therefore *derives* everything: process liveness and
 uptime from its flameagent sidecar, the live player list from a state
 machine over the server's log tail, configuration from the JSON at rest.
 Commands that have no transport (broadcast, kick, on-demand save) answer
@@ -54,14 +54,14 @@ server has confirmed. `docs/roadmap.md` is the phased plan from here
 
 ```sh
 cp .env.example .env && export $(cat .env | xargs)
-go run ./cmd/flamekeeper          # backend on :8080
+go run ./cmd/flametender          # backend on :8080
 cd web && npm install && npm run dev   # frontend dev server
 ```
 
-Production: `cd web && npm run build`, then `go build ./cmd/flamekeeper`
+Production: `cd web && npm run build`, then `go build ./cmd/flametender`
 (the Go binary embeds the bundle), or use the `Dockerfile` /
 `docker-compose.yml`. TrueNAS SCALE: `deploy/truenas-app.yaml`, including
-how to register flamekeeper as an Ilmari client.
+how to register flametender as an Ilmari client.
 
 The game server itself runs under the `flameagent` sidecar
 (`Dockerfile.flameagent`, Wine included — Enshrouded ships no Linux
@@ -76,7 +76,7 @@ up; `docs/sidecar-agent.md` has the reference stack.
 This console deliberately holds no Docker rights and ships no provisioner
 of its own. One host, one Docker-socket holder: Ilmari places, rebuilds
 and destroys the per-server containers for all three consoles, each under
-its own client token, data root and image allowlist. Adding Flamekeeper
+its own client token, data root and image allowlist. Adding Flametender
 to a host is a client registration in Ilmari's config — no Ilmari code
 changes, which is exactly the promise its README makes.
 

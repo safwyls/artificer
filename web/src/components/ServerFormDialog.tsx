@@ -22,7 +22,7 @@ const KIND_BLURB: Record<Kind, string> = {
   supervised:
     "One flameagent container runs the game itself. Power, updates, saves and settings all flow through the agent — no container name, no path mounts.",
   companion:
-    "The game runs in its own container. Power goes through the docker proxy, and files come from a flameagent beside it — or from three paths mounted into Flamekeeper.",
+    "The game runs in its own container. Power goes through the docker proxy, and files come from a flameagent beside it — or from three paths mounted into Flametender.",
 };
 
 const emptyForm: ServerWriteInput = {
@@ -61,7 +61,7 @@ function formStateFor(mode: "create" | "edit", server?: Server): ServerWriteInpu
 /** Which tab an existing server opens on. A container name or a path mount
  * is what makes a deployment companion-shaped; a provisioned or adopted
  * supervisor row carries an agent URL and nothing else. A bare REST/RCON
- * server opens on Companion too — the game is running somewhere flamekeeper
+ * server opens on Companion too — the game is running somewhere flametender
  * doesn't own, which is exactly what that tab describes. */
 function kindFor(mode: "create" | "edit", server?: Server): Kind {
   if (mode === "create" || !server) return "supervised";
@@ -209,7 +209,7 @@ export function ServerFormDialog({
             <DialogTitle>{mode === "create" ? "Add an existing server" : `Edit "${server?.name}"`}</DialogTitle>
             <DialogDescription>
               {mode === "create"
-                ? "Flamekeeper only needs to know how to reach it — pick the shape it runs in."
+                ? "Flametender only needs to know how to reach it — pick the shape it runs in."
                 : "Leave the agent token blank to keep the stored one."}
             </DialogDescription>
           </DialogHeader>
@@ -254,7 +254,7 @@ export function ServerFormDialog({
                 </p>
 
                 {strays.length > 0 && (
-                  <div className="rounded-xl border border-fk-stonehi/40 bg-fk-stonehi/10 px-3 py-2 text-xs text-fk-bone/60">
+                  <div className="rounded-xl border border-ft-stonehi/40 bg-ft-stonehi/10 px-3 py-2 text-xs text-ft-bone/60">
                     <p>
                       This server still has a {joinNames(strays.map(([, name]) => name))} set. A supervised
                       deployment ignores {strays.length === 1 ? "it" : "them"} — the agent owns the files.
@@ -264,7 +264,7 @@ export function ServerFormDialog({
                       onClick={() =>
                         setForm({ ...form, containerName: "", savePath: "", configPath: "", installPath: "" })
                       }
-                      className="mt-1.5 font-semibold text-fk-spore hover:underline"
+                      className="mt-1.5 font-semibold text-ft-spore hover:underline"
                     >
                       Clear {strays.length === 1 ? "it" : "them"}
                     </button>
@@ -298,9 +298,9 @@ export function ServerFormDialog({
                   <details
                     open={mountsOpen}
                     onToggle={(e) => setMountsOpen(e.currentTarget.open)}
-                    className="rounded-xl border border-fk-edge px-3 pb-3"
+                    className="rounded-xl border border-ft-edge px-3 pb-3"
                   >
-                    <summary className="cursor-pointer py-2 text-xs font-semibold text-fk-bone/50">
+                    <summary className="cursor-pointer py-2 text-xs font-semibold text-ft-bone/50">
                       No agent? Mount the paths instead
                     </summary>
                     <div className="space-y-4">
@@ -370,7 +370,7 @@ export function ServerFormDialog({
  * behaves like the tablist it is rather than two adjacent buttons. */
 function ModeTabs({ kind, onChange }: { kind: Kind; onChange: (k: Kind) => void }) {
   return (
-    <div role="tablist" aria-label="Deployment mode" className="grid grid-cols-2 gap-1 rounded-xl border border-fk-edge bg-fk-bone/5 p-1">
+    <div role="tablist" aria-label="Deployment mode" className="grid grid-cols-2 gap-1 rounded-xl border border-ft-edge bg-ft-bone/5 p-1">
       {KINDS.map(([value, label]) => (
         <button
           key={value}
@@ -392,8 +392,8 @@ function ModeTabs({ kind, onChange }: { kind: Kind; onChange: (k: Kind) => void 
           }}
           className={cn(
             "rounded-lg px-3 py-1.5 font-display text-xs font-bold transition",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fk-spore/50",
-            kind === value ? "bg-fk-panel text-fk-bone shadow-sm" : "text-fk-bone/50 hover:text-fk-bone",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ft-spore/50",
+            kind === value ? "bg-ft-panel text-ft-bone shadow-sm" : "text-ft-bone/50 hover:text-ft-bone",
           )}
         >
           {label}
@@ -411,17 +411,17 @@ function ModeTabs({ kind, onChange }: { kind: Kind; onChange: (k: Kind) => void 
  */
 function WiringReadout({ caps, hint }: { caps: Cap[]; hint: string }) {
   return (
-    <div className="mt-3 rounded-xl border border-fk-edge bg-fk-bone/5 px-3 py-2">
+    <div className="mt-3 rounded-xl border border-ft-edge bg-ft-bone/5 px-3 py-2">
       <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs">
         {caps.map((c) => (
-          <span key={c.label} className={c.on ? "text-fk-ok" : "text-fk-bone/35"}>
+          <span key={c.label} className={c.on ? "text-ft-ok" : "text-ft-bone/35"}>
             <span aria-hidden="true">{c.on ? "✓" : "—"}</span>{" "}
             <span className="sr-only">{c.on ? "on:" : "off:"}</span>
             {c.label}
           </span>
         ))}
       </div>
-      <p className="mt-1.5 text-xs text-fk-bone/50">{hint}</p>
+      <p className="mt-1.5 text-xs text-ft-bone/50">{hint}</p>
     </div>
   );
 }
@@ -431,7 +431,7 @@ function WiringReadout({ caps, hint }: { caps: Cap[]; hint: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-5 space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-fk-bone/40">{title}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-ft-bone/40">{title}</p>
       {children}
     </section>
   );

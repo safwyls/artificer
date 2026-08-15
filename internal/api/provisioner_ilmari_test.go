@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
-	"github.com/safwyls/flamekeeper/internal/ilmari"
+	"github.com/safwyls/flametender/internal/flameagent"
+	"github.com/safwyls/flametender/internal/ilmari"
 )
 
 // fakeIlmari records what the adapter sends, and answers with Ilmari's real
@@ -28,7 +28,7 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 		case "/v1/health":
 			json.NewEncoder(w).Encode(map[string]any{
 				"service": "ilmari", "version": "test", "apiVersion": 1,
-				"client": "flamekeeper", "dataRoot": "/mnt/tank/apps/dragonwilds-servers",
+				"client": "flametender", "dataRoot": "/mnt/tank/apps/dragonwilds-servers",
 				"publicHost": "192.168.1.9", "runAs": "568:568", "dockerOk": true,
 			})
 		case "/v1/provision":

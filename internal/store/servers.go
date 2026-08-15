@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/safwyls/flamekeeper/internal/game"
+	"github.com/safwyls/flametender/internal/game"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -27,7 +27,7 @@ type Server struct {
 	RESTPort     int
 	RESTPassword string
 	// GamePort is the UDP port players join on — display/provisioning
-	// metadata only; flamekeeper never speaks the game protocol.
+	// metadata only; flametender never speaks the game protocol.
 	GamePort int
 	// JoinAddress is what players outside the LAN type to connect (a public
 	// hostname or IP, optionally with :port). Host is the management address
@@ -51,7 +51,7 @@ type Server struct {
 	// manifests. Empty = repair tool off.
 	InstallPath string
 	// AgentURL points at the server's flameagent sidecar
-	// (docs/sidecar-agent.md); AgentToken is the bearer token flamekeeper
+	// (docs/sidecar-agent.md); AgentToken is the bearer token flametender
 	// presents to it, encrypted at rest like the RCON/REST passwords and
 	// only populated when explicitly needed. Empty URL = no agent.
 	AgentURL   string

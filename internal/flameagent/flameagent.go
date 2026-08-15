@@ -32,7 +32,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/flamekeeper/internal/steamcmd"
+	"github.com/safwyls/flametender/internal/steamcmd"
 )
 
 // APIVersion is reported in /v1/health so the control plane can refuse to
@@ -230,7 +230,7 @@ func (a *Agent) Handler() http.Handler {
 		r.Get("/files/config", a.handleGetConfig)
 		r.Put("/files/config", a.handlePutConfig)
 		// Phase 3 power verbs — supervisor mode only; companion agents
-		// answer 400 so flamekeeper falls back to the docker proxy.
+		// answer 400 so flametender falls back to the docker proxy.
 		r.Post("/power/{action}", a.handlePower)
 		r.Get("/power/logs", a.handleGameLogs)
 		// Which launch profile the next start uses. Reading is part of
@@ -257,7 +257,7 @@ func (a *Agent) requireToken(next http.Handler) http.Handler {
 	})
 }
 
-// Health is the /v1/health payload — everything flamekeeper needs to decide
+// Health is the /v1/health payload — everything flametender needs to decide
 // what this agent can do and whether work is in flight.
 type Health struct {
 	Agent        string `json:"agent"`
@@ -267,7 +267,7 @@ type Health struct {
 	InstallDir   string `json:"installDir"`
 	InstallDirOk bool   `json:"installDirOk"`
 	// SaveFound/ConfigFound report whether the phase 2 file verbs have
-	// anything to serve, so flamekeeper can distinguish "not synced yet" from
+	// anything to serve, so flametender can distinguish "not synced yet" from
 	// "this install has no world".
 	SaveFound     bool   `json:"saveFound"`
 	ConfigFound   bool   `json:"configFound"`
@@ -284,7 +284,7 @@ type Health struct {
 	Provision *ProvisionDefaults `json:"provision,omitempty"`
 	// Job is the running job if there is one, else the most recently
 	// finished one, else null. Exposing it here (not only under /jobs)
-	// lets flamekeeper rediscover in-flight work after its own restart.
+	// lets flametender rediscover in-flight work after its own restart.
 	Job *Job `json:"job"`
 }
 
@@ -390,14 +390,14 @@ func parseGraceful(v string) time.Duration {
 }
 
 // handlePower starts/stops/restarts the supervised game. The response is
-// the post-action status, so flamekeeper needs no follow-up read.
+// the post-action status, so flametender needs no follow-up read.
 func (a *Agent) handlePower(w http.ResponseWriter, r *http.Request) {
 	if a.game == nil {
 		writeError(w, http.StatusBadRequest, "agent is in companion mode — the game runs in its own container")
 		return
 	}
 	// graceful is how long an in-game shutdown the caller already requested
-	// gets to finish before the supervisor signals the process. Flamekeeper sets
+	// gets to finish before the supervisor signals the process. Flametender sets
 	// it after its REST /shutdown courtesy is accepted; absent, stops
 	// escalate immediately as before.
 	graceful := parseGraceful(r.URL.Query().Get("graceful"))

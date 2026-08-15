@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 var errBootstrapPasswordRequired = errors.New("ADMIN_PASSWORD must be set for the first run (no users exist yet)")

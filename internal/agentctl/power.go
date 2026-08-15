@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flametender/internal/flameagent"
 )
 
 // GameStatus mirrors the agent's wire type, like Job and Health.

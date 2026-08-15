@@ -68,7 +68,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - image: flamekeeper
+          - image: flametender
             dockerfile: Dockerfile
           - image: flameagent
             dockerfile: Dockerfile.flameagent

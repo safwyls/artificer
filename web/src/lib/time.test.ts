@@ -63,7 +63,7 @@ describe("relative labels", () => {
       expect(seenSentence(neither)).toBe("Offline");
     });
 
-    it("prefers flamekeeper's own observation over the save's login stamp", () => {
+    it("prefers flametender's own observation over the save's login stamp", () => {
       // lastOnline is written at *login* and never updated, so it would
       // understate an offline player by their whole last session.
       const both = { lastSeen: NOW.getTime() / 1000 - 60, lastOnline: NOW.getTime() / 1000 - 86400 };

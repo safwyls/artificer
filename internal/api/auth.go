@@ -9,10 +9,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/store"
 )
 
-const sessionCookieName = "flamekeeper_session"
+const sessionCookieName = "flametender_session"
 const sessionDuration = 7 * 24 * time.Hour
 
 type sessionClaims struct {

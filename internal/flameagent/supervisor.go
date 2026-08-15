@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/games/enshrouded/esconfig"
+	"github.com/safwyls/flametender/internal/games/enshrouded/esconfig"
 )
 
 // supervisor runs the game server as a child process — supervisor mode's core
@@ -361,7 +361,7 @@ func (s *supervisor) wait(cmd *exec.Cmd, stdout interface{ Read([]byte) (int, er
 	}
 
 	// Restart policy: any exit while desired=running comes back — that's
-	// what makes flamekeeper's in-game shutdown double as a restart, exactly
+	// what makes flametender's in-game shutdown double as a restart, exactly
 	// like docker's unless-stopped did in companion mode. Unclean exits
 	// back off so a boot-loop can't spin the CPU.
 	delay := time.Duration(0)

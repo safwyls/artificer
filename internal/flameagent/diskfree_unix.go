@@ -4,7 +4,7 @@ package flameagent
 
 import "syscall"
 
-// diskFree reports free bytes on the filesystem holding path, so flamekeeper
+// diskFree reports free bytes on the filesystem holding path, so flametender
 // can warn before a ~20GB validate hits a full disk. Best-effort: 0 on
 // error, which the dashboard treats as "unknown" rather than "full".
 func diskFree(path string) uint64 {

@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/crypto"
-	"github.com/safwyls/flamekeeper/internal/db"
-	"github.com/safwyls/flamekeeper/internal/game/gametest"
-	"github.com/safwyls/flamekeeper/internal/notify"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/crypto"
+	"github.com/safwyls/flametender/internal/db"
+	"github.com/safwyls/flametender/internal/game/gametest"
+	"github.com/safwyls/flametender/internal/notify"
+	"github.com/safwyls/flametender/internal/store"
 
-	_ "github.com/safwyls/flamekeeper/internal/games"
+	_ "github.com/safwyls/flametender/internal/games"
 )
 
 // palSpy serves the two endpoints a sample touches: the player list (both

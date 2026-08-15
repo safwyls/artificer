@@ -88,7 +88,7 @@ func (s *Server) handleRecreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Provisioner == nil {
 		writeError(w, http.StatusBadRequest,
-			"no provisioner is configured, so Flamekeeper cannot rebuild this container — change its image where it was deployed")
+			"no provisioner is configured, so Flametender cannot rebuild this container — change its image where it was deployed")
 		return
 	}
 	if srv.ContainerName == "" {

@@ -1,4 +1,4 @@
-// Package agentctl is flamekeeper's client for a server's flameagent sidecar
+// Package agentctl is flametender's client for a server's flameagent sidecar
 // (docs/sidecar-agent.md) — the same role dockerctl plays for the docker
 // socket proxy: a small, scoped client with errors worth showing a user.
 package agentctl
@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/flamekeeper/internal/flameagent"
+	"github.com/safwyls/flametender/internal/flameagent"
 )
 
 // ErrNotConfigured means this server has no agent URL; agent-backed
@@ -146,7 +146,7 @@ const GameSelfExitWindow = 20 * time.Second
 // nil, so callers fall back to docker uniformly instead of each inventing
 // their own idea of "is there an agent here".
 //
-// One implementation on purpose. Flamekeeper asks this question in at least
+// One implementation on purpose. Flametender asks this question in at least
 // three places — the power handlers, the scheduler, and the SteamCMD gate —
 // and a server that answers differently depending on which one asked is
 // precisely the class of bug this exists to prevent.

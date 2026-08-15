@@ -5,7 +5,7 @@ package store
 import (
 	"database/sql"
 
-	"github.com/safwyls/flamekeeper/internal/crypto"
+	"github.com/safwyls/flametender/internal/crypto"
 )
 
 type Store struct {

@@ -37,20 +37,20 @@ function PermissionPicker({
             key={p}
             className={cn(
               "flex cursor-pointer items-start gap-3 rounded-lg border p-2.5 transition-colors",
-              checked ? "border-fk-spore/30 bg-fk-spore/5" : "border-fk-edge hover:bg-fk-void/[0.03]",
+              checked ? "border-ft-spore/30 bg-ft-spore/5" : "border-ft-edge hover:bg-ft-void/[0.03]",
               disabled && "cursor-not-allowed opacity-50",
             )}
           >
             <input
               type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-fk-spore"
+              className="mt-0.5 h-4 w-4 accent-ft-spore"
               checked={checked}
               disabled={disabled}
               onChange={(e) => onChange(e.target.checked ? [...value, p] : value.filter((x) => x !== p))}
             />
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-fk-bone">{PERMISSION_LABELS[p].label}</span>
-              <span className="block text-xs text-fk-bone/50">{PERMISSION_LABELS[p].help}</span>
+              <span className="block text-sm font-semibold text-ft-bone">{PERMISSION_LABELS[p].label}</span>
+              <span className="block text-xs text-ft-bone/50">{PERMISSION_LABELS[p].help}</span>
             </span>
           </label>
         );
@@ -131,14 +131,14 @@ function UserDialog({
               Administrator
             </Label>
           </div>
-          <p className="-mt-2 text-xs text-fk-bone/50">
+          <p className="-mt-2 text-xs text-ft-bone/50">
             Admins can do everything, including managing servers and other users.
           </p>
 
           <div>
             <Label className="mb-2 block">Permissions</Label>
             <PermissionPicker value={permissions} disabled={isAdmin} onChange={setPermissions} />
-            {isAdmin && <p className="mt-2 text-xs text-fk-bone/50">Administrators already have every permission.</p>}
+            {isAdmin && <p className="mt-2 text-xs text-ft-bone/50">Administrators already have every permission.</p>}
           </div>
 
           {editing && (
@@ -194,10 +194,10 @@ export function Users() {
 
   return (
     <div>
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-fk-edge bg-fk-void px-4 py-5 lg:px-8 lg:py-6">
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-ft-edge bg-ft-void px-4 py-5 lg:px-8 lg:py-6">
         <div>
           <h1 className="font-display text-xl font-extrabold lg:text-2xl">Users</h1>
-          <p className="mt-0.5 text-sm text-fk-bone/50">Who can sign in, and what they're allowed to do</p>
+          <p className="mt-0.5 text-sm text-ft-bone/50">Who can sign in, and what they're allowed to do</p>
         </div>
         <Button onClick={openNew}>
           <Plus className="h-4 w-4" />
@@ -214,7 +214,7 @@ export function Users() {
           return (
             <section
               key={u.id}
-              className="flex flex-wrap items-center gap-3 rounded-2xl border border-fk-edge bg-fk-panel p-4"
+              className="flex flex-wrap items-center gap-3 rounded-2xl border border-ft-edge bg-ft-panel p-4"
             >
               <span
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-sm font-bold"
@@ -225,10 +225,10 @@ export function Users() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-display text-base font-bold">
                   {u.username}
-                  {u.username === me && <span className="ml-2 text-xs font-normal text-fk-bone/40">you</span>}
+                  {u.username === me && <span className="ml-2 text-xs font-normal text-ft-bone/40">you</span>}
                   {u.disabled && <span className="ml-2 text-xs font-normal text-destructive">disabled</span>}
                 </p>
-                <p className="font-mono text-xs text-fk-bone/45">
+                <p className="font-mono text-xs text-ft-bone/45">
                   {u.role === "admin"
                     ? "administrator · all permissions"
                     : u.permissions.length
@@ -244,7 +244,7 @@ export function Users() {
                   variant="ghost"
                   size="icon"
                   title="Remove user"
-                  className="text-fk-bone/40 hover:text-destructive"
+                  className="text-ft-bone/40 hover:text-destructive"
                   onClick={() => setConfirmDelete(u)}
                 >
                   <Trash2 className="h-4 w-4" />

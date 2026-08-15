@@ -75,16 +75,16 @@ export function ServerAutomation() {
 
   return (
     <div className="pb-24">
-      <header className="sticky top-0 z-10 hidden items-center justify-between border-b border-fk-edge bg-fk-void px-8 py-6 lg:flex">
+      <header className="sticky top-0 z-10 hidden items-center justify-between border-b border-ft-edge bg-ft-void px-8 py-6 lg:flex">
         <div>
           <h1 className="font-display text-2xl font-extrabold">Automation</h1>
-          <p className="text-sm text-fk-bone/60">Scheduled restarts and Discord notifications</p>
+          <p className="text-sm text-ft-bone/60">Scheduled restarts and Discord notifications</p>
         </div>
       </header>
 
       <div className="mx-auto max-w-5xl space-y-4 p-4 lg:space-y-6 lg:p-8">
         {automationQuery.isError && (
-          <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-fk-bone/70">
+          <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-ft-bone/70">
             Automation settings could not be loaded. Refresh to try again.
           </p>
         )}
@@ -222,7 +222,7 @@ function DayDots({ days, size = "sm" }: { days: number[]; size?: "sm" | "lg" }) 
           className={cn(
             "flex items-center justify-center rounded-full font-display font-bold",
             size === "sm" ? "h-5 w-5 text-[10px]" : "h-8 w-8 text-xs",
-            days.includes(i) ? "bg-fk-void text-fk-bone" : "text-fk-bone/25",
+            days.includes(i) ? "bg-ft-void text-ft-bone" : "text-ft-bone/25",
           )}
         >
           {letter}
@@ -283,10 +283,10 @@ function SchedulesCard({
   });
 
   return (
-    <section className="rounded-xl border border-fk-edge bg-fk-panel lg:col-span-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-fk-edge px-5 py-4">
+    <section className="rounded-xl border border-ft-edge bg-ft-panel lg:col-span-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ft-edge px-5 py-4">
         <div className="flex items-center gap-2">
-          <CalendarClock className="h-4 w-4 text-fk-stonehi" />
+          <CalendarClock className="h-4 w-4 text-ft-stonehi" />
           <h2 className="font-display text-base font-bold">Scheduled restarts</h2>
         </div>
         {canEdit && (
@@ -298,10 +298,10 @@ function SchedulesCard({
 
       {data.schedules.length === 0 ? (
         <div className="px-5 py-8 text-center">
-          <p className="text-sm text-fk-bone/60">No restart schedules yet.</p>
+          <p className="text-sm text-ft-bone/60">No restart schedules yet.</p>
           {canEdit && (
-            <p className="mt-1 text-sm text-fk-bone/60">
-              Add one and Flamekeeper restarts the server on schedule.{" "}
+            <p className="mt-1 text-sm text-ft-bone/60">
+              Add one and Flametender restarts the server on schedule.{" "}
               {saveCmd.known && !saveCmd.supported
                 ? "This server has no way to save on demand, so a restart loses anything since the game's last autosave."
                 : "The world is saved first, so a restart costs nothing."}
@@ -309,7 +309,7 @@ function SchedulesCard({
           )}
         </div>
       ) : (
-        <ul className="divide-y divide-fk-edge">
+        <ul className="divide-y divide-ft-edge">
           {data.schedules.map((sc) => (
             <li
               key={sc.id}
@@ -318,7 +318,7 @@ function SchedulesCard({
               <span className="font-mono text-lg font-medium tabular-nums">{sc.timeOfDay}</span>
               <div className="min-w-0">
                 <DayDots days={sc.days} />
-                <p className="mt-1 truncate text-xs text-fk-bone/50">
+                <p className="mt-1 truncate text-xs text-ft-bone/50">
                   {describeDays(sc.days)}
                   {sc.warningMinutes.length > 0 ? (
                     <>
@@ -339,14 +339,14 @@ function SchedulesCard({
                     aria-label={sc.enabled ? "Turn schedule off" : "Turn schedule on"}
                   />
                   <button
-                    className="rounded p-1.5 text-fk-bone/40 hover:bg-fk-bone/5 hover:text-fk-bone"
+                    className="rounded p-1.5 text-ft-bone/40 hover:bg-ft-bone/5 hover:text-ft-bone"
                     title="Edit schedule"
                     onClick={() => onEdit(sc)}
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    className="rounded p-1.5 text-fk-bone/40 hover:bg-fk-bone/5 hover:text-destructive"
+                    className="rounded p-1.5 text-ft-bone/40 hover:bg-ft-bone/5 hover:text-destructive"
                     title="Remove schedule"
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(sc.id)}
@@ -360,9 +360,9 @@ function SchedulesCard({
         </ul>
       )}
 
-      <div className="space-y-1 border-t border-fk-edge px-5 py-3 text-xs text-fk-bone/50">
+      <div className="space-y-1 border-t border-ft-edge px-5 py-3 text-xs text-ft-bone/50">
         <p>
-          Times are {data.timezone} (Flamekeeper's clock).{" "}
+          Times are {data.timezone} (Flametender's clock).{" "}
           {saveCmd.known && !saveCmd.supported ? (
             <>
               This server cannot be saved on demand — {saveCmd.reason} — so each restart costs whatever came after the
@@ -370,12 +370,12 @@ function SchedulesCard({
             </>
           ) : (
             <>
-              Flamekeeper saves the world before each restart, and records in Activity whether the save landed.
+              Flametender saves the world before each restart, and records in Activity whether the save landed.
             </>
           )}
         </p>
         {!data.dockerRestart && (
-          <p className="text-fk-bone/60">
+          <p className="text-ft-bone/60">
             No container is configured for this server, so a restart asks the game to shut down and relies on the
             container's restart policy to bring it back up.
           </p>
@@ -439,7 +439,7 @@ function ScheduleDialog({
           <DialogTitle>{schedule ? "Edit schedule" : "Add restart schedule"}</DialogTitle>
           <DialogDescription>
             Each lead time sends a Discord warning; the game has no channel for an in-game one, and
-            none does yet. At the scheduled time Flamekeeper saves the world, then restarts the server.
+            none does yet. At the scheduled time Flametender saves the world, then restarts the server.
           </DialogDescription>
         </DialogHeader>
 
@@ -455,8 +455,8 @@ function ScheduleDialog({
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-full font-display text-sm font-bold transition-colors",
                     days.includes(i)
-                      ? "bg-fk-spore text-fk-bone"
-                      : "border border-fk-edge text-fk-bone/40 hover:border-fk-edge hover:text-fk-bone",
+                      ? "bg-ft-spore text-ft-bone"
+                      : "border border-ft-edge text-ft-bone/40 hover:border-ft-edge hover:text-ft-bone",
                   )}
                   onClick={() => toggleDay(i)}
                 >
@@ -483,8 +483,8 @@ function ScheduleDialog({
                   className={cn(
                     "rounded-full px-3 py-1.5 font-mono text-xs transition-colors",
                     warnings.includes(m)
-                      ? "bg-fk-stonehi/25 text-fk-bone ring-1 ring-fk-stonehi"
-                      : "border border-fk-edge text-fk-bone/40 hover:border-fk-edge hover:text-fk-bone",
+                      ? "bg-ft-stonehi/25 text-ft-bone ring-1 ring-ft-stonehi"
+                      : "border border-ft-edge text-ft-bone/40 hover:border-ft-edge hover:text-ft-bone",
                   )}
                   onClick={() => toggleWarning(m)}
                 >
@@ -527,10 +527,10 @@ function WatchdogCard({
   });
 
   return (
-    <section className="rounded-xl border border-fk-edge bg-fk-panel lg:col-span-3">
-      <div className="flex items-center justify-between gap-3 border-b border-fk-edge px-5 py-4">
+    <section className="rounded-xl border border-ft-edge bg-ft-panel lg:col-span-3">
+      <div className="flex items-center justify-between gap-3 border-b border-ft-edge px-5 py-4">
         <div className="flex items-center gap-2">
-          <Dog className="h-4 w-4 text-fk-stonehi" />
+          <Dog className="h-4 w-4 text-ft-stonehi" />
           <h2 className="font-display text-base font-bold">Crash watchdog</h2>
         </div>
         <Switch
@@ -540,23 +540,23 @@ function WatchdogCard({
           aria-label={config.enabled ? "Turn the watchdog off" : "Turn the watchdog on"}
         />
       </div>
-      <div className="space-y-2 px-5 py-4 text-sm text-fk-bone/60">
+      <div className="space-y-2 px-5 py-4 text-sm text-ft-bone/60">
         <p>
           Restarts the container when it exits with an error — a crash, an out-of-memory kill — checking every 30
           seconds. After three restarts in a row it stands down until the server stays up for 10 minutes or someone
           steps in, so a server that crashes on boot isn't bounced forever. Watchdog restarts appear in Activity and
           in Discord status notifications.
         </p>
-        <p className="text-xs text-fk-bone/45">
-          Clean stops are left alone — stopping through Flamekeeper always reads as one. Stopping the container behind
-          Flamekeeper's back (TrueNAS UI, docker stop) can end in a force-kill that looks like a crash and will be revived;
+        <p className="text-xs text-ft-bone/45">
+          Clean stops are left alone — stopping through Flametender always reads as one. Stopping the container behind
+          Flametender's back (TrueNAS UI, docker stop) can end in a force-kill that looks like a crash and will be revived;
           turn the watchdog off first, or stop the server from here.
         </p>
         {!config.available && (
-          <p className="text-xs text-fk-bone/60">
+          <p className="text-xs text-ft-bone/60">
             {config.supervised
               ? "This server's agent already restarts the game when it crashes, with the same backoff — the container itself never exits, so there's nothing here to watch."
-              : "Needs power control: a Docker endpoint on this Flamekeeper instance and a container name on this server."}
+              : "Needs power control: a Docker endpoint on this Flametender instance and a container name on this server."}
           </p>
         )}
       </div>
@@ -623,10 +623,10 @@ function BackupsCard({ serverId }: { serverId: number }) {
   const data = backupsQuery.data;
 
   return (
-    <section className="rounded-xl border border-fk-edge bg-fk-panel lg:col-span-5">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-fk-edge px-5 py-4">
+    <section className="rounded-xl border border-ft-edge bg-ft-panel lg:col-span-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ft-edge px-5 py-4">
         <div className="flex items-center gap-2">
-          <HardDriveDownload className="h-4 w-4 text-fk-ok" />
+          <HardDriveDownload className="h-4 w-4 text-ft-ok" />
           <h2 className="font-display text-base font-bold">Save backups</h2>
         </div>
         {data?.available && (
@@ -638,9 +638,9 @@ function BackupsCard({ serverId }: { serverId: number }) {
 
       <div className="space-y-4 px-5 py-4">
         {data && !data.available && (
-          <p className="text-sm text-fk-bone/60">
+          <p className="text-sm text-ft-bone/60">
             Backups snapshot the save directory, so this server needs a save path first (edit the server from the
-            sidebar). The save mount stays read-only — snapshots are written to Flamekeeper's own data directory.
+            sidebar). The save mount stays read-only — snapshots are written to Flametender's own data directory.
           </p>
         )}
 
@@ -677,21 +677,21 @@ function BackupsCard({ serverId }: { serverId: number }) {
                   ))}
                 </Select>
               </div>
-              <p className="pb-2 text-xs text-fk-bone/45">
+              <p className="pb-2 text-xs text-ft-bone/45">
                 Skips runs while the save hasn't changed. Restores are manual: stop the server, unpack a snapshot
                 over the save, start it again.
               </p>
             </div>
 
             {data.snapshots.length === 0 ? (
-              <p className="text-sm text-fk-bone/60">
+              <p className="text-sm text-ft-bone/60">
                 No snapshots yet{data.running ? " — one is being written now." : "."}
               </p>
             ) : (
-              <ul className="divide-y divide-fk-edge">
+              <ul className="divide-y divide-ft-edge">
                 {data.snapshots.map((snap) => (
                   <li key={snap.name} className="flex items-center gap-3 py-2 text-sm">
-                    <span className="font-mono text-xs tabular-nums text-fk-bone/70">
+                    <span className="font-mono text-xs tabular-nums text-ft-bone/70">
                       {new Date(snap.ts).toLocaleString([], {
                         year: "numeric",
                         month: "short",
@@ -700,20 +700,20 @@ function BackupsCard({ serverId }: { serverId: number }) {
                         minute: "2-digit",
                       })}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-xs text-fk-bone/40">{agoLabel(snap.ts)}</span>
-                    <span className="w-20 text-right font-mono text-xs tabular-nums text-fk-bone/60">
+                    <span className="min-w-0 flex-1 truncate text-xs text-ft-bone/40">{agoLabel(snap.ts)}</span>
+                    <span className="w-20 text-right font-mono text-xs tabular-nums text-ft-bone/60">
                       {fmtBytes(snap.bytes)}
                     </span>
                     <a
                       href={api.backupDownloadURL(serverId, snap.name)}
-                      className="rounded p-1.5 text-fk-bone/40 hover:bg-fk-bone/5 hover:text-fk-bone"
+                      className="rounded p-1.5 text-ft-bone/40 hover:bg-ft-bone/5 hover:text-ft-bone"
                       title="Download snapshot"
                       download
                     >
                       <Download className="h-3.5 w-3.5" />
                     </a>
                     <button
-                      className="rounded p-1.5 text-fk-bone/40 hover:bg-fk-bone/5 hover:text-destructive"
+                      className="rounded p-1.5 text-ft-bone/40 hover:bg-ft-bone/5 hover:text-destructive"
                       title="Delete snapshot"
                       disabled={remove.isPending}
                       onClick={() => remove.mutate(snap.name)}
@@ -726,7 +726,7 @@ function BackupsCard({ serverId }: { serverId: number }) {
             )}
 
             {data.snapshots.length > 0 && (
-              <p className="text-xs text-fk-bone/40">
+              <p className="text-xs text-ft-bone/40">
                 {data.snapshots.length} snapshot{data.snapshots.length === 1 ? "" : "s"} ·{" "}
                 {fmtBytes(data.totalBytes)} on disk
               </p>
@@ -761,10 +761,10 @@ function PublicStatusCard({ serverId, config }: { serverId: number; config: { en
   };
 
   return (
-    <section className="rounded-xl border border-fk-edge bg-fk-panel lg:col-span-2">
-      <div className="flex items-center justify-between gap-3 border-b border-fk-edge px-5 py-4">
+    <section className="rounded-xl border border-ft-edge bg-ft-panel lg:col-span-2">
+      <div className="flex items-center justify-between gap-3 border-b border-ft-edge px-5 py-4">
         <div className="flex items-center gap-2">
-          <Globe className="h-4 w-4 text-fk-ok" />
+          <Globe className="h-4 w-4 text-ft-ok" />
           <h2 className="font-display text-base font-bold">Public status page</h2>
         </div>
         <Switch
@@ -774,10 +774,10 @@ function PublicStatusCard({ serverId, config }: { serverId: number; config: { en
           aria-label={config.enabled ? "Take the status page down" : "Publish the status page"}
         />
       </div>
-      <div className="space-y-3 px-5 py-4 text-sm text-fk-bone/60">
+      <div className="space-y-3 px-5 py-4 text-sm text-ft-bone/60">
         <p>
           A read-only page anyone with the link can open, no account needed: online or not, player count, and the
-          next scheduled restart. Served from Flamekeeper's own data — visitors never touch the game server. No player
+          next scheduled restart. Served from Flametender's own data — visitors never touch the game server. No player
           names, no addresses.
         </p>
         {config.enabled && url && (
@@ -786,7 +786,7 @@ function PublicStatusCard({ serverId, config }: { serverId: number; config: { en
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="min-w-0 flex-1 truncate rounded-lg border border-fk-edge bg-fk-void/[0.03] px-2.5 py-1.5 font-mono text-xs text-fk-bone/70 hover:text-fk-bone"
+              className="min-w-0 flex-1 truncate rounded-lg border border-ft-edge bg-ft-void/[0.03] px-2.5 py-1.5 font-mono text-xs text-ft-bone/70 hover:text-ft-bone"
               title={url}
             >
               {url}
@@ -798,7 +798,7 @@ function PublicStatusCard({ serverId, config }: { serverId: number; config: { en
           </div>
         )}
         {config.enabled && (
-          <p className="text-xs text-fk-bone/45">
+          <p className="text-xs text-ft-bone/45">
             The link is the only key — anyone holding it can view the page. Turning it off and on again mints a new
             link and kills the old one.
           </p>
@@ -870,10 +870,10 @@ function DiscordCard({ serverId, config }: { serverId: number; config: DiscordCo
   ];
 
   return (
-    <section className="rounded-xl border border-fk-edge bg-fk-panel lg:col-span-2">
-      <div className="flex items-center justify-between border-b border-fk-edge px-5 py-4">
+    <section className="rounded-xl border border-ft-edge bg-ft-panel lg:col-span-2">
+      <div className="flex items-center justify-between border-b border-ft-edge px-5 py-4">
         <div className="flex items-center gap-2">
-          <Webhook className="h-4 w-4 text-fk-flame" />
+          <Webhook className="h-4 w-4 text-ft-flame" />
           <h2 className="font-display text-base font-bold">Discord notifications</h2>
         </div>
         {config.configured && (
@@ -888,12 +888,12 @@ function DiscordCard({ serverId, config }: { serverId: number; config: DiscordCo
 
       <div className="space-y-4 px-5 py-4">
         {config.configured ? (
-          <div className="flex items-center gap-2 text-sm text-fk-bone/70">
-            <span className="h-2 w-2 rounded-full bg-fk-flame" />
+          <div className="flex items-center gap-2 text-sm text-ft-bone/70">
+            <span className="h-2 w-2 rounded-full bg-ft-flame" />
             Webhook connected
           </div>
         ) : (
-          <p className="text-sm text-fk-bone/60">
+          <p className="text-sm text-ft-bone/60">
             Post server events to a Discord channel. In Discord: Server Settings → Integrations → Webhooks → New
             Webhook, then copy its URL here.
           </p>
@@ -921,7 +921,7 @@ function DiscordCard({ serverId, config }: { serverId: number; config: DiscordCo
                 <li key={ev.key} className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">{ev.label}</p>
-                    <p className="text-xs text-fk-bone/50">{ev.help}</p>
+                    <p className="text-xs text-ft-bone/50">{ev.help}</p>
                   </div>
                   <Switch
                     checked={config[ev.key]}
@@ -933,13 +933,13 @@ function DiscordCard({ serverId, config }: { serverId: number; config: DiscordCo
               ))}
             </ul>
 
-            <div className="flex items-center justify-between border-t border-fk-edge pt-3">
+            <div className="flex items-center justify-between border-t border-ft-edge pt-3">
               <Button variant="outline" size="sm" disabled={test.isPending} onClick={() => test.mutate()}>
                 <Send className="h-3.5 w-3.5" />
                 {test.isPending ? "Sending..." : "Send test message"}
               </Button>
               <button
-                className="text-xs text-fk-bone/40 underline-offset-2 hover:text-destructive hover:underline"
+                className="text-xs text-ft-bone/40 underline-offset-2 hover:text-destructive hover:underline"
                 disabled={remove.isPending}
                 onClick={() => remove.mutate()}
               >

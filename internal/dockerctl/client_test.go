@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/dockerctl"
+	"github.com/safwyls/flametender/internal/dockerctl"
 )
 
 // dockerSpy records the requests a client makes and answers with canned

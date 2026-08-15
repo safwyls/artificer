@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/safwyls/flamekeeper/internal/agentctl"
-	"github.com/safwyls/flamekeeper/internal/flameagent"
-	"github.com/safwyls/flamekeeper/internal/ilmari"
+	"github.com/safwyls/flametender/internal/agentctl"
+	"github.com/safwyls/flametender/internal/flameagent"
+	"github.com/safwyls/flametender/internal/ilmari"
 )
 
 // Provisioner is what the API layer needs from whatever places containers

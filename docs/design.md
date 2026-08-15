@@ -1,6 +1,6 @@
-# Flamekeeper — design plan
+# Flametender — design plan
 
-The design source for the Flamekeeper frontend, written before the code
+The design source for the Flametender frontend, written before the code
 (per the repo rule). The mock-first workflow of the siblings is replaced
 by this document plus the implemented theme; treat the tokens here as the
 contract.
@@ -22,10 +22,10 @@ server.**
 Same shell, three consoles, and they will sit in adjacent browser tabs.
 Wildskeeper is night-navy + brass structure + rune-cyan live-state +
 parchment text + Cinzel (Roman caps) + clip-notch corners and brass
-corner brackets. Palcon is Palworld-warm. Flamekeeper must be
+corner brackets. Palcon is Palworld-warm. Flametender must be
 recognizable at a squint as neither:
 
-| Axis | Wildskeeper | Flamekeeper |
+| Axis | Wildskeeper | Flametender |
 |---|---|---|
 | Ground hue | night navy (blue-cast) | shroud moss (green-grey-cast) |
 | Structure | brass (gold) | weathered stone (ash-beige, quiet) |
@@ -35,7 +35,7 @@ recognizable at a squint as neither:
 | Display face | Cinzel (Roman inscription) | Grenze Gotisch (textura blackletter) |
 | Signature | brass corner brackets + 45° clipped corners | the fog line + the flame sigil |
 
-## Palette (the `fk.*` literals)
+## Palette (the `ft.*` literals)
 
 Named, hex, role. The rule — and it is a rule, not a vibe: **stone is
 structure and interaction, flame is reserved for live/active state and
@@ -43,20 +43,20 @@ focus, spore for danger.** Nothing else gets to glow.
 
 | Token | Hex | Role |
 |---|---|---|
-| `fk.void` | `#101512` | page ground — moss-black, green-cast (vs the siblings' blue-cast) |
-| `fk.fog` | `#182019` | raised/muted surfaces; the fog gradient's body |
-| `fk.panel` | `#1e2822` | cards ("terraces") |
-| `fk.edge` | `#2d3b32` | borders |
-| `fk.stone` | `#98917c` | structure: buttons, section rules, secondary emphasis |
-| `fk.stonehi` | `#c6bda4` | structure highlight: panel titles, active nav |
-| `fk.flame` | `#7fc3f0` | LIVE: running state, focus ring, links, the lit flame |
-| `fk.flamehi` | `#d3ecff` | the white-hot core: numbers mid-glow, sigil core |
-| `fk.flamedim` | `#31536b` | flame at rest: selection bg, subdued live accents |
-| `fk.spore` | `#c95a4d` | danger: destructive buttons, crashed state, shroud warnings |
-| `fk.sporedim` | `#66312a` | danger surfaces/borders |
-| `fk.bone` | `#e2ded0` | text — cool bone, deliberately less golden than parchment |
-| `fk.lichen` | `#87947e` | muted text — grey-green, carries the fog cast into type |
-| `fk.ok` | `#82b378` | success toasts only (live-state is flame's, not green's) |
+| `ft.void` | `#101512` | page ground — moss-black, green-cast (vs the siblings' blue-cast) |
+| `ft.fog` | `#182019` | raised/muted surfaces; the fog gradient's body |
+| `ft.panel` | `#1e2822` | cards ("terraces") |
+| `ft.edge` | `#2d3b32` | borders |
+| `ft.stone` | `#98917c` | structure: buttons, section rules, secondary emphasis |
+| `ft.stonehi` | `#c6bda4` | structure highlight: panel titles, active nav |
+| `ft.flame` | `#7fc3f0` | LIVE: running state, focus ring, links, the lit flame |
+| `ft.flamehi` | `#d3ecff` | the white-hot core: numbers mid-glow, sigil core |
+| `ft.flamedim` | `#31536b` | flame at rest: selection bg, subdued live accents |
+| `ft.spore` | `#c95a4d` | danger: destructive buttons, crashed state, shroud warnings |
+| `ft.sporedim` | `#66312a` | danger surfaces/borders |
+| `ft.bone` | `#e2ded0` | text — cool bone, deliberately less golden than parchment |
+| `ft.lichen` | `#87947e` | muted text — grey-green, carries the fog cast into type |
+| `ft.ok` | `#82b378` | success toasts only (live-state is flame's, not green's) |
 
 Semantic mapping onto shadcn vars: background=void, card/popover=panel,
 muted=fog, border/input=edge, primary=stone, accent=stonehi,
@@ -77,9 +77,9 @@ rune ring), destructive=spore, foreground=bone, muted-foreground=lichen.
   sizes, clearly not the siblings' Alegreya Sans.
 - **Utility/mono: "IBM Plex Mono"** (400/500/600) — logs, ids, ports,
   paths.
-- Panel titles: Karla 600, small size, wide tracking, `fk.stonehi` —
+- Panel titles: Karla 600, small size, wide tracking, `ft.stonehi` —
   quiet stone lintels; the blackletter stays reserved for identity
-  moments. Labels/eyebrows: 11px Karla, `0.14em` tracking, `fk.lichen`.
+  moments. Labels/eyebrows: 11px Karla, `0.14em` tracking, `ft.lichen`.
 
 ## Layout
 
@@ -105,16 +105,16 @@ corners: terraces are calm rectangles, radius 4px.
 ## Signature (two halves of one idea)
 
 1. **The fog line.** A fixed gradient pooled at the bottom of the
-   viewport — `fk.fog` rising out of `fk.void`, a few hundred px tall,
+   viewport — `ft.fog` rising out of `ft.void`, a few hundred px tall,
    opacity low enough to read as atmosphere, not vignette. Panels get a
    1px *top inset highlight* (bone at 5% alpha): stone catching light
    from above while the fog sits below. Static by design (no drift
    animation): a monitoring page must be visually silent when nothing is
    happening.
 2. **The flame sigil.** Server status as a brazier glyph: a flame in
-   `fk.flame` with a `fk.flamehi` core when running (slow 3–4 s breathing
+   `ft.flame` with a `ft.flamehi` core when running (slow 3–4 s breathing
    flicker, stilled under `prefers-reduced-motion`); an unlit grey wisp
-   when stopped; a `fk.spore` guttering glow when crashed. Around it, a
+   when stopped; a `ft.spore` guttering glow when crashed. Around it, a
    ring of up to 16 pips — the player slots, filled pips being Flameborn
    currently *around the fire*. This replaces wildskeeper's six-segment
    rune hex, and 16-around-a-circle is the honest shape of Enshrouded's

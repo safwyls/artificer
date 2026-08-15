@@ -44,8 +44,8 @@ export function ServerSettings({ serverId }: { serverId: number }) {
     <div className="max-h-96 space-y-2.5 overflow-y-auto pr-1">
       {entries.map(([key, value]) => (
         <div key={key} className="flex items-center justify-between gap-3">
-          <span className="min-w-0 flex-1 break-all font-mono text-xs text-fk-bone/70">{key}</span>
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-fk-bone/5 px-2 py-1 font-mono text-xs text-fk-bone/50">
+          <span className="min-w-0 flex-1 break-all font-mono text-xs text-ft-bone/70">{key}</span>
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-ft-bone/5 px-2 py-1 font-mono text-xs text-ft-bone/50">
             {formatValue(value)}
           </span>
         </div>

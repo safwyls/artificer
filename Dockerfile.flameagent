@@ -1,6 +1,6 @@
 # flameagent — the per-server sidecar agent (docs/sidecar-agent.md).
 # Placed by Ilmari (or a pasted stack) with the /enshrouded install
-# volume; flamekeeper drives it over HTTP with a bearer token.
+# volume; flametender drives it over HTTP with a bearer token.
 #
 # Wine is in the base set, not a variant: Enshrouded ships no Linux
 # server binary at all (docs/enshrouded-recon.md), so every deployment
@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 go build -o /out/flameagent ./cmd/flameagent
 
 # ---- runtime ----
 # steamcmd needs 32-bit glibc, so the runtime base is the maintained
-# steamcmd image (Debian) rather than alpine like flamekeeper's. Wine
+# steamcmd image (Debian) rather than alpine like flametender's. Wine
 # comes from Debian's own packages — the bare-metal guides run the
 # server under plain wine64, no Proton runtime needed — with the 32-bit
 # half installed because wineboot wants it to assemble a prefix.

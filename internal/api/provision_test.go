@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/flamekeeper/internal/agentctl"
-	"github.com/safwyls/flamekeeper/internal/flameagent"
-	"github.com/safwyls/flamekeeper/internal/store"
+	"github.com/safwyls/flametender/internal/agentctl"
+	"github.com/safwyls/flametender/internal/flameagent"
+	"github.com/safwyls/flametender/internal/store"
 )
 
 // fakeProvisioner implements api.Provisioner with configurable answers —
@@ -210,7 +210,7 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	}
 	// The row records the container the provisioner made — without it the
 	// destroy path has no name to pass back, and the logs viewer and
-	// watchdog stay dark for the one server flamekeeper knows the name of.
+	// watchdog stay dark for the one server flametender knows the name of.
 	if res.Server.ContainerName != "flameagent-one-click" {
 		t.Errorf("containerName = %q, want flameagent-one-click", res.Server.ContainerName)
 	}
