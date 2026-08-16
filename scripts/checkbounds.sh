@@ -62,8 +62,31 @@ if [ -n "$hits" ] || grep -qE 'safwyls/(palcon|wildskeeper|flametender|sampo)' i
   fail=1
 fi
 
-# Remaining Phase 2 activations (wire up as the trees appear):
-# - game modules under games/ never import each other
+# Rule: game modules never import each other.
+for g in games/*/; do
+  g=${g%/}
+  name=${g#games/}
+  hits=$(grep -rn --include='*.go' '"github.com/safwyls/sampo/games/' "$g" 2>/dev/null     | grep -v "games/$name" || true)
+  if [ -n "$hits" ]; then
+    echo "BOUNDARY: $g imports another game module:"
+    echo "$hits"
+    fail=1
+  fi
+done
+
+# Rule: an agent-side game package (games/<g>/<x>agent) never imports its
+# console-side game root — the agent binary must not link the game
+# registry (see games/enshrouded/esagent's package comment).
+for d in games/*/*agent/; do
+  [ -d "$d" ] || continue
+  parent=$(dirname "${d%/}")
+  hits=$(grep -rn --include='*.go' "\"github.com/safwyls/sampo/$parent\"" "$d" 2>/dev/null | grep -v '_test\.go:' || true)
+  if [ -n "$hits" ]; then
+    echo "BOUNDARY: $d links the console-side game package:"
+    echo "$hits"
+    fail=1
+  fi
+done
 
 if [ "$fail" -eq 0 ]; then
   echo "dependency rules: OK"

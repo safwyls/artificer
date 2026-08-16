@@ -1,0 +1,48 @@
+# flameagent — the per-server sidecar agent (docs/sidecar-agent.md).
+# Placed by Ilmari (or a pasted stack) with the /enshrouded install
+# volume; flametender drives it over HTTP with a bearer token.
+#
+# Wine is in the base set, not a variant: Enshrouded ships no Linux
+# server binary at all (docs/enshrouded-recon.md), so every deployment
+# runs enshrouded_server.exe under Wine. The image is heavier for it —
+# there is no lighter honest option.
+
+# ---- build ----
+FROM docker.io/library/golang:1.26-alpine AS build
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /out/flameagent ./cmd/flameagent
+
+# ---- runtime ----
+# steamcmd needs 32-bit glibc, so the runtime base is the maintained
+# steamcmd image (Debian) rather than alpine like flametender's. Wine
+# comes from Debian's own packages — the bare-metal guides run the
+# server under plain wine64, no Proton runtime needed — with the 32-bit
+# half installed because wineboot wants it to assemble a prefix.
+FROM docker.io/steamcmd/steamcmd:debian-12
+RUN dpkg --add-architecture i386 \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends wine wine64 wine32:i386 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/flameagent /usr/local/bin/flameagent
+# Runs as an unprivileged user (inherited stance from the sibling
+# consoles; also what keeps a game bug from owning the container). The
+# /enshrouded volume must be writable by uid 1000 on the host; steamcmd
+# and Wine both need the writable home this user gets.
+RUN useradd -m -u 1000 flameagent
+USER flameagent
+ENV HOME=/home/flameagent \
+    FLAMEAGENT_INSTALL_DIR=/enshrouded \
+    FLAMEAGENT_STEAMCMD=steamcmd \
+    FLAMEAGENT_ADDR=:8811 \
+    WINEDEBUG=-all
+# 8811 is the agent API; 15637/udp is the game itself — Enshrouded's
+# single UDP port carries game traffic and the Steam query both.
+EXPOSE 8811 15637/udp
+# The steamcmd base ships neither wget nor curl; the agent binary probes
+# its own /healthz instead.
+HEALTHCHECK --interval=30s --timeout=5s \
+    CMD ["/usr/local/bin/flameagent", "-healthz"]
+ENTRYPOINT ["/usr/local/bin/flameagent"]

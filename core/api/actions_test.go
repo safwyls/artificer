@@ -408,3 +408,30 @@ func TestServerActionPermissions(t *testing.T) {
 		}
 	}
 }
+
+// A game whose client can't be probed must not be reported as incapable —
+// that would hide working controls. Absent knowledge, the answer is the
+// optimism every caller had before probing existed.
+func TestCapabilitiesDefaultToSupportedForAnUnprobeableGame(t *testing.T) {
+	app, admin := newTestAppWithAdmin(t)
+	_, addr := newFakeGame(t)
+	id := newServerPointingAt(t, app, addr, nil)
+
+	rec := app.do(t, http.MethodGet, "/api/servers/"+itoa(id)+"/capabilities", nil, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("capabilities: %d %s", rec.Code, rec.Body)
+	}
+	var got struct {
+		Probed   bool                      `json:"probed"`
+		Commands map[string]map[string]any `json:"commands"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Probed {
+		t.Error("the test game has no prober, so probed should be false")
+	}
+	if supported, _ := got.Commands["save"]["supported"].(bool); !supported {
+		t.Error("an unprobeable game must not have its commands hidden")
+	}
+}

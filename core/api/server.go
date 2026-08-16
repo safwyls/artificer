@@ -88,6 +88,11 @@ type Server struct {
 	// Roster, when set, reads the save-derived player roster for the
 	// visibility editor (assigned after New, like Provisioner).
 	Roster RosterSource
+	// GameRoutes, when set, mounts the game's own per-server endpoints
+	// (drift ledger seam 5) inside the authenticated /servers/{id} group.
+	// The game module builds the closure over this Server via its Routes
+	// helper; core mounts it blind.
+	GameRoutes func(r chi.Router)
 	// The advisor has two possible sources, resolved in advisor():
 	// a key saved through the admin UI (uiAdvisor, encrypted in the store)
 	// wins over one from the environment (envAdvisor, set by main). Both
@@ -226,11 +231,12 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.With(s.requirePermission(store.PermSettings)).Put("/config", s.handleUpdateConfig)
 				r.With(s.requirePermission(store.PermSettings)).Post("/config/rotate-admin-password", s.handleRotateAdminPassword)
 				// Game-contributed routes (roles, ban lists, save-derived
-				// views) mount here when the game-routes seam lands — the
-				// permission-boundary rule they must follow is recorded in
-				// the drift ledger: credential-bearing config behind
-				// PermSettings, credential-free moderation behind
-				// PermModerate.
+				// views). The permission-boundary rule they must follow:
+				// credential-bearing config behind PermSettings,
+				// credential-free moderation behind PermModerate.
+				if s.GameRoutes != nil {
+					s.GameRoutes(r)
+				}
 
 				// Automation: restart schedules are visible to anyone
 				// signed in ("when's the next restart?" is player-facing
