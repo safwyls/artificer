@@ -21,6 +21,13 @@ import (
 // Host points at a closed loopback port so prepareForStop's RCON/REST
 // courtesy calls fail fast instead of timing out against a black hole.
 func supervisorServer(t *testing.T, app *testApp) int64 {
+	id, _ := supervisorServerWithInstall(t, app)
+	return id
+}
+
+// supervisorServerWithInstall also hands back the install directory, so a
+// test can look at enshrouded_server.json the way the game would.
+func supervisorServerWithInstall(t *testing.T, app *testApp) (int64, string) {
 	t.Helper()
 	install := t.TempDir()
 	game := `#!/bin/sh
@@ -60,7 +67,7 @@ while true; do sleep 0.05; done
 	if err != nil {
 		t.Fatal(err)
 	}
-	return id
+	return id, install
 }
 
 func TestPowerViaSupervisorAgent(t *testing.T) {

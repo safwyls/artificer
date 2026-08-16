@@ -16,6 +16,7 @@ import (
 	"github.com/safwyls/flametender/internal/agentfiles"
 	"github.com/safwyls/flametender/internal/api"
 	"github.com/safwyls/flametender/internal/backup"
+	"github.com/safwyls/flametender/internal/banqueue"
 	"github.com/safwyls/flametender/internal/cfaccess"
 	"github.com/safwyls/flametender/internal/collector"
 	"github.com/safwyls/flametender/internal/config"
@@ -107,7 +108,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	// Runs scheduled restarts (warnings included) for every server.
-	go sched.New(st, notifier, docker, logger).Run(ctx)
+	go sched.New(st, notifier, docker, logger, banqueue.New(st, files, logger)).Run(ctx)
 
 	// Crash watchdog: revives watched containers after an unclean exit.
 	// Meaningless without docker control, so it only runs alongside it.

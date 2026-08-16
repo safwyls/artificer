@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/safwyls/flametender/internal/agentfiles"
+	"github.com/safwyls/flametender/internal/banqueue"
 	"github.com/safwyls/flametender/internal/dockerctl"
 	"github.com/safwyls/flametender/internal/game/gametest"
 	"github.com/safwyls/flametender/internal/notify"
@@ -129,7 +131,7 @@ func addAgentServer(t *testing.T, st *store.Store, gameURL, agentURL, container 
 func schedulerWithDocker(t *testing.T, st *store.Store, docker *dockerctl.Client) *Scheduler {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return New(st, notify.New(st, logger), docker, logger)
+	return New(st, notify.New(st, logger), docker, logger, banqueue.New(st, agentfiles.New(t.TempDir(), logger), logger))
 }
 
 // The regression this guards: a provisioned server carries both an agent

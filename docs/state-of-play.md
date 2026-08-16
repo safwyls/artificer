@@ -126,6 +126,21 @@ rotation. All are ledger rows.
   they carry no credential; and the bans editor never imposes an element
   format on the file, which is why that ledger row stopped gating
   anything.
+- **The ban list has two writers, and the game wins.** Same day, the
+  first real use found it: a ban added while the server was up was gone
+  after the restart. `bannedAccounts` is also maintained by the in-game
+  kick/ban UI, and the game holds it in memory and writes it back out on
+  shutdown — so anything the console writes mid-session is erased on the
+  way down. The console stopped competing for the file. An edit made
+  while the game is up is recorded as intent (`pending_bans`) and written
+  by `internal/banqueue` during the next restart, between the stop and
+  the start; both restart paths the console drives (the power handlers
+  and the scheduler) run the two halves themselves when work is queued.
+  A queued row survives until the *file* agrees with it while the game is
+  running — which is also the diagnosis for the one case still open: if
+  a change written to a stopped server's config is missing once the game
+  comes up, the game keeps its bans somewhere else entirely, and the
+  panel says so instead of losing the ban a second time in silence.
 
 ## Running it locally
 

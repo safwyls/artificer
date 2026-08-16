@@ -77,9 +77,11 @@ ledger.**
    format was never gating after all: the editor reads whichever of the
    two plausible shapes the file uses, writes new entries in that same
    shape, and preserves entries it can't model instead of dropping them.
-   Two things the surface states rather than hides — the ban applies at
-   the next restart, and a *running* server owns the file too, so an edit
-   made now can be overwritten.
+   The running server owning the file too turned out to be more than a
+   caveat: first real use showed a mid-session ban erased at the next
+   stop. So edits made while the game is up are queued and written during
+   the restart (`internal/banqueue`), not raced into the file — see
+   `docs/state-of-play.md` and the recon ledger.
 4. ~~**Role-group editor**~~ — **done 2026-08-16.** userGroups CRUD in
    `esconfig/roles.go` (`GET/PUT /config/roles` behind `PermSettings`,
    since each group carries its join password in the clear) and the Role

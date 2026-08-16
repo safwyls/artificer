@@ -49,6 +49,13 @@ export function FtBans({ serverId }: { serverId: number }) {
 
   const saved = bansQuery.data?.bans;
   const bans = draft ?? saved ?? [];
+  // The server's list already has the queued edits folded in, so a row can
+  // be marked as "not in force yet" without the panel recomputing which.
+  const queued = useMemo(
+    () => new Set((bansQuery.data?.pending ?? []).filter((p) => p.action === "ban").map((p) => p.id)),
+    [bansQuery.data],
+  );
+  const liftsQueued = (bansQuery.data?.pending ?? []).filter((p) => p.action === "lift").map((p) => p.id);
   const dirty = useMemo(
     () => draft !== null && JSON.stringify(draft) !== JSON.stringify(saved ?? []),
     [draft, saved],
@@ -84,11 +91,28 @@ export function FtBans({ serverId }: { serverId: number }) {
       {bansQuery.isError && <p className="text-sm text-ft-spore">{(bansQuery.error as Error).message}</p>}
       {data && (
         <>
-          {data.running && (
+          {/* The diagnosis takes precedence over everything else on the
+              panel: if the game overwrote a change we wrote to a stopped
+              server, no amount of further editing will help, and saying so
+              is the only useful thing left. */}
+          {data.reverted.length > 0 && (
             <p className="mb-2.5 rounded-sm border border-ft-sporedim bg-ft-sporedim/20 px-2.5 py-1.5 text-xs text-ft-spore">
-              The server is running, and it owns this list while it is — banning from the in-game menu writes the same
-              file. An edit made now can be overwritten when the game next saves it. Stop the server first for a change
-              that's certain to stick.
+              The server overwrote{" "}
+              {data.reverted.length === 1 ? "an edit" : `${data.reverted.length} edits`} made here while it was
+              stopped, so this build doesn't take its ban list from the config file. Ban from the in-game player menu
+              instead — that's the copy the game keeps.
+            </p>
+          )}
+          {data.pending.length > 0 && (
+            <p className="mb-2.5 rounded-sm border border-ft-flamedim bg-ft-flamedim/20 px-2.5 py-1.5 text-xs text-ft-flame">
+              {data.pending.length === 1 ? "One change is" : `${data.pending.length} changes are`} waiting for the next
+              restart. The running game holds this list and rewrites it when it stops, so edits are applied in the gap
+              between the stop and the start rather than now.
+            </p>
+          )}
+          {data.running && data.pending.length === 0 && data.reverted.length === 0 && (
+            <p className="mb-2.5 text-xs text-ft-lichen">
+              The server is running, so it holds this list. Edits made here are applied at the next restart.
             </p>
           )}
           {!data.writable && (
@@ -127,6 +151,11 @@ export function FtBans({ serverId }: { serverId: number }) {
                   <span className="min-w-0">
                     <span className="font-mono text-[13px] text-ft-bone">{b.id}</span>
                     {b.name && <span className="ml-2 text-sm text-ft-lichen">{b.name}</span>}
+                    {queued.has(b.id) && (
+                      <span className="ml-2 text-[11px] uppercase tracking-[0.1em] text-ft-flame">
+                        at next restart
+                      </span>
+                    )}
                   </span>
                   <button
                     onClick={() => setDraft(bans.filter((_, j) => j !== i))}
@@ -137,6 +166,15 @@ export function FtBans({ serverId }: { serverId: number }) {
                 </li>
               ))}
             </ul>
+          )}
+          {/* A queued lift has no row to mark — the account is already gone
+              from the list — so it gets its own line rather than vanishing
+              silently between the save and the restart. */}
+          {liftsQueued.length > 0 && (
+            <p className="mt-2 text-xs text-ft-lichen">
+              Lifting at the next restart:{" "}
+              <span className="font-mono text-ft-bone">{liftsQueued.join(", ")}</span>
+            </p>
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ft-edge pt-3">

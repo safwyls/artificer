@@ -1,13 +1,16 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/safwyls/flametender/internal/banqueue"
 	"github.com/safwyls/flametender/internal/games/enshrouded/esconfig"
 	"github.com/safwyls/flametender/internal/store"
 )
@@ -136,10 +139,17 @@ type bansResponse struct {
 	// esconfig/bans.go and the recon doc's open ledger row.
 	ObjectShape bool `json:"objectShape"`
 	Unreadable  int  `json:"unreadable"`
-	// Running is why the console warns before an edit: the game owns this
-	// list while it is up (the in-game ban UI writes it), so a file edit
-	// under a live server can be overwritten when the game next persists.
+	// Running means the game is up and holding this list. An edit made now
+	// is queued rather than trusted to the file — see Pending.
 	Running bool `json:"running"`
+	// Pending are the console's edits the file does not reflect yet. They
+	// are written into the config immediately before the next start.
+	Pending []store.PendingBanEdit `json:"pending"`
+	// Reverted is the diagnosis, not a warning: these edits *were* written
+	// into the config with the game stopped, and the file no longer agrees.
+	// Only the game can have done that, which means bans made outside the
+	// game don't stick on this build.
+	Reverted []store.PendingBanEdit `json:"reverted"`
 }
 
 // banListRunning reports whether the game is up, for the overwrite
@@ -151,19 +161,75 @@ func (s *Server) banListRunning(r *http.Request, srv *store.Server) bool {
 	return health != nil && health.Game != nil && health.Game.State == "running"
 }
 
+// bansPayload assembles the response, reconciling the queued edits against
+// what the file actually says on the way. Reading is where retirement
+// happens: a queued edit the file now agrees with is done and goes away,
+// and one that was applied to a stopped server and *still* disagrees is
+// the game having overwritten it.
 func (s *Server) bansPayload(r *http.Request, srv *store.Server, res *esconfig.BanList, viaAgent bool) bansResponse {
 	path := res.Path
 	if viaAgent {
 		path = "enshrouded_server.json · synced via flameagent"
 	}
-	return bansResponse{
+	running := s.banListRunning(r, srv)
+	out := bansResponse{
 		Bans:        res.Bans,
 		Path:        path,
 		Writable:    res.Writable,
 		ObjectShape: res.ObjectShape,
 		Unreadable:  res.Unreadable,
-		Running:     s.banListRunning(r, srv),
+		Running:     running,
+		Pending:     []store.PendingBanEdit{},
+		Reverted:    []store.PendingBanEdit{},
 	}
+
+	ids := make([]string, 0, len(res.Bans))
+	for _, b := range res.Bans {
+		ids = append(ids, b.ID)
+	}
+	outstanding, err := s.store.ReconcilePendingBans(r.Context(), srv.ID, ids, running)
+	if err != nil {
+		// A bookkeeping failure must not cost the operator the ban list
+		// itself; the queue is reported empty and retried next read.
+		s.logger.Error("reconciling pending bans failed", "server", srv.ID, "error", err)
+		return out
+	}
+	for _, e := range outstanding {
+		if e.Applied {
+			// Wanted, written, and the game threw it away. Deliberately not
+			// folded into Bans below: showing it as banned would repeat the
+			// original lie in a new place.
+			out.Reverted = append(out.Reverted, e)
+			continue
+		}
+		out.Pending = append(out.Pending, e)
+		out.Bans = banqueue.Apply1(out.Bans, e)
+	}
+	return out
+}
+
+// effectiveBans is the ban list as the console presents it: what the file
+// holds, plus the edits waiting for the next restart. It is the state a
+// client's next write is a diff against, which is why it exists rather
+// than each caller re-deriving it.
+func (s *Server) effectiveBans(ctx context.Context, srv *store.Server) []esconfig.Ban {
+	path, _, err := s.files.ConfigPath(ctx, srv)
+	if err != nil {
+		return nil
+	}
+	res, err := esconfig.ReadBans(path)
+	if err != nil {
+		return nil
+	}
+	pending, err := s.store.PendingBans(ctx, srv.ID)
+	if err != nil {
+		return res.Bans
+	}
+	bans := res.Bans
+	for _, e := range pending {
+		bans = banqueue.Apply1(bans, e)
+	}
+	return bans
 }
 
 func (s *Server) handleGetBans(w http.ResponseWriter, r *http.Request) {
@@ -205,21 +271,58 @@ func (s *Server) handleUpdateBans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Diff against what's on disk before writing, so the audit line names
-	// who was banned and who was let back in rather than the list's size.
-	var before []esconfig.Ban
-	if path, _, err := s.files.ConfigPath(r.Context(), srv); err == nil {
-		if res, rerr := esconfig.ReadBans(path); rerr == nil {
-			before = res.Bans
-		}
-	}
+	// Diff against the list the client was shown — the file *with the
+	// queued edits applied* — not the raw file. They differ whenever
+	// something is waiting for a restart, and diffing against the file
+	// there would read "no change" for exactly the edits that undo a
+	// queued one: removing a pending ban before it ever reached the game
+	// would silently leave it queued.
+	before := s.effectiveBans(r.Context(), srv)
 
-	if !s.editConfigFile(w, r, srv, esconfig.ErrNotConfigured, func(path string) error {
-		return esconfig.WriteBans(path, req.Bans)
-	}) {
+	// Who holds the file decides how the edit is made. With the game
+	// stopped the console can simply write it. With the game up it cannot:
+	// the game keeps this array in memory and writes it back out when it
+	// stops, so a write now is erased at the next stop — which is the bug
+	// a real deployment hit on 2026-08-16. Writing anyway would be worse
+	// than useless; it would put the change in the file, let the read-back
+	// confirm it, and lose it hours later with nothing to show the
+	// operator. So while the game is up the edit is only queued, and
+	// internal/banqueue writes it during the next restart.
+	running := s.banListRunning(r, srv)
+	if !running {
+		if !s.editConfigFile(w, r, srv, esconfig.ErrNotConfigured, func(path string) error {
+			return esconfig.WriteBans(path, req.Bans)
+		}) {
+			return
+		}
+	} else if err := esconfig.ValidateBans(req.Bans); err != nil {
+		// The write is what normally validates. Queued edits skip it, so
+		// the check has to happen here or a junk id reaches the queue.
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if detail := banDiff(before, req.Bans); detail != "" {
+
+	added, removed := banDelta(before, req.Bans)
+	for _, id := range added {
+		if err := s.store.QueueBanEdit(r.Context(), srv.ID, id, store.PendingBan); err != nil {
+			s.logger.Error("queueing a ban failed", "server", srv.ID, "error", err)
+		}
+	}
+	for _, id := range removed {
+		if err := s.store.QueueBanEdit(r.Context(), srv.ID, id, store.PendingLift); err != nil {
+			s.logger.Error("queueing a lift failed", "server", srv.ID, "error", err)
+		}
+	}
+	// A write made with the game down is already in the config, so the
+	// queued rows are marked applied: if the file later disagrees, that is
+	// the game having overwritten them, and the panel says so instead of
+	// silently showing the ban gone again.
+	if !running {
+		if err := s.store.MarkPendingBansApplied(r.Context(), srv.ID, time.Now()); err != nil {
+			s.logger.Error("marking ban edits applied failed", "server", srv.ID, "error", err)
+		}
+	}
+	if detail := banDiffDetail(added, removed); detail != "" {
 		s.audit(r, srv.ID, "bans-update", detail)
 	}
 
@@ -233,9 +336,10 @@ func (s *Server) handleUpdateBans(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// banDiff renders the change for the audit trail. Account ids are the
-// moderation record itself, so unlike passwords they belong in it.
-func banDiff(before, after []esconfig.Ban) string {
+// banDelta reports what changed between the file and the request. It
+// drives both the queue and the audit line, so the two can't disagree
+// about what the operator asked for.
+func banDelta(before, after []esconfig.Ban) (added, removed []string) {
 	had := map[string]bool{}
 	for _, b := range before {
 		had[strings.TrimSpace(b.ID)] = true
@@ -244,7 +348,6 @@ func banDiff(before, after []esconfig.Ban) string {
 	for _, b := range after {
 		now[strings.TrimSpace(b.ID)] = true
 	}
-	var added, removed []string
 	for id := range now {
 		if !had[id] {
 			added = append(added, id)
@@ -257,7 +360,12 @@ func banDiff(before, after []esconfig.Ban) string {
 	}
 	sort.Strings(added)
 	sort.Strings(removed)
+	return added, removed
+}
 
+// banDiffDetail renders the change for the audit trail. Account ids are
+// the moderation record itself, so unlike passwords they belong in it.
+func banDiffDetail(added, removed []string) string {
 	var parts []string
 	if len(added) > 0 {
 		parts = append(parts, "banned "+strings.Join(added, ", "))

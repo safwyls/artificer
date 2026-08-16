@@ -353,12 +353,23 @@ Still open:
       the file is empty and has no convention to read. Still worth
       settling the first time a real ban lands — the console reports the
       answer as `objectShape` on `GET /bans`.
-- [ ] Whether a **running** server overwrites a hand-edited
-      `bannedAccounts`. The in-game ban UI writes this file, so it is
-      plausible the game holds the list in memory and persists it on
-      shutdown, clobbering an edit made mid-session. The Bans panel warns
-      about this whenever the game is up; confirming it either way would
-      let the warning go away (or become a hard refusal).
+- [ ] **Whether the game honours a ban written to the config at all.**
+      The 2026-08-16 loss is fully explained by the mid-session overwrite
+      above, but it does not rule out the stronger possibility that the
+      game keeps its bans in the savegame and only mirrors them to the
+      json. The queue answers this on its own: an edit written into a
+      stopped server's config is stamped applied, and if the file no
+      longer holds it once the game is up, `GET /bans` reports it as
+      `reverted` and the panel says the ban list can't be driven from the
+      file on this build. Until that fires, assume it works.
+- [x] **A running server overwrites a mid-session edit to
+      `bannedAccounts`** — observed 2026-08-16: a ban added through the
+      console while the server was up was gone after a restart. The game
+      holds the list in memory and writes it back out when it stops, so
+      the file is the game's while it runs. The console no longer competes
+      for it: an edit made while the game is up is queued and written
+      during the next restart, in the gap between the stop and the start
+      (`internal/banqueue`).
 - [ ] Whether an **absent** per-group capability key in `userGroups`
       defaults true or false in the game. It matters only for
       hand-written configs: everything flameagent seeds, and everything

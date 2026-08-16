@@ -14,6 +14,7 @@ import (
 
 	"github.com/safwyls/flametender/internal/agentfiles"
 	"github.com/safwyls/flametender/internal/backup"
+	"github.com/safwyls/flametender/internal/banqueue"
 	"github.com/safwyls/flametender/internal/cfaccess"
 	"github.com/safwyls/flametender/internal/dockerctl"
 	"github.com/safwyls/flametender/internal/notify"
@@ -66,10 +67,14 @@ type Server struct {
 	// Access. Lowercased by config; matched case-insensitively.
 	AccessAdminEmails []string
 	loginLimiter      *loginLimiter
+	// bans applies ban edits queued while the server was running, in the
+	// gap between a stop and the next start (internal/banqueue).
+	bans *banqueue.Queue
 }
 
 func New(st *store.Store, jwtSecret []byte, logger *slog.Logger, docker *dockerctl.Client, notifier *notify.Notifier, backups *backup.Runner, files *agentfiles.Syncer) *Server {
-	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, docker: docker, notifier: notifier, backups: backups, files: files, loginLimiter: newLoginLimiter()}
+	return &Server{store: st, jwtSecret: jwtSecret, logger: logger, docker: docker, notifier: notifier, backups: backups, files: files,
+		loginLimiter: newLoginLimiter(), bans: banqueue.New(st, files, logger)}
 }
 
 // Routes builds the full HTTP handler: JSON API under /api, and the built

@@ -61,6 +61,13 @@ Tests: `go test ./...` and `cd web && npm test`. Production build:
 `cd web && npm run build` then `go build ./cmd/flametender` (embeds the
 bundle).
 
+`bannedAccounts` has two writers — this console and the running game,
+whose in-game ban UI maintains the same array and rewrites it on
+shutdown. Never write that key while the game is up: queue the edit
+(`pending_bans`) and let `internal/banqueue` apply it during the restart,
+between the stop and the start. Both restart paths the console drives run
+the two halves themselves when work is queued.
+
 Roadmap: `docs/roadmap.md` (Phase 2: the moderation surface landed
 2026-08-16 — role groups behind `PermSettings` because they carry
 passwords, bans behind `PermModerate` because they don't; A2S presence

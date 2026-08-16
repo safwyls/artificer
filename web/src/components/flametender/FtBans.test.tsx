@@ -25,6 +25,8 @@ function bans(over: Partial<BansResult> = {}): BansResult {
     objectShape: false,
     unreadable: 0,
     running: false,
+    pending: [],
+    reverted: [],
     ...over,
   };
 }
@@ -79,19 +81,55 @@ describe("FtBans", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  // The unverified behaviour that could silently undo an edit: the running
-  // game owns this file too. Stated as a risk, on screen, only while it
-  // applies.
-  it("warns that a live server can overwrite the edit, and only while it's live", async () => {
+  // While the game is up it holds this list, so an edit is queued rather
+  // than written. The panel has to say when a change isn't in force yet —
+  // silently showing it as banned is how the original bug felt.
+  it("marks a queued ban as waiting for the restart", async () => {
+    vi.spyOn(api, "serverBans").mockResolvedValue(
+      bans({ running: true, bans: [{ index: -1, id: B }], pending: [{ id: B, action: "ban", applied: false }] }),
+    );
+    renderWithProviders(<FtBans serverId={1} />);
+
+    expect(await screen.findByText(/waiting for the next restart/i)).toBeInTheDocument();
+    expect(screen.getByText("at next restart")).toBeInTheDocument();
+  });
+
+  // A queued lift has no row left to mark, so it needs its own line or it
+  // looks like nothing happened.
+  it("names a queued lift, which has no row of its own", async () => {
+    vi.spyOn(api, "serverBans").mockResolvedValue(
+      bans({ running: true, bans: [], pending: [{ id: A, action: "lift", applied: false }] }),
+    );
+    renderWithProviders(<FtBans serverId={1} />);
+
+    expect(await screen.findByText(/Lifting at the next restart/i)).toBeInTheDocument();
+    expect(screen.getByText(A)).toBeInTheDocument();
+  });
+
+  // The diagnosis for the failure that started all this: written into a
+  // stopped server's config, and gone once the game came up.
+  it("says the server overwrote an edit rather than showing it missing again", async () => {
+    vi.spyOn(api, "serverBans").mockResolvedValue(
+      bans({ running: true, bans: [], reverted: [{ id: A, action: "ban", applied: true }] }),
+    );
+    renderWithProviders(<FtBans serverId={1} />);
+
+    expect(await screen.findByText(/overwrote/i)).toBeInTheDocument();
+    expect(screen.getByText(/in-game player menu instead/i)).toBeInTheDocument();
+    // And it must not also read as merely waiting.
+    expect(screen.queryByText(/waiting for the next restart/i)).not.toBeInTheDocument();
+  });
+
+  it("says edits apply at the next restart while the server is up", async () => {
     vi.spyOn(api, "serverBans").mockResolvedValue(bans({ running: true }));
     const { unmount } = renderWithProviders(<FtBans serverId={1} />);
-    expect(await screen.findByText(/can be overwritten/i)).toBeInTheDocument();
+    expect(await screen.findByText(/applied at the next restart/i)).toBeInTheDocument();
     unmount();
 
     vi.spyOn(api, "serverBans").mockResolvedValue(bans({ running: false }));
     renderWithProviders(<FtBans serverId={1} />);
     await screen.findByRole("button", { name: "Save ban list" });
-    expect(screen.queryByText(/can be overwritten/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/applied at the next restart/i)).not.toBeInTheDocument();
   });
 
   // Entries the backend couldn't parse are preserved rather than dropped,

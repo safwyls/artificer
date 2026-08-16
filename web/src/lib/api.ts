@@ -397,6 +397,15 @@ export interface Ban {
   name?: string;
 }
 
+/** A ban edit the file doesn't reflect yet. */
+export interface PendingBan {
+  id: string;
+  action: "ban" | "lift";
+  /** Written into the config with the game stopped. Still pending after
+   * that means the game overwrote it. */
+  applied: boolean;
+}
+
 export interface BansResult {
   bans: Ban[];
   path: string;
@@ -407,9 +416,16 @@ export interface BansResult {
   /** Entries the backend could not read. They are preserved on save; the
    * count exists so the UI can say so rather than appear to lose them. */
   unreadable: number;
-  /** The game is up, and it owns this list while it is — its own ban UI
-   * writes the file, so an edit now can be overwritten. */
+  /** The game is up, and it holds this list while it is — its own ban UI
+   * writes the same file and rewrites it on the way down. Edits made now
+   * are queued instead of trusted to the file. */
   running: boolean;
+  /** Queued edits, applied to the config immediately before the next
+   * restart. */
+  pending: PendingBan[];
+  /** Edits that were written into a stopped server's config and did not
+   * survive — the game overwrote them. */
+  reverted: PendingBan[];
 }
 
 /** One collected sample. Nulls are real gaps — the server was unreachable

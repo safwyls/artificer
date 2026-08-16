@@ -142,12 +142,20 @@ type banDTO struct {
 	Name  string `json:"name,omitempty"`
 }
 
+type pendingBanDTO struct {
+	ID      string `json:"id"`
+	Action  string `json:"action"`
+	Applied bool   `json:"applied"`
+}
+
 type bansDTO struct {
-	Bans        []banDTO `json:"bans"`
-	Writable    bool     `json:"writable"`
-	ObjectShape bool     `json:"objectShape"`
-	Unreadable  int      `json:"unreadable"`
-	Running     bool     `json:"running"`
+	Bans        []banDTO        `json:"bans"`
+	Writable    bool            `json:"writable"`
+	ObjectShape bool            `json:"objectShape"`
+	Unreadable  int             `json:"unreadable"`
+	Running     bool            `json:"running"`
+	Pending     []pendingBanDTO `json:"pending"`
+	Reverted    []pendingBanDTO `json:"reverted"`
 }
 
 const (

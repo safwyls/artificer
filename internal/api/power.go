@@ -212,7 +212,28 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 		if action != "start" && s.prepareForStop(ctx, r, "flameagent:"+srv.Name, actor) {
 			graceful = gameSelfExitWindow
 		}
-		game, err := agent.Power(ctx, action, graceful)
+
+		// Ban edits queued while the server was up are written into the
+		// config here, in the gap between the game stopping and starting —
+		// the only moment the game isn't holding that file (see
+		// internal/store/bans.go). For a restart that means running the two
+		// halves ourselves; without queued work the call is unchanged.
+		var (
+			game *agentctl.GameStatus
+			err  error
+		)
+		switch {
+		case action == "restart" && s.bans.Pending(ctx, srv):
+			if _, err = agent.Power(ctx, "stop", graceful); err == nil {
+				s.bans.Apply(ctx, srv)
+				game, err = agent.Power(ctx, "start", 0)
+			}
+		default:
+			if action == "start" {
+				s.bans.Apply(ctx, srv)
+			}
+			game, err = agent.Power(ctx, action, graceful)
+		}
 		if err != nil {
 			s.logger.Error("agent power action failed", "action", action, "server", srv.Name, "user", actor, "error", err)
 			writeAgentError(w, err)
@@ -232,12 +253,22 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch action {
 	case "start":
+		s.bans.Apply(ctx, srv)
 		err = s.docker.Start(ctx, name)
 	case "stop":
 		s.prepareForStop(ctx, r, name, actor)
 		err = s.docker.Stop(ctx, name)
 	case "restart":
 		s.prepareForStop(ctx, r, name, actor)
+		// Same reason as the agent branch above: the queued edits need the
+		// window where the game isn't holding the config.
+		if s.bans.Pending(ctx, srv) {
+			if err = s.docker.Stop(ctx, name); err == nil {
+				s.bans.Apply(ctx, srv)
+				err = s.docker.Start(ctx, name)
+			}
+			break
+		}
 		err = s.docker.Restart(ctx, name)
 	}
 

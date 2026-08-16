@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/safwyls/flametender/internal/agentfiles"
+	"github.com/safwyls/flametender/internal/banqueue"
 	"github.com/safwyls/flametender/internal/crypto"
 	"github.com/safwyls/flametender/internal/db"
 	"github.com/safwyls/flametender/internal/game/gametest"
@@ -114,7 +116,7 @@ func newStore(t *testing.T) *store.Store {
 func newScheduler(t *testing.T, st *store.Store) *Scheduler {
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return New(st, notify.New(st, logger), nil, logger)
+	return New(st, notify.New(st, logger), nil, logger, banqueue.New(st, agentfiles.New(t.TempDir(), logger), logger))
 }
 
 // addServer registers a REST-mode row aimed at the spy.

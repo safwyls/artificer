@@ -37,7 +37,16 @@ function player(over: Partial<Player> = {}): Player {
 }
 
 function bans(list: BansResult["bans"]): BansResult {
-  return { bans: list, path: "enshrouded_server.json", writable: true, objectShape: false, unreadable: 0, running: true };
+  return {
+    bans: list,
+    path: "enshrouded_server.json",
+    writable: true,
+    objectShape: false,
+    unreadable: 0,
+    running: true,
+    pending: [],
+    reverted: [],
+  };
 }
 
 function renderRoster(players: Player[]) {

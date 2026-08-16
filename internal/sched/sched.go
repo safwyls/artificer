@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/safwyls/flametender/internal/agentctl"
+	"github.com/safwyls/flametender/internal/banqueue"
 	"github.com/safwyls/flametender/internal/dockerctl"
 	"github.com/safwyls/flametender/internal/game"
 	"github.com/safwyls/flametender/internal/notify"
@@ -46,14 +47,18 @@ type Scheduler struct {
 	// restart policy to bring the server back.
 	docker *dockerctl.Client
 	logger *slog.Logger
+	// bans writes ban edits queued while the server was up into the config
+	// during the restart, between the stop and the start — the only moment
+	// the game isn't holding that file (internal/banqueue).
+	bans *banqueue.Queue
 
 	// fired dedupes events within a process lifetime, keyed by
 	// scheduleID + occurrence time.
 	fired map[string]time.Time
 }
 
-func New(st *store.Store, notifier *notify.Notifier, docker *dockerctl.Client, logger *slog.Logger) *Scheduler {
-	return &Scheduler{store: st, notifier: notifier, docker: docker, logger: logger, fired: make(map[string]time.Time)}
+func New(st *store.Store, notifier *notify.Notifier, docker *dockerctl.Client, logger *slog.Logger, bans *banqueue.Queue) *Scheduler {
+	return &Scheduler{store: st, notifier: notifier, docker: docker, logger: logger, bans: bans, fired: make(map[string]time.Time)}
 }
 
 // Run sweeps until ctx is cancelled. Intended to be started in a goroutine.
@@ -317,11 +322,37 @@ func (s *Scheduler) restart(ctx context.Context, srv *store.Server, sc *store.Re
 		if shutdownOK {
 			graceful = agentctl.GameSelfExitWindow
 		}
+		// Queued ban edits need the gap between the stop and the start, so
+		// a restart with work waiting is run as its two halves.
+		if s.bans.Pending(ctx, srv) {
+			if _, err := agent.Power(ctx, "stop", graceful); err != nil {
+				s.logger.Error("scheduler: agent stop failed", "server", srv.ID, "error", err)
+				return
+			}
+			s.bans.Apply(ctx, srv)
+			if _, err := agent.Power(ctx, "start", 0); err != nil {
+				s.logger.Error("scheduler: agent start failed", "server", srv.ID, "error", err)
+				return
+			}
+			break
+		}
 		if _, err := agent.Power(ctx, "restart", graceful); err != nil {
 			s.logger.Error("scheduler: agent restart failed", "server", srv.ID, "error", err)
 			return
 		}
 	case useDocker:
+		if s.bans.Pending(ctx, srv) {
+			if err := s.docker.Stop(ctx, srv.ContainerName); err != nil {
+				s.logger.Error("scheduler: container stop failed", "server", srv.ID, "container", srv.ContainerName, "error", err)
+				return
+			}
+			s.bans.Apply(ctx, srv)
+			if err := s.docker.Start(ctx, srv.ContainerName); err != nil {
+				s.logger.Error("scheduler: container start failed", "server", srv.ID, "container", srv.ContainerName, "error", err)
+				return
+			}
+			break
+		}
 		if err := s.docker.Restart(ctx, srv.ContainerName); err != nil {
 			s.logger.Error("scheduler: container restart failed", "server", srv.ID, "container", srv.ContainerName, "error", err)
 			return

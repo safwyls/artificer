@@ -90,6 +90,17 @@ const overrides: Record<string, unknown> = {
   serverAchievements: { players: [], parsedAt: "", saveModTime: "" },
   serverSettings: {},
   serverConfig: { settings: [], raw: "" },
+  serverRoles: { groups: [], path: "enshrouded_server.json", writable: true, restartRequired: true },
+  serverBans: {
+    bans: [],
+    path: "enshrouded_server.json",
+    writable: true,
+    objectShape: false,
+    unreadable: 0,
+    running: false,
+    pending: [],
+    reverted: [],
+  },
   steamUpdateStatus: { running: false },
   serverVisibility: {
     hiddenFeatures: [],
