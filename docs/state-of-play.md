@@ -131,6 +131,29 @@ blocker.)
   they carry no credential; and the bans editor never imposes an element
   format on the file, which is why that ledger row stopped gating
   anything.
+- **Backups had never once worked, and nothing said so.** Reported
+  2026-08-16: the snapshot button said "in progress" and no file ever
+  appeared. `internal/backup` came from Palworld and was the one package
+  the transplant missed — it globbed `*.sav` to find the world, and
+  Enshrouded's saves are extensionless hex blobs (`3ad85aea`, plus
+  `-1`…`-10` copies and the `-index`/`-info` sidecars). So every snapshot
+  failed at the first step, before writing a byte, and the archiver's
+  `.sav` filter would have zipped an empty file even if it hadn't. The
+  scheduled sweep was dead for the same reason. Two lessons worth
+  carrying: the **fixtures shared the blind spot** — the tests wrote
+  `.sav` files, so they were green the whole time, which is why the new
+  ones name the real hex layout explicitly; and the archiver now takes
+  *every* regular file, deliberately the same set the agent bundles
+  (`flameagent.listSaveFiles`), because a world is only meaningful as a
+  set and a restore needs the index to know which copy is live.
+- **A detached job that fails needs somewhere to say so.** The other half
+  of that bug: snapshots run in a goroutine, so the request that starts
+  one is long gone when it fails, and the error only reached the console's
+  own log. `Runner.LastFailure` now records why, `GET /backups` returns
+  it, and the World saves page shows it. Any future detached work should
+  do the same — a `running` flag that clears with no result is
+  indistinguishable from nothing having happened.
+
 - **Phase 2 is complete.** The Steam query landed last (`esquery` +
   `GET /v1/query` on the agent + the console wiring), and with it the
   three facts the log could never carry: how many people are on right

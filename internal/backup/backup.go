@@ -1,11 +1,14 @@
-// Package backup snapshots Palworld save directories into the data
-// dataset. The save mount is read-only by deployment convention, so a
-// backup is a pure read: walk the save directory, zip every .sav file,
-// write the archive under DATA_DIR/backups/<server id>/, prune old ones.
+// Package backup snapshots the Enshrouded save directory into the data
+// dataset. The save is a pure read: walk the directory, zip it, write the
+// archive under DATA_DIR/backups/<server id>/, prune old ones.
 //
-// Restores are deliberately manual (download the zip, unpack it over the
-// save with the server stopped): writing into the save mount is exactly
-// what Palcon promises never to do.
+// The whole directory goes in, because Enshrouded's world is a set of
+// files that only mean something together — the hex-named blob, its
+// rolling copies, and the `-index` sidecar naming which copy is live.
+//
+// Restores are deliberately manual for now (download the zip, unpack it
+// over the save with the server stopped); the guided rollback that writes
+// the index back is Phase 3.
 package backup
 
 import (
@@ -63,6 +66,17 @@ type Runner struct {
 	running map[int64]bool
 	// failing dedupes the Discord failure alert to once per streak.
 	failing map[int64]bool
+	// lastErr is why the most recent attempt failed, per server, kept so
+	// the UI can say so. Without it a failed snapshot is indistinguishable
+	// from one that never started: the running flag clears, no file
+	// appears, and the reason exists only in the console's own log.
+	lastErr map[int64]Failure
+}
+
+// Failure is the last unsuccessful snapshot attempt for a server.
+type Failure struct {
+	Error string    `json:"error"`
+	At    time.Time `json:"at"`
 }
 
 func New(st *store.Store, notifier *notify.Notifier, logger *slog.Logger, dataDir string, files *agentfiles.Syncer) *Runner {
@@ -74,6 +88,7 @@ func New(st *store.Store, notifier *notify.Notifier, logger *slog.Logger, dataDi
 		root:     filepath.Join(dataDir, "backups"),
 		running:  make(map[int64]bool),
 		failing:  make(map[int64]bool),
+		lastErr:  make(map[int64]Failure),
 	}
 }
 
@@ -148,7 +163,7 @@ func (r *Runner) isDue(ctx context.Context, srv *store.Server) (bool, error) {
 		if err != nil {
 			return false, nil // save unreachable right now; try next sweep
 		}
-		world, err := newestSav(savePath)
+		world, err := newestWorldFile(savePath)
 		if err != nil {
 			return false, nil // no readable world save; nothing to back up
 		}
@@ -168,37 +183,81 @@ func (r *Runner) Running(serverID int64) bool {
 	return r.running[serverID]
 }
 
-// newestSav finds the world file the server would load on start: the most
-// recently modified .sav in the save directory (that is the game's own
-// load rule — docs/dragonwilds-recon.md, "Saves").
-func newestSav(saveDir string) (string, error) {
-	matches, err := filepath.Glob(filepath.Join(saveDir, "*.sav"))
-	if err != nil || len(matches) == 0 {
-		return "", errors.New("no .sav files in the save directory")
+// LastFailure returns why the most recent attempt failed, or nil if the
+// last one succeeded. Cleared by success, so it never outlives the
+// problem it describes.
+func (r *Runner) LastFailure(serverID int64) *Failure {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	f, ok := r.lastErr[serverID]
+	if !ok {
+		return nil
+	}
+	return &f
+}
+
+// noteResult records the outcome so a failure has somewhere to be read
+// from. Busy is not a failure — it means another snapshot is already
+// doing the work.
+func (r *Runner) noteResult(serverID int64, err error) {
+	if errors.Is(err, ErrBusy) {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err != nil {
+		r.lastErr[serverID] = Failure{Error: err.Error(), At: time.Now().UTC()}
+		return
+	}
+	delete(r.lastErr, serverID)
+}
+
+// isSidecar reports the two JSON companions Enshrouded writes beside each
+// world: `<hex>-index` (which rolling copy is live) and `<hex>-info`
+// (world metadata). Both are archived like everything else — rollback
+// needs the index — but neither is a world, so neither may stand in for
+// one when the question is "is there something here worth backing up".
+func isSidecar(name string) bool {
+	return strings.HasSuffix(name, "-index") || strings.HasSuffix(name, "-info")
+}
+
+// newestWorldFile finds the most recently written world blob.
+//
+// Enshrouded's saves are **extensionless, fixed hex names by creation
+// slot** (`3ad85aea` for world 1) plus rolling copies `<hex>-1` … `<hex>-10`
+// — see docs/enshrouded-recon.md, "Saves". There is no extension to match
+// on, which is exactly what the Palworld original assumed: it globbed
+// `*.sav`, found nothing, and failed every snapshot before writing a byte.
+func newestWorldFile(saveDir string) (string, error) {
+	entries, err := os.ReadDir(saveDir)
+	if err != nil {
+		return "", fmt.Errorf("reading the save directory: %w", err)
 	}
 	best, bestMod := "", int64(-1)
-	for _, m := range matches {
-		info, err := os.Stat(m)
+	for _, e := range entries {
+		if e.IsDir() || isSidecar(e.Name()) {
+			continue
+		}
+		info, err := e.Info()
 		if err != nil {
 			continue
 		}
 		if mod := info.ModTime().UnixNano(); mod > bestMod {
-			best, bestMod = m, mod
+			best, bestMod = filepath.Join(saveDir, e.Name()), mod
 		}
 	}
 	if best == "" {
-		return "", errors.New("no readable .sav in the save directory")
+		return "", errors.New("the save directory holds no world files — has the server saved yet?")
 	}
 	return best, nil
 }
 
-// verifySav rejects an obviously-broken world file — empty, or truncated
-// below any plausible header. Nothing stricter: the save format is
-// unverified (recon doc, "Saves"), so a magic-bytes check would be an
-// invented rule that rejects legitimate saves after the next game patch.
-// UE writes saves via temp-and-rename, which covers the mid-write case a
-// magic check existed for.
-func verifySav(path string) error {
+// verifyWorldFile rejects an obviously-broken world — empty, or truncated
+// below any plausible header. Nothing stricter: the blob format is
+// proprietary and has no public parser (recon doc, "Saves"), so a
+// magic-bytes check would be an invented rule that rejects legitimate
+// saves after the next game patch.
+func verifyWorldFile(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -211,7 +270,17 @@ func verifySav(path string) error {
 
 // BackupNow snapshots the server's save directory immediately. Safe to call
 // concurrently; a second call while one runs returns ErrBusy.
+//
+// The outcome is recorded either way. Callers that run this in the
+// background — the manual button, the sweep — have nowhere to return an
+// error to, and that is exactly how a failing backup stayed invisible.
 func (r *Runner) BackupNow(ctx context.Context, srv *store.Server) (*Snapshot, error) {
+	snap, err := r.backupNow(ctx, srv)
+	r.noteResult(srv.ID, err)
+	return snap, err
+}
+
+func (r *Runner) backupNow(ctx context.Context, srv *store.Server) (*Snapshot, error) {
 	if !agentfiles.SaveConfigured(srv) {
 		return nil, errors.New("no save path or agent configured")
 	}
@@ -234,11 +303,11 @@ func (r *Runner) BackupNow(ctx context.Context, srv *store.Server) (*Snapshot, e
 	if err != nil {
 		return nil, fmt.Errorf("resolving save: %w", err)
 	}
-	world, err := newestSav(saveDir)
+	world, err := newestWorldFile(saveDir)
 	if err != nil {
 		return nil, err
 	}
-	if err := verifySav(world); err != nil {
+	if err := verifyWorldFile(world); err != nil {
 		return nil, err
 	}
 
@@ -273,10 +342,18 @@ func (r *Runner) BackupNow(ctx context.Context, srv *store.Server) (*Snapshot, e
 	return &Snapshot{Name: name, TS: now, Bytes: info.Size()}, nil
 }
 
-// writeArchive zips every .sav under the save directory (Level.sav,
-// LevelMeta.sav, WorldOption.sav, Players/, GlobalPalStorage.sav, pal
-// storage sidecars), preserving relative paths. Anything else — the game's
-// own scratch files, a stray backup folder — stays out.
+// writeArchive zips the whole save directory, preserving relative paths.
+//
+// Every regular file belongs to the world: the hex-named blob, its
+// rolling copies, and the `-index`/`-info` sidecars — and the index in
+// particular is what a restore needs to say which copy is live, so
+// leaving it out would produce an archive that cannot be rolled back to.
+// The only exclusion is a rolling-backup folder the game or an image
+// keeps beside the save; archiving archives helps no one.
+//
+// This is deliberately the same set the agent bundles
+// (flameagent.listSaveFiles), so an agent-synced backup and a
+// bind-mounted one archive identically. When one changes the other must.
 func writeArchive(ctx context.Context, saveDir, dest string) error {
 	out, err := os.Create(dest)
 	if err != nil {
@@ -298,9 +375,6 @@ func writeArchive(ctx context.Context, saveDir, dest string) error {
 			if strings.EqualFold(d.Name(), "backup") || strings.EqualFold(d.Name(), "backups") {
 				return filepath.SkipDir
 			}
-			return nil
-		}
-		if !strings.EqualFold(filepath.Ext(d.Name()), ".sav") {
 			return nil
 		}
 		rel, err := filepath.Rel(saveDir, path)

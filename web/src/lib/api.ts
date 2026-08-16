@@ -676,6 +676,10 @@ export interface BackupsResult {
   keep: number;
   snapshots: BackupSnapshot[];
   totalBytes: number;
+  /** Why the most recent attempt produced no file, or null if the last one
+   * succeeded. Snapshots run detached from the request that starts them,
+   * so without this a failure looks exactly like nothing happening. */
+  lastFailure: { error: string; at: string } | null;
 }
 
 /** The unauthenticated status snapshot behind a public token. */

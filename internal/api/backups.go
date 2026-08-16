@@ -43,6 +43,11 @@ func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
 		"keep":          srv.BackupKeep,
 		"snapshots":     snaps,
 		"totalBytes":    total,
+		// Why the last attempt produced no file. Snapshots run detached —
+		// the request that starts one is long gone by the time it fails —
+		// so without this the UI can only show the running flag clearing
+		// and no new archive, which reads as "nothing happened".
+		"lastFailure": s.backups.LastFailure(srv.ID),
 	})
 }
 

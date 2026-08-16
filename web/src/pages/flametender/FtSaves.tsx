@@ -20,7 +20,10 @@ export function FtSaves() {
     queryKey: ["backups", id],
     queryFn: () => api.listBackups(id),
     enabled: isAdmin,
-    refetchInterval: 30_000,
+    // Close while one is running, idle otherwise. A snapshot takes seconds
+    // and its outcome is the thing being waited for; a 30s poll left the
+    // button reading "in progress" long after it had finished or failed.
+    refetchInterval: (q) => (q.state.data?.running ? 2_000 : 30_000),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["backups", id] });
@@ -91,6 +94,15 @@ export function FtSaves() {
                   archives the whole set, rollback window included.
                 </span>
               </div>
+              {/* A snapshot runs detached from the click that starts it, so a
+                  failure has no request left to fail. Spore, because this is
+                  the palette's one "something is wrong" colour. */}
+              {backups.lastFailure && !backups.running && (
+                <p className="mb-3 rounded-sm border border-ft-sporedim bg-ft-sporedim/20 px-2.5 py-1.5 text-xs text-ft-spore">
+                  The last snapshot failed {new Date(backups.lastFailure.at).toLocaleString()} and wrote no file:{" "}
+                  {backups.lastFailure.error}
+                </p>
+              )}
               {backups.snapshots.length === 0 ? (
                 <p className="text-sm text-ft-lichen">The vault is empty — take the first snapshot.</p>
               ) : (

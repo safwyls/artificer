@@ -185,7 +185,16 @@ export function FtOverview() {
             <FtStat
               label="Latest backup"
               value={latestBackup ? agoLabel(latestBackup.ts) : "none"}
-              hint={latestBackup ? latestBackup.name : "run one from World saves"}
+              // "none" with a failure behind it is the state worth naming:
+              // otherwise a backup path that has never once worked looks
+              // identical to one nobody has got round to running.
+              hint={
+                latestBackup
+                  ? latestBackup.name
+                  : backupsQuery.data?.lastFailure
+                    ? "the last attempt failed — see World saves"
+                    : "run one from World saves"
+              }
             />
           ) : (
             <FtStat

@@ -43,7 +43,7 @@ const overrides: Record<string, unknown> = {
     dockerRestart: false,
     publicStatus: { enabled: false },
   },
-  listBackups: { snapshots: [], intervalHours: 0, keep: 3, running: false },
+  listBackups: { snapshots: [], intervalHours: 0, keep: 3, running: false, lastFailure: null },
   getWorld: {
     available: true,
     world: {

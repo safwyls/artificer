@@ -14,14 +14,22 @@ import (
 	"github.com/safwyls/flametender/internal/store"
 )
 
-// fakeSave lays out a save directory shaped like a real Dragonwilds world:
-// a .sav big enough to pass the truncation check, a smaller sibling, a
-// non-.sav stray, and a nested backup dir that must be skipped.
+// worldHex is Enshrouded's fixed name for the first world slot — the
+// dedicated server's savefile (docs/enshrouded-recon.md, "Saves").
+const worldHex = "3ad85aea"
+
+// fakeSave lays out a save directory shaped like a real Enshrouded world:
+// the extensionless hex blob, two rolling copies, the -index pointer and
+// the -info sidecar, plus a nested backup dir that must be skipped.
+//
+// Nothing here has an extension, which is the whole point. This package
+// arrived from Palworld globbing `*.sav` and its fixtures wrote `.sav`
+// files, so the tests passed while every real snapshot failed before
+// writing a byte.
 func fakeSave(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	level := append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, []byte("GVAS")...)
-	level = append(level, make([]byte, 64)...)
+	world := append([]byte("ENSH"), make([]byte, 64)...)
 	mustWrite := func(rel string, data []byte) {
 		t.Helper()
 		path := filepath.Join(dir, rel)
@@ -32,12 +40,12 @@ func fakeSave(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	mustWrite("Ashenfall.sav", level)
-	mustWrite("Ashenfall_old.sav", []byte("older world file"))
-	mustWrite("Players/1111.sav", []byte("p1"))
-	mustWrite("Players/1111_dps.sav", []byte("dps"))
-	mustWrite("stray.txt", []byte("not a save"))
-	mustWrite("backup/old.sav", []byte("the game's own backup"))
+	mustWrite(worldHex, world)
+	mustWrite(worldHex+"-1", []byte("a rolling copy from ten minutes ago"))
+	mustWrite(worldHex+"-2", []byte("an older rolling copy"))
+	mustWrite(worldHex+"-index", []byte(`{"latest":0,"time":1234567890,"deleted":false}`))
+	mustWrite(worldHex+"-info", []byte(`{"name":"Grimwood"}`))
+	mustWrite("backup/"+worldHex, []byte("the game's own backup"))
 	return dir
 }
 
@@ -78,12 +86,14 @@ func TestBackupArchivesSavFilesOnly(t *testing.T) {
 		t.Fatalf("path: %v", err)
 	}
 	names := archiveNames(t, path)
-	for _, want := range []string{"Ashenfall.sav", "Ashenfall_old.sav", "Players/1111.sav", "Players/1111_dps.sav"} {
+	// The index in particular has to be in there: without it a restore
+	// cannot say which rolling copy is the live one.
+	for _, want := range []string{worldHex, worldHex + "-1", worldHex + "-2", worldHex + "-index", worldHex + "-info"} {
 		if !names[want] {
 			t.Errorf("archive missing %s (has %v)", want, names)
 		}
 	}
-	if names["stray.txt"] || names["backup/old.sav"] {
+	if names["backup/"+worldHex] {
 		t.Errorf("archive includes files it must skip: %v", names)
 	}
 
@@ -97,7 +107,7 @@ func TestBackupRejectsTornSav(t *testing.T) {
 	r := testRunner(t)
 	save := t.TempDir()
 	// Below the truncation floor — a save caught mid-write or corrupt.
-	if err := os.WriteFile(filepath.Join(save, "World.sav"), []byte("torn"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(save, worldHex), []byte("torn"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.BackupNow(context.Background(), srvWith(save)); err == nil {
@@ -187,8 +197,9 @@ func TestIsDueSkipsUnchangedSave(t *testing.T) {
 		t.Fatal(err)
 	}
 	past := time.Now().Add(-3 * time.Hour)
-	// Age every world file: isDue reads the newest .sav, whichever that is.
-	for _, name := range []string{"Ashenfall.sav", "Ashenfall_old.sav"} {
+	// Age every world file: isDue reads the newest world blob, whichever
+	// that is.
+	for _, name := range []string{worldHex, worldHex + "-1", worldHex + "-2", worldHex + "-index", worldHex + "-info"} {
 		if err := os.Chtimes(filepath.Join(save, name), past, past); err != nil {
 			t.Fatal(err)
 		}
@@ -199,7 +210,7 @@ func TestIsDueSkipsUnchangedSave(t *testing.T) {
 
 	// Touch the save newer than the snapshot: due again.
 	now := time.Now()
-	if err := os.Chtimes(filepath.Join(save, "Ashenfall.sav"), now, now); err != nil {
+	if err := os.Chtimes(filepath.Join(save, worldHex), now, now); err != nil {
 		t.Fatal(err)
 	}
 	if due, _ := r.isDue(context.Background(), srv); !due {

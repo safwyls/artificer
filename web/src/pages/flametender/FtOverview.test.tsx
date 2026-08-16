@@ -72,6 +72,7 @@ function stub(
     running: false,
     available: true,
     totalBytes: 0,
+    lastFailure: null,
   });
 }
 

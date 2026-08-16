@@ -88,7 +88,7 @@ func listSaveFiles(saveDir string) ([]saveEntry, error) {
 }
 
 // bundleETag fingerprints the file set: any added, removed, resized or
-// rewritten .sav changes it. Content is not hashed — modtime+size is how
+// rewritten save file changes it. Content is not hashed — modtime+size is how
 // the rest of flametender detects save changes too.
 func bundleETag(entries []saveEntry) string {
 	h := sha256.New()
@@ -100,7 +100,7 @@ func bundleETag(entries []saveEntry) string {
 
 // handleGetSave streams the world save directory as a tar bundle, with an
 // ETag so the poller's unchanged checks cost a directory walk and no
-// transfer. No compression: .sav files are already compressed containers.
+// transfer. No compression: the world blobs are already compressed.
 func (a *Agent) handleGetSave(w http.ResponseWriter, r *http.Request) {
 	saveDir, err := a.findSaveDir()
 	if err != nil {
@@ -113,7 +113,7 @@ func (a *Agent) handleGetSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(entries) == 0 {
-		writeError(w, http.StatusNotFound, "world save directory holds no .sav files")
+		writeError(w, http.StatusNotFound, "the world save directory is empty")
 		return
 	}
 	etag := bundleETag(entries)

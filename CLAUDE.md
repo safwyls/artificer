@@ -59,6 +59,13 @@ creates accounts on first sign-in with no permissions, and
 is the contract — in particular why the audience check is mandatory and
 why password login stays.
 
+Saves are extensionless hex blobs (`3ad85aea`, rolling copies `-1`…`-10`,
+plus `-index`/`-info` JSON sidecars) — never match on an extension.
+`internal/backup` archives *every* regular file under `savegame/`,
+deliberately the same set the agent bundles (`flameagent.listSaveFiles`);
+when one changes the other must. Detached work (snapshots) records its
+outcome (`Runner.LastFailure`) so a failure isn't invisible to the UI.
+
 Tests: `go test ./...` and `cd web && npm test`. Production build:
 `cd web && npm run build` then `go build ./cmd/flametender` (embeds the
 bundle).
