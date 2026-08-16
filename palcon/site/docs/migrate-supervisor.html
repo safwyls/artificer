@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Migrate to supervisor mode — Palcon docs</title>
+<meta name="description" content="Retire the game image and let the agent run the server — one restart of downtime, fully reversible.">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Migrate to supervisor mode — Palcon docs">
+<meta property="og:description" content="Retire the game image and let the agent run the server — one restart of downtime, fully reversible.">
+<meta property="og:url" content="https://safwyls.github.io/palcon/docs/migrate-supervisor.html">
+<meta property="og:image" content="https://safwyls.github.io/palcon/assets/og.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html" aria-label="Palcon home">
+      <span class="sphere online"><span class="ring"><span class="core">Pa</span></span><span class="dot"></span></span>
+      <span class="wordmark">palcon</span>
+      <span class="crumb-docs">docs</span>
+    </a>
+    <nav class="nav-links" aria-label="Site">
+      <a class="hide-sm" href="../index.html#features">Features</a>
+      <a class="hide-sm" href="../index.html#get-started">Quickstart</a>
+      <a class="nav-gh" href="https://github.com/safwyls/palcon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+    </nav>
+  </div>
+</header>
+<div class="docs-shell">
+  <details class="side-mobile">
+    <summary>Docs navigation</summary>
+    <nav aria-label="Docs">
+<div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">First login & your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--sky)"><span class="ring"><span class="core"></span></span></span>Configuration</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+    <li><a href="power-control.html">Power control</a></li>
+    <li><a href="save-files.html">Reading save files</a></li>
+    <li><a href="users.html">Users & permissions</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>Guides</div>
+  <ul>
+    <li><a href="automation.html">Automation & alerts</a></li>
+    <li><a href="palagent.html">palagent sidecar</a></li>
+    <li><a href="migrate-supervisor.html" class="active" aria-current="page">Migrate to supervisor mode</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div>
+    </nav>
+  </details>
+  <aside class="side" aria-label="Docs">
+<div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">First login & your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--sky)"><span class="ring"><span class="core"></span></span></span>Configuration</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+    <li><a href="power-control.html">Power control</a></li>
+    <li><a href="save-files.html">Reading save files</a></li>
+    <li><a href="users.html">Users & permissions</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>Guides</div>
+  <ul>
+    <li><a href="automation.html">Automation & alerts</a></li>
+    <li><a href="palagent.html">palagent sidecar</a></li>
+    <li><a href="migrate-supervisor.html" class="active" aria-current="page">Migrate to supervisor mode</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div>
+  </aside>
+  <main class="doc" id="content">
+    <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Guides <span>/</span> Migrate to supervisor mode</p>
+    <h1>Migrate to supervisor mode</h1>
+
+<p class="lead">Companion mode is the compatibility path for servers that predate the agent.
+Migrating retires the game image, the companion agent, and — once no companions remain — the
+docker socket proxy. The world survives because everything lives in the dataset: the game
+install, saves and config never move. Expect one restart's worth of downtime.</p>
+
+<div class="callout note"><p><b>What you end up with</b>: one
+<a href="palagent.html#supervisor">supervisor-mode</a> container per server that installs,
+runs and restarts the game itself — real exit codes, crash backoff, game logs in the dashboard,
+and no <a href="power-control.html">docker proxy</a> needed for that server.</p></div>
+
+<h2 id="steps">The migration, step by step</h2>
+<ol>
+  <li><b>Safety net.</b> Run a backup from the dashboard, and snapshot the server's dataset.</li>
+  <li><b>Stop the old server.</b> Stop from the server card (the usual save-then-shutdown
+    sequence runs), then stop and delete the old game container's app. <b>Keep the
+    dataset.</b></li>
+  <li><b>Clear the container name</b> on the server's edit form — it names the old game
+    container, which stops existing in the next step, and docker-side features would point at a
+    ghost. (The watchdog needs no attention: on a supervised server it stands down
+    automatically, since the supervisor owns crash recovery.)</li>
+  <li><b>Swap the stacks.</b> Remove the companion agent service from wherever it lives, and
+    deploy a supervisor-mode stack for the server:
+<div class="code-card" data-copy>
+<div class="code-head"><span>palworld-main/docker-compose.yml — the agent IS the server</span><button class="copy-btn">Copy</button></div>
+<pre><span class="k">services</span>:
+  <span class="k">palagent</span>:
+    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/palagent:latest</span>
+    <span class="k">environment</span>:
+      - <span class="v">PALAGENT_TOKEN=${PALAGENT_TOKEN}</span>          <span class="c"># reuse the companion's token</span>
+      - <span class="v">PALAGENT_MODE=supervisor</span>
+      - <span class="v">PALAGENT_ADMIN_PASSWORD=${PALWORLD_ADMIN_PASSWORD}</span>  <span class="c"># the row's REST/RCON password</span>
+    <span class="k">volumes</span>: <span class="v">["./palworld:/palworld"]</span>       <span class="c"># same path the game used before</span>
+    <span class="k">ports</span>:
+      - <span class="v">"8211:8211/udp"</span>   <span class="c"># the ports the old app published</span>
+      - <span class="v">"8212:8212"</span>
+      - <span class="v">"25575:25575"</span>
+    <span class="k">networks</span>: <span class="v">[default, palcon-net]</span>
+    <span class="k">restart</span>: <span class="v">unless-stopped</span>
+<span class="k">networks</span>:
+  <span class="k">palcon-net</span>:
+    <span class="k">external</span>: <span class="v">true</span></pre>
+</div>
+    Three details matter: the <b>same volume path</b> the old game container used; <b>no</b>
+    <code>SaveGames :ro</code> overlay (unlike a companion, the game writes its own saves
+    through this mount); and deploy it as its <b>own stack</b>, not inside Palcon's — the agent
+    <i>is</i> the game server now, and a <code>compose down</code> on the dashboard must never
+    be able to take it along. Reusing the companion's token saves a form edit.</li>
+  <li><b>Update the server row</b> if ports or the agent URL changed — a standalone stack
+    publishes the agent port instead of sharing Palcon's network.</li>
+  <li><b>Start from the card.</b> The existing <code>PalWorldSettings.ini</code> is kept as-is;
+    the management interfaces (REST/RCON) are enforced on every start, so the dashboard
+    connects on its own. Verify the card shows <b>palagent · supervisor</b> and players can
+    join.</li>
+</ol>
+
+<div class="callout note"><p><b>A supervised server always answers to the agent first.</b>
+Power buttons, scheduled restarts and update jobs all ask the agent before considering docker,
+so a leftover container name can't fight the supervisor over restarts — it just leaves
+docker-side extras (container logs, the stale-name cleanup above) pointing at a container that
+no longer exists. Servers deployed by the provisioner record their container name on purpose:
+there it names the <i>supervisor's own</i> container, which powers the log viewer and the
+optional container destroy on removal.</p></div>
+
+<h2 id="rollback">Rollback</h2>
+<p>If anything misbehaves: stop the supervisor stack, redeploy the old game app and companion
+agent, restore the watchdog/container-name settings — the dataset was never modified
+structurally, so the world is exactly where you left it.</p>
+
+<h2 id="after">After the last companion</h2>
+<p>Once every server is supervised, nothing uses the docker socket proxy anymore — remove the
+<code>docker-proxy</code> service and the <code>DOCKER_HOST</code> variable from Palcon's own
+stack. Power for every server now flows through its agent.</p>
+
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="palagent.html"><small>← Previous</small><b>palagent sidecar</b></a><a class="pager-card next" href="troubleshooting.html"><small>Next →</small><b>Troubleshooting</b></a></nav>
+  </main>
+</div>
+<footer class="doc-footer">
+  <div class="wrap-doc">
+    <p>Palcon is an unofficial fan project, not affiliated with or endorsed by Pocketpair.
+    Palworld, pal artwork and map imagery are © Pocketpair, Inc.</p>
+    <p><a href="https://github.com/safwyls/palcon">GitHub</a> ·
+       <a href="https://github.com/safwyls/palcon/issues">Issues</a> ·
+       <a href="../index.html">Homepage</a></p>
+  </div>
+</footer>
+<script>
+  for (const card of document.querySelectorAll(".code-card[data-copy]")) {
+    const btn = card.querySelector(".copy-btn");
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(card.querySelector("pre").innerText);
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = "Copy"), 1600);
+      } catch { btn.textContent = "Select & copy"; }
+    });
+  }
+</script>
+</body>
+</html>

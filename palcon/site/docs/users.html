@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Users & permissions — Palcon docs</title>
+<meta name="description" content="Grants control who can act, visibility switches control who can look. Both apply immediately.">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Users & permissions — Palcon docs">
+<meta property="og:description" content="Grants control who can act, visibility switches control who can look. Both apply immediately.">
+<meta property="og:url" content="https://safwyls.github.io/palcon/docs/users.html">
+<meta property="og:image" content="https://safwyls.github.io/palcon/assets/og.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html" aria-label="Palcon home">
+      <span class="sphere online"><span class="ring"><span class="core">Pa</span></span><span class="dot"></span></span>
+      <span class="wordmark">palcon</span>
+      <span class="crumb-docs">docs</span>
+    </a>
+    <nav class="nav-links" aria-label="Site">
+      <a class="hide-sm" href="../index.html#features">Features</a>
+      <a class="hide-sm" href="../index.html#get-started">Quickstart</a>
+      <a class="nav-gh" href="https://github.com/safwyls/palcon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+    </nav>
+  </div>
+</header>
+<div class="docs-shell">
+  <details class="side-mobile">
+    <summary>Docs navigation</summary>
+    <nav aria-label="Docs">
+<div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">First login & your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--sky)"><span class="ring"><span class="core"></span></span></span>Configuration</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+    <li><a href="power-control.html">Power control</a></li>
+    <li><a href="save-files.html">Reading save files</a></li>
+    <li><a href="users.html" class="active" aria-current="page">Users & permissions</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>Guides</div>
+  <ul>
+    <li><a href="automation.html">Automation & alerts</a></li>
+    <li><a href="palagent.html">palagent sidecar</a></li>
+    <li><a href="migrate-supervisor.html">Migrate to supervisor mode</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div>
+    </nav>
+  </details>
+  <aside class="side" aria-label="Docs">
+<div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">First login & your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--sky)"><span class="ring"><span class="core"></span></span></span>Configuration</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+    <li><a href="power-control.html">Power control</a></li>
+    <li><a href="save-files.html">Reading save files</a></li>
+    <li><a href="users.html" class="active" aria-current="page">Users & permissions</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>Guides</div>
+  <ul>
+    <li><a href="automation.html">Automation & alerts</a></li>
+    <li><a href="palagent.html">palagent sidecar</a></li>
+    <li><a href="migrate-supervisor.html">Migrate to supervisor mode</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div>
+  </aside>
+  <main class="doc" id="content">
+    <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Configuration <span>/</span> Users & permissions</p>
+    <h1>Users & permissions</h1>
+
+<p class="lead"><code>ADMIN_USERNAME</code>/<code>ADMIN_PASSWORD</code> bootstrap a single admin
+on the first run only. After that, the <b>Users</b> screen (admins only) manages accounts, each
+granted a subset of permissions.</p>
+
+<table>
+  <tr><th>Permission</th><th>Allows</th></tr>
+  <tr><td>Power</td><td>Start, stop and restart the server, and repair/update its install</td></tr>
+  <tr><td>Broadcast</td><td>Send in-game messages</td></tr>
+  <tr><td>Save world</td><td>Trigger a world save</td></tr>
+  <tr><td>Moderate</td><td>Kick, ban and unban players</td></tr>
+  <tr><td>In-game shutdown</td><td>Shut the server down with a countdown</td></tr>
+  <tr><td>Settings</td><td>Read and edit <code>PalWorldSettings.ini</code></td></tr>
+</table>
+
+<p>The permissions above gate only actions that change something; by default anyone signed in can
+<i>view</i> the dashboard, map, pals, inventories and guilds. What's visible is a separate
+setting — see <a href="#visibility">Who can see what</a> below. Admins hold every permission
+implicitly, plus server and user administration, and an audit trail records every management
+action taken through Palcon.</p>
+
+<div class="callout note"><p><b>In-game shutdown is deliberately separate from Power</b>, so
+someone trusted to restart the container isn't automatically able to boot everyone
+mid-session.</p></div>
+
+<p>Grants are re-read from the database on every request rather than baked into the session
+token, so revoking a permission or disabling an account takes effect immediately — not whenever a
+week-long session expires.</p>
+
+<h2 id="visibility">Who can see what</h2>
+
+<p class="lead">Palcon shows a lot about the people on a server: every pal they own with its IVs,
+what's in their bags, where they logged off. Some communities are fine with that and some aren't,
+so it's switchable — per server and per player, under <b>Settings → Who can see what</b>
+(admins only).</p>
+
+<figure class="doc-shot">
+  <img src="../assets/visibility.webp" loading="lazy" width="1600" height="1000"
+    alt="Settings panel: seven view toggles and a locked-chest switch, above a per-player table of pals, inventory and map switches">
+  <figcaption>Seven views to switch off for the whole server, the locked-chest switch beneath
+    them, and a per-player row for anyone who'd rather keep their pals, bags or position to
+    themselves.</figcaption>
+</figure>
+
+<h3 id="two-switches">Two switches</h3>
+<ul>
+  <li><b>A view</b> can be turned off for the whole server — Live map, Player pals, Inventory,
+    Storage, Paldex, Guilds or Calculators. Its nav link goes, and the endpoints behind it
+    refuse.</li>
+  <li><b>A player</b> can be withheld from one kind of data — their pals, their inventory or
+    their map position — while the view stays on for everyone else.</li>
+</ul>
+
+<p>Both are enforced by the API, not just hidden in the menu, so switching a view off actually
+stops the data being served rather than only removing the link to it.</p>
+
+<h3 id="locked-chests">Password-locked chests</h3>
+<p>A player can put a password on a chest in-game. <b>Search password-locked chests</b>, beside the
+view switches, decides whether the <a href="save-files.html#storage">Storage</a> view indexes those
+at all — off, their contents never reach anyone's browser.</p>
+<p>It's the one switch here that admins do <i>not</i> see through, and deliberately so: a switch
+that says "don't search these" and then shows them to the person who set it reads as broken. The
+escape hatch is the same as everywhere else — only an admin can turn it back on. Readers also get
+their own "exclude locked chests" checkbox in the view, but that only filters what the server
+already sent; this switch decides what gets sent.</p>
+
+<h3 id="admin-bypass">Admins keep their own view</h3>
+<p>With the one exception above, a hidden view still appears in an admin's nav, marked with a
+struck-through eye, and still serves them data; a hidden player is still listed for them. That's deliberate: the point is
+letting an owner honour a privacy request without also blinding themselves for moderation, and
+an admin is the only person who can switch a view back on — one that hid itself from them would
+be a trap. If you want the strict version, turn the view off and leave it off; nobody else can
+reach it.</p>
+
+<h3 id="streams">Why player switches are coarser than views</h3>
+<p>Player pals, Paldex and Calculators all read the same underlying payload, so there is one
+per-player <b>pals</b> switch covering all three — hiding someone from one page while another
+served the same bytes would be a checkbox that changes what a page draws but not what a browser
+can fetch. Hiding a player's pals also removes them from their guild's pal and paldex totals,
+which is the honest consequence of not counting them.</p>
+
+<div class="callout note"><p>Adding a view to the list is a five-step change, documented in
+<code>docs/visibility.md</code> in the repository — the fifth step is the one that actually makes
+it private, so it's called out there.</p></div>
+
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="save-files.html"><small>← Previous</small><b>Reading save files</b></a><a class="pager-card next" href="automation.html"><small>Next →</small><b>Automation & alerts</b></a></nav>
+  </main>
+</div>
+<footer class="doc-footer">
+  <div class="wrap-doc">
+    <p>Palcon is an unofficial fan project, not affiliated with or endorsed by Pocketpair.
+    Palworld, pal artwork and map imagery are © Pocketpair, Inc.</p>
+    <p><a href="https://github.com/safwyls/palcon">GitHub</a> ·
+       <a href="https://github.com/safwyls/palcon/issues">Issues</a> ·
+       <a href="../index.html">Homepage</a></p>
+  </div>
+</footer>
+<script>
+  for (const card of document.querySelectorAll(".code-card[data-copy]")) {
+    const btn = card.querySelector(".copy-btn");
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(card.querySelector("pre").innerText);
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = "Copy"), 1600);
+      } catch { btn.textContent = "Select & copy"; }
+    });
+  }
+</script>
+</body>
+</html>

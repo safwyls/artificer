@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palcon — self-hosted Palworld server dashboard</title>
+<meta name="description" content="Palcon is a self-hosted web console for Palworld dedicated servers: live map, player pals and inventories, paldex records, breeding calculators, an optional AI advisor, backups and one-click repair. One Go binary on your own hardware.">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+<link rel="apple-touch-icon" href="assets/favicon-192.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Palcon — self-hosted Palworld server dashboard">
+<meta property="og:description" content="Live map, player pals and inventories, breeding math, backups and one-click repair for your Palworld dedicated server. One Go binary. Your hardware. Your data.">
+<meta property="og:url" content="https://safwyls.github.io/palcon/">
+<meta property="og:image" content="https://safwyls.github.io/palcon/assets/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #2B2420;
+    --ink-light: #3D342D;
+    --ink-soft: #544A40;
+    --paper: #F5EDE1;
+    --vermilion: #E8491D;
+    --amber: #F2A93B;
+    --meadow: #4A9D7C;
+    --sky: #5B9BD5;
+    --legendary: #8B3A9E;
+    --display: "Baloo 2", sans-serif;
+    --body: "Manrope", sans-serif;
+    --mono: "JetBrains Mono", monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--body);
+    background: var(--ink);
+    color: var(--paper);
+    line-height: 1.7;
+    font-size: 16.5px;
+  }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: inherit; }
+
+  .skip-link {
+    position: absolute; left: -9999px; top: 0;
+    background: var(--vermilion); color: var(--paper);
+    padding: .6rem 1rem; border-radius: 0 0 10px 0; z-index: 99;
+  }
+  .skip-link:focus { left: 0; }
+
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- Pal Sphere ring (the app's server button) ---------- */
+  .sphere { position: relative; display: inline-block; flex: none; }
+  .sphere .ring {
+    border-radius: 50%;
+    background: conic-gradient(var(--ring-color, var(--vermilion)) 0 50%, var(--ring-rest, var(--ink)) 50% 100%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sphere .core {
+    border-radius: 50%;
+    background: var(--ink-light);
+    color: var(--paper);
+    font-family: var(--display); font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%;
+  }
+  .sphere .dot {
+    position: absolute; border-radius: 50%;
+    background: var(--ink-soft);
+    border: 2px solid var(--ink);
+    right: -7%; bottom: -7%;
+  }
+  .sphere.online .dot { background: var(--meadow); }
+
+  /* ---------- nav ---------- */
+  header.nav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--ink) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(245, 237, 225, .08);
+  }
+  .nav-inner { display: flex; align-items: center; gap: 1rem; padding: .8rem 24px; max-width: 1180px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: .65rem; text-decoration: none; margin-right: auto; }
+  .brand .ring { width: 34px; height: 34px; padding: 2.5px; }
+  .brand .core { font-size: .8rem; }
+  .brand .dot { width: 11px; height: 11px; }
+  .wordmark { font-family: var(--display); font-weight: 800; font-size: 1.35rem; letter-spacing: .01em; }
+  .nav-links { display: flex; gap: 1.4rem; align-items: center; font-weight: 600; font-size: .92rem; }
+  .nav-links a { text-decoration: none; color: rgba(245, 237, 225, .72); }
+  .nav-links a:hover { color: var(--paper); }
+  .nav-gh {
+    display: inline-flex; align-items: center; gap: .45rem;
+    border: 1.5px solid rgba(245, 237, 225, .25); border-radius: 10px;
+    padding: .42rem .85rem; text-decoration: none; font-weight: 700; font-size: .92rem;
+    transition: border-color .15s, background .15s;
+  }
+  .nav-gh:hover { border-color: var(--paper); background: rgba(245, 237, 225, .06); }
+  @media (max-width: 820px) { .nav-links a.hide-sm { display: none; } }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 4.5rem 0 5rem; overflow: hidden; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 3.2rem; align-items: center; }
+  .hero-sphere { display: flex; align-items: center; gap: .9rem; margin-bottom: 1.6rem; }
+  .hero-sphere .ring { width: 56px; height: 56px; padding: 4px; }
+  .hero-sphere .core { font-size: 1.25rem; }
+  .hero-sphere .dot { width: 17px; height: 17px; border-width: 3px; }
+  .hero-sphere .wordmark { font-size: 2rem; }
+  h1 {
+    font-family: var(--display); font-weight: 800;
+    font-size: clamp(2.4rem, 5vw, 3.7rem);
+    line-height: 1.04; letter-spacing: -.01em;
+    margin-bottom: 1.1rem;
+  }
+  h1 .accent { color: var(--vermilion); }
+  .hero p.sub { font-size: 1.12rem; color: rgba(245, 237, 225, .75); max-width: 34rem; margin-bottom: 1.8rem; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: .8rem; margin-bottom: 1.6rem; }
+  .btn {
+    display: inline-flex; align-items: center; gap: .5rem;
+    font-family: var(--body); font-weight: 700; font-size: 1rem;
+    padding: .78rem 1.5rem; border-radius: 12px; text-decoration: none;
+    transition: transform .15s, background .15s, border-color .15s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--vermilion); color: var(--paper); }
+  .btn-primary:hover { background: #d13d13; transform: translateY(-1px); }
+  .btn-ghost { border: 1.5px solid rgba(245, 237, 225, .3); color: var(--paper); }
+  .btn-ghost:hover { border-color: var(--paper); transform: translateY(-1px); }
+  .chips { display: flex; flex-wrap: wrap; gap: .5rem .6rem; font-family: var(--mono); font-size: .78rem; color: rgba(245, 237, 225, .62); }
+  .chips > span {
+    border: 1px solid rgba(245, 237, 225, .16); border-radius: 999px;
+    padding: .28rem .75rem; white-space: nowrap;
+  }
+  .chips .ok { color: var(--meadow); margin-right: .35rem; }
+
+  .shot-frame {
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(245, 237, 225, .13);
+    box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .55);
+    background: var(--ink-light);
+  }
+  .shot-frame .bar {
+    display: flex; align-items: center; gap: .45rem;
+    padding: .55rem .9rem; background: var(--ink-light);
+    border-bottom: 1px solid rgba(245, 237, 225, .08);
+  }
+  .shot-frame .bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(245, 237, 225, .18); }
+  .shot-frame .bar i:first-child { background: var(--vermilion); }
+  .shot-frame .bar i:nth-child(2) { background: var(--amber); }
+  .shot-frame .bar i:nth-child(3) { background: var(--meadow); }
+  .shot-frame .bar .addr {
+    margin-left: .5rem; font-family: var(--mono); font-size: .72rem;
+    color: rgba(245, 237, 225, .45);
+  }
+  @media (max-width: 1020px) {
+    .hero { padding-top: 3rem; }
+    .hero-grid { grid-template-columns: 1fr; gap: 2.4rem; }
+  }
+
+  /* ---------- paper sections ---------- */
+  .paper-zone { background: var(--paper); color: var(--ink); }
+  .eyebrow {
+    display: flex; align-items: center; gap: .6rem;
+    font-family: var(--mono); font-size: .74rem; font-weight: 600;
+    letter-spacing: .16em; text-transform: uppercase;
+    margin-bottom: .9rem;
+  }
+  .eyebrow .ring { width: 24px; height: 24px; padding: 3.5px; }
+  .paper-zone .sphere .dot { border-color: var(--paper); }
+  h2 {
+    font-family: var(--display); font-weight: 800;
+    font-size: clamp(1.7rem, 3.4vw, 2.4rem); line-height: 1.15;
+    margin-bottom: .8rem;
+  }
+  h3 { font-family: var(--display); font-weight: 700; font-size: 1.45rem; line-height: 1.2; margin-bottom: .6rem; }
+
+  .features { padding: 4.5rem 0 3rem; }
+  .features-intro { max-width: 44rem; margin-bottom: 3.2rem; }
+  .features-intro p { color: rgba(43, 36, 32, .68); }
+
+  .feature { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 2.6rem; align-items: center; padding: 2.2rem 0; }
+  .feature.flip .f-text { order: 2; }
+  .feature.flip .f-shot { order: 1; }
+  .f-text p { color: rgba(43, 36, 32, .68); margin-bottom: .9rem; }
+  .f-text ul { list-style: none; }
+  .f-text li { padding-left: 1.15rem; position: relative; margin-bottom: .35rem; font-size: .95rem; color: rgba(43, 36, 32, .8); }
+  .f-text li::before {
+    content: ""; position: absolute; left: 0; top: .58em;
+    width: 7px; height: 7px; border-radius: 50%; background: var(--f-color, var(--vermilion));
+  }
+  .f-shot { border-radius: 14px; overflow: hidden; border: 1px solid rgba(43, 36, 32, .12); box-shadow: 0 18px 44px -16px rgba(43, 36, 32, .35); transition: transform .25s ease; }
+  .f-shot:hover { transform: translateY(-4px); }
+  .f-shot img { width: 100%; }
+  .f-phone { display: flex; justify-content: center; }
+  .f-phone .phone {
+    width: min(300px, 72vw); border-radius: 30px; overflow: hidden;
+    border: 8px solid var(--ink); box-shadow: 0 22px 50px -18px rgba(43, 36, 32, .45);
+  }
+  @media (max-width: 900px) {
+    .feature, .feature.flip { grid-template-columns: 1fr; gap: 1.4rem; padding: 1.6rem 0; }
+    .feature.flip .f-text { order: 1; }
+    .feature.flip .f-shot { order: 2; }
+  }
+
+  /* ---------- ops grid ---------- */
+  .ops { padding: 2.5rem 0 4.5rem; }
+  .ops-head { max-width: 44rem; margin-bottom: 2.2rem; }
+  .ops-head p { color: rgba(43, 36, 32, .68); }
+  .ops-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+  .op {
+    background: rgba(255, 255, 255, .55);
+    border: 1px solid rgba(43, 36, 32, .1);
+    border-radius: 12px; padding: 1.1rem 1.15rem;
+  }
+  .op b { display: block; font-family: var(--mono); font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-bottom: .4rem; }
+  .op p { font-size: .88rem; line-height: 1.55; color: rgba(43, 36, 32, .68); }
+  @media (max-width: 1000px) { .ops-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 540px) { .ops-grid { grid-template-columns: 1fr; } }
+
+  /* ---------- trust ---------- */
+  .trust { padding: 4.5rem 0; }
+  .trust-head { max-width: 46rem; margin-bottom: 2.6rem; }
+  .trust-head p { color: rgba(245, 237, 225, .7); }
+  .trust-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; }
+  .trust-card {
+    border: 1px solid rgba(245, 237, 225, .13); border-left: 3px solid var(--meadow);
+    border-radius: 12px; padding: 1.4rem 1.5rem;
+    background: rgba(245, 237, 225, .03);
+  }
+  .trust-card h3 { font-size: 1.15rem; margin-bottom: .5rem; }
+  .trust-card p { font-size: .93rem; color: rgba(245, 237, 225, .68); }
+  .trust-card code { font-family: var(--mono); font-size: .84em; color: var(--amber); }
+  @media (max-width: 900px) { .trust-grid { grid-template-columns: 1fr; } }
+
+  /* ---------- quickstart ---------- */
+  .quickstart { padding: 1rem 0 5rem; }
+  .qs-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 2.8rem; align-items: start; }
+  .qs-steps { counter-reset: step; list-style: none; margin: 1.6rem 0; }
+  .qs-steps li { counter-increment: step; position: relative; padding-left: 3rem; margin-bottom: 1.4rem; }
+  .qs-steps li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: .1rem;
+    width: 2rem; height: 2rem; border-radius: 50%;
+    background: var(--vermilion); color: var(--paper);
+    font-family: var(--display); font-weight: 800; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qs-steps b { display: block; font-weight: 700; }
+  .qs-steps p { font-size: .93rem; color: rgba(245, 237, 225, .65); }
+  .qs-steps code { font-family: var(--mono); font-size: .84em; color: var(--amber); }
+  .doc-links { display: flex; flex-direction: column; gap: .6rem; }
+  .doc-links a {
+    display: flex; align-items: baseline; gap: .6rem;
+    border: 1px solid rgba(245, 237, 225, .14); border-radius: 10px;
+    padding: .7rem 1rem; text-decoration: none; font-weight: 600; font-size: .93rem;
+    transition: border-color .15s, background .15s;
+  }
+  .doc-links a:hover { border-color: rgba(245, 237, 225, .45); background: rgba(245, 237, 225, .04); }
+  .doc-links .arrow { color: var(--vermilion); font-family: var(--mono); }
+  .doc-links small { color: rgba(245, 237, 225, .5); font-weight: 400; }
+
+  .code-card { border: 1px solid rgba(245, 237, 225, .14); border-radius: 14px; overflow: hidden; background: #241e1a; }
+  .code-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .6rem .9rem .6rem 1.1rem;
+    background: var(--ink-light);
+    font-family: var(--mono); font-size: .76rem; color: rgba(245, 237, 225, .6);
+  }
+  .copy-btn {
+    font-family: var(--body); font-weight: 700; font-size: .8rem;
+    background: none; border: 1.5px solid rgba(245, 237, 225, .25); border-radius: 8px;
+    color: var(--paper); padding: .3rem .8rem; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .copy-btn:hover { border-color: var(--paper); background: rgba(245, 237, 225, .07); }
+  .code-card pre {
+    padding: 1.1rem 1.3rem; overflow-x: auto;
+    font-family: var(--mono); font-size: .8rem; line-height: 1.65;
+    color: #e8ddcc;
+  }
+  .code-card .c { color: rgba(232, 221, 204, .38); }
+  .code-card .k { color: var(--sky); }
+  .code-card .v { color: var(--amber); }
+  @media (max-width: 1020px) { .qs-grid { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ---------- support ---------- */
+  .support { padding: 4.5rem 0; }
+  .support-card {
+    max-width: 46rem; margin: 0 auto; text-align: center;
+  }
+  .support-card .eyebrow { justify-content: center; }
+  .support-card p { color: rgba(43, 36, 32, .68); max-width: 36rem; margin: 0 auto 1.8rem; }
+  .support-card .btn-primary { background: var(--vermilion); }
+  .support-card .btn-outline {
+    border: 1.5px solid rgba(43, 36, 32, .3); color: var(--ink);
+  }
+  .support-card .btn-outline:hover { border-color: var(--ink); transform: translateY(-1px); }
+  .support-card .cta-row { justify-content: center; margin-bottom: 0; }
+
+  /* ---------- footer ---------- */
+  footer { border-top: 1px solid rgba(245, 237, 225, .09); padding: 2.6rem 0 3rem; font-size: .88rem; color: rgba(245, 237, 225, .55); }
+  .foot-grid { display: flex; flex-wrap: wrap; gap: 2rem; justify-content: space-between; align-items: flex-start; }
+  .foot-brand { display: flex; align-items: center; gap: .6rem; margin-bottom: .8rem; color: var(--paper); }
+  .foot-brand .ring { width: 26px; height: 26px; padding: 2px; }
+  .foot-brand .core { font-size: .62rem; }
+  .foot-brand .dot { width: 9px; height: 9px; }
+  .foot-note { max-width: 34rem; }
+  .foot-links { display: flex; flex-direction: column; gap: .35rem; }
+  .foot-links a { text-decoration: none; color: rgba(245, 237, 225, .7); font-weight: 600; }
+  .foot-links a:hover { color: var(--paper); }
+  .foot-runs { font-family: var(--mono); font-size: .74rem; margin-top: 1rem; color: rgba(245, 237, 225, .4); }
+
+  /* ---------- hero connect animation + reveals ---------- */
+  .hero-sphere svg { display: block; }
+  .hero-sphere .arc {
+    stroke-dasharray: 0 100;
+    animation: connect .9s cubic-bezier(.5, 0, .2, 1) .25s forwards;
+  }
+  @keyframes connect { to { stroke-dasharray: 50 100; } }
+  .hero-sphere .live-dot {
+    fill: var(--ink-soft);
+    animation: golive .35s ease .95s forwards;
+  }
+  @keyframes golive { 60% { transform: scale(1.35); } 100% { fill: var(--meadow); transform: scale(1); } }
+  .hero-sphere .live-dot { transform-origin: 86% 86%; }
+
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .55s ease, transform .55s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .hero-sphere .arc { animation: none; stroke-dasharray: 50 100; }
+    .hero-sphere .live-dot { animation: none; fill: var(--meadow); }
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .btn, .f-shot { transition: none; }
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#features">Skip to content</a>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top" aria-label="Palcon home">
+      <span class="sphere online"><span class="ring"><span class="core">Pa</span></span><span class="dot"></span></span>
+      <span class="wordmark">palcon</span>
+    </a>
+    <nav class="nav-links" aria-label="Page sections">
+      <a class="hide-sm" href="#features">Features</a>
+      <a class="hide-sm" href="#trust">Trust</a>
+      <a class="hide-sm" href="#get-started">Get started</a>
+      <a href="demo/">Demo</a>
+      <a href="docs/">Docs</a>
+      <a class="hide-sm" href="#support">Support</a>
+      <a class="nav-gh" href="https://github.com/safwyls/palcon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <!-- ============ hero ============ -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="hero-sphere" aria-hidden="true">
+          <svg width="60" height="60" viewBox="0 0 60 60">
+            <circle cx="30" cy="30" r="26" fill="var(--ink-light)"/>
+            <circle cx="30" cy="30" r="27.5" fill="none" stroke="var(--ink-light)" stroke-width="4.5"/>
+            <circle class="arc" cx="30" cy="30" r="27.5" fill="none" stroke="var(--vermilion)" stroke-width="4.5"
+                    pathLength="100" stroke-linecap="round" transform="rotate(-90 30 30)"/>
+            <text x="30" y="31" text-anchor="middle" dominant-baseline="central"
+                  font-family="Baloo 2, sans-serif" font-weight="800" font-size="19" fill="var(--paper)">Pa</text>
+            <circle class="live-dot" cx="51.5" cy="51.5" r="7" stroke="var(--ink)" stroke-width="3"/>
+          </svg>
+        </div>
+        <h1>The dashboard your Palworld server <span class="accent">deserves</span>.</h1>
+        <p class="sub">Palcon is a self-hosted console for Palworld dedicated servers — live map, player
+          pals and inventories, paldex records, breeding math, backups and one-click repair.
+          One Go binary. Your hardware. Your data.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="demo/">Try the live demo</a>
+          <a class="btn btn-ghost" href="#get-started">Deploy in five minutes</a>
+        </div>
+        <div class="chips" aria-label="Design guarantees">
+          <span><span class="ok">●</span>single Go binary</span>
+          <span><span class="ok">●</span>saves mounted read-only</span>
+          <span><span class="ok">●</span>no Docker socket access</span>
+        </div>
+      </div>
+      <div class="shot-frame">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span class="addr">palcon.local — live map</span></div>
+        <img src="assets/map.webp" width="1800" height="1125"
+             alt="Palcon's live map: the Palworld archipelago with fast-travel markers, guild bases and a player panel listing four players">
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ features ============ -->
+  <div class="paper-zone">
+    <section class="features wrap" id="features">
+      <div class="features-intro reveal">
+        <h2>Everything your world is up to, in one place.</h2>
+        <p>Palcon talks to the server over its REST API (with automatic RCON fallback) and reads the
+          world save directly — so it can show you things no admin command can.</p>
+      </div>
+
+      <div class="feature reveal" style="--f-color: var(--sky)">
+        <div class="f-text">
+          <div class="eyebrow">
+            <span class="sphere" style="--ring-color: var(--sky)"><span class="ring"><span class="core"></span></span></span>
+            Live map
+          </div>
+          <h3>See your archipelago breathe.</h3>
+          <p>Players plotted on the real world map as they roam, with pan, zoom and click-to-focus —
+            plus every guild base and where offline players last logged off.</p>
+          <ul>
+            <li>Main map and the Tree area</li>
+            <li>Toggleable layers: fast travel, watchtowers, dungeons, alpha &amp; predator spawns</li>
+            <li>Falls back to last-saved positions when the server sleeps</li>
+          </ul>
+        </div>
+        <div class="f-shot"><img src="assets/map-detail.webp" loading="lazy" width="1600" height="1000"
+          alt="Zoomed live map detail: guild base markers and fast-travel points across the central islands"></div>
+      </div>
+
+      <div class="feature flip reveal" style="--f-color: var(--meadow)">
+        <div class="f-text">
+          <div class="eyebrow">
+            <span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>
+            Player pals
+          </div>
+          <h3>Every party, palbox and base — from the save itself.</h3>
+          <p>Real names, artwork, IVs, passives and equipped skills for every pal on the server,
+            parsed straight from <span style="font-family:var(--mono);font-size:.85em">Level.sav</span>.
+            Search by name, species or passive; filter by IV floor.</p>
+          <ul>
+            <li>Party, palbox, storage and base pals per player</li>
+            <li>Alpha, lucky and gender at a glance</li>
+            <li>Re-parses only after the game autosaves</li>
+          </ul>
+        </div>
+        <div class="f-shot"><img src="assets/players.webp" loading="lazy" width="1600" height="1000"
+          alt="Player pals view: a player's party and palbox with levels, IVs and passive skills"></div>
+      </div>
+
+      <div class="feature reveal" style="--f-color: var(--vermilion)">
+        <div class="f-text">
+          <div class="eyebrow">
+            <span class="sphere" style="--ring-color: var(--vermilion)"><span class="ring"><span class="core"></span></span></span>
+            Inventory
+          </div>
+          <h3>Their bags, slot for slot.</h3>
+          <p>The save keeps where every item sits, so Palcon draws the bag the way the game does —
+            gaps and all. A backpack reading <span style="font-family:var(--mono);font-size:.85em;white-space:nowrap">45 / 45</span>
+            is the difference between carrying a lot and not being able to pick anything up.</p>
+          <ul>
+            <li>Weapons, gear, accessories and food racked by slot, with durability</li>
+            <li>How each player spent their stat points — the build behind the level</li>
+            <li>Search highlights matches in place, so you see <em>where</em> in the bag they are</li>
+          </ul>
+        </div>
+        <div class="f-shot"><img src="assets/inventory.webp" loading="lazy" width="1600" height="1000"
+          alt="Inventory view: a player's equipment racks, stat-point build and a full 45-slot backpack"></div>
+      </div>
+
+      <div class="feature flip reveal" style="--f-color: var(--meadow)">
+        <div class="f-text">
+          <div class="eyebrow">
+            <span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>
+            Storage search
+          </div>
+          <h3>Where <em>is</em> all the cement?</h3>
+          <p>Search every chest, box, feed trough and furnace on the server at once. The answer
+            isn't just a number — it's the split: how much sits at which base, and which box to
+            open when you get there.</p>
+          <ul>
+            <li>Chests named and pictured the way the game does — a "Refined Metal Chest" is one you can spot</li>
+            <li>Guild chests and work-station hoppers included; bases named by the landmark they sit near</li>
+            <li>Treasure chests out in the world stay hidden behind a spoiler prompt</li>
+          </ul>
+        </div>
+        <div class="f-shot"><img src="assets/storage.webp" loading="lazy" width="1600" height="1000"
+          alt="Storage search: 11,950 ingots across 7 containers in 4 places, split between the guild chest and three bases"></div>
+      </div>
+
+      <div class="feature reveal" style="--f-color: var(--amber)">
+        <div class="f-text">
+          <div class="eyebrow">
+            <span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>
+            Paldex &amp; records
+          </div>
+          <h3>Your server's record book.</h3>
+          <p>Per-player paldex completion with a "what's missing" browser, and server-wide records:
+            best-IV pals, capture leaders, alpha and lucky tallies, one-of-a-kind catches.</p>
+          <ul>
+            <li>Registered species from each player's own save record</li>
+            <li>Server completion bar for the group goal</li>
+            <li>Bragging rights, quantified</li>
+          </ul>
+        </div>
+        <div class="f-shot"><img src="assets/paldex.webp" loading="lazy" width="1600" height="1000"
+          alt="Paldex view: 95% server completion bar and per-player completion list"></div>
+      </div>
+
+      <div class="feature flip reveal" style="--f-color: var(--legendary)">
+        <div class="f-text">
+          <div class="eyebrow">
+            <span class="sphere" style="--ring-color: var(--legendary)"><span class="ring"><span class="core"></span></span></span>
+            Breeding calculators
+          </div>
+          <h3>Breeding math that knows your box.</h3>
+          <p>Child species, reverse lookup, talent targets and passive-inheritance odds — computed
+            against the pals actually on your server, not a hypothetical box.</p>
+          <ul>
+            <li>Shortest route from your pals to the one you want</li>
+            <li>Exact-set and with-extras passive odds, expected egg counts</li>
+            <li>Community-measured rates, credited</li>
+          </ul>
+        </div>
+        <div class="f-shot"><img src="assets/breeding.webp" loading="lazy" width="1600" height="750"
+          alt="Reverse breeding lookup: 236 parent pairs that breed into Anubis"></div>
+      </div>
+
+      <div class="feature reveal" style="--f-color: var(--meadow)">
+        <div class="f-text">
+          <div class="eyebrow">
+            <span class="sphere" style="--ring-color: var(--meadow)"><span class="ring"><span class="core"></span></span></span>
+            Anywhere
+          </div>
+          <h3>Pocket-sized server care.</h3>
+          <p>The whole console is responsive and installable as a PWA — check who's online from the
+            sofa, save the world from the bus, restart from anywhere you'd rather not be.</p>
+          <ul>
+            <li>Bottom-bar navigation tuned for thumbs</li>
+            <li>Add to home screen, no app store</li>
+            <li>Same permissions, same audit trail</li>
+          </ul>
+        </div>
+        <div class="f-shot f-phone" style="border:none;box-shadow:none">
+          <div class="phone"><img src="assets/mobile.webp" width="780" height="1688"
+            alt="Palcon on a phone: player pals list with bottom navigation"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ops grid ============ -->
+    <section class="ops wrap">
+      <div class="ops-head reveal">
+        <h2>And the unglamorous parts, handled.</h2>
+        <p>The features you stop noticing because things just keep working.</p>
+      </div>
+      <div class="ops-grid reveal">
+        <div class="op"><b>SteamCMD repair</b><p>Clear a corrupted update cache and revalidate from the dashboard, transcript streaming live. No shell required.</p></div>
+        <div class="op"><b>Save backups</b><p>Scheduled zip snapshots with retention, mid-write detection and skip-when-unchanged. Restores stay manual, by design.</p></div>
+        <div class="op"><b>Scheduled restarts</b><p>Weekday and time schedules with in-game warning broadcasts, and a world save before every restart.</p></div>
+        <div class="op"><b>Crash watchdog</b><p>Revives error exits with a cooldown and a three-strikes stand-down, so a crash loop gets a human, not a fourth restart.</p></div>
+        <div class="op"><b>Discord notifications</b><p>Server down and back online, joins and leaves, restart notices — each individually toggleable per server.</p></div>
+        <div class="op"><b>Users &amp; permissions</b><p>Give players accounts with only the rights you want them to have. Revocations apply immediately.</p></div>
+        <div class="op"><b>Public status page</b><p>An opt-in, unauthenticated page behind an unguessable link — online, player count, next restart. No player names.</p></div>
+        <div class="op"><b>palagent sidecar</b><p>An optional per-server agent that replaces every bind mount, and in supervisor mode runs the game itself.</p></div>
+        <div class="op"><b>Ask Anubis</b><p>An optional AI advisor on every page: it reads your save, runs the console's own calculators, searches the wiki, and tells you what to condense and who to swap into Mining. Bring your own Anthropic or Gemini key.</p></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ trust ============ -->
+  <section class="trust" id="trust">
+    <div class="wrap">
+      <div class="trust-head reveal">
+        <div class="eyebrow" style="color: var(--meadow)">
+          <span class="sphere" style="--ring-color: var(--meadow); --ring-rest: var(--ink-light)"><span class="ring"><span class="core"></span></span></span>
+          Trust
+        </div>
+        <h2>Built to be trusted with your world.</h2>
+        <p>A management tool holds the keys to hundreds of hours of your friends' play time.
+          Palcon is designed so the worst case is always boring.</p>
+      </div>
+      <div class="trust-grid reveal">
+        <div class="trust-card">
+          <h3>Saves are read-only — structurally.</h3>
+          <p>The save mount is read-only and the newer save format is unwrapped with a
+            decompress-only library: there is no code path that can write a save. Settings edits go
+            to a separate config mount, written atomically.</p>
+        </div>
+        <div class="trust-card">
+          <h3>No Docker socket.</h3>
+          <p>Power control goes through a scoped proxy that allows exactly
+            <code>inspect · start · stop · restart</code> — no creating containers, no mounts, no
+            exec. A compromised Palcon can bounce your game server, and that's all.</p>
+        </div>
+        <div class="trust-card">
+          <h3>Private by the switch, not the menu.</h3>
+          <p>Any view — map, pals, inventory, paldex, guilds, calculators — can be turned off for a
+            server, and any single player can be withheld from the pals, inventory or map data while
+            everyone else stays visible. The API refuses it too, so hiding a page actually hides the
+            data behind it. Admins keep their own view, so honouring a request doesn't cost you
+            moderation.</p>
+        </div>
+        <div class="trust-card">
+          <h3>Your data stays home.</h3>
+          <p>Fully self-hosted: one SQLite file on your own disk. Stored server credentials are
+            encrypted at rest, and nothing talks to the internet except the Discord webhook you
+            configure — if you configure one.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ quickstart ============ -->
+  <section class="quickstart" id="get-started">
+    <div class="wrap qs-grid">
+      <div class="reveal">
+        <h2>Up and running in five minutes.</h2>
+        <ol class="qs-steps">
+          <li><b>Make a folder for Palcon's data</b>
+            <p>One dataset or directory — it holds the single <code>palcon.db</code> file.</p></li>
+          <li><b>Deploy the container</b>
+            <p>Paste the compose spec into TrueNAS's Custom App, Portainer, or plain
+              <code>docker compose up</code>.</p></li>
+          <li><b>Sign in and add your server</b>
+            <p>Host, ports and passwords from <code>PalWorldSettings.ini</code>. Optional extras —
+              container name for power control, save path for pals — light up on their own.</p></li>
+        </ol>
+        <div class="doc-links" id="docs">
+          <a href="docs/deploy-truenas.html"><span class="arrow">→</span> Full TrueNAS Scale guide <small>docs</small></a>
+          <a href="docs/palagent.html"><span class="arrow">→</span> palagent sidecar &amp; supervisor mode <small>docs</small></a>
+          <a href="docs/troubleshooting.html"><span class="arrow">→</span> Troubleshooting <small>docs</small></a>
+          <a href="docs/"><span class="arrow">→</span> All documentation <small>docs</small></a>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="code-card">
+          <div class="code-head"><span>docker-compose.yml</span>
+            <button class="copy-btn" id="copy-compose" aria-label="Copy compose file">Copy</button></div>
+          <pre id="compose-src"><span class="k">services</span>:
+  <span class="k">palcon</span>:
+    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/palcon:latest</span>
+    <span class="k">ports</span>:
+      - <span class="v">30801:8080</span>
+    <span class="k">environment</span>:
+      <span class="k">JWT_SECRET</span>: <span class="v">&lt;random string&gt;</span>
+      <span class="k">ENCRYPTION_KEY</span>: <span class="v">&lt;exactly 32 characters&gt;</span>
+      <span class="k">ADMIN_USERNAME</span>: <span class="v">admin</span>
+      <span class="k">ADMIN_PASSWORD</span>: <span class="v">&lt;first-login password&gt;</span>
+      <span class="c"># optional — enables start/stop/restart</span>
+      <span class="k">DOCKER_HOST</span>: <span class="v">tcp://docker-proxy:2375</span>
+    <span class="k">volumes</span>:
+      - <span class="v">/mnt/tank/apps/palcon:/data</span>
+      <span class="c"># optional — enables pals &amp; guilds (read-only!)</span>
+      - <span class="v">/path/to/SaveGames/0/&lt;world&gt;:/saves/myserver:ro</span>
+    <span class="k">restart</span>: <span class="v">unless-stopped</span>
+
+  <span class="c"># optional — scoped proxy for power control</span>
+  <span class="k">docker-proxy</span>:
+    <span class="k">image</span>: <span class="v">ghcr.io/tecnativa/docker-socket-proxy:latest</span>
+    <span class="k">environment</span>: { <span class="k">CONTAINERS</span>: <span class="v">1</span>, <span class="k">POST</span>: <span class="v">1</span> }
+    <span class="k">volumes</span>:
+      - <span class="v">/var/run/docker.sock:/var/run/docker.sock:ro</span>
+    <span class="k">restart</span>: <span class="v">unless-stopped</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ support ============ -->
+  <div class="paper-zone">
+    <section class="support" id="support">
+      <div class="wrap support-card reveal">
+        <div class="eyebrow">
+          <span class="sphere" style="--ring-color: var(--amber)"><span class="ring"><span class="core"></span></span></span>
+          Support
+        </div>
+        <h2>Keep the campfire lit.</h2>
+        <p>Palcon is free, open source, and runs entirely on your hardware. If it makes tending
+          your world easier, a star helps other server admins find it — and a coffee keeps the
+          maintainer breeding Anubis at 2&nbsp;a.m.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/sponsors/safwyls">♥ Sponsor on GitHub</a>
+          <a class="btn btn-outline" href="https://ko-fi.com/safwyl">☕ Buy me a coffee</a>
+          <a class="btn btn-outline" href="https://github.com/safwyls/palcon">★ Star the repo</a>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap foot-grid">
+    <div>
+      <div class="foot-brand">
+        <span class="sphere online"><span class="ring"><span class="core">Pa</span></span><span class="dot"></span></span>
+        <span class="wordmark" style="font-size:1.05rem">palcon</span>
+      </div>
+      <p class="foot-note">Palcon is an unofficial fan project and is not affiliated with or endorsed by
+        Pocketpair. Palworld, pal artwork and map imagery are © Pocketpair, Inc., and are credited
+        on-screen wherever they appear.</p>
+      <p class="foot-runs">runs on TrueNAS Scale · Docker · any Linux box</p>
+    </div>
+    <nav class="foot-links" aria-label="Project links">
+      <a href="docs/">Documentation</a>
+      <a href="https://github.com/safwyls/palcon">GitHub repository</a>
+      <a href="https://github.com/safwyls/palcon/issues">Issues &amp; feature requests</a>
+      <a href="https://github.com/safwyls/palcon/pkgs/container/palcon">Container images (ghcr.io)</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // Copy the compose file (plain text, not the highlighted HTML).
+  document.getElementById("copy-compose").addEventListener("click", async (e) => {
+    const text = document.getElementById("compose-src").innerText;
+    try {
+      await navigator.clipboard.writeText(text);
+      e.target.textContent = "Copied";
+      setTimeout(() => (e.target.textContent = "Copy"), 1600);
+    } catch {
+      e.target.textContent = "Select & copy";
+    }
+  });
+
+  // Scroll reveals — skipped entirely for reduced motion (CSS shows everything).
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const en of entries) if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+    }, { rootMargin: "0px 0px -8% 0px" });
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+  } else {
+    document.querySelectorAll(".reveal").forEach((el) => el.classList.add("in"));
+  }
+</script>
+</body>
+</html>
