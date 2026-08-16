@@ -45,8 +45,14 @@ func (s *Server) agentSupervisor(ctx context.Context, srv *store.Server) (*agent
 // existing power card unchanged.
 func gameToContainerState(health *agentctl.Health) *dockerctl.State {
 	game := health.Game
+	name := health.Agent
+	if name == "" {
+		name = "agent"
+	}
 	st := &dockerctl.State{
-		Name:    "flameagent · supervisor",
+		// The agent says its own name (wkagent, flameagent) — this once
+		// hardcoded "flameagent" in every console.
+		Name:    name + " · supervisor",
 		Status:  game.State,
 		Running: game.State == "running",
 	}
@@ -209,7 +215,7 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 		// in-game shutdown lands on the engine mid-save and ends it at 143
 		// instead of 0. Let that exit finish first.
 		graceful := time.Duration(0)
-		if action != "start" && s.prepareForStop(ctx, r, "flameagent:"+srv.Name, actor) {
+		if action != "start" && s.prepareForStop(ctx, r, s.agentDisplayName()+":"+srv.Name, actor) {
 			graceful = gameSelfExitWindow
 		}
 
@@ -240,7 +246,7 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.logger.Info("agent power action", "action", action, "server", srv.Name, "user", actor)
-		s.audit(r, srv.ID, "power-"+action, "flameagent")
+		s.audit(r, srv.ID, "power-"+action, s.agentDisplayName())
 		writeJSON(w, http.StatusOK, gameToContainerState(&agentctl.Health{Game: game}))
 		return
 	}
@@ -298,4 +304,15 @@ func (s *Server) applyOfflineWork(ctx context.Context, srv *store.Server) {
 	if s.bans != nil {
 		s.bans.Apply(ctx, srv)
 	}
+}
+
+// agentDisplayName is what the UI calls this console's sidecar agent —
+// from the provisioning profile when one is wired, else the neutral
+// word. (The power panel once said "flameagent" in every console; a
+// Dragonwilds operator noticed.)
+func (s *Server) agentDisplayName() string {
+	if s.Provision != nil && s.Provision.AgentName != "" {
+		return s.Provision.AgentName
+	}
+	return "agent"
 }

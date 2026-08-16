@@ -12,7 +12,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <!-- use-credentials: behind Cloudflare Access the manifest fetch must
+         carry the Access cookie, or the request is bounced to the Access
+         login and dies as a CORS error in the console. -->
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
     <!-- Standalone on older iOS that predates manifest display support. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Wildskeeper" />

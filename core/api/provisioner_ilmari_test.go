@@ -49,16 +49,30 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 				"container": f.provisionBody["name"], "dataDir": "/mnt/tank/apps/dragonwilds-servers/x", "image": f.provisionBody["image"],
 			})
 		case "/v1/discover":
+			// Ilmari reports every console's containers on the host —
+			// including another console's agent family, which the adapter
+			// must filter out of this console's list.
 			json.NewEncoder(w).Encode(map[string]any{"servers": []map[string]any{{
 				"name": "gtagent-ashenfall", "image": "ghcr.io/example/gtagent:latest", "running": true, "managed": true,
 				"ports": []map[string]any{
 					{"host": 9777, "container": 25600, "proto": "udp"},
 					{"host": 9811, "container": 8811, "proto": "tcp"},
 				},
+			}, {
+				"name": "otheragent-keep", "image": "ghcr.io/example/otheragent:latest", "running": true, "managed": true,
+				"ports": []map[string]any{
+					{"host": 15637, "container": 15637, "proto": "udp"},
+					{"host": 8812, "container": 8811, "proto": "tcp"},
+				},
 			}}})
 		case "/v1/adopt":
+			// Echo the requested name, as the real Ilmari does.
+			var req struct {
+				Container string `json:"container"`
+			}
+			json.NewDecoder(r.Body).Decode(&req)
 			json.NewEncoder(w).Encode(map[string]any{
-				"name": "gtagent-ashenfall", "image": "ghcr.io/example/gtagent:latest", "running": true,
+				"name": req.Container, "image": "ghcr.io/example/gtagent:latest", "running": true,
 				"ports": []map[string]any{
 					{"host": 9777, "container": 25600, "proto": "udp"},
 					{"host": 9811, "container": 8811, "proto": "tcp"},
@@ -162,8 +176,15 @@ func TestIlmariDiscoverAndAdoptMapPorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(found) != 1 || found[0].GamePort != 9777 || found[0].AgentPort != 9811 {
-		t.Errorf("discover = %+v", found)
+	// Exactly one: the foreign otheragent-* container never appears in
+	// this console's list — a shared Ilmari host serves every console.
+	if len(found) != 1 || found[0].Name != "gtagent-ashenfall" || found[0].GamePort != 9777 || found[0].AgentPort != 9811 {
+		t.Errorf("discover = %+v, want only this console's agent family", found)
+	}
+
+	// And adopting one by name anyway is refused with the reason.
+	if _, err := p.Adopt(context.Background(), "otheragent-keep"); err == nil || !strings.Contains(err.Error(), "another console") {
+		t.Errorf("foreign adopt err = %v, want a refusal naming the family", err)
 	}
 
 	adopted, err := p.Adopt(context.Background(), "gtagent-ashenfall")

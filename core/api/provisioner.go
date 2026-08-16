@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/safwyls/sampo/core/agent"
 	"github.com/safwyls/sampo/core/agentctl"
@@ -140,6 +141,14 @@ func (p *IlmariProvisioner) Discover(ctx context.Context) ([]agentctl.Discovered
 	}
 	out := make([]agentctl.DiscoveredServer, 0, len(found))
 	for _, f := range found {
+		// Ilmari sees every console's containers on the host and cannot
+		// tell them apart — that is its contract. The adapter can: only
+		// this console's agent family belongs in its discovery list, or
+		// wildskeeper offers to adopt flametender's servers (and a
+		// mistaken adopt is a row whose game client can only fail).
+		if !strings.HasPrefix(f.Name, p.p.AgentName+"-") {
+			continue
+		}
 		out = append(out, agentctl.DiscoveredServer{
 			Name:      f.Name,
 			Image:     f.Image,
@@ -158,6 +167,9 @@ func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agent
 	a, err := p.c.Adopt(ctx, container)
 	if err != nil {
 		return nil, err
+	}
+	if !strings.HasPrefix(a.Name, p.p.AgentName+"-") {
+		return nil, fmt.Errorf("%s is another console's server (this console adopts %s-* containers)", container, p.p.AgentName)
 	}
 	mode := a.Env[p.p.EnvPrefix+"_MODE"]
 	if mode == "" {
