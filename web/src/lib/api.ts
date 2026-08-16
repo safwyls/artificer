@@ -66,6 +66,13 @@ export interface Me {
   role: string;
   isAdmin: boolean;
   permissions: Permission[];
+  /** True when this session began at Cloudflare Access rather than the
+   * password form. */
+  sso?: boolean;
+  /** Where to send the browser to end the *Access* session. Clearing only
+   * this console's cookie would leave the next person at a shared machine
+   * holding the previous identity. */
+  ssoLogoutURL?: string;
 }
 
 export interface AppUser {
@@ -853,6 +860,12 @@ export const api = {
   login: (username: string, password: string) =>
     request<{ username: string }>("/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   logout: () => request<void>("/logout", { method: "POST" }),
+  /** Exchange a Cloudflare Access assertion for a console session. The
+   * assertion rides on the request itself (header or cookie, both set by
+   * Access), so there is nothing to send. 404 means SSO isn't configured;
+   * 401 means this request didn't come through Access — both are ordinary
+   * answers, not errors worth showing. */
+  loginCloudflare: () => request<{ username: string; created: boolean }>("/login/cloudflare", { method: "POST" }),
   me: () => request<Me>("/me"),
   changeOwnPassword: (currentPassword: string, newPassword: string) =>
     request<void>("/me/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),

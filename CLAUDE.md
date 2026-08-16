@@ -44,6 +44,19 @@ by *capability*, never by group name). Stop sends SIGINT to the process
 group — the game saves the world on the way down — with a 120 s default
 grace before SIGKILL.
 
+Auth is username/password by default, plus optional Cloudflare Access SSO
+(`internal/cfaccess` verifies the assertion; `api.handleCloudflareLogin`
+creates accounts on first sign-in with no permissions).
+`docs/cloudflare-access.md` is the contract — in particular why the
+audience check is mandatory and why password login stays.
+
+Auth is username/password by default, plus optional Cloudflare Access SSO
+(`internal/cfaccess` verifies the assertion; `api.handleCloudflareLogin`
+creates accounts on first sign-in with no permissions, and
+`CF_ACCESS_ADMIN_EMAILS` is the lockout rescue). `docs/cloudflare-access.md`
+is the contract — in particular why the audience check is mandatory and
+why password login stays.
+
 Tests: `go test ./...` and `cd web && npm test`. Production build:
 `cd web && npm run build` then `go build ./cmd/flametender` (embeds the
 bundle).

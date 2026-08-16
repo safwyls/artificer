@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Config holds all runtime configuration, sourced entirely from environment
@@ -44,6 +45,25 @@ type Config struct {
 	// CookieSecure marks the session cookie Secure for deployments behind
 	// TLS. Off by default so plain-HTTP LAN setups keep working.
 	CookieSecure bool
+
+	// Cloudflare Access single sign-on. Setting both TeamDomain and AUD
+	// turns it on; unset means the console only knows password login.
+	//
+	// AccessTeamDomain is the team's Access hostname
+	// ("yourteam.cloudflareaccess.com"), which is both the token issuer
+	// and where its signing keys are published. AccessAUD is the
+	// Application Audience tag of the *specific* Access application in
+	// front of this console — a token minted for another app in the same
+	// team carries a valid signature, so the audience check is what stops
+	// it being accepted here.
+	AccessTeamDomain string
+	AccessAUD        string
+	// AccessAdminEmails are addresses that hold the admin role whenever
+	// they sign in through Access, re-applied on every login. It exists
+	// so an operator cannot lock themselves out of their own console: the
+	// alternative is a first SSO user with no rights and nobody able to
+	// grant them.
+	AccessAdminEmails []string
 }
 
 func (c *Config) DBPath() string {
@@ -64,6 +84,10 @@ func Load() (*Config, error) {
 		// when unset, the new-server wizard is simply absent.
 		IlmariURL:   os.Getenv("ILMARI_URL"),
 		IlmariToken: os.Getenv("ILMARI_TOKEN"),
+		// Cloudflare Access SSO; both required to enable it.
+		AccessTeamDomain:  normalizeTeamDomain(os.Getenv("CF_ACCESS_TEAM_DOMAIN")),
+		AccessAUD:         strings.TrimSpace(os.Getenv("CF_ACCESS_AUD")),
+		AccessAdminEmails: splitEmails(os.Getenv("CF_ACCESS_ADMIN_EMAILS")),
 	}
 
 	cfg.CookieSecure = os.Getenv("COOKIE_SECURE") == "true" || os.Getenv("COOKIE_SECURE") == "1"
@@ -97,4 +121,40 @@ func getEnv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// AccessEnabled reports whether Cloudflare Access SSO is configured. Both
+// halves are required: without the audience tag the console would accept
+// any token the team ever minted, for any application.
+func (c *Config) AccessEnabled() bool {
+	return c.AccessTeamDomain != "" && c.AccessAUD != ""
+}
+
+// normalizeTeamDomain accepts what an operator is likely to paste — a bare
+// team name, the full Access hostname, or either with a scheme or trailing
+// slash — and yields the hostname the issuer and certs URL are built from.
+func normalizeTeamDomain(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	v = strings.TrimPrefix(strings.TrimPrefix(v, "https://"), "http://")
+	v = strings.TrimSuffix(v, "/")
+	if !strings.Contains(v, ".") {
+		v += ".cloudflareaccess.com"
+	}
+	return v
+}
+
+// splitEmails parses a comma-separated list, lowercasing as it goes:
+// identity providers vary on case and an address that fails to match here
+// silently costs someone their admin role.
+func splitEmails(v string) []string {
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if e := strings.ToLower(strings.TrimSpace(part)); e != "" {
+			out = append(out, e)
+		}
+	}
+	return out
 }

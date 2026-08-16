@@ -44,6 +44,18 @@ minutes and on shutdown by themselves).
 - Shared base: users/roles/permissions, audit trail, Discord
   notifications, scheduled restarts, crash watchdog, SteamCMD update
   jobs, public status page
+- **Cloudflare Access SSO** (optional) — behind a Cloudflare Tunnel, the
+  identity Access already authenticated becomes a console session, with
+  the account created on first sign-in and no permissions until you grant
+  them. Tokens are verified cryptographically, so the header cannot be
+  forged by anything that reaches the origin directly; password login
+  stays as break-glass. See `docs/cloudflare-access.md`
+- **Cloudflare Access SSO** (optional) — behind a Cloudflare Tunnel, the
+  identity Access already authenticated becomes a console session, with
+  the account created on first sign-in. Tokens are verified
+  cryptographically, so the header cannot be forged by anything that
+  reaches the origin directly; password login stays as break-glass. See
+  `docs/cloudflare-access.md`
 
 `docs/enshrouded-recon.md` records every externally-sourced game fact
 with its confidence level, and its verification ledger tracks what a real

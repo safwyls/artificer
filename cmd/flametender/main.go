@@ -16,6 +16,7 @@ import (
 	"github.com/safwyls/flametender/internal/agentfiles"
 	"github.com/safwyls/flametender/internal/api"
 	"github.com/safwyls/flametender/internal/backup"
+	"github.com/safwyls/flametender/internal/cfaccess"
 	"github.com/safwyls/flametender/internal/collector"
 	"github.com/safwyls/flametender/internal/config"
 	"github.com/safwyls/flametender/internal/crypto"
@@ -121,6 +122,20 @@ func run(logger *slog.Logger) error {
 
 	apiServer := api.New(st, cfg.JWTSecret, logger, docker, notifier, backups, files)
 	apiServer.CookieSecure = cfg.CookieSecure
+	// Optional: single sign-on for a console behind a Cloudflare Tunnel.
+	// Unset means the password form is the only way in — see
+	// docs/cloudflare-access.md for what the verification does and does
+	// not protect.
+	if cfg.AccessEnabled() {
+		verifier, err := cfaccess.New(cfg.AccessTeamDomain, cfg.AccessAUD)
+		if err != nil {
+			return fmt.Errorf("configuring cloudflare access: %w", err)
+		}
+		apiServer.Access = verifier
+		apiServer.AccessAdminEmails = cfg.AccessAdminEmails
+		logger.Info("cloudflare access sign-in enabled",
+			"issuer", verifier.Issuer(), "adminEmails", len(cfg.AccessAdminEmails))
+	}
 	// Optional one-click provisioning, through Ilmari and only Ilmari —
 	// this console holds no Docker rights of its own (the ilmari repo's
 	// README is the contract). Without ILMARI_URL the Raise-a-server

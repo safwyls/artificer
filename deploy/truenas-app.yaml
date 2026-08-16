@@ -71,6 +71,17 @@ services:
       # Leave commented to use the copy-paste flow instead.
       # ILMARI_URL: http://192.168.1.CHANGE-ME:8820
       # ILMARI_TOKEN: "CHANGE-ME-flametender-ilmari-token"
+      #
+      # Single sign-on for a console published through a Cloudflare
+      # Tunnel: people who clear the Access policy are signed in without
+      # a second login, and get an account on first arrival with no
+      # permissions until you grant them. The AUD tag comes from the
+      # Access application in front of THIS console — see
+      # docs/cloudflare-access.md, which also covers what the token
+      # verification does and does not protect.
+      # CF_ACCESS_TEAM_DOMAIN: yourteam.cloudflareaccess.com
+      # CF_ACCESS_AUD: "CHANGE-ME-64-char-application-audience-tag"
+      # CF_ACCESS_ADMIN_EMAILS: "you@example.com"
     networks:
       - default
       - flametender-net

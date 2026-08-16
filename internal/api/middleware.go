@@ -14,9 +14,18 @@ type contextKey string
 
 const userContextKey contextKey = "user"
 
+// ssoContextKey records that this request's session began at Cloudflare
+// Access, which /me needs in order to offer the right sign-out.
+const ssoContextKey contextKey = "sso"
+
 func userFromContext(ctx context.Context) (*store.User, bool) {
 	v, ok := ctx.Value(userContextKey).(*store.User)
 	return v, ok
+}
+
+func sessionIsSSO(ctx context.Context) bool {
+	v, _ := ctx.Value(ssoContextKey).(bool)
+	return v
 }
 
 // requireAuth verifies the session cookie and loads the user it belongs to.
@@ -47,6 +56,7 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 			return
 		}
 		ctx := context.WithValue(r.Context(), userContextKey, user)
+		ctx = context.WithValue(ctx, ssoContextKey, claims.SSO)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -9,7 +9,7 @@ import { Label } from "../components/ui/label";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 
 export function Login() {
-  const { login } = useAuth();
+  const { login, ssoError } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -39,6 +39,14 @@ export function Login() {
           <p className="text-sm text-muted-foreground">Sign in to tend the Flame</p>
         </CardHeader>
         <CardContent>
+          {/* Cloudflare Access knew who they were and this console still
+              said no — almost always a disabled account. Saying so beats
+              a password form they have no password for. */}
+          {ssoError && (
+            <p className="mb-4 rounded border border-ft-sporedim bg-ft-spore/5 px-3 py-2 text-sm text-ft-spore">
+              {ssoError}
+            </p>
+          )}
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="username">Username</Label>

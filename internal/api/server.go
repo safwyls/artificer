@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"io/fs"
 	"log/slog"
@@ -13,10 +14,24 @@ import (
 
 	"github.com/safwyls/flametender/internal/agentfiles"
 	"github.com/safwyls/flametender/internal/backup"
+	"github.com/safwyls/flametender/internal/cfaccess"
 	"github.com/safwyls/flametender/internal/dockerctl"
 	"github.com/safwyls/flametender/internal/notify"
 	"github.com/safwyls/flametender/internal/store"
 )
+
+// AccessVerifier is what the API needs from Cloudflare Access: turn the
+// assertion on a request into an identity, or refuse it. One
+// implementation ships (*cfaccess.Verifier); the seam is an interface so
+// tests can exercise this layer's account handling without minting real
+// tokens, and so the cryptography stays testable on its own terms in
+// internal/cfaccess.
+type AccessVerifier interface {
+	Verify(ctx context.Context, token string) (*cfaccess.Identity, error)
+	// LogoutURL ends the Access session itself, which signing out of this
+	// console alone would leave running.
+	LogoutURL() string
+}
 
 type Server struct {
 	store     *store.Store
@@ -41,8 +56,16 @@ type Server struct {
 	// operator a file. Exactly one implementation exists: the shared Ilmari
 	// host service (see provisioner.go). This console deliberately has no
 	// built-in provisioner — one host, one Docker-socket holder.
-	Provisioner  Provisioner
-	loginLimiter *loginLimiter
+	Provisioner Provisioner
+	// Access, when set (assigned after New, like Provisioner), verifies
+	// Cloudflare Access assertions so people who signed in at the tunnel
+	// don't sign in twice. Nil means the console only knows password
+	// login — see internal/cfaccess and docs/cloudflare-access.md.
+	Access AccessVerifier
+	// AccessAdminEmails hold the admin role whenever they sign in through
+	// Access. Lowercased by config; matched case-insensitively.
+	AccessAdminEmails []string
+	loginLimiter      *loginLimiter
 }
 
 func New(st *store.Store, jwtSecret []byte, logger *slog.Logger, docker *dockerctl.Client, notifier *notify.Notifier, backups *backup.Runner, files *agentfiles.Syncer) *Server {
@@ -70,6 +93,12 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 			writeError(w, http.StatusNotFound, "not found")
 		})
 		r.Post("/login", s.handleLogin)
+		// Sign-in for people Cloudflare Access already authenticated.
+		// Unauthenticated by necessity — the assertion on the request
+		// *is* the credential, and cfaccess verifies it before anything
+		// is read from it. A 404 when Access isn't configured keeps the
+		// frontend's silent attempt cheap.
+		r.Post("/login/cloudflare", s.handleCloudflareLogin)
 
 		// The only unauthenticated data endpoint: token-gated, read-only,
 		// served entirely from Flametender's own database. See public.go.

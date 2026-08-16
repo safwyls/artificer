@@ -10,6 +10,10 @@ interface AuthState {
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Set when Cloudflare Access authenticated someone this console then
+   * refused — a disabled account. The login page shows it instead of an
+   * unexplained password prompt. */
+  ssoError: string | null;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -17,17 +21,48 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ssoError, setSsoError] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .me()
-      .then(setMe)
-      .catch((err) => {
-        if (!(err instanceof ApiError && err.status === 401)) {
-          console.error(err);
+    let cancelled = false;
+    // Boot order: an existing session first, then — only if there isn't
+    // one — a silent attempt at Cloudflare Access. Someone arriving
+    // through the tunnel is already authenticated there, so asking them
+    // to sign in again would be the console forgetting what the front
+    // door just did. Everyone else falls through to the password form
+    // without ever knowing this was tried.
+    const boot = async (): Promise<Me | null> => {
+      try {
+        return await api.me();
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 401)) throw err;
+      }
+      try {
+        await api.loginCloudflare();
+        return await api.me();
+      } catch (err) {
+        // 404 (SSO not configured) and 401 (not proxied by Access) are
+        // the ordinary answers here. A 403 is not: it means Access
+        // recognised them and this console refused — a disabled account —
+        // which the login page should say out loud rather than present as
+        // a blank password form.
+        if (err instanceof ApiError && err.status === 403 && !cancelled) {
+          setSsoError(err.message);
         }
+        return null;
+      }
+    };
+    boot()
+      .then((who) => {
+        if (!cancelled) setMe(who);
       })
-      .finally(() => setLoading(false));
+      .catch((err) => console.error(err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Any 401 mid-session (expired/revoked cookie) clears auth state, which
@@ -46,8 +81,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    const accessLogout = me?.ssoLogoutURL;
     await api.logout();
     setMe(null);
+    // An SSO session has two halves. Ending only ours would send them back
+    // to a login page Access immediately signs them into again — and on a
+    // shared machine, would hand the next person the previous identity.
+    if (accessLogout) window.location.href = accessLogout;
   };
 
   const value: AuthState = {
@@ -57,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     login,
     logout,
+    ssoError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
