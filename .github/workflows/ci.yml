@@ -1,0 +1,74 @@
+name: CI
+
+# Phase 1 CI: the imported modules still build independently, so verify
+# each one the way its old repo did — web bundle first (the Go build
+# embeds web/dist), then go build/vet/test — plus the dependency-rule
+# check. Docker publishing stays in the old repos until each console's
+# port phase moves it here (docs/unification-plan.md, Phases 3-5).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bounds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Dependency rules
+        run: ./scripts/checkbounds.sh
+
+  console:
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [palcon, wildskeeper, flametender]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ${{ matrix.module }}/web/package-lock.json
+
+      - name: Frontend build & tests
+        working-directory: ${{ matrix.module }}/web
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: Go build, vet & tests
+        working-directory: ${{ matrix.module }}
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+
+  ilmari:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: ilmari/go.sum
+      - name: Go build, vet & tests
+        working-directory: ilmari
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
