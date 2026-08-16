@@ -7,9 +7,11 @@ import { FlameSigil } from "../../components/flametender/FlameSigil";
 import { FtNote, FtPanel, FtStat, fkLogTone } from "../../components/flametender/FtPanel";
 import { FtPlayerRows } from "./FtFlameborn";
 
-// Enshrouded's hard slot cap. The configured slotCount can be lower; the
-// A2S query (roadmap Phase 2) is what will report the server's own number.
-const MAX_PLAYERS = 16;
+// Enshrouded's hard slot cap — the fallback for a server whose Steam query
+// hasn't answered. The configured slotCount is usually lower, and the query
+// is the only source for it (the log never carries it), so drawing against
+// the cap makes a full 4-slot server look quarter-empty.
+const SLOT_CAP = 16;
 
 function uptimeLabel(seconds: number | undefined): string {
   if (!seconds || seconds <= 0) return "—";
@@ -76,9 +78,17 @@ export function FtOverview() {
   if (serverQuery.isError || !serverQuery.data) return <p className="p-6 text-destructive">Server not found.</p>;
 
   const server = serverQuery.data;
-  const online = !infoQuery.isError && !!infoQuery.data;
+  const info = infoQuery.data;
+  const online = !infoQuery.isError && !!info;
   const players = playersQuery.data ?? [];
-  const count = online ? players.length : 0;
+  // The game's own count when the Steam query answered, the log-derived roster
+  // length otherwise. They differ when a player's join line has scrolled out of
+  // the agent's ring — the roster can't name them, but they are on the server.
+  const count = online ? (info?.playerCount ?? players.length) : 0;
+  const slots = metricsQuery.data?.maxplayernum || SLOT_CAP;
+  // A server is "running" for some time before it accepts joins; saying Online
+  // then sends a friend to a connection error.
+  const starting = online && info?.readiness === "starting";
   const uptime = metricsQuery.data?.uptime;
   const lastEvent = activityQuery.data?.events[0];
   const latestBackup = backupsQuery.data?.snapshots?.[0];
@@ -95,42 +105,54 @@ export function FtOverview() {
           aria-label="Server status"
           className="ft-toplight grid grid-cols-[96px,1fr] items-center gap-5 rounded-md border border-ft-edge bg-gradient-to-br from-ft-panel via-[#1a231d] to-[#151c17] px-5 py-5 sm:grid-cols-[132px,1fr] sm:px-6"
         >
-          <FlameSigil lit={count} total={MAX_PLAYERS} online={online} size={132} />
+          <FlameSigil lit={count} total={slots} online={online} size={132} />
           <div>
             <h2 className="font-ftdisplay text-2xl font-medium text-ft-bone sm:text-3xl">
               {server.name}
             </h2>
             <div className="ft-horizon mt-2" />
             <div className="mt-2 text-sm text-ft-lichen">
-              {online ? (
+              {!online ? (
+                "The flame is out — the server process is not running."
+              ) : starting ? (
+                "Kindling — the world is loading. The server won't accept joins until it finishes."
+              ) : (
                 <>
                   Uptime <b className="font-medium text-ft-stonehi">{uptimeLabel(uptime)}</b> · Port{" "}
                   <b className="font-medium text-ft-stonehi">{server.gamePort}/udp</b>
                 </>
-              ) : (
-                "The flame is out — the server process is not running."
               )}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
+              {/* Three states, not two. Flame means joinable and spore means
+                  absent, so neither may stand for "up but not ready" — that one
+                  is neutral stone with a pulse: no colour claim, and the motion
+                  says it will pass. */}
               <span
                 className={
-                  online
-                    ? "rounded-sm border border-ft-flamedim px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-ft-flame"
-                    : "rounded-sm border border-ft-sporedim px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-ft-spore"
+                  starting
+                    ? "rounded-sm border border-ft-edge px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-ft-stonehi"
+                    : online
+                      ? "rounded-sm border border-ft-flamedim px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-ft-flame"
+                      : "rounded-sm border border-ft-sporedim px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-ft-spore"
                 }
               >
-                ◈ {online ? "Online" : "Offline"}
+                <span className={starting ? "inline-block animate-pulse" : undefined}>◈</span>{" "}
+                {starting ? "Starting" : online ? "Online" : "Offline"}
               </span>
-              {infoQuery.data?.version && (
-                <span className="rounded-sm border border-ft-edge px-2.5 py-0.5 font-mono text-[11.5px] text-ft-lichen">
-                  {infoQuery.data.version}
+              {info?.version && (
+                <span
+                  className="rounded-sm border border-ft-edge px-2.5 py-0.5 font-mono text-[11.5px] text-ft-lichen"
+                  title="The build the server is running — compare it with a friend's version-mismatch error"
+                >
+                  build {info.version}
                 </span>
               )}
               <span className="rounded-sm border border-ft-edge px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-ft-lichen">
                 Steam auth
               </span>
               <span className="rounded-sm border border-ft-edge px-2.5 py-0.5 text-[11.5px] uppercase tracking-[0.08em] text-ft-lichen">
-                {MAX_PLAYERS}-slot cap
+                {slots === SLOT_CAP ? `${SLOT_CAP}-slot cap` : `${slots} slots`}
               </span>
             </div>
           </div>
@@ -146,9 +168,9 @@ export function FtOverview() {
           <FtStat
             label="Flameborn"
             value={online ? count : "—"}
-            unit={`/ ${MAX_PLAYERS}`}
-            hint={online ? `${MAX_PLAYERS - count} slots open` : "server offline"}
-            meterPct={(count / MAX_PLAYERS) * 100}
+            unit={`/ ${slots}`}
+            hint={online ? `${Math.max(0, slots - count)} slots open` : "server offline"}
+            meterPct={(count / slots) * 100}
           />
           <FtStat
             label="Memory guide"
@@ -185,7 +207,13 @@ export function FtOverview() {
               }
               bodyClassName="pt-1.5"
             >
-              <FtPlayerRows serverId={id} players={players} online={online} loading={playersQuery.isLoading} />
+              <FtPlayerRows
+                serverId={id}
+                players={players}
+                online={online}
+                loading={playersQuery.isLoading}
+                presentCount={info?.playerCount}
+              />
             </FtPanel>
 
             {can("power") && (

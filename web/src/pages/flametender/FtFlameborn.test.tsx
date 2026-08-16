@@ -49,8 +49,10 @@ function bans(list: BansResult["bans"]): BansResult {
   };
 }
 
-function renderRoster(players: Player[]) {
-  return renderWithProviders(<FtPlayerRows serverId={1} players={players} online loading={false} />);
+function renderRoster(players: Player[], presentCount?: number) {
+  return renderWithProviders(
+    <FtPlayerRows serverId={1} players={players} online loading={false} presentCount={presentCount} />,
+  );
 }
 
 describe("FtPlayerRows moderation", () => {
@@ -110,6 +112,35 @@ describe("FtPlayerRows moderation", () => {
     await screen.findByRole("button", { name: "Kick" });
     expect(screen.queryByRole("button", { name: "Add to ban list" })).not.toBeInTheDocument();
     expect(screen.queryByText("Banned")).not.toBeInTheDocument();
+  });
+
+  // The game's own count can exceed what the log can name: a join line
+  // older than the agent's ring is gone, but the player is not. The
+  // roster has to own up to that rather than quietly under-report.
+  it("says how many present players the log can't name", async () => {
+    vi.spyOn(api, "serverBans").mockResolvedValue(bans([]));
+    renderRoster([player()], 3);
+
+    expect(await screen.findByText(/reports 2 more players online/i)).toBeInTheDocument();
+  });
+
+  it("explains an empty roster on a server that reports players", async () => {
+    vi.spyOn(api, "serverBans").mockResolvedValue(bans([]));
+    renderRoster([], 2);
+
+    expect(await screen.findByText(/2 players are on the server/i)).toBeInTheDocument();
+    // Not the "nobody is here" copy, which would be a different claim.
+    expect(screen.queryByText(/fire burns alone/i)).not.toBeInTheDocument();
+  });
+
+  // A count below the roster is a player who left between two reads, and
+  // the next refresh fixes it; it must never render as negative.
+  it("says nothing when the count trails the roster", async () => {
+    vi.spyOn(api, "serverBans").mockResolvedValue(bans([]));
+    renderRoster([player(), player({ name: "Ash", userId: "76561198000000002", playerId: "76561198000000002" })], 1);
+
+    await screen.findByText("Wren");
+    expect(screen.queryByText(/more players online/i)).not.toBeInTheDocument();
   });
 
   it("falls back to the disabled Ban with its reason without the moderation grant", async () => {

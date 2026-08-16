@@ -16,9 +16,11 @@ tokens are the `fk.*` literals in `web/tailwind.config.js`, mirrored onto
 shadcn semantic vars in `web/src/index.css`).
 
 Read `docs/enshrouded-recon.md` before touching parsers or capability
-decisions. **Nothing in it is verified against a real server yet** — its
-verification ledger is the checklist, and facts marked [uncertain] are
-not assumed anywhere in code. Key facts: Steam app 2278520, Windows-only
+decisions. Its **verification ledger** is the live checklist: much is now
+confirmed against a real server (the log vocabulary, readiness marker and
+config schema since 2026-08-15), and the rows still marked open are
+genuinely open — facts marked [uncertain] are not assumed anywhere in
+code. Key facts: Steam app 2278520, Windows-only
 binary run under Wine (no Linux build exists), ONE UDP port
 (queryPort 15637 = game + Steam A2S), config seeded before first boot
 because the game's own generated default is an open server, saves on
@@ -68,11 +70,20 @@ shutdown. Never write that key while the game is up: queue the edit
 between the stop and the start. Both restart paths the console drives run
 the two halves themselves when work is queued.
 
-Roadmap: `docs/roadmap.md` (Phase 2: the moderation surface landed
-2026-08-16 — role groups behind `PermSettings` because they carry
-passwords, bans behind `PermModerate` because they don't; A2S presence
-and the ready-state signal are what's left. Phase 3: save index reader +
-rollback; Phase 5: the 1.0 churn wave, 2026-10-15).
+Two sources describe a live server and they are not interchangeable.
+The Steam query (`esquery`, run **agent-side** via `GET /v1/query`
+against `127.0.0.1:queryPort`) owns the present: player count, the real
+`slotCount`, the running build, the game's own name. `eslog` owns
+identity and history — who those players are, and the `HostOnline`
+readiness marker. A silent query falls back to log-derived; it never
+blanks the page. Readiness is three-valued on purpose ("" = can't tell,
+because the marker scrolls out of the ~80-minute ring), and the query
+answering is *not* proof of readiness — game and query share one port.
+
+Roadmap: `docs/roadmap.md` (Phase 2 complete 2026-08-16 — moderation
+surface, A2S presence, ready state; the Steam-build-id half of version
+surfacing moved to Phase 4's update watcher. Phase 3: save index reader
++ rollback; Phase 5: the 1.0 churn wave, 2026-10-15).
 
 Workflow: when a branch is pushed and ready for review, open the PR
 without asking — the maintainer has standing-approved PR creation

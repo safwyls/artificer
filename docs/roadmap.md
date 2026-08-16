@@ -54,22 +54,30 @@ Phase 2 re-scope below.
 ## Phase 2 — live presence and moderation surface
 
 **Gate: a live server (Phase 1 deployed); the A2S off-host answer in the
-ledger.**
+ledger — which item 1 dissolved rather than answered, by running the
+query on the agent instead. Phase complete 2026-08-16 bar the update-id
+half of item 5, which moved to Phase 4.**
 
-1. **A2S query client** (`esquery`, pure Go, ~200 lines: A2S_INFO +
-   A2S_PLAYER with the challenge handshake). **Re-scoped 2026-08-15**:
-   names now come from the log, so this no longer gates the roster's
-   readability, and it drops below the moderation items in value. What it
-   still buys: authoritative presence ("right now", independent of log
-   inference), the real configured `slotCount` for charts (Metrics
-   reports the 16-slot cap today), and a roster that survives a console
-   restart later than the agent's ~80-minute log ring. Console-side,
-   querying `host:gamePort` directly; falls back to log-derived when the
-   port isn't reachable. Keep both honest: the log tracker owns join and
-   leave *history*, A2S owns the present.
-2. **Ready state**: surface eslog's `HostOnline` in the Overview
-   ("starting" vs "accepting players"), since a booting server binds its
-   port well before it accepts joins.
+1. ~~**A2S query client**~~ — **done 2026-08-16.** `esquery` is the
+   pure-Go A2S_INFO + A2S_PLAYER client with the challenge handshake, and
+   it reads the app id out of the extra-data block because the reply's
+   own 16-bit field cannot hold a modern one. **One deviation from the
+   plan above:** the query runs *agent-side* (`GET /v1/query` against
+   `127.0.0.1:queryPort`), not console-side. The standing constraint says
+   the agent is the only transport, and running it there also retires the
+   phase gate — off-host reachability stops mattering when the query
+   never leaves the host. The lanes held: A2S owns the present (count,
+   `slotCount`, build, server name), the log owns identity and history,
+   and a silent query falls back to log-derived rather than blanking the
+   page.
+2. ~~**Ready state**~~ — **done 2026-08-16.** `game.ServerInfo.Readiness`
+   carries eslog's `HostOnline` to the Overview as a third hero state
+   between Offline and Online. Deliberately three-valued: the marker is
+   logged once at boot and scrolls out of the agent's ~80-minute ring, so
+   a console watching a long-running server reports *unknown* rather than
+   claiming it is still starting. The query answering is not treated as
+   proof of readiness — game and query share one port, so a reply only
+   proves the socket is up, which happens too early.
 3. ~~**Ban list editor**~~ — **done 2026-08-16.** `bannedAccounts` is a
    first-class list (`esconfig/bans.go`, `GET/PUT /bans` behind
    `PermModerate`, the Bans panel on Flameborn), and the roster's Ban
@@ -90,9 +98,13 @@ ledger.**
    an empty password, two groups sharing one password. Per-group password
    *rotation* did not ship — the fields are editable in place, and the
    existing admin rotate covers the one credential worth generating.
-5. **Version surfacing**: the log's build hash + Steam build id from the
-   update job, so "a game update dropped" is visible before friends hit
-   the version-mismatch join error.
+5. **Version surfacing** — **half done 2026-08-16.** The running build
+   now comes off the A2S reply and shows as a chip on the Overview, which
+   covers "what am I running" and makes a friend's version-mismatch error
+   comparable. What is left is the *other* half: the Steam build id from
+   the update job, so a console can tell "you are behind" rather than
+   only "you are on this". That belongs with the Phase 4 update watcher,
+   which needs the same number.
 
 ## Phase 3 — saves, rollback, and world lifecycle
 

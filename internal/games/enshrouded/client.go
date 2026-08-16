@@ -10,6 +10,7 @@ import (
 	"github.com/safwyls/flametender/internal/agentctl"
 	"github.com/safwyls/flametender/internal/game"
 	"github.com/safwyls/flametender/internal/games/enshrouded/eslog"
+	"github.com/safwyls/flametender/internal/games/enshrouded/esquery"
 )
 
 // errNoAgent is the config-level failure: without a sidecar there is no
@@ -44,6 +45,69 @@ func trackerFor(agentURL string) *eslog.Tracker {
 // capped at the same figure agent-side.
 const logTail = 2000
 
+// The Steam query, cached per server.
+//
+// One dashboard load calls Info, Players and Metrics, and all three want
+// the same answer; without a cache that is three UDP round trips through
+// the agent for one screen. The window is short enough that "right now"
+// stays true — the whole point of asking the game rather than reading the
+// log is that it is current.
+const queryTTL = 5 * time.Second
+
+type queryState struct {
+	mu  sync.Mutex
+	at  time.Time
+	res *agentctl.QueryResult
+	err error
+}
+
+var (
+	queriesMu sync.Mutex
+	queries   = map[string]*queryState{}
+)
+
+func queryStateFor(agentURL string) *queryState {
+	queriesMu.Lock()
+	defer queriesMu.Unlock()
+	q, ok := queries[agentURL]
+	if !ok {
+		q = &queryState{}
+		queries[agentURL] = q
+	}
+	return q
+}
+
+// query returns the game's own answer, or an error if it didn't give one.
+//
+// Both outcomes are ordinary. A server that is still booting, or one
+// whose port is firewalled even from the container, simply doesn't
+// answer, and every caller here treats that as "fall back to what the log
+// knows" rather than as a failure worth showing anyone.
+func (c *Client) query(ctx context.Context) (*agentctl.QueryResult, error) {
+	if c.agent == nil {
+		return nil, errNoAgent
+	}
+	c.queries.mu.Lock()
+	defer c.queries.mu.Unlock()
+	if time.Since(c.queries.at) < queryTTL {
+		return c.queries.res, c.queries.err
+	}
+	res, err := c.agent.Query(ctx)
+	c.queries.at = time.Now()
+	c.queries.res, c.queries.err = res, err
+	return res, err
+}
+
+// queryInfo is query() narrowed to the reply body, for the callers that
+// only want the facts and not the failure.
+func (c *Client) queryInfo(ctx context.Context) *esquery.Info {
+	res, err := c.query(ctx)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Info
+}
+
 // Client derives Enshrouded state through the flameagent sidecar. It
 // implements game.Client with the honest subset: Info, Players and
 // Metrics work; every command returns game.UnsupportedError, because the
@@ -53,6 +117,7 @@ type Client struct {
 	agent    *agentctl.Client
 	agentErr error
 	tracker  *eslog.Tracker
+	queries  *queryState
 }
 
 // New builds the client for one server. A missing or malformed agent URL
@@ -67,7 +132,7 @@ func New(conn game.Conn) game.Client {
 	if err != nil {
 		return &Client{agentErr: fmt.Errorf("agent: %w", err)}
 	}
-	return &Client{agent: a, tracker: trackerFor(conn.AgentURL)}
+	return &Client{agent: a, tracker: trackerFor(conn.AgentURL), queries: queryStateFor(conn.AgentURL)}
 }
 
 // refresh polls the agent once and feeds the tracker: health for process
@@ -95,9 +160,45 @@ func (c *Client) refresh(ctx context.Context) (*agentctl.GameStatus, error) {
 	return h.Game, nil
 }
 
-// Info reports liveness and the derived player count. ServerName stays
-// empty: the log stream doesn't carry it, and inventing it from the row
-// would just echo the user's own input back at them.
+// readyWindow is how long a process gets to log its host-online line
+// before its absence stops meaning "still starting".
+//
+// The marker only exists once in the log, at boot, and the agent's ring
+// holds roughly 80 minutes. A console that starts watching an
+// already-running server therefore never sees it — and reporting that
+// server as "starting" forever would be worse than reporting nothing.
+// Past this window, absence is ignorance rather than evidence.
+const readyWindow = 15 * time.Minute
+
+// readiness answers the question "running" can't: whether anyone can
+// actually join yet. A booting Enshrouded server binds its port and loads
+// the world well before it accepts a connection, so this is the
+// difference between a friend joining and a friend getting an error.
+//
+// Only the log's `HostOnline` line is treated as proof. The Steam query
+// answering is deliberately *not*: the game and the query share one port,
+// so a reply says the socket is up, which is exactly the thing that
+// happens too early.
+func (c *Client) readiness(st *agentctl.GameStatus) string {
+	if c.tracker.Ready() {
+		return game.ReadinessReady
+	}
+	if !st.StartedAt.IsZero() && time.Since(st.StartedAt) < readyWindow {
+		return game.ReadinessStarting
+	}
+	return ""
+}
+
+// Info reports liveness, presence and — when the game answers its Steam
+// query — the facts only the game itself holds.
+//
+// The two sources are kept in their lanes. The Steam query owns the
+// present: it is the game's own count, and unlike the log it cannot be
+// missing a player whose join line has scrolled out of the agent's ring.
+// The log owns everything the query can't express — who those players
+// are, and whether the server has finished coming up. When the query
+// doesn't answer, the log-derived count stands in, which is the old
+// behaviour and still the right fallback.
 func (c *Client) Info(ctx context.Context) (*game.ServerInfo, error) {
 	st, err := c.refresh(ctx)
 	if err != nil {
@@ -109,10 +210,21 @@ func (c *Client) Info(ctx context.Context) (*game.ServerInfo, error) {
 		// power panel (agent-backed) stays available alongside it.
 		return nil, fmt.Errorf("server process is %s", st.State)
 	}
-	return &game.ServerInfo{
+	info := &game.ServerInfo{
 		PlayerCount: len(c.tracker.Sessions()),
 		Transport:   "agent",
-	}, nil
+		Readiness:   c.readiness(st),
+	}
+	if q := c.queryInfo(ctx); q != nil {
+		info.PlayerCount = q.Players
+		// The name is the game's own copy of the config's `name`, which
+		// makes it the one place an edit that never reached the game would
+		// show — worth more than echoing the row's name back.
+		info.ServerName = q.Name
+		info.Version = q.Version
+		info.Transport = "agent+a2s"
+	}
+	return info, nil
 }
 
 // Players is the log-derived session list. The join line carries the
@@ -226,12 +338,14 @@ func (c *Client) Shutdown(ctx context.Context, waitSeconds int, message string) 
 	return unsupported("shutdown")
 }
 
-// Metrics lets the collector chart what the derived view does know:
-// player count and process uptime. MaxSlots is the game's hard cap, not
-// the configured slotCount — the log stream doesn't carry the config, and
-// the A2S query (Phase 2) is the honest source for the real number. FPS
-// and frame time stay zero, which charts read correctly as "not
-// reported".
+// Metrics lets the collector chart player count and process uptime.
+//
+// MaxPlayerNum is the configured slot count when the Steam query answers
+// and the game's hard cap otherwise. That distinction is the whole reason
+// the query was worth building for charts: a 3-player evening on a
+// 4-slot server is nearly full, and against the 16-slot cap it looks
+// empty. FPS and frame time stay zero, which charts read correctly as
+// "not reported".
 func (c *Client) Metrics(ctx context.Context) (*game.Metrics, error) {
 	st, err := c.refresh(ctx)
 	if err != nil {
@@ -240,11 +354,18 @@ func (c *Client) Metrics(ctx context.Context) (*game.Metrics, error) {
 	if st.State != "running" {
 		return nil, fmt.Errorf("server process is %s", st.State)
 	}
-	return &game.Metrics{
+	m := &game.Metrics{
 		CurrentPlayerNum: len(c.tracker.Sessions()),
 		MaxPlayerNum:     MaxSlots,
 		UptimeSeconds:    int(time.Since(st.StartedAt).Seconds()),
-	}, nil
+	}
+	if q := c.queryInfo(ctx); q != nil {
+		m.CurrentPlayerNum = q.Players
+		if q.MaxPlayers > 0 {
+			m.MaxPlayerNum = q.MaxPlayers
+		}
+	}
+	return m, nil
 }
 
 // Settings has no live transport — the game can't be asked for its

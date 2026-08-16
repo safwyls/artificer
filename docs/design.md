@@ -213,3 +213,55 @@ tree.
   It earns its place by being literal (the Shroud below, the terrace
   above) and by pairing with the top-light on panels — a physical model,
   not a filter.
+
+## Phase 2 addendum — presence, readiness, and the real slot count
+
+The Steam query gave the console three facts it never had: how many
+people are on *right now*, the server's own configured slot count, and
+the build it is running. Plus one the log always had and the UI never
+showed — whether the server has finished coming up. This is where they
+land, and what was deliberately not built.
+
+**Palette: nothing new.** The theme's three roles already cover this, and
+the discipline worth keeping is that flame and spore each mean exactly
+one thing. Flame is live-and-joinable; spore is absent-or-wrong. Neither
+fits "up but not accepting joins yet" — flame would promise a join that
+fails, spore would read as offline. So *starting* is drawn in neutral
+stone with a slow pulse: the neutral says "no claim either way", the
+motion says "this is temporary", and neither borrows a meaning that is
+already spoken for.
+
+**Type: unchanged.** State chips keep the established 11.5px uppercase
+with tracking; the build stays mono, because it is an identifier and gets
+read character by character when someone is comparing it to a friend's
+version-mismatch error.
+
+**Layout: no new regions.** Readiness is one word and belongs on the chip
+row a player already scans; the slot count belongs in the sigil and the
+Flameborn stat. A dedicated readiness panel would give a transient state
+permanent furniture.
+
+**Signature: the sigil stops lying.** `FlameSigil` draws lit-of-total and
+its total has been the game's 16-slot hard cap, so a full 4-slot server
+rendered as one-quarter lit. Feeding it the queried `maxPlayers` is the
+highest-value change on the page — the signature element is the one thing
+read at a glance, and it has been reading wrong.
+
+### Self-critique against the defaults
+
+- *A green/amber/red status pill?* That is the default move and it is
+  refused: this theme has no traffic-light vocabulary, and importing one
+  would flatten stone/flame/spore into a bootstrap alert set.
+- *A new "Server health" card?* Refused. Every fact here has an existing
+  home; a new card would be a container invented to hold one word.
+- *A spinner on "starting"?* No. Nothing is loading — the server is
+  working. A pulse says "in progress"; a spinner says "waiting on a
+  request", which is a different and wrong claim.
+- *Surfacing `transport: "agent+a2s"`?* Tempting, since the backend
+  distinguishes them. Refused as jargon on the hero; it earns a mention
+  only as a hint under the count, where "is this number trustworthy" is
+  the actual question.
+- *The risk taken:* a count from the game that can exceed the roster the
+  log can name. Rather than hide the gap or invent placeholder rows, the
+  roster says how many it can't identify. If that proves confusing in
+  use, the fix is naming them via A2S, not suppressing the count.

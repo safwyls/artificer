@@ -342,10 +342,15 @@ Still open:
 - [ ] **SIGINT stop**: that the graceful stop reaches the exe through
       Wine and produces a clean save-on-shutdown inside the 120 s grace.
       (Observed only that a *player leave* triggers a save.)
-- [ ] **A2S from off-host** — the Phase 2 gate. Now worth less than
-      planned, since names come from the log; its remaining value is
-      authoritative presence, the real `slotCount`, and a liveness signal
-      that doesn't depend on log inference.
+- [~] **A2S from off-host** — was the Phase 2 gate; **no longer gates
+      anything, 2026-08-16.** The query runs on the *agent*, against
+      `127.0.0.1:queryPort` inside the container, which is the one path
+      mornedhels' images already prove works. So whether the port answers
+      from outside the host is now a question about players' connectivity
+      rather than about this console, and Phase 2 stopped waiting on it.
+      What the query delivered: authoritative presence, the real
+      `slotCount` (nothing else carries it), and the running build.
+      Still worth knowing for a future off-host use — leave the row.
 - [ ] `bannedAccounts` element format (bare SteamID64 strings vs
       objects). No longer gates anything: the bans editor
       (`esconfig/bans.go`) reads whichever shape the file uses, writes new

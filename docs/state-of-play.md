@@ -59,9 +59,12 @@ load-bearing:
   matching groups by capability (`canKickBan`) rather than by name.
 
 There IS one native query surface — Steam A2S on the game's single UDP
-port — deliberately deferred to Phase 2 (`docs/roadmap.md`), where it
-buys player *names* (logs only carry SteamID64s), the real slotCount,
-and log-independent liveness.
+port — and as of Phase 2 the console uses it (`esquery`, run by the
+agent). It buys the real `slotCount`, the running build, and a player
+count that owes nothing to log inference. It does *not* buy identity:
+A2S rows carry a name and no account id, so the roster stays
+log-derived. The table above gains one row — "how many are on right
+now" comes from the game itself.
 
 ## Where things stand
 
@@ -98,9 +101,11 @@ What the first deployment proved, in the order the risks were ranked:
    from our own capture — and the capture also showed that **player names
    are in the log**, which the community sources denied.
 
-Still unproven: the SIGINT stop's clean save-on-shutdown, A2S from
-off-host, the ban list's element format, and the save's rolling-copy
-rotation. All are ledger rows.
+Still unproven: the SIGINT stop's clean save-on-shutdown, the ban list's
+element format, whether the game honours a config-written ban at all,
+and the save's rolling-copy rotation. All are ledger rows. (A2S from
+off-host was one too; running the query on the agent retired it as a
+blocker.)
 
 ### Since then (2026-08-16)
 
@@ -126,6 +131,36 @@ rotation. All are ledger rows.
   they carry no credential; and the bans editor never imposes an element
   format on the file, which is why that ledger row stopped gating
   anything.
+- **Phase 2 is complete.** The Steam query landed last (`esquery` +
+  `GET /v1/query` on the agent + the console wiring), and with it the
+  three facts the log could never carry: how many people are on right
+  now, the server's real `slotCount`, and the build it is running. The
+  design decision worth keeping is the lane split — the query owns the
+  *present*, `eslog` owns *identity and history*. They are not
+  interchangeable and neither is a fallback for the other in general: a
+  silent query falls back to the log-derived count, but A2S can never
+  produce a roster row, because it carries names and no account ids.
+- **The phase gate was dissolved, not answered.** "Does A2S work from
+  off-host" blocked this phase on the recon ledger. Running the query
+  agent-side against `127.0.0.1` made the question irrelevant — and it
+  also honours the standing constraint that the agent is the only
+  transport. If a future need really is off-host, the ledger row is
+  still there.
+- **Readiness has three values, and that is deliberate.** A booting
+  server reads "running" minutes before it accepts joins, so the Overview
+  now shows Starting / Online / Offline off eslog's `HostOnline` marker.
+  But that marker is logged once at boot and the agent's ring holds ~80
+  minutes, so a console that starts watching a long-running server never
+  sees it. Absence past a 15-minute window therefore means *unknown*, not
+  "still starting" — and the query answering is not accepted as proof of
+  readiness either, since the game and the query share one port and a
+  reply only proves the socket is up.
+- **The signature element had been lying.** `FlameSigil` draws
+  lit-of-total against what was the game's 16-slot hard cap, so a full
+  4-slot server rendered as one-quarter lit. It now draws against the
+  queried slot count. Worth remembering as the pattern: the number that
+  is easiest to hardcode is the one most visible at a glance.
+
 - **The ban list has two writers, and the game wins.** Same day, the
   first real use found it: a ban added while the server was up was gone
   after the restart. `bannedAccounts` is also maintained by the in-game

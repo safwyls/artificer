@@ -30,7 +30,23 @@ type ServerInfo struct {
 	// "rest" or "rcon"). With a fallback client this can differ from the
 	// server's configured preference, so the UI can say which one answered.
 	Transport string `json:"transport"`
+	// Readiness separates a process that is up from one that is accepting
+	// players, for games where those are minutes apart — Enshrouded binds
+	// its port and loads the world well before it will let anyone in, so
+	// "running" alone sends people to a join error.
+	//
+	// Empty means the game reports nothing either way, which is different
+	// from ReadinessStarting: a client that cannot tell must not claim the
+	// server is still coming up.
+	Readiness string `json:"readiness,omitempty"`
 }
+
+// Readiness values. Deliberately not a bool: "we don't know" is a real
+// answer here and has to survive to the UI as one.
+const (
+	ReadinessStarting = "starting"
+	ReadinessReady    = "ready"
+)
 
 // Player is one connected player.
 //

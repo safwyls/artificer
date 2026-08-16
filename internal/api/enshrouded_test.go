@@ -176,8 +176,16 @@ func TestRotateAdminPasswordNeedsAConfigPath(t *testing.T) {
 // running and whose log ring holds the given lines — the whole transport
 // the enshrouded client derives its state from.
 func fakeEnshroudedAgent(t *testing.T, lines []string) string {
+	return fakeEnshroudedAgentWith(t, lines, time.Now().UTC().Add(-time.Minute), nil)
+}
+
+// fakeEnshroudedAgentWith also controls when the process started (which
+// decides how long a missing readiness marker still means "starting") and
+// what the game's Steam query answers — nil for a server that doesn't
+// answer one, which is both the pre-boot state and any agent too old to
+// have the route.
+func fakeEnshroudedAgentWith(t *testing.T, lines []string, started time.Time, query map[string]any) string {
 	t.Helper()
-	started := time.Now().UTC().Add(-time.Minute)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -189,6 +197,13 @@ func fakeEnshroudedAgent(t *testing.T, lines []string) string {
 			})
 		case "/v1/power/logs":
 			json.NewEncoder(w).Encode(map[string]any{"lines": lines})
+		case "/v1/query":
+			if query == nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				json.NewEncoder(w).Encode(map[string]string{"error": "the game did not answer the Steam query"})
+				return
+			}
+			json.NewEncoder(w).Encode(query)
 		default:
 			w.WriteHeader(http.StatusNoContent)
 		}

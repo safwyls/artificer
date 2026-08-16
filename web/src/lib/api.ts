@@ -316,9 +316,14 @@ export interface ServerInfo {
   servername: string;
   version: string;
   playerCount: number;
-  /** Which transport answered. Always "agent" today; "a2s" arrives with
-   * the Phase 2 query client. */
+  /** Which sources answered: "agent" for log-derived state alone,
+   * "agent+a2s" when the game's own Steam query answered too — in which
+   * case playerCount is the game's count rather than an inference. */
   transport: string;
+  /** Whether the server is accepting joins yet. A booting Enshrouded
+   * server is "running" for some time before anyone can get in. Empty
+   * means the console can't tell, which is not the same as "starting". */
+  readiness?: "starting" | "ready" | "";
 }
 
 export interface Player {

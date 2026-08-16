@@ -233,6 +233,10 @@ func (a *Agent) Handler() http.Handler {
 		// answer 400 so flametender falls back to the docker proxy.
 		r.Post("/power/{action}", a.handlePower)
 		r.Get("/power/logs", a.handleGameLogs)
+		// The game's own Steam query, run from inside the container — the
+		// only presence signal that isn't log inference. See query.go for
+		// why it lives here rather than console-side.
+		r.Get("/query", a.handleQuery)
 	})
 	return r
 }

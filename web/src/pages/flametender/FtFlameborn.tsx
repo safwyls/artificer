@@ -120,61 +120,84 @@ export function FtPlayerRows({
   players,
   online,
   loading,
+  presentCount,
 }: {
   serverId: number;
   players: Player[];
   online: boolean;
   loading: boolean;
+  /** The game's own count, when its Steam query answered. The roster is built
+   * from the log and can be short of this — a player whose join line scrolled
+   * out of the agent's ring is on the server and not in the list. Saying so
+   * beats a roster that quietly under-reports. */
+  presentCount?: number;
 }) {
   const { can } = useAuth();
+  // Only ever a shortfall. A count *below* the roster means someone left between
+  // the two reads, which the next refresh fixes on its own.
+  const unnamed = Math.max(0, (presentCount ?? 0) - players.length);
   if (loading) return <p className="py-3 text-sm text-ft-lichen">Reading the log…</p>;
   if (!online) return <p className="py-3 text-sm text-ft-lichen">The server is offline — nobody is in the world.</p>;
   if (players.length === 0)
-    return <p className="py-3 text-sm text-ft-lichen">The fire burns alone — no Flameborn online.</p>;
+    return (
+      <p className="py-3 text-sm text-ft-lichen">
+        {unnamed > 0
+          ? `${unnamed} ${unnamed === 1 ? "player is" : "players are"} on the server, but their joins are older than the log the console can see.`
+          : "The fire burns alone — no Flameborn online."}
+      </p>
+    );
   return (
-    <table className="w-full border-collapse text-sm">
-      <thead>
-        <tr>
-          <th className="px-2.5 pb-2 pt-1 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-ft-lichen">
-            Name
-          </th>
-          <th className="px-2.5 pb-2 pt-1 text-right text-[11px] font-medium uppercase tracking-[0.12em] text-ft-lichen" />
-        </tr>
-      </thead>
-      <tbody>
-        {players.map((p) => (
-          <tr key={p.userId}>
-            <td className="border-t border-ft-edge px-2.5 py-2.5">
-              <span className="mr-2 inline-block h-[7px] w-[7px] rounded-full bg-ft-flame shadow-[0_0_5px_rgba(127,195,240,.6)]" />
-              {/* Usually the player's own name; the SteamID64 when the
-                  login line that carries it scrolled past unseen. Mono
-                  either way, since one of the two forms is an id. */}
-              <span className="font-mono text-[13px] font-bold text-ft-bone">{p.name}</span>
-            </td>
-            <td className="border-t border-ft-edge px-2.5 py-2.5 text-right">
-              <button
-                disabled
-                title={KICK_REASON}
-                className="cursor-not-allowed rounded-sm border border-ft-edge px-2.5 py-0.5 text-xs text-ft-lichen opacity-40"
-              >
-                Kick
-              </button>
-              {can("moderate") ? (
-                <BanPlayerButton serverId={serverId} player={p} />
-              ) : (
+    <>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            <th className="px-2.5 pb-2 pt-1 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-ft-lichen">
+              Name
+            </th>
+            <th className="px-2.5 pb-2 pt-1 text-right text-[11px] font-medium uppercase tracking-[0.12em] text-ft-lichen" />
+          </tr>
+        </thead>
+        <tbody>
+          {players.map((p) => (
+            <tr key={p.userId}>
+              <td className="border-t border-ft-edge px-2.5 py-2.5">
+                <span className="mr-2 inline-block h-[7px] w-[7px] rounded-full bg-ft-flame shadow-[0_0_5px_rgba(127,195,240,.6)]" />
+                {/* Usually the player's own name; the SteamID64 when the
+                    login line that carries it scrolled past unseen. Mono
+                    either way, since one of the two forms is an id. */}
+                <span className="font-mono text-[13px] font-bold text-ft-bone">{p.name}</span>
+              </td>
+              <td className="border-t border-ft-edge px-2.5 py-2.5 text-right">
                 <button
                   disabled
-                  title={BAN_REASON}
-                  className="ml-1.5 cursor-not-allowed rounded-sm border border-ft-edge px-2.5 py-0.5 text-xs text-ft-lichen opacity-40"
+                  title={KICK_REASON}
+                  className="cursor-not-allowed rounded-sm border border-ft-edge px-2.5 py-0.5 text-xs text-ft-lichen opacity-40"
                 >
-                  Ban
+                  Kick
                 </button>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                {can("moderate") ? (
+                  <BanPlayerButton serverId={serverId} player={p} />
+                ) : (
+                  <button
+                    disabled
+                    title={BAN_REASON}
+                    className="ml-1.5 cursor-not-allowed rounded-sm border border-ft-edge px-2.5 py-0.5 text-xs text-ft-lichen opacity-40"
+                  >
+                    Ban
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {unnamed > 0 && (
+        <p className="px-2.5 pt-2 text-xs text-ft-lichen">
+          The server reports {unnamed} more {unnamed === 1 ? "player" : "players"} online, whose join{" "}
+          {unnamed === 1 ? "line is" : "lines are"} older than the log the console can see.
+        </p>
+      )}
+    </>
   );
 }
 
@@ -215,6 +238,7 @@ export function FtFlameborn() {
             players={playersQuery.data ?? []}
             online={online}
             loading={playersQuery.isLoading}
+            presentCount={infoQuery.data?.playerCount}
           />
           <FtNote>
             Moderation is role-based: joining with a kick/ban-capable role password (the admin password from the
