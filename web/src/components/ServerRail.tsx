@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LogOut, Plus, Users as UsersIcon } from "lucide-react";
+import { Download, LogOut, Plus, Users as UsersIcon } from "lucide-react";
 import { type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { usePwaInstall } from "../lib/pwa";
 import { cn } from "../lib/utils";
 import { FtServerFlame } from "./flametender/FtServerFlame";
 import { AddServerFlow } from "./AddServerFlow";
@@ -11,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 /** Desktop icon rail: sigil coin, one hearth coin per server, add button, logout. */
 export function ServerRail({ servers, activeServerId }: { servers: Server[]; activeServerId: number | null }) {
   const { username, logout, isAdmin } = useAuth();
+  const pwa = usePwaInstall();
   const navigate = useNavigate();
   const location = useLocation();
   const [addOpen, setAddOpen] = useState(false);
@@ -63,6 +65,22 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
             </button>
           </TooltipTrigger>
           <TooltipContent side="right">Users</TooltipContent>
+        </Tooltip>
+      )}
+
+      {/* Only when the browser has actually offered — an install button
+          that does nothing is worse than no button. */}
+      {pwa.available && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => pwa.install()}
+              className="flex h-10 w-10 items-center justify-center rounded-full text-ft-flame/70 transition hover:bg-ft-panel hover:text-ft-flame"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Install Flametender</TooltipContent>
         </Tooltip>
       )}
 

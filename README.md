@@ -44,12 +44,20 @@ minutes and on shutdown by themselves).
 - Shared base: users/roles/permissions, audit trail, Discord
   notifications, scheduled restarts, crash watchdog, SteamCMD update
   jobs, public status page
+- **Installable** — the console is a PWA: a service worker (`web/public/sw.js`)
+  caches the shell and content-hashed assets, never the API, and an
+  "Install" offer appears in the rail and the mobile menu once the browser
+  says it can be installed
 - **Cloudflare Access SSO** (optional) — behind a Cloudflare Tunnel, the
   identity Access already authenticated becomes a console session, with
   the account created on first sign-in and no permissions until you grant
   them. Tokens are verified cryptographically, so the header cannot be
   forged by anything that reaches the origin directly; password login
   stays as break-glass. See `docs/cloudflare-access.md`
+- **Installable** — the console is a PWA: a service worker (`web/public/sw.js`)
+  caches the shell and content-hashed assets, never the API, and an
+  "Install" offer appears in the rail and the mobile menu once the browser
+  says it can be installed
 - **Cloudflare Access SSO** (optional) — behind a Cloudflare Tunnel, the
   identity Access already authenticated becomes a console session, with
   the account created on first sign-in. Tokens are verified

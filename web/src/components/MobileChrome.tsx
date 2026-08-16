@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Gamepad2, LogOut, MoreVertical, Pencil, Plus, Power, RefreshCw, Save, Trash2 } from "lucide-react";
+import { Download, Gamepad2, LogOut, MoreVertical, Pencil, Plus, Power, RefreshCw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, errorDetail, type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { usePwaInstall } from "../lib/pwa";
 import { serverColor, initials } from "../lib/palette";
 import { FEATURE_ROUTES, featureLabel } from "../lib/games";
 import { canSeeFeature, serverFeatures } from "../lib/visibility";
@@ -28,6 +29,7 @@ const segmentClass = ({ isActive }: { isActive: boolean }) =>
  * and an overflow menu carrying the actions that have no other mobile home. */
 export function MobileTopBar({ server }: { server: Server | null }) {
   const { username, logout, can, isAdmin } = useAuth();
+  const pwa = usePwaInstall();
   const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -192,6 +194,19 @@ export function MobileTopBar({ server }: { server: Server | null }) {
                     )}
                     <div className="border-t border-ft-edge" />
                   </>
+                )}
+                {/* A phone is where this actually gets installed, so the
+                    offer belongs in the menu people already open. */}
+                {pwa.available && (
+                  <button
+                    className={menuItem}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      pwa.install();
+                    }}
+                  >
+                    <Download className="h-4 w-4 text-ft-flame/70" /> Install app
+                  </button>
                 )}
                 <button
                   className={menuItem}
