@@ -1,6 +1,7 @@
 go 1.26
 
 use (
+	.
 	./palcon
 	./wildskeeper
 	./flametender

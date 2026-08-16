@@ -1,5 +1,16 @@
 # Drift ledger
 
+> **Execution status.** Phase 2a (core bootstrap) landed: all take-F
+> rows are in `core/`, with seams 2, 3, 4 (single-port form), 7, and 9
+> implemented; §A and §B take-F rows are done unless named below.
+> Open 2b/2c work: advisor restore (§Lost feature), config.go
+> provisioner/advisor-key merge-P, visibility roster seam (6),
+> backup save-layout hook (1), agent-kit implementation extraction
+> (wire types are in `core/agent`; the five agent-backed test files —
+> api/{power_agent,steamupdate,agentfiles}_test.go,
+> agentctl/{agentctl,client}_test.go — return with it), and every
+> §F guard not yet checked off.
+
 Per-file reconciliation decisions for Phase 2 (core extraction), per
 `docs/unification-plan.md`. This is the working checklist: Phase 2
 executes it row by row, and any bug fix landing in an old repo during

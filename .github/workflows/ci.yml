@@ -24,6 +24,20 @@ jobs:
       - name: Dependency rules
         run: ./scripts/checkbounds.sh
 
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go.sum
+      - name: Go build, vet & tests
+        run: |
+          go build ./core/...
+          go vet ./core/...
+          go test ./core/...
+
   console:
     strategy:
       fail-fast: false
