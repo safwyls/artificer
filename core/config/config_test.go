@@ -60,6 +60,8 @@ func TestLoadReadsTheEnvironment(t *testing.T) {
 		"HTTP_ADDR": ":9999", "ADMIN_USERNAME": "root", "ADMIN_PASSWORD": "hunter2",
 		"DOCKER_HOST": "tcp://10.0.0.5:2375",
 		"ILMARI_URL":  "http://ilmari:8820", "ILMARI_TOKEN": "tok",
+		"PROVISIONER_URL": "http://legacy-agent:8811", "PROVISIONER_TOKEN": "ptok",
+		"ANTHROPIC_API_KEY": "sk-ant-test", "GEMINI_API_KEY": "gm-test",
 	})
 
 	cfg, err := config.Load()
@@ -74,6 +76,12 @@ func TestLoadReadsTheEnvironment(t *testing.T) {
 	}
 	if cfg.IlmariURL != "http://ilmari:8820" || cfg.IlmariToken != "tok" {
 		t.Errorf("ilmari = %q / %q", cfg.IlmariURL, cfg.IlmariToken)
+	}
+	if cfg.ProvisionerURL != "http://legacy-agent:8811" || cfg.ProvisionerToken != "ptok" {
+		t.Errorf("legacy provisioner = %q / %q", cfg.ProvisionerURL, cfg.ProvisionerToken)
+	}
+	if cfg.AnthropicAPIKey != "sk-ant-test" || cfg.GeminiAPIKey != "gm-test" {
+		t.Errorf("advisor keys = %q / %q", cfg.AnthropicAPIKey, cfg.GeminiAPIKey)
 	}
 }
 

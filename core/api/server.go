@@ -8,10 +8,12 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/safwyls/sampo/core/advisor"
 	"github.com/safwyls/sampo/core/agentfiles"
 	"github.com/safwyls/sampo/core/backup"
 	"github.com/safwyls/sampo/core/cfaccess"
@@ -76,6 +78,23 @@ type Server struct {
 	// SessionCookie names the login cookie; empty means the neutral
 	// default. Consoles set their brand's name so sessions survive.
 	SessionCookie string
+	// AdvisorPrompt is the console's advisor system prompt (assigned
+	// after New). The text is game payload — the game module owns it;
+	// an empty System leaves the advisor disabled even with a key.
+	AdvisorPrompt advisor.Prompt
+	// DocsFS serves the console's embedded docs for the advisor's
+	// docs-search tool; nil means the endpoint reports none.
+	DocsFS fs.FS
+	// Roster, when set, reads the save-derived player roster for the
+	// visibility editor (assigned after New, like Provisioner).
+	Roster RosterSource
+	// The advisor has two possible sources, resolved in advisor():
+	// a key saved through the admin UI (uiAdvisor, encrypted in the store)
+	// wins over one from the environment (envAdvisor, set by main). Both
+	// nil means the feature is simply absent — see core/advisor.
+	advisorMu  sync.RWMutex
+	envAdvisor AdvisorClient
+	uiAdvisor  AdvisorClient
 }
 
 // OfflineConfigWork is config edits that must wait for the window when
@@ -134,6 +153,22 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 			r.With(s.requireAdmin).Post("/users", s.handleCreateUser)
 			r.With(s.requireAdmin).Put("/users/{userID}", s.handleUpdateUser)
 			r.With(s.requireAdmin).Delete("/users/{userID}", s.handleDeleteUser)
+
+			// Advisor key management: process-wide (the advisor is one
+			// feature, not a per-server one), admin-only, stored encrypted.
+			// A key saved here wins over one from the environment.
+			r.With(s.requireAdmin).Put("/advisor/key", s.handleSetAdvisorKey)
+			r.With(s.requireAdmin).Delete("/advisor/key", s.handleDeleteAdvisorKey)
+			r.With(s.requireAdmin).Put("/advisor/settings", s.handleSetAdvisorSettings)
+			// Change which model a saved key runs, without re-entering it.
+			r.With(s.requireAdmin).Put("/advisor/key/model", s.handleSetAdvisorKeyModel)
+			r.Put("/me/advisor-key/model", s.handleSetUserAdvisorKeyModel)
+			// A user's own key, shadowing the shared one for their requests
+			// only. Any signed-in user; scoped to their account.
+			r.Put("/me/advisor-key", s.handleSetUserAdvisorKey)
+			r.Delete("/me/advisor-key", s.handleDeleteUserAdvisorKey)
+			// Embedded console docs, for the advisor's docs-search tool.
+			r.Get("/docs", s.handleDocs)
 
 			r.Get("/servers", s.handleListServers)
 			r.With(s.requireAdmin).Post("/servers", s.handleCreateServer)
@@ -226,6 +261,10 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 
 				r.Get("/metrics", s.handleServerMetrics)
 				r.Get("/metrics/history", s.handleServerMetricsHistory)
+				// Advisor chat. GET says whether the process has a key at
+				// all; POST answers one question.
+				r.Get("/advisor", s.handleAdvisorStatus)
+				r.Post("/advisor", s.handleAdvisorChat)
 
 				// Who can see what. Admin-only in both directions: the list of
 				// players who asked to be hidden is itself the sort of thing

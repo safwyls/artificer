@@ -16,10 +16,12 @@ wizard/Ilmari adapter, neutral `agentctl.Query*` types, per-console
 passes its full suite with only `game/gametest` registered. The four
 old repos remain imported at repo-name prefixes and still build
 independently — do not hand-sync code between them; that is what the
-drift ledger is for. Still to land in Phase 2: the advisor restore
-(from palcon), remaining merge-P/merge-W ledger rows, and the agent
-kit (`core/agent` holds the wire types; the shared implementation and
-the five agent-backed api/agentctl test files follow it).
+drift ledger is for. 2b landed the advisor restore (prompt, docs FS
+and console name injected; game payload stays with the game), the
+config merge-backs, and seams 1 (`game.SaveLayout`) and 6
+(`api.RosterSource`). Still to land in Phase 2: the agent kit
+(`core/agent` holds the wire types; the shared implementation and the
+five agent-backed api/agentctl test files follow it).
 
 Rules already in force (see the plan's "Structural rules"):
 
