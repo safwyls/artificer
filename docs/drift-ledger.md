@@ -21,7 +21,7 @@
 > (seam 5's first user), esagent's agent.Game spec, and the returned
 > test suites (moderation, ban queue end-to-end on the real kit+spec,
 > enshrouded api, esquery, the enforcement suite, the app-id agreement
-> test). Gate: docs/flametender-port-verification.md. Open: the §F
+> test). **Gate passed 2026-08-16** against the live Enshrouded server; the legacy flametender tree is deleted and :latest publishes from the monorepo. Open: the §F
 > guards not yet checked off (palworld/dragonwilds rows land with their
 > ports; Ilmari parity checks with Phase 6 wiring).
 
@@ -269,10 +269,10 @@ Checked off only when the protection exists in the monorepo:
 - [ ] P's working palsave roster (seam 6 — F's stub must not win).
 - [ ] W's port-pair provisioning logic + "pair swallows agent port" case.
 - [ ] `TestMissingIsDistinctFromRefused` invariant re-asserted vs Ilmari client.
-- [ ] `TestContainerRemoveKeepsTheVolume` promise moved to an Ilmari destroy test.
+- [ ] `TestContainerRemoveKeepsTheVolume` promise moved to an Ilmari destroy test. (Live-verified at the Phase 3 gate — destroy left the world dir — but the test guard is still owed.)
 - [ ] W's `InspectSpec` network/port edge cases verified in Ilmari recreate.
-- [ ] Advisor restored (P source) + F's dead migrations get a live reader.
+- [x] Advisor restored (P source) + F's dead migrations get a live reader (2b).
 - [ ] Ilmari client gains `Containers()`/`Ports()` + APIVersion assertion.
-- [ ] `lastFailure` consumed by the UI (fix is invisible server-side only).
+- [x] `lastFailure` consumed by the UI — live-verified at the Phase 3 gate.
 - [ ] Palcon env migration documented at its port: `PROVISIONER_URL/TOKEN` →
       `ILMARI_URL/TOKEN` (frozen-API concern; accept both for one release).

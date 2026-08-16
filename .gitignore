@@ -1,0 +1,10 @@
+# Built binaries land in cwd when go build is run without -o.
+/flametender
+/flameagent
+/wildskeeper
+/wkagent
+/palcon
+/palagent
+/ilmari-bin
+web/*/dist/
+web/*/node_modules/

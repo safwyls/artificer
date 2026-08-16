@@ -4,6 +4,5 @@ use (
 	.
 	./palcon
 	./wildskeeper
-	./flametender
 	./ilmari
 )

@@ -53,9 +53,9 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
-            # Off until the real-server gate passes; then enable for the
-            # default branch and the old repo's channel is fully replaced.
-            type=raw,value=latest,enable=false
+            # Enabled since the Phase 3 gate passed (2026-08-16, live
+            # Enshrouded server) — the old repo's channel is replaced.
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v7
         with:

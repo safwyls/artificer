@@ -23,9 +23,11 @@ eslog/esquery, banqueue behind the offline-work seam, esapi routes via
 seam 5, esagent's agent.Game spec), thin `cmd/flametender` +
 `cmd/flameagent`, `web/flametender`, and monorepo image publishing
 under the old ghcr names (`:main` channel; `:latest` flips after the
-gate). The gate — the real Enshrouded server — is
-`docs/flametender-port-verification.md`; the old flametender tree is
-archived only after it passes.
+gate). **Phase 3 is complete**: the gate
+(docs/flametender-port-verification.md) passed 2026-08-16 against the
+live Enshrouded server; the legacy flametender tree is deleted, its CI
+jobs retired, and :latest publishes from the monorepo. Next: Phase 4,
+the wildskeeper port.
 
 Rules already in force (see the plan's "Structural rules"):
 
