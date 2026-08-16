@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"log/slog"
 	"syscall"
 	"time"
 
@@ -37,6 +38,10 @@ type Game struct {
 	// SaveDirName is the world-save directory under the install root. The
 	// agent deliberately never follows config-supplied paths.
 	SaveDirName string
+	// FindSaveDir overrides the SaveDirName lookup for games whose save
+	// location needs discovery (Dragonwilds globs two spellings). Nil
+	// means SaveDirName joined to the install root, required non-empty.
+	FindSaveDir func(installDir string) (string, error)
 	// StopSignal is the graceful stop signal for the game's process
 	// group. Zero means SIGTERM; Enshrouded uses SIGINT, on which it
 	// saves the world.
@@ -45,16 +50,35 @@ type Game struct {
 	// SIGKILL when Config doesn't override it. Zero means 30s; games
 	// that save on the way down want much more.
 	StopGrace time.Duration
-	// BuildProfile assembles the game's launch profile — command, args,
+	// BuildProfile assembles the named launch profile — command, args,
 	// env, probe file, steam platform — from wherever the game module
-	// reads its tuning. The custom-command escape hatch (GameCommand set)
-	// is handled by the kit and never reaches this hook.
-	BuildProfile func(installDir string, gameArgs []string) Profile
+	// reads its tuning. Games with one build ignore name; games with a
+	// chooser (Dragonwilds' native/wine) build the one asked for. The
+	// custom-command escape hatch (GameCommand set) is handled by the
+	// kit and never reaches this hook. args arrives resolved: the
+	// operator's GameArgs, else DefaultArgs.
+	BuildProfile func(name, installDir string, gamePort int, args []string) Profile
+	// Profiles are the selectable profile names, for games that ship
+	// more than one build. Empty means one fixed profile (whatever
+	// BuildProfile returns for the empty name) and no chooser.
+	Profiles []string
+	// DefaultProfile is the initial selection when nothing is persisted.
+	DefaultProfile string
+	// DefaultArgs supplies launcher args when the operator sets none —
+	// Dragonwilds derives them from the game port. Nil means none.
+	DefaultArgs func(gamePort int) []string
+	// HealthExtras and LaunchExtras merge game-specific keys into the
+	// /v1/health and launch-status payloads (Dragonwilds' bridge
+	// status). Keys are top-level in the JSON, so a console's typed
+	// relay round-trips them via the Extra maps on Health/LaunchStatus.
+	HealthExtras func(a *Agent) map[string]any
+	LaunchExtras func(a *Agent) map[string]any
 	// PrepareRuntime, when set, runs before every game start with the
-	// settings file's path and the identity the operator configured —
-	// the seed/enforce step that makes a fresh install bootable and
-	// keeps dashboard-issued passwords authoritative.
-	PrepareRuntime func(cfgPath string, id RuntimeIdentity)
+	// resolved runtime facts — the seed/enforce step that makes a fresh
+	// install bootable, keeps dashboard-issued settings authoritative,
+	// and does whatever else the game needs standing before its process
+	// exists (Dragonwilds' bridge dir and steamclient link).
+	PrepareRuntime func(env RuntimeEnv)
 	// Routes mounts game-specific verbs under the authenticated /v1
 	// router (Enshrouded's A2S query relay, Dragonwilds' dwbridge).
 	Routes func(r chi.Router, a *Agent)
@@ -67,6 +91,19 @@ type RuntimeIdentity struct {
 	GamePort      int
 	AdminPassword string
 	JoinPassword  string
+	OwnerID       string
+	WorldName     string
+}
+
+// RuntimeEnv is everything PrepareRuntime sees: where the install and
+// the profile's settings file live, which profile is about to start,
+// and the operator's identity settings.
+type RuntimeEnv struct {
+	InstallDir string
+	ConfigPath string
+	Profile    Profile
+	Identity   RuntimeIdentity
+	Logger     *slog.Logger
 }
 
 func (g Game) stopSignal() syscall.Signal {

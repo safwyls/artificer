@@ -84,6 +84,12 @@ type Config struct {
 	// ServerName seeds and then enforces the server-browser name.
 	// Supervisor mode only.
 	ServerName string
+	// OwnerID is the in-game identity that owns the server, for games
+	// that refuse to start without one. Supervisor mode only.
+	OwnerID string
+	// WorldName seeds the created world's name, where the game
+	// distinguishes it from the server-browser name. Supervisor mode only.
+	WorldName string
 	// Autostart starts the game on agent boot when no persisted desired
 	// state exists yet (a fresh provision). Defaults true in supervisor
 	// mode; a persisted "stopped" always wins.
@@ -215,6 +221,9 @@ func (a *Agent) Handler() http.Handler {
 		// answer 400 so flametender falls back to the docker proxy.
 		r.Post("/power/{action}", a.handlePower)
 		r.Get("/power/logs", a.handleGameLogs)
+		// Which build the next start launches — only meaningful for games
+		// that ship a chooser (Game.Profiles); others answer 400.
+		r.Put("/launch", a.handleSetLaunchProfile)
 		// Game-specific verbs (a query relay, a mod bridge) mount here,
 		// still behind the shared token auth.
 		if a.cfg.Game.Routes != nil {
@@ -263,6 +272,9 @@ func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		st := a.game.Status()
 		h.Game = &st
 		h.Launch = a.launchStatus()
+	}
+	if a.cfg.Game.HealthExtras != nil {
+		h.Extra = a.cfg.Game.HealthExtras(a)
 	}
 	writeJSON(w, http.StatusOK, h)
 }
@@ -416,11 +428,44 @@ func (a *Agent) steamPlatform() string {
 
 func (a *Agent) launchStatus() *LaunchStatus {
 	p := a.game.Profile()
-	return &LaunchStatus{
+	st := &LaunchStatus{
 		Profile:    p.Name,
 		Label:      p.Label,
+		Mods:       p.Mods,
 		Installed:  p.installed(a.cfg.InstallDir),
 		Runnable:   p.runnable(a.cfg.InstallDir),
 		ConfigPath: p.ConfigRel,
 	}
+	if p.Name != ProfileCustom && len(a.cfg.Game.Profiles) > 0 {
+		st.Available = append([]string(nil), a.cfg.Game.Profiles...)
+	}
+	st.PendingRestart = a.game.profileChangedSinceStart()
+	if a.cfg.Game.LaunchExtras != nil {
+		st.Extra = a.cfg.Game.LaunchExtras(a)
+	}
+	return st
+}
+
+// handleSetLaunchProfile selects the build the next start will launch.
+func (a *Agent) handleSetLaunchProfile(w http.ResponseWriter, r *http.Request) {
+	if a.game == nil {
+		writeError(w, http.StatusBadRequest, "agent is not supervising a game — launch profiles are supervisor mode only")
+		return
+	}
+	if len(a.cfg.Game.Profiles) == 0 {
+		writeError(w, http.StatusBadRequest, "this game ships one build — there is nothing to select")
+		return
+	}
+	var in struct {
+		Profile string `json:"profile"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if _, err := a.game.SetProfile(in.Profile); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, a.launchStatus())
 }

@@ -33,6 +33,15 @@ func (s *Server) RequirePermission(perm string) func(http.Handler) http.Handler 
 	return s.requirePermission(perm)
 }
 
+// RequireAdmin is core's admin gate, for game routes.
+func (s *Server) RequireAdmin(next http.Handler) http.Handler {
+	return s.requireAdmin(next)
+}
+
+// WriteAgentError maps agentctl's sentinel errors onto responses the way
+// core's own agent-backed handlers do.
+func WriteAgentError(w http.ResponseWriter, err error) { writeAgentError(w, err) }
+
 // ResolveConfigPath is core's config-mount resolution (local mount or
 // agent-synced copy); ok=false means the response is already written.
 func (s *Server) ResolveConfigPath(w http.ResponseWriter, r *http.Request, srv *store.Server) (path string, viaAgent bool, ok bool) {

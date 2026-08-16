@@ -23,11 +23,19 @@ eslog/esquery, banqueue behind the offline-work seam, esapi routes via
 seam 5, esagent's agent.Game spec), thin `cmd/flametender` +
 `cmd/flameagent`, `web/flametender`, and monorepo image publishing
 under the old ghcr names (`:main` channel; `:latest` flips after the
-gate). **Phase 3 is complete**: the gate
-(docs/flametender-port-verification.md) passed 2026-08-16 against the
-live Enshrouded server; the legacy flametender tree is deleted, its CI
-jobs retired, and :latest publishes from the monorepo. Next: Phase 4,
-the wildskeeper port.
+gate). **Phase 3 is complete** (gate passed
+2026-08-16 against the live Enshrouded server; legacy tree deleted;
+:latest publishes from the monorepo). **Phase 4 (wildskeeper on core)
+is code-complete**: `games/dragonwilds/` (client, dwconfig codec,
+dwlog/dwsave, dwbridge both halves, dwapi contributed routes, dwagent's
+spec with the launch chooser), the kit grew selectable profiles and
+health/launch extras, core's wizard grew port-run arity and required
+owner ids (seam 4's pair form, asserted in provision_pair tests),
+`cmd/wildskeeper` + `cmd/wkagent`, `web/wildskeeper`, `tools/`
+(dwbridge + kit + shim), and image publishing on the :main channel.
+Gate: docs/wildskeeper-port-verification.md — note the one behavior
+change: legacy provisioner-mode agents are retired; provisioning is
+Ilmari-only.
 
 Rules already in force (see the plan's "Structural rules"):
 

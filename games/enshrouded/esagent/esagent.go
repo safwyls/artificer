@@ -74,8 +74,10 @@ func Game(wine WineConfig) agent.Game {
 		// community images budget 60-90s for it, so the grace is generous.
 		StopSignal: syscall.SIGINT,
 		StopGrace:  120 * time.Second,
-		BuildProfile: func(installDir string, gameArgs []string) agent.Profile {
-			return wineProfile(wine, installDir, gameArgs)
+		// One build exists, so name is ignored and no Profiles list is
+		// declared — the kit offers no chooser.
+		BuildProfile: func(_, installDir string, _ int, args []string) agent.Profile {
+			return wineProfile(wine, installDir, args)
 		},
 		PrepareRuntime: prepareRuntime,
 		Routes:         routes,
@@ -137,7 +139,8 @@ func wineProfile(cfg WineConfig, installDir string, gameArgs []string) agent.Pro
 // and the first start is already named and password-protected. When the
 // file exists it belongs to the operator (or the game), and only the
 // explicitly configured identity settings are enforced into it.
-func prepareRuntime(cfgPath string, id agent.RuntimeIdentity) {
+func prepareRuntime(env agent.RuntimeEnv) {
+	cfgPath, id := env.ConfigPath, env.Identity
 	e := esconfig.Enforcement{ServerName: id.ServerName, QueryPort: id.GamePort}
 	if id.AdminPassword != "" {
 		e.AdminPassword = &id.AdminPassword

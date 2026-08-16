@@ -1,0 +1,72 @@
+name: Docker (wildskeeper)
+
+# Publishes the monorepo-built wildskeeper + wkagent (+ wkagent -wine
+# variant) under the SAME ghcr names the old repo used. :latest stays off
+# until the Phase 4 real-server gate passes; the branch tag (:main /
+# :main-wine) is the verification channel.
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: wildskeeper
+            dockerfile: deploy/wildskeeper/Dockerfile
+          - image: wkagent
+            dockerfile: deploy/wildskeeper/Dockerfile.wkagent
+          - image: wkagent
+            dockerfile: deploy/wildskeeper/Dockerfile.wkagent-wine
+            suffix: wine
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          # flavor suffixes every tag for a variant build, so the Wine
+          # agent publishes as :main-wine (and eventually :latest-wine).
+          flavor: |
+            suffix=${{ matrix.suffix && format('-{0}', matrix.suffix) || '' }},onlatest=true
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            # Off until the real-server gate passes.
+            type=raw,value=latest,enable=false
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=sampo-${{ matrix.image }}${{ matrix.suffix && format('-{0}', matrix.suffix) || '' }}
+          cache-to: type=gha,mode=min,scope=sampo-${{ matrix.image }}${{ matrix.suffix && format('-{0}', matrix.suffix) || '' }}

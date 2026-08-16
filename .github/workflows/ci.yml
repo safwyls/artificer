@@ -32,9 +32,17 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: web/flametender/package-lock.json
+          cache-dependency-path: |
+            web/flametender/package-lock.json
+            web/wildskeeper/package-lock.json
       - name: Flametender frontend build & tests
         working-directory: web/flametender
+        run: |
+          npm ci
+          npm run build
+          npm test
+      - name: Wildskeeper frontend build & tests
+        working-directory: web/wildskeeper
         run: |
           npm ci
           npm run build

@@ -43,17 +43,22 @@ type supervisor struct {
 	// profile is how the game is launched — which build, with what
 	// environment, writing its config where. Guarded by mu because the
 	// console can change it between starts.
-	profile     Profile
-	spec        Game
-	gamePort    int
-	gameCommand string
-	gameArgs    []string
+	profile  Profile
+	spec     Game
+	gamePort int
+	// runningProfile is the profile name the running game was started
+	// with, for "a different build is now selected" reporting.
+	runningProfile string
+	gameCommand    string
+	gameArgs       []string
 	// adminPassword and joinPassword are enforced into
 	// enshrouded_server.json's role groups before every start — see
 	// prepareRuntime. Empty means "leave the file's value alone".
 	adminPassword string
 	joinPassword  string
 	serverName    string
+	ownerID       string
+	worldName     string
 	grace         time.Duration
 	// backoffFloor is the first crash-restart delay (doubles per failure);
 	// tests shrink it.
@@ -106,6 +111,8 @@ func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
 		adminPassword: cfg.AdminPassword,
 		joinPassword:  cfg.JoinPassword,
 		serverName:    cfg.ServerName,
+		ownerID:       cfg.OwnerID,
+		worldName:     cfg.WorldName,
 		grace:         grace,
 		backoffFloor:  backoff,
 		logger:        cfg.Logger,
@@ -113,16 +120,91 @@ func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
 		state:         "stopped",
 		desired:       "stopped",
 	}
-	s.profile = s.buildProfile()
+	s.profile = s.buildProfile(s.loadProfileName(cfg.Game.DefaultProfile))
 	return s
 }
 
-// buildProfile assembles the launch profile: the operator's custom
-// command verbatim when one is set, else whatever the game's hook
-// builds. The game port is deliberately not a launch argument — games
-// that read it from their settings file get it via PrepareRuntime.
-func (s *supervisor) buildProfile() Profile {
-	return buildProfile(s.spec, s.installDir, s.gameCommand, s.gameArgs)
+// buildProfile assembles the named launch profile: the operator's custom
+// command verbatim when one is set, else whatever the game's hook builds
+// for the name.
+func (s *supervisor) buildProfile(name string) Profile {
+	return buildProfile(s.spec, name, s.installDir, s.gamePort, s.gameCommand, s.gameArgs)
+}
+
+// profileNamePath is where the launch selection survives agent
+// recreation — under the agent's own dot-dir, like the desired state.
+func (s *supervisor) profileNamePath() string {
+	return filepath.Join(s.installDir, "."+s.spec.AgentName, "profile")
+}
+
+func (s *supervisor) loadProfileName(fallback string) string {
+	if data, err := os.ReadFile(s.profileNamePath()); err == nil {
+		if v := strings.TrimSpace(string(data)); s.spec.validProfile(v) {
+			return v
+		}
+	}
+	return fallback
+}
+
+// SetProfile changes which build the next start launches. It deliberately
+// does not restart anything: switching build is a heavier act than a
+// restart (different depots), so the decision to bring the game down
+// belongs to whoever asked.
+func (s *supervisor) SetProfile(name string) (Profile, error) {
+	if !s.spec.validProfile(name) {
+		return Profile{}, fmt.Errorf("unknown launch profile %q", name)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.profile.Name == ProfileCustom {
+		return s.profile, errors.New("this agent is configured with an explicit game command; unset it to choose a profile")
+	}
+	previous := s.profile
+	s.profile = s.buildProfile(name)
+	s.carryConfig(previous, s.profile)
+	if err := os.MkdirAll(filepath.Dir(s.profileNamePath()), 0o755); err == nil {
+		_ = os.WriteFile(s.profileNamePath(), []byte(name+"\n"), 0o644)
+	}
+	s.logger.Info("launch profile selected", "profile", name, "appliesAt", "next start")
+	return s.profile, nil
+}
+
+// profileChangedSinceStart reports whether the running game is a
+// different build from the one now selected.
+func (s *supervisor) profileChangedSinceStart() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.state == "running" && s.runningProfile != "" && s.runningProfile != s.profile.Name
+}
+
+// carryConfig copies the settings file across when the build changes.
+//
+// Engines that keep a separate config directory per platform (UE's
+// LinuxServer/WindowsServer split) would otherwise silently revert every
+// setting the operator ever edited on a profile switch. Only ever a copy
+// into an empty destination: a config already sitting on the far side
+// belongs to whoever put it there.
+func (s *supervisor) carryConfig(from, to Profile) {
+	if from.ConfigRel == to.ConfigRel {
+		return
+	}
+	dst := filepath.Join(s.installDir, to.ConfigRel)
+	if _, err := os.Stat(dst); err == nil {
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(s.installDir, from.ConfigRel))
+	if err != nil {
+		return // nothing to carry: a fresh install seeds its own on start
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		s.logger.Warn("could not carry settings to the new build", "error", err)
+		return
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		s.logger.Warn("could not carry settings to the new build", "error", err)
+		return
+	}
+	s.logger.Info("carried settings to the new build", "from", from.ConfigRel, "to", to.ConfigRel)
 }
 
 // Profile is the active launch profile.
@@ -220,6 +302,7 @@ func (s *supervisor) startLocked() error {
 	s.cmd = cmd
 	s.done = make(chan struct{})
 	s.state = "running"
+	s.runningProfile = s.profile.Name
 	s.startedAt = time.Now().UTC()
 	s.persistDesired("running")
 	s.logger.Info("game started", "pid", cmd.Process.Pid, "profile", s.profile.Name)
@@ -425,10 +508,18 @@ func (s *supervisor) prepareRuntime() {
 	if s.spec.PrepareRuntime == nil {
 		return
 	}
-	s.spec.PrepareRuntime(filepath.Join(s.installDir, s.profile.ConfigRel), RuntimeIdentity{
-		ServerName:    s.serverName,
-		GamePort:      s.gamePort,
-		AdminPassword: s.adminPassword,
-		JoinPassword:  s.joinPassword,
+	s.spec.PrepareRuntime(RuntimeEnv{
+		InstallDir: s.installDir,
+		ConfigPath: filepath.Join(s.installDir, s.profile.ConfigRel),
+		Profile:    s.profile,
+		Logger:     s.logger,
+		Identity: RuntimeIdentity{
+			ServerName:    s.serverName,
+			GamePort:      s.gamePort,
+			AdminPassword: s.adminPassword,
+			JoinPassword:  s.joinPassword,
+			OwnerID:       s.ownerID,
+			WorldName:     s.worldName,
+		},
 	})
 }

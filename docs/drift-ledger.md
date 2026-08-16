@@ -267,7 +267,7 @@ Checked off only when the protection exists in the monorepo:
 - [ ] Palworld `.sav`-only archive membership (`stray.txt` exclusion test).
 - [ ] P's three visibility tests (admin bypass, per-switch, all-off).
 - [ ] P's working palsave roster (seam 6 — F's stub must not win).
-- [ ] W's port-pair provisioning logic + "pair swallows agent port" case.
+- [x] W's port-pair provisioning logic + "pair swallows agent port" case (core provision_pair tests, Phase 4).
 - [ ] `TestMissingIsDistinctFromRefused` invariant re-asserted vs Ilmari client.
 - [ ] `TestContainerRemoveKeepsTheVolume` promise moved to an Ilmari destroy test. (Live-verified at the Phase 3 gate — destroy left the world dir — but the test guard is still owed.)
 - [ ] W's `InspectSpec` network/port edge cases verified in Ilmari recreate.

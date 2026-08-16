@@ -310,11 +310,11 @@ func TestPrepareRuntimeHookRunsBeforeEveryStart(t *testing.T) {
 	var calls []agent.RuntimeIdentity
 	var paths []string
 	game := testGame()
-	game.PrepareRuntime = func(cfgPath string, id agent.RuntimeIdentity) {
+	game.PrepareRuntime = func(env agent.RuntimeEnv) {
 		mu.Lock()
 		defer mu.Unlock()
-		calls = append(calls, id)
-		paths = append(paths, cfgPath)
+		calls = append(calls, env.Identity)
+		paths = append(paths, env.ConfigPath)
 	}
 
 	a, err := agent.New(agent.Config{
