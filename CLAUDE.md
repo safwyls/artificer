@@ -16,12 +16,12 @@ wizard/Ilmari adapter, neutral `agentctl.Query*` types, per-console
 passes its full suite with only `game/gametest` registered. The four
 old repos remain imported at repo-name prefixes and still build
 independently — do not hand-sync code between them; that is what the
-drift ledger is for. 2b landed the advisor restore (prompt, docs FS
-and console name injected; game payload stays with the game), the
-config merge-backs, and seams 1 (`game.SaveLayout`) and 6
-(`api.RosterSource`). Still to land in Phase 2: the agent kit
-(`core/agent` holds the wire types; the shared implementation and the
-five agent-backed api/agentctl test files follow it).
+drift ledger is for. Phase 2 is complete: 2b restored the advisor and
+landed seams 1/6; 2c extracted the agent kit — `core/agent` is the
+full sidecar implementation parameterized on an `agent.Game` spec, and
+the agent-backed api/agentctl tests run against it with a fake game.
+Next: Phase 3, the flametender port (first console rebuilt on core,
+gated on a real Enshrouded server).
 
 Rules already in force (see the plan's "Structural rules"):
 

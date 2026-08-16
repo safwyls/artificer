@@ -9,12 +9,16 @@
 > config regained the legacy-provisioner and advisor-key fields, seam 6
 > (`api.RosterSource`) and seam 1 (`game.SaveLayout`) exist with F's
 > behavior as documented defaults, and P's admin-bypass/per-switch
-> visibility rules are asserted core-shaped. Still open (2c): agent-kit
-> implementation extraction (wire types are in `core/agent`; the five
-> agent-backed test files — api/{power_agent,steamupdate,agentfiles}
-> _test.go, agentctl/{agentctl,client}_test.go — return with it), the
-> game-side SaveLayout/RosterSource implementations (each console's
-> port), and every §F guard not yet checked off.
+> visibility rules are asserted core-shaped. Phase 2c landed the agent kit:
+> `core/agent` now holds the full sidecar implementation (supervision,
+> jobs, steam and file verbs, launch profiles) parameterized on an
+> `agent.Game` spec — stop signal, grace, app id, config path/validator,
+> save dir, profile assembly, PrepareRuntime hook, and game routes —
+> and the five deferred agent-backed test files are back, running
+> against the kit with a fake game. **Phase 2 is complete.** Open work
+> now lives in the port phases: game-side SaveLayout/RosterSource/
+> Game-spec implementations, the enshrouded enforcement suite returning
+> as games/enshrouded tests, and every §F guard not yet checked off.
 
 Per-file reconciliation decisions for Phase 2 (core extraction), per
 `docs/unification-plan.md`. This is the working checklist: Phase 2
