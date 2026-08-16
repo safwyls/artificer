@@ -197,17 +197,3 @@ func (c *Client) Job(ctx context.Context, id string) (*Job, error) {
 	}
 	return res.Job, nil
 }
-
-// SetLaunchProfile chooses which of the game's builds the agent starts next
-// — native Linux, or the Windows build under Wine that can carry the
-// dwbridge mod. It applies at the next start by design: the two builds come
-// from different Steam depots, so switching is a re-install rather than a
-// restart, and the agent refuses to decide that timing for anyone.
-func (c *Client) SetLaunchProfile(ctx context.Context, profile string) (*flameagent.LaunchStatus, error) {
-	var out flameagent.LaunchStatus
-	body := map[string]string{"profile": profile}
-	if err := c.do(ctx, http.MethodPut, "/v1/launch", body, &out, 15*time.Second); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}

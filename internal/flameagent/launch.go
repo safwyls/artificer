@@ -7,27 +7,29 @@ import (
 	"strings"
 )
 
-// Launch profiles: how the agent starts the game.
+// How the agent starts the game.
 //
 // Enshrouded ships exactly one dedicated-server build — Windows,
 // enshrouded_server.exe — and no native Linux binary exists
 // (docs/enshrouded-recon.md, "Steam app id & platform"). On Linux it runs
 // under a compatibility layer; plain Wine is what the bare-metal guides
 // use and what this agent's image carries, with the binary overridable
-// for hosts that prefer a Proton entrypoint. The profile machinery is
-// inherited from the sibling consoles, where a game with two builds needs
-// the choice to be explicit and persistent; here it carries the one wine
-// profile plus the custom escape hatch, and stays because a second build
-// (a native server at 1.0?) would slot in as a new profile rather than a
-// redesign.
+// for hosts that prefer a Proton entrypoint.
+//
+// The sibling consoles let an operator *choose* a build, because their
+// games ship two. Here there is nothing to choose, so there is no
+// chooser: this file assembles the one profile, plus the custom escape
+// hatch for an operator who has already said exactly what to run. If 1.0
+// ever ships a native server it slots in here as a second profile, and
+// the selection machinery comes back with it — deliberately not before.
 
 const (
 	// ProfileWine is the Windows dedicated server under Wine — the only
 	// build the game has.
 	ProfileWine = "wine"
-	// ProfileCustom is what a hand-configured GAME_CMD/GAME_ARGS becomes.
-	// It is not selectable from the console: the operator has already said
-	// exactly what to run, and silently replacing that would be rude.
+	// ProfileCustom is what a hand-configured GAME_CMD/GAME_ARGS becomes:
+	// the operator has already said exactly what to run, and the agent
+	// honours it verbatim rather than second-guessing it.
 	ProfileCustom = "custom"
 )
 
@@ -72,9 +74,10 @@ type Profile struct {
 	SteamPlatform string `json:"steamPlatform,omitempty"`
 }
 
-// LaunchConfig is the per-profile tuning the environment can supply.
+// LaunchConfig is the launch tuning the environment can supply.
 type LaunchConfig struct {
-	// Profile is the selected profile name; empty means wine.
+	// Profile names the profile to build; empty means wine, which is the
+	// only one a deployment would ask for.
 	Profile string
 	// WineBin is the wine executable (default "wine64", falling back to
 	// "wine" when only that exists on PATH).
@@ -167,20 +170,6 @@ func (p Profile) resolveCommand(installDir string) string {
 func (p Profile) installed(installDir string) bool {
 	_, err := os.Stat(filepath.Join(installDir, p.Probe))
 	return err == nil
-}
-
-// SelectableProfiles are the profiles the console may switch between.
-// Custom is deliberately absent — see ProfileCustom.
-var SelectableProfiles = []string{ProfileWine}
-
-// validProfile reports whether name is one the console may select.
-func validProfile(name string) bool {
-	for _, p := range SelectableProfiles {
-		if p == name {
-			return true
-		}
-	}
-	return false
 }
 
 // runnable reports whether the profile's command can actually be executed

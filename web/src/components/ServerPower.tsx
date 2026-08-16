@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eraser, HardDriveDownload, Play, RotateCw, Save, ScrollText, Square } from "lucide-react";
+import { Eraser, HardDriveDownload, Play, RefreshCw, RotateCw, Save, ScrollText, Square } from "lucide-react";
 import { toast } from "sonner";
-import { api, ApiError, errorDetail, LAUNCH_PROFILES } from "../lib/api";
+import { api, ApiError, errorDetail } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCommand } from "../lib/capabilities";
 import { cn } from "../lib/utils";
@@ -305,10 +305,6 @@ export function ServerPower({
         </div>
       )}
 
-      {/* Launch mode sits directly above SteamCMD because that is the order
-          the work happens in: choose the build, then install it. */}
-      {agentUrl && <LaunchMode serverId={serverId} canEdit={allowed} />}
-
       {/* Maintenance strip: repair tools, not routine actions, so they sit
           below the power row rather than crowding it. Hidden entirely when
           neither an agent nor an install path is configured — same principle
@@ -353,6 +349,7 @@ export function ServerPower({
                 Update log
               </Button>
             )}
+            {agentUrl && <RebuildAgent serverId={serverId} />}
           </div>
         </div>
       )}
@@ -460,15 +457,17 @@ export function ServerPower({
 }
 
 /**
- * Launch mode: how the agent runs the game. Enshrouded has exactly one
- * build (Windows, under Wine), so this row is read-mostly — it exists to
- * say what will run, to surface a custom command honestly, and to offer
- * the agent-image rebuild when the image can't run the game at all.
+ * Rebuilding this server's agent container on a different image.
+ *
+ * It sits in the maintenance strip rather than anywhere prominent because
+ * that is what it is: the non-manual way to move a provisioned agent to
+ * another image channel, for a container no orchestrator manages. There
+ * is no build to choose — Enshrouded ships one — so the launch selector
+ * this used to live beside is gone.
  */
-function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean }) {
+function RebuildAgent({ serverId }: { serverId: number }) {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
-  const [switchTo, setSwitchTo] = useState<string | null>(null);
   const [rebuildOpen, setRebuildOpen] = useState(false);
 
   const launchQuery = useQuery({
@@ -478,26 +477,6 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
     staleTime: 30_000,
   });
 
-  const select = useMutation({
-    mutationFn: (profile: string) => api.setServerLaunch(serverId, profile),
-    onSuccess: (launch) => {
-      toast.success(`Next start uses ${LAUNCH_PROFILES[launch.profile]?.label ?? launch.profile}`, {
-        description: launch.installed
-          ? "Restart the server to switch."
-          : "Run Update server to download this build, then start.",
-      });
-      setSwitchTo(null);
-      queryClient.invalidateQueries({ queryKey: ["launch", serverId] });
-      // Whether commands can work follows directly from the build.
-      queryClient.invalidateQueries({ queryKey: ["capabilities", serverId] });
-    },
-    onError: (err) => toast.error("Could not change the launch mode", { description: errorDetail(err) }),
-  });
-
-  // Provisioned agent containers belong to no orchestrator — they are not
-  // in a TrueNAS apps list or a compose file — so the provisioner that made
-  // them is the only thing that can move them to another image without
-  // hand-written docker on the host.
   const rebuild = useMutation({
     mutationFn: (imageTag: string) => api.recreateAgent(serverId, imageTag),
     onSuccess: (res) => {
@@ -512,56 +491,28 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
   });
 
   const launch = launchQuery.data;
-  // A companion-mode agent (400) has no build to choose, and a server whose
-  // agent is down shouldn't grow a broken control — in both cases the row
-  // simply isn't there.
-  if (!launch?.profile) return null;
-  const options = launch.available ?? [];
+  // A companion-mode agent (400) runs no game, and an unreachable one
+  // shouldn't grow a broken control.
+  if (!launch?.profile || !isAdmin) return null;
+  // The one state worth surfacing on its own: this image cannot start the
+  // game at all, which only a rebuild fixes.
+  const cannotRun = launch.runnable === false;
 
   return (
-    <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-ft-edge pt-3">
-      <div className="min-w-0">
-        <p className="font-display text-sm font-bold">Launch mode</p>
-        <p className="text-xs text-ft-bone/40">
-          {launch.runnable === false
-            ? "This agent's image cannot run the game (no Wine in it). Rebuild the agent on a current image."
-            : launch.pendingRestart
-            ? `Running the previous selection — restart to switch to ${LAUNCH_PROFILES[launch.profile]?.label ?? launch.profile}.`
-            : !launch.installed
-              ? "The game isn't downloaded yet — run Update server below, then start."
-              : (LAUNCH_PROFILES[launch.profile]?.blurb ?? "Custom launch command, run exactly as configured.")}
-        </p>
-        {launch.runnable === false && isAdmin && (
-          <button
-            type="button"
-            onClick={() => setRebuildOpen(true)}
-            className="mt-1 text-xs font-semibold text-ft-stonehi underline-offset-2 hover:underline"
-          >
-            Rebuild the agent →
-          </button>
-        )}
-      </div>
-      {options.length > 1 && (
-        <div className="flex items-center gap-1 rounded-lg bg-ft-void p-1">
-          {options.map((profile) => {
-            const active = profile === launch.profile;
-            return (
-              <button
-                key={profile}
-                type="button"
-                aria-pressed={active}
-                disabled={!canEdit || select.isPending}
-                onClick={() => !active && setSwitchTo(profile)}
-                className={cn(
-                  "rounded-md px-3 py-1 text-xs font-semibold transition disabled:opacity-50",
-                  active ? "bg-ft-spore text-ft-bone" : "text-ft-bone/60 hover:text-ft-bone",
-                )}
-              >
-                {LAUNCH_PROFILES[profile]?.label ?? profile}
-              </button>
-            );
-          })}
-        </div>
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => setRebuildOpen(true)}
+        title="Recreate this server's agent container on a different image"
+      >
+        <RefreshCw className="h-4 w-4" />
+        Rebuild agent
+      </Button>
+      {cannotRun && (
+        <span className="text-xs text-ft-spore">
+          This agent's image cannot run the game — rebuild it on a current image.
+        </span>
       )}
 
       <Dialog open={rebuildOpen} onOpenChange={(open) => !open && setRebuildOpen(false)}>
@@ -585,31 +536,6 @@ function LaunchMode({ serverId, canEdit }: { serverId: number; canEdit: boolean 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={switchTo !== null} onOpenChange={(open) => !open && setSwitchTo(null)}>
-        <DialogContent>
-          {switchTo && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Switch to the {LAUNCH_PROFILES[switchTo]?.label ?? switchTo} build?</DialogTitle>
-                <DialogDescription>
-                  {LAUNCH_PROFILES[switchTo]?.blurb} The two builds come from different Steam depots, so the game
-                  files have to be downloaded again with Update server before this one will start. Your world saves
-                  and settings are untouched. The change takes effect at the next start, not now.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter className="gap-2 sm:gap-0">
-                <Button variant="outline" onClick={() => setSwitchTo(null)}>
-                  Cancel
-                </Button>
-                <Button disabled={select.isPending} onClick={() => select.mutate(switchTo)}>
-                  {select.isPending ? "Switching…" : "Use this build"}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+    </>
   );
 }

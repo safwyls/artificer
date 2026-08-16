@@ -273,31 +273,21 @@ export interface DiscoveredServer {
 }
 
 /**
- * How the agent launches the game. Enshrouded ships one build (Windows,
- * run under Wine), so this is read-mostly today: the selectable list
- * holds a single entry, and a hand-configured custom command reports
- * itself here.
+ * How the agent launches the game, as reported by its health. Enshrouded
+ * ships one build, so nothing selects this — it is read to know whether
+ * the agent's image can run the game at all, which only a rebuild fixes.
  */
 export interface Launch {
   profile: string;
   label: string;
-  /** Whether the launcher exists on this agent at all — false for wine on
-   * an image with no Wine in it, a different problem from "not
-   * installed", fixable only by moving the agent to another image. */
+  /** False on an agent image with no Wine in it — a different problem
+   * from "the game isn't installed", and fixable only by rebuilding the
+   * agent on another image. */
   runnable: boolean;
   /** Whether the game's files are present. */
   installed: boolean;
-  /** Profiles the console may select. Empty when the agent runs an explicit
-   * command, which must not be silently replaced. */
-  available?: string[];
-  /** The selection has changed since the running process started. */
-  pendingRestart: boolean;
   configPath: string;
 }
-
-export const LAUNCH_PROFILES: Record<string, { label: string; blurb: string }> = {
-  wine: { label: "Windows under Wine", blurb: "The game's only build — there is no native Linux server." },
-};
 
 /** One command's answer from the capabilities probe. */
 export interface CommandCapability {
@@ -907,8 +897,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ imageTag }),
     }),
-  setServerLaunch: (id: number, profile: string) =>
-    request<Launch>(`/servers/${id}/launch`, { method: "PUT", body: JSON.stringify({ profile }) }),
   setWatchdog: (id: number, enabled: boolean) =>
     request<{ enabled: boolean }>(`/servers/${id}/watchdog`, { method: "PUT", body: JSON.stringify({ enabled }) }),
   setPublicStatus: (id: number, enabled: boolean) =>

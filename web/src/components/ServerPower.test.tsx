@@ -37,7 +37,7 @@ function renderPower() {
   return renderWithProviders(<ServerPower serverId={1} />);
 }
 
-describe("ServerPower launch mode", () => {
+describe("ServerPower agent rebuild", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     toastSuccess.mockClear();
@@ -54,8 +54,6 @@ describe("ServerPower launch mode", () => {
     label: "Windows build under Wine",
     installed: true,
     runnable: true,
-    available: ["wine"],
-    pendingRestart: false,
     configPath: "enshrouded_server.json",
   };
 
@@ -63,30 +61,20 @@ describe("ServerPower launch mode", () => {
     return renderWithProviders(<ServerPower serverId={1} agentUrl="http://agent:8811" />);
   }
 
-  it("describes the one build and offers no switcher", async () => {
+  // Enshrouded ships one build, so there is nothing to choose and no
+  // chooser. What remains is the maintenance action: recreate the agent's
+  // container on another image.
+  it("offers the rebuild without offering a build to pick", async () => {
     vi.spyOn(api, "serverLaunch").mockResolvedValue(wineLaunch);
     renderWithAgent();
 
-    await screen.findByText("Launch mode");
-    expect(screen.getByText(/only build/i)).toBeInTheDocument();
-    // One selectable profile means nothing to switch between — a
-    // single-button "chooser" would be furniture.
+    expect(await screen.findByRole("button", { name: "Rebuild agent" })).toBeInTheDocument();
+    expect(screen.queryByText("Launch mode")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Windows under Wine/i })).not.toBeInTheDocument();
   });
 
-  it("points at Update server when the game isn't downloaded yet", async () => {
-    vi.spyOn(api, "serverLaunch").mockResolvedValue({ ...wineLaunch, installed: false });
-    renderWithAgent();
-
-    expect(await screen.findByText(/isn't downloaded yet/i)).toBeInTheDocument();
-  });
-
-  it("offers to rebuild the agent when its image cannot run the game", async () => {
-    // Wine missing from the agent image — the state a TrueNAS operator
-    // lands in when a container was provisioned from a stale image and
-    // nothing in their apps view can change it, so the console has to
-    // offer the rebuild itself.
-    vi.spyOn(api, "serverLaunch").mockResolvedValue({ ...wineLaunch, runnable: false });
+  it("rebuilds after confirming, and says the world survives it", async () => {
+    vi.spyOn(api, "serverLaunch").mockResolvedValue(wineLaunch);
     const rebuild = vi.spyOn(api, "recreateAgent").mockResolvedValue({
       container: "flameagent-emberhold",
       image: "ghcr.io/safwyls/flameagent:latest",
@@ -94,9 +82,7 @@ describe("ServerPower launch mode", () => {
     });
     renderWithAgent();
 
-    expect(await screen.findByText(/cannot run the game/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Rebuild the agent/i }));
-
+    await userEvent.click(await screen.findByRole("button", { name: "Rebuild agent" }));
     // Removing and recreating a container is worth confirming, and the
     // dialog has to say the world survives it.
     expect(await screen.findByText(/not touched/i)).toBeInTheDocument();
@@ -107,34 +93,23 @@ describe("ServerPower launch mode", () => {
     expect(toastSuccess).toHaveBeenCalledWith("Agent rebuilt", expect.anything());
   });
 
-  it("does not offer a rebuild when the image can already run the game", async () => {
-    vi.spyOn(api, "serverLaunch").mockResolvedValue(wineLaunch);
+  // The one state worth saying out loud: an image with no Wine in it
+  // cannot start the game at all, and only a rebuild fixes that.
+  it("says so when the agent's image cannot run the game", async () => {
+    vi.spyOn(api, "serverLaunch").mockResolvedValue({ ...wineLaunch, runnable: false });
     renderWithAgent();
 
-    await screen.findByText("Launch mode");
-    expect(screen.queryByRole("button", { name: /Rebuild/i })).not.toBeInTheDocument();
+    expect(await screen.findByText(/cannot run the game/i)).toBeInTheDocument();
   });
 
-  it("reports a custom command honestly", async () => {
-    vi.spyOn(api, "serverLaunch").mockResolvedValue({
-      ...wineLaunch,
-      profile: "custom",
-      label: "Custom command",
-      available: [],
-    });
-    renderWithAgent();
-
-    expect(await screen.findByText(/Custom launch command/i)).toBeInTheDocument();
-  });
-
-  it("shows no launch row for an agent that doesn't run the game", async () => {
-    // Companion mode answers 400 — there is nothing being launched, so the
-    // control should be absent rather than broken.
+  it("shows nothing for an agent that doesn't run the game", async () => {
+    // Companion mode answers 400 — there is no container of ours to
+    // rebuild, so the control should be absent rather than broken.
     vi.spyOn(api, "serverLaunch").mockRejectedValue(new ApiError(400, "this agent does not run the game"));
     renderWithAgent();
 
     await screen.findByRole("button", { name: "Stop" });
-    expect(screen.queryByText("Launch mode")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rebuild agent" })).not.toBeInTheDocument();
   });
 });
 

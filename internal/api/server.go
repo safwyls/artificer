@@ -153,12 +153,10 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				// to get a broken container updating again. Runs via the
 				// server's flameagent when configured, else the local
 				// install-path mount (cache clear only).
-				// Which game build the agent launches. Reading is open to
-				// anyone signed in (it explains why commands do or don't
-				// work); changing it is power territory — it decides what
-				// the next start actually runs.
+				// How the agent will start the game. Read-only — one build
+				// exists, so there is nothing to select; it answers "can
+				// this agent's image actually run it?".
 				r.Get("/launch", s.handleGetLaunch)
-				r.With(s.requirePermission(store.PermPower)).Put("/launch", s.handleSetLaunch)
 				// Rebuild this server's agent on another flameagent image.
 				// Admin-only: it destroys and recreates a container, which
 				// is provisioning, not day-to-day power.

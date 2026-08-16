@@ -42,11 +42,10 @@ func authed(t *testing.T, method, url string, body any) (*http.Response, []byte)
 }
 
 type launchStatus struct {
-	Profile        string   `json:"profile"`
-	Installed      bool     `json:"installed"`
-	Available      []string `json:"available"`
-	PendingRestart bool     `json:"pendingRestart"`
-	ConfigPath     string   `json:"configPath"`
+	Profile    string `json:"profile"`
+	Installed  bool   `json:"installed"`
+	Runnable   bool   `json:"runnable"`
+	ConfigPath string `json:"configPath"`
 }
 
 func healthLaunch(t *testing.T, srv string) launchStatus {
@@ -89,59 +88,28 @@ func newWineAgent(t *testing.T, cfg flameagent.Config) (*httptest.Server, string
 	return srv, install
 }
 
-// Enshrouded has exactly one build, so an agent with no explicit command
-// must default to the wine profile — and report the one selectable profile
-// and the json's fixed location, which is what the console renders.
-func TestDefaultProfileIsWine(t *testing.T) {
-	srv, _ := newWineAgent(t, flameagent.Config{})
-
-	got := healthLaunch(t, srv.URL)
-	if got.Profile != flameagent.ProfileWine {
-		t.Fatalf("profile = %q, want wine by default", got.Profile)
-	}
-	if len(got.Available) != 1 || got.Available[0] != flameagent.ProfileWine {
-		t.Errorf("available = %v, want just wine", got.Available)
-	}
-	if got.ConfigPath != "enshrouded_server.json" {
-		t.Errorf("config path = %q, want the json at the install root", got.ConfigPath)
-	}
-}
-
-func TestUnknownLaunchProfileIsRefused(t *testing.T) {
-	srv, _ := newWineAgent(t, flameagent.Config{})
-	resp, _ := authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": "proton"})
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400 for an unknown profile", resp.StatusCode)
-	}
-}
-
-// An explicit game command is the operator having already said exactly
-// what to run. The agent reports it as the custom profile and refuses to
-// let the console silently swap it for a known one.
-func TestExplicitCommandReportsCustomAndRefusesSelection(t *testing.T) {
-	srv, _, _ := newSupervisorAgent(t, steadyGame)
-
-	got := healthLaunch(t, srv.URL)
-	if got.Profile != flameagent.ProfileCustom {
-		t.Fatalf("profile = %q, want custom for an explicit command", got.Profile)
-	}
-	if len(got.Available) != 0 {
-		t.Errorf("available = %v, want none — the console must not offer to replace the operator's command", got.Available)
-	}
-
-	resp, body := authed(t, http.MethodPut, srv.URL+"/v1/launch", map[string]string{"profile": flameagent.ProfileWine})
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("selecting over an explicit command: %d %s, want 400", resp.StatusCode, body)
-	}
-	if !strings.Contains(string(body), "explicit game command") {
-		t.Errorf("refusal should name the explicit command as the reason: %s", body)
-	}
-}
-
 // The launch path end to end, without needing real Wine: a stub on PATH
 // stands in for the wine binary and records what it was handed. This is the
 // only place the profile's environment is proven to actually reach the
 // process — every piece of it fails silently in production if it doesn't.
+// Health reports how this agent will start the game. Nothing selects it
+// any more — Enshrouded ships one build — but an operator reading health
+// should still see what is going to run, and whether it can.
+func TestHealthReportsHowTheGameWillStart(t *testing.T) {
+	srv, _, _ := newSupervisorAgent(t, steadyGame)
+
+	got := healthLaunch(t, srv.URL)
+	if got.Profile != flameagent.ProfileCustom {
+		// The supervisor fixture runs an explicit test command, which the
+		// agent must report honestly rather than dressing up as the wine
+		// profile it isn't.
+		t.Errorf("profile = %q, want the operator's custom command reported as such", got.Profile)
+	}
+	if got.ConfigPath != "enshrouded_server.json" {
+		t.Errorf("config path = %q", got.ConfigPath)
+	}
+}
+
 func TestWineProfileLaunchesAndSeedsTheConfig(t *testing.T) {
 	// A stub "wine64" that dumps its arguments and environment, then
 	// behaves like the game (running until the supervisor's INT).

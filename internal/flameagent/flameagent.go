@@ -84,8 +84,8 @@ type Config struct {
 	// GameArgs are the launcher's flags; defaults to -log plus the
 	// configured port. Supervisor mode only.
 	GameArgs []string
-	// Launch selects and tunes the launch profile — which of the game's two
-	// builds to run. Supervisor mode only; see launch.go.
+	// Launch tunes how the one build starts — the wine binary and prefix.
+	// Supervisor mode only; see launch.go.
 	Launch LaunchConfig
 	// StopGrace is how long a SIGTERM'd game gets before SIGKILL;
 	// defaults to 30s.
@@ -233,10 +233,6 @@ func (a *Agent) Handler() http.Handler {
 		// answer 400 so flametender falls back to the docker proxy.
 		r.Post("/power/{action}", a.handlePower)
 		r.Get("/power/logs", a.handleGameLogs)
-		// Which launch profile the next start uses. Reading is part of
-		// health; this is the write side, and it applies at the next
-		// start rather than disturbing a running game.
-		r.Put("/launch", a.handleSetLaunchProfile)
 	})
 	return r
 }
@@ -452,25 +448,20 @@ func newJobID() string {
 	return hex.EncodeToString(b)
 }
 
-// LaunchStatus is the /v1/health launch field: how the agent runs the
-// game, and whether the running process is still what was selected.
+// LaunchStatus is the /v1/health launch field: how this agent runs the
+// game. Enshrouded ships one build, so there is nothing to choose — this
+// is reported rather than selected, and exists so an operator reading
+// health can see what will actually start (including a hand-configured
+// custom command).
 type LaunchStatus struct {
 	Profile string `json:"profile"`
 	Label   string `json:"label"`
 	// Installed reports whether the game's files are present.
 	Installed bool `json:"installed"`
-	// Runnable reports whether the profile's launcher exists on this
-	// agent — false for the wine profile on an image with no Wine in it,
-	// a different failure from "the game isn't installed", and one only a
-	// redeploy of the agent itself can fix.
+	// Runnable reports whether the launcher exists on this agent at all —
+	// false on an image with no Wine in it, which is a different failure
+	// from "the game isn't installed" and one only a redeploy can fix.
 	Runnable bool `json:"runnable"`
-	// Available are the profiles the console may select. Empty when the
-	// agent runs an explicit command (ProfileCustom), which the console
-	// must not silently replace.
-	Available []string `json:"available"`
-	// PendingRestart reports that the selection has changed since the
-	// running process started.
-	PendingRestart bool `json:"pendingRestart"`
 	// ConfigPath is where enshrouded_server.json lives, relative to the
 	// install root.
 	ConfigPath string `json:"configPath"`
@@ -488,42 +479,11 @@ func (a *Agent) steamPlatform() string {
 
 func (a *Agent) launchStatus() *LaunchStatus {
 	p := a.game.Profile()
-	st := &LaunchStatus{
+	return &LaunchStatus{
 		Profile:    p.Name,
 		Label:      p.Label,
 		Installed:  p.installed(a.cfg.InstallDir),
 		Runnable:   p.runnable(a.cfg.InstallDir),
 		ConfigPath: p.ConfigRel,
 	}
-	if p.Name != ProfileCustom {
-		st.Available = SelectableProfiles
-	}
-	st.PendingRestart = a.game.profileChangedSinceStart()
-	return st
-}
-
-// handleSetLaunchProfile selects the build the next start will launch.
-//
-// It does not stop, start or restart anything. Switching build is not a
-// restart: the two come from different Steam depots, so the new one has to
-// be installed before it can run, and doing that behind an operator's back
-// during what looked like a settings change would be the worst possible
-// moment to surprise them.
-func (a *Agent) handleSetLaunchProfile(w http.ResponseWriter, r *http.Request) {
-	if a.game == nil {
-		writeError(w, http.StatusBadRequest, "agent is not supervising a game — launch profiles are supervisor mode only")
-		return
-	}
-	var in struct {
-		Profile string `json:"profile"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if _, err := a.game.SetProfile(in.Profile); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, a.launchStatus())
 }

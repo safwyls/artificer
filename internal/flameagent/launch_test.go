@@ -77,9 +77,9 @@ func TestLaunchArgsCarryNoPort(t *testing.T) {
 	}
 }
 
-// An explicit game command is the operator having already decided.
-// Profiles must not quietly override it.
-func TestExplicitCommandBecomesCustomAndIsNotSelectable(t *testing.T) {
+// An explicit game command is the operator having already decided. The
+// wine profile must not quietly override it.
+func TestExplicitCommandIsHonouredVerbatim(t *testing.T) {
 	p := buildProfile(ProfileWine, LaunchConfig{}, "/g", "./my-launcher.sh", []string{"-x"})
 
 	if p.Name != ProfileCustom {
@@ -87,9 +87,6 @@ func TestExplicitCommandBecomesCustomAndIsNotSelectable(t *testing.T) {
 	}
 	if p.Command != "./my-launcher.sh" || !slices.Contains(p.Args, "-x") {
 		t.Errorf("the operator's command was not honoured verbatim: %q %v", p.Command, p.Args)
-	}
-	if validProfile(ProfileCustom) {
-		t.Error("custom must not be selectable from the console")
 	}
 }
 

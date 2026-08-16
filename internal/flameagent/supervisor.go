@@ -88,13 +88,9 @@ type supervisor struct {
 	stopping  bool
 	desired   string // running | stopped, persisted
 	restarts  int
-	// runningProfile is the profile the live process was started with, so a
-	// selection made while the game is up can be reported as pending rather
-	// than pretended to be in effect.
-	runningProfile string
-	failures       int // consecutive unclean exits, for backoff
-	lastExit       *exitInfo
-	log            []string
+	failures  int // consecutive unclean exits, for backoff
+	lastExit  *exitInfo
+	log       []string
 }
 
 type exitInfo struct {
@@ -134,10 +130,7 @@ func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
 		state:         "stopped",
 		desired:       "stopped",
 	}
-	// The selection persists in the install volume for the same reason
-	// desired-state does: an agent container recreated mid-flight must come
-	// back running the build the operator chose, not the default.
-	s.profile = s.buildProfile(s.loadProfileName(cfg.Launch.Profile))
+	s.profile = s.buildProfile(cfg.Launch.Profile)
 	return s
 }
 
@@ -146,49 +139,6 @@ func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
 // from its json, which prepareRuntime enforces instead.
 func (s *supervisor) buildProfile(name string) Profile {
 	return buildProfile(name, s.launch, s.installDir, s.gameCommand, s.gameArgs)
-}
-
-// profileNamePath is where the launch selection survives agent recreation.
-func (s *supervisor) profileNamePath() string {
-	return filepath.Join(s.installDir, ".flameagent", "profile")
-}
-
-func (s *supervisor) loadProfileName(fallback string) string {
-	if data, err := os.ReadFile(s.profileNamePath()); err == nil {
-		if v := strings.TrimSpace(string(data)); validProfile(v) {
-			return v
-		}
-	}
-	return fallback
-}
-
-// SetProfile changes which build the next start launches. It deliberately
-// does not restart anything: switching build is a heavier act than a
-// restart (the two are installed from different depots), so the decision to
-// bring the game down belongs to whoever asked.
-func (s *supervisor) SetProfile(name string) (Profile, error) {
-	if !validProfile(name) {
-		return Profile{}, fmt.Errorf("unknown launch profile %q", name)
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.profile.Name == ProfileCustom {
-		return s.profile, errors.New("this agent is configured with an explicit game command; unset FLAMEAGENT_GAME_CMD to choose a profile")
-	}
-	s.profile = s.buildProfile(name)
-	if err := os.MkdirAll(filepath.Dir(s.profileNamePath()), 0o755); err == nil {
-		_ = os.WriteFile(s.profileNamePath(), []byte(name+"\n"), 0o644)
-	}
-	s.logger.Info("launch profile selected", "profile", name, "appliesAt", "next start")
-	return s.profile, nil
-}
-
-// profileChangedSinceStart reports whether the running game is a different
-// build from the one now selected.
-func (s *supervisor) profileChangedSinceStart() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.state == "running" && s.runningProfile != "" && s.runningProfile != s.profile.Name
 }
 
 // Profile is the active launch profile.
@@ -283,7 +233,6 @@ func (s *supervisor) startLocked() error {
 	s.cmd = cmd
 	s.done = make(chan struct{})
 	s.state = "running"
-	s.runningProfile = s.profile.Name
 	s.startedAt = time.Now().UTC()
 	s.persistDesired("running")
 	s.logger.Info("game started", "pid", cmd.Process.Pid, "profile", s.profile.Name)
