@@ -7,10 +7,8 @@ package api
 // knowledge that used to live in each console's agent provisioner mode
 // now concentrates — Ilmari itself knows none of it, by contract.
 //
-// Known extension point (drift ledger, seam 4): games that claim more
-// than one contiguous game port (Dragonwilds' UDP pair, Palworld's
-// named RCON/REST ports) need a port-arity field and per-game extra
-// request fields here. They arrive with those games' port phases.
+// Known extension point (drift ledger, seam 4): Palworld's named
+// RCON/REST port trio arrives with its port phase.
 type ProvisionProfile struct {
 	// AgentName brands the stack's service and the container
 	// (<AgentName>-<slug>) — "flameagent", "wkagent", "palagent".
@@ -35,4 +33,19 @@ type ProvisionProfile struct {
 	StackNotes string
 	// GamePortComment annotates the game port mapping line.
 	GamePortComment string
+	// GamePortCount is how many contiguous UDP ports the game claims
+	// from GamePort (Dragonwilds binds a pair). Zero means one.
+	GamePortCount int
+	// OwnerIDRequired refuses provisioning without an ownerId — for
+	// games that will not start without an in-game owner. OwnerIDHelp
+	// finishes the refusal ("in-game: Settings, …").
+	OwnerIDRequired bool
+	OwnerIDHelp     string
+}
+
+func (p *ProvisionProfile) portCount() int {
+	if p.GamePortCount < 1 {
+		return 1
+	}
+	return p.GamePortCount
 }

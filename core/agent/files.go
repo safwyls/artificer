@@ -31,6 +31,9 @@ const maxConfigBytes = 1 << 20
 // findSaveDir locates the world save directory. A fresh install (or one
 // that hasn't booted yet) legitimately has none.
 func (a *Agent) findSaveDir() (string, error) {
+	if a.cfg.Game.FindSaveDir != nil {
+		return a.cfg.Game.FindSaveDir(a.cfg.InstallDir)
+	}
 	full := filepath.Join(a.cfg.InstallDir, a.cfg.Game.SaveDirName)
 	entries, err := os.ReadDir(full)
 	if err != nil || len(entries) == 0 {

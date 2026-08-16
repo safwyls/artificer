@@ -7,7 +7,12 @@
 // sides already agree on them.
 package agent
 
-import "time"
+import (
+	"encoding/json"
+	"reflect"
+	"strings"
+	"time"
+)
 
 // APIVersion is the protocol version an agent reports in Health. The
 // console tolerates older agents per-route (a 404 is "agent too old for
@@ -47,6 +52,8 @@ type GameStatus struct {
 type LaunchStatus struct {
 	Profile string `json:"profile"`
 	Label   string `json:"label"`
+	// Mods reports whether the selected profile can carry a command mod.
+	Mods bool `json:"mods"`
 	// Installed reports whether the game's files are present.
 	Installed bool `json:"installed"`
 	// Runnable reports whether the launcher exists on this agent at all —
@@ -57,6 +64,36 @@ type LaunchStatus struct {
 	// ConfigPath is where the game's settings file lives, relative to the
 	// install root.
 	ConfigPath string `json:"configPath"`
+	// Available lists the profiles the console may switch between; empty
+	// for single-build games and for a custom command.
+	Available []string `json:"available,omitempty"`
+	// PendingRestart reports that the running game is a different build
+	// from the one now selected.
+	PendingRestart bool `json:"pendingRestart,omitempty"`
+	// Extra carries game-specific keys (Game.LaunchExtras), merged
+	// top-level into the JSON and round-tripped through typed relays.
+	Extra map[string]any `json:"-"`
+}
+
+// MarshalJSON merges Extra's keys into the top level, so game-specific
+// launch facts ride the same wire object the console's typed relay
+// forwards.
+func (l LaunchStatus) MarshalJSON() ([]byte, error) {
+	type alias LaunchStatus
+	return marshalWithExtra(alias(l), l.Extra)
+}
+
+// UnmarshalJSON collects unknown keys back into Extra, so a console
+// relaying an agent's payload through this type loses nothing.
+func (l *LaunchStatus) UnmarshalJSON(data []byte) error {
+	type alias LaunchStatus
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*l = LaunchStatus(a)
+	l.Extra = extraKeys(data, knownJSONKeys(alias{}))
+	return nil
 }
 
 // Health is the /v1/health payload — everything the console needs to
@@ -87,6 +124,83 @@ type Health struct {
 	// finished one, else null. Exposing it here (not only under /jobs)
 	// lets the console rediscover in-flight work after its own restart.
 	Job *Job `json:"job"`
+	// Extra carries game-specific keys (Game.HealthExtras — Dragonwilds'
+	// bridge status), merged top-level and round-tripped through typed
+	// relays.
+	Extra map[string]any `json:"-"`
+}
+
+// MarshalJSON / UnmarshalJSON give Health the same extras round-trip as
+// LaunchStatus.
+func (h Health) MarshalJSON() ([]byte, error) {
+	type alias Health
+	return marshalWithExtra(alias(h), h.Extra)
+}
+
+func (h *Health) UnmarshalJSON(data []byte) error {
+	type alias Health
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*h = Health(a)
+	h.Extra = extraKeys(data, knownJSONKeys(alias{}))
+	return nil
+}
+
+// marshalWithExtra marshals v, then overlays extra's keys at the top
+// level.
+func marshalWithExtra(v any, extra map[string]any) ([]byte, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	if len(extra) == 0 {
+		return b, nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	for k, val := range extra {
+		m[k] = val
+	}
+	return json.Marshal(m)
+}
+
+// knownJSONKeys lists a struct's json field names via reflection.
+func knownJSONKeys(v any) map[string]bool {
+	keys := map[string]bool{}
+	t := reflect.TypeOf(v)
+	for i := 0; i < t.NumField(); i++ {
+		tag := t.Field(i).Tag.Get("json")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		if c := strings.IndexByte(tag, ','); c >= 0 {
+			tag = tag[:c]
+		}
+		keys[tag] = true
+	}
+	return keys
+}
+
+// extraKeys returns data's top-level keys that aren't known fields.
+func extraKeys(data []byte, known map[string]bool) map[string]any {
+	var m map[string]any
+	if json.Unmarshal(data, &m) != nil {
+		return nil
+	}
+	extra := map[string]any{}
+	for k, v := range m {
+		if !known[k] {
+			extra[k] = v
+		}
+	}
+	if len(extra) == 0 {
+		return nil
+	}
+	return extra
 }
 
 // The provisioning wire vocabulary: the shapes the Raise-a-server wizard
@@ -112,6 +226,12 @@ type ProvisionRequest struct {
 	// an open server — anyone who finds it can join.
 	JoinPassword string `json:"joinPassword,omitempty"`
 	ServerName   string `json:"serverName"`
+	// OwnerID is the in-game identity that owns the server, for games
+	// that refuse to start without one (Dragonwilds' "My Player ID").
+	OwnerID string `json:"ownerId,omitempty"`
+	// WorldName names the world created on first boot, where the game
+	// distinguishes it from the server-browser name.
+	WorldName string `json:"worldName,omitempty"`
 	// RunAs is uid:gid for the container ("" = the image's own user).
 	RunAs string `json:"runAs"`
 	// GamePort is the first published game port; how many contiguous

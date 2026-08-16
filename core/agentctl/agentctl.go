@@ -197,3 +197,11 @@ func (c *Client) Job(ctx context.Context, id string) (*Job, error) {
 	}
 	return res.Job, nil
 }
+
+// Do runs one authenticated verb against the agent — the game-facing
+// escape hatch for game modules that extend the client with their own
+// routes (Dragonwilds' dwbridge verbs). Semantics match every built-in
+// verb: JSON in/out, the shared error vocabulary, the given budget.
+func (c *Client) Do(ctx context.Context, method, path string, in, out any, timeout time.Duration) error {
+	return c.do(ctx, method, path, in, out, timeout)
+}

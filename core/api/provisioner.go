@@ -52,6 +52,15 @@ func (p *IlmariProvisioner) BaseURL() string { return p.c.BaseURL() }
 // protocol's, not a game's: every sidecar agent serves its API on 8811.
 const agentContainerPort = 8811
 
+// gamePortMaps renders the game's contiguous port run as Ilmari mappings.
+func gamePortMaps(p *ProvisionProfile, gamePort int) []ilmariclient.PortMap {
+	out := make([]ilmariclient.PortMap, 0, p.portCount())
+	for i := 0; i < p.portCount(); i++ {
+		out = append(out, ilmariclient.PortMap{Host: gamePort + i, Container: p.DefaultGamePort + i, Proto: "udp"})
+	}
+	return out
+}
+
 // Health synthesizes the legacy health shape from Ilmari's. The wizard
 // reads Provision.DataRoot to place data directories and PublicHost to
 // prefill the join address; both come straight from this console's Ilmari
@@ -92,6 +101,12 @@ func (p *IlmariProvisioner) Provision(ctx context.Context, req agent.ProvisionRe
 	if req.ServerName != "" {
 		env[p.p.EnvPrefix+"_SERVER_NAME"] = req.ServerName
 	}
+	if req.OwnerID != "" {
+		env[p.p.EnvPrefix+"_OWNER_ID"] = req.OwnerID
+	}
+	if req.WorldName != "" {
+		env[p.p.EnvPrefix+"_WORLD_NAME"] = req.WorldName
+	}
 	tag := req.ImageTag
 	if tag == "" {
 		tag = "latest"
@@ -102,10 +117,8 @@ func (p *IlmariProvisioner) Provision(ctx context.Context, req agent.ProvisionRe
 		Image: p.p.ImageRepo + ":" + tag,
 		User:  req.RunAs,
 		Env:   env,
-		Ports: []ilmariclient.PortMap{
-			{Host: req.GamePort, Container: p.p.DefaultGamePort, Proto: "udp"},
-			{Host: req.AgentPort, Container: agentContainerPort, Proto: "tcp"},
-		},
+		Ports: append(gamePortMaps(p.p, req.GamePort),
+			ilmariclient.PortMap{Host: req.AgentPort, Container: agentContainerPort, Proto: "tcp"}),
 		DataMount: p.p.MountPath,
 	})
 	if err != nil {

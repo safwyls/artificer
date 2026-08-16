@@ -1,6 +1,9 @@
 package agent
 
-import "net/http"
+import (
+	"log/slog"
+	"net/http"
+)
 
 // The game-facing surface for Game.Routes handlers — like core/api's
 // game surface, deliberately small.
@@ -28,3 +31,24 @@ func (a *Agent) SupervisedGamePort() int {
 	}
 	return a.game.gamePort
 }
+
+// SupervisedProfile is the active launch profile; ok=false in companion
+// mode.
+func (a *Agent) SupervisedProfile() (Profile, bool) {
+	if a.game == nil {
+		return Profile{}, false
+	}
+	return a.game.Profile(), true
+}
+
+// SupervisedRunning reports whether the supervised game is up; false in
+// companion mode.
+func (a *Agent) SupervisedRunning() bool {
+	return a.game != nil && a.game.Running()
+}
+
+// InstallDir is the game install root the agent holds.
+func (a *Agent) InstallDir() string { return a.cfg.InstallDir }
+
+// LoggerHandle is the agent's logger, for game routes.
+func (a *Agent) LoggerHandle() *slog.Logger { return a.cfg.Logger }

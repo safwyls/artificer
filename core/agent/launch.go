@@ -43,22 +43,42 @@ type Profile struct {
 	// the install root.
 	ConfigRel string `json:"configPath"`
 	// SteamPlatform is the depot platform to force on install ("windows"
-	// for games run under Wine); empty means the host's.
+	// for games run under Wine); empty means the host's. Switching to a
+	// profile with a different platform means re-installing the game,
+	// which the console has to say out loud.
 	SteamPlatform string `json:"steamPlatform,omitempty"`
+	// Mods reports whether this profile can carry a command mod (the
+	// reason a chooser exists at all for Dragonwilds).
+	Mods bool `json:"mods"`
 }
 
-// buildProfile assembles the profile: an explicit command is the
+// buildProfile assembles the named profile: an explicit command is the
 // operator saying exactly what to run — honoured verbatim under its own
-// name — else the game's hook builds it.
-func buildProfile(g Game, installDir, gameCommand string, gameArgs []string) Profile {
+// name — else the game's hook builds it. Args resolve here so custom
+// commands and game builds get the same defaulting.
+func buildProfile(g Game, name, installDir string, gamePort int, gameCommand string, gameArgs []string) Profile {
+	args := gameArgs
+	if len(args) == 0 && g.DefaultArgs != nil {
+		args = g.DefaultArgs(gamePort)
+	}
 	if gameCommand != "" {
 		return Profile{
 			Name: ProfileCustom, Label: "Custom command",
-			Command: gameCommand, Args: gameArgs,
+			Command: gameCommand, Args: args,
 			Probe: gameCommand, ConfigRel: g.ConfigRelPath,
 		}
 	}
-	return g.BuildProfile(installDir, gameArgs)
+	return g.BuildProfile(name, installDir, gamePort, args)
+}
+
+// validProfile reports whether name is one the console may select.
+func (g Game) validProfile(name string) bool {
+	for _, p := range g.Profiles {
+		if p == name {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveCommand turns a profile's Command into something exec can run: a

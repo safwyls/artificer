@@ -49,6 +49,13 @@ type provisionRequest struct {
 	// ServerName is the in-game server-browser name, enforced on every
 	// start; defaults to the dashboard display name.
 	ServerName string `json:"serverName"`
+	// OwnerID is the in-game identity that owns the server; required
+	// when the game's profile says so (some games refuse to start
+	// without an owner).
+	OwnerID string `json:"ownerId"`
+	// WorldName names the world created on first boot, for games that
+	// distinguish it from the server-browser name.
+	WorldName string `json:"worldName"`
 	// RunAs is the container user:group; defaults to the TrueNAS apps
 	// user 568:568. Empty string is normalized to the default; "root"
 	// omits the user line entirely.
@@ -91,6 +98,7 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Host = strings.TrimSpace(req.Host)
 	req.DataPath = strings.TrimSpace(req.DataPath)
+	req.OwnerID = strings.TrimSpace(req.OwnerID)
 	switch {
 	case req.Name == "":
 		writeError(w, http.StatusBadRequest, "name is required")
@@ -98,8 +106,11 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	case req.Host == "":
 		writeError(w, http.StatusBadRequest, "host is required — the address the console will reach the server on")
 		return
-	case controlChars.MatchString(req.Name + req.Host + req.ServerName + req.DataPath):
-		writeError(w, http.StatusBadRequest, "names and paths cannot contain line breaks or control characters")
+	case p.OwnerIDRequired && req.OwnerID == "":
+		writeError(w, http.StatusBadRequest, ownerRequiredMessage(p))
+		return
+	case controlChars.MatchString(req.Name + req.Host + req.OwnerID + req.ServerName + req.WorldName + req.DataPath):
+		writeError(w, http.StatusBadRequest, "names, paths and ids cannot contain line breaks or control characters")
 		return
 	// With a provisioner configured the data path is its call (<data
 	// root>/<slug>) and the wizard doesn't even ask; a paste-flow deploy
@@ -127,17 +138,29 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	if req.AgentPort == 0 {
 		req.AgentPort = 8811
 	}
-	if req.GamePort < 1 || req.GamePort > 65535 {
-		writeError(w, http.StatusBadRequest, "game port must be in 1-65535")
+	// The game binds GamePortCount contiguous ports from GamePort, so the
+	// whole run has to fit and stay clear of the agent's port.
+	maxGamePort := 65536 - p.portCount()
+	if req.GamePort < 1 || req.GamePort > maxGamePort {
+		msg := fmt.Sprintf("game port must be in 1-%d", maxGamePort)
+		if p.portCount() > 1 {
+			msg += " — the game also uses the port(s) above it"
+		}
+		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
 	if req.AgentPort < 1 || req.AgentPort > 65535 {
 		writeError(w, http.StatusBadRequest, "agent port must be in 1-65535")
 		return
 	}
-	if req.AgentPort == req.GamePort {
-		writeError(w, http.StatusBadRequest,
-			fmt.Sprintf("agent port %d collides with the game port", req.AgentPort))
+	if req.AgentPort >= req.GamePort && req.AgentPort < req.GamePort+p.portCount() {
+		if p.portCount() > 1 {
+			writeError(w, http.StatusBadRequest,
+				fmt.Sprintf("agent port %d collides with the game's port range (%d-%d)", req.AgentPort, req.GamePort, req.GamePort+p.portCount()-1))
+		} else {
+			writeError(w, http.StatusBadRequest,
+				fmt.Sprintf("agent port %d collides with the game port", req.AgentPort))
+		}
 		return
 	}
 	if req.ImageTag == "" {
@@ -187,7 +210,14 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
     user: "%s"
 `, req.RunAs)
 	}
-	identityEnv := fmt.Sprintf("      %s_SERVER_NAME: %q\n", p.EnvPrefix, req.ServerName)
+	identityEnv := ""
+	if req.OwnerID != "" {
+		identityEnv += fmt.Sprintf("      %s_OWNER_ID: %q\n", p.EnvPrefix, req.OwnerID)
+	}
+	identityEnv += fmt.Sprintf("      %s_SERVER_NAME: %q\n", p.EnvPrefix, req.ServerName)
+	if req.WorldName != "" {
+		identityEnv += fmt.Sprintf("      %s_WORLD_NAME: %q\n", p.EnvPrefix, req.WorldName)
+	}
 	if req.JoinPassword != "" {
 		identityEnv += fmt.Sprintf("      %s_JOIN_PASSWORD: %q\n", p.EnvPrefix, req.JoinPassword)
 	}
@@ -204,8 +234,7 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
       %s_TOKEN: %s
       %s_ADMIN_PASSWORD: %s
 %s    ports:
-      - "%d:%d/udp"   # %s
-      - "%d:8811"     # agent API — the dashboard's only channel
+%s      - "%d:8811"     # agent API — the dashboard's only channel
     volumes:
       # Must be writable by the container user — uid 1000 unless user:
       # overrides it.
@@ -214,7 +243,7 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 `, req.Name, p.StackHeadline, p.StackNotes,
 		p.AgentName, p.ImageRepo, req.ImageTag, userLine,
 		p.EnvPrefix, p.EnvPrefix, token, p.EnvPrefix, req.AdminPassword, identityEnv,
-		req.GamePort, p.DefaultGamePort, p.GamePortComment,
+		stackGamePorts(p, req.GamePort),
 		req.AgentPort, req.DataPath, p.MountPath)
 
 	// One-click (phase 5): when a provisioner is configured, deploy the
@@ -237,6 +266,8 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 			AdminPassword: req.AdminPassword,
 			JoinPassword:  req.JoinPassword,
 			ServerName:    req.ServerName,
+			OwnerID:       req.OwnerID,
+			WorldName:     req.WorldName,
 			RunAs:         req.RunAs,
 			GamePort:      req.GamePort,
 			AgentPort:     req.AgentPort,
@@ -378,31 +409,62 @@ func (s *Server) inferHost(declared string, servers []*store.Server) string {
 	return best
 }
 
-// proposePorts finds the first offset where the game port and the agent's
-// port are both free of anything the console tracks or the host's
-// containers hold.
+// proposePorts finds the first offset where the game's whole port run and
+// the agent's port are all free of anything the console tracks or the
+// host's containers hold. The run moves together because the game binds
+// every port in it.
 func proposePorts(p *ProvisionProfile, servers []*store.Server, containerPorts []int) map[string]int {
+	count := p.portCount()
 	used := map[int]bool{}
+	claim := func(port int) {
+		if port == 0 {
+			return
+		}
+		for i := 0; i < count; i++ {
+			used[port+i] = true
+		}
+	}
 	for _, srv := range servers {
-		used[srv.GamePort] = true
+		claim(srv.GamePort)
 		if u, err := url.Parse(srv.AgentURL); err == nil {
-			if p, err := strconv.Atoi(u.Port()); err == nil {
-				used[p] = true
+			if ap, err := strconv.Atoi(u.Port()); err == nil {
+				used[ap] = true
 			}
 		}
 	}
-	for _, p := range containerPorts {
-		if p != 0 {
-			used[p] = true
-		}
+	for _, cp := range containerPorts {
+		claim(cp)
 	}
 	for offset := 0; offset < 1000; offset++ {
-		gamePort, agentPort := p.DefaultGamePort+offset, 8811+offset
-		if !used[gamePort] && !used[agentPort] {
+		gamePort, agentPort := p.DefaultGamePort+(offset*count), 8811+offset
+		free := !used[agentPort]
+		for i := 0; free && i < count; i++ {
+			free = !used[gamePort+i]
+		}
+		if free {
 			return map[string]int{"game": gamePort, "agent": agentPort}
 		}
 	}
 	return map[string]int{"game": p.DefaultGamePort, "agent": 8811}
+}
+
+// stackGamePorts renders the game's port mapping lines for the stack.
+func stackGamePorts(p *ProvisionProfile, gamePort int) string {
+	out := fmt.Sprintf("      - %q   # %s\n", fmt.Sprintf("%d:%d/udp", gamePort, p.DefaultGamePort), p.GamePortComment)
+	for i := 1; i < p.portCount(); i++ {
+		out += fmt.Sprintf("      - %q   # the game's paired port\n", fmt.Sprintf("%d:%d/udp", gamePort+i, p.DefaultGamePort+i))
+	}
+	return out
+}
+
+// ownerRequiredMessage explains the refusal, with the game's own pointer
+// to where the id lives when the profile supplies one.
+func ownerRequiredMessage(p *ProvisionProfile) string {
+	msg := "owner id is required — the game will not start without one"
+	if p.OwnerIDHelp != "" {
+		msg += " (" + p.OwnerIDHelp + ")"
+	}
+	return msg
 }
 
 // handleProvisionDiscover surfaces flameagent containers already on the
