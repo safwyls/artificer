@@ -26,15 +26,17 @@ minutes and on shutdown by themselves).
 - **Overview** — status, power controls through the agent (stop is a
   clean save: the game writes the world on SIGINT), uptime/player
   vitals, log preview
-- **Flameborn** — who's online (log-derived SteamID64s; names arrive
-  with the Phase 2 A2S query), join/leave history and playtime
+- **Flameborn** — who's online (log-derived: the join line carries the
+  SteamID64, a login line the display name), join/leave history and
+  playtime, and the banned-accounts editor
 - **World saves** — snapshot, download, scheduled backups of the
   `savegame/` directory (world blob + rolling copies + index)
 - **Configuration** — `enshrouded_server.json` editor over the top-level
   and `gameSettings` scalars (never adds or removes keys, type-validated
   against the file, one `.bak`, atomic swap, JSON-validated at the agent
   so a bad edit can never make the game regenerate an *open* default
-  config), plus one-click admin-role password rotation
+  config), the role-group editor (names, capabilities, reserved slots,
+  per-group join passwords), and one-click admin-role password rotation
 - **Server log** — live tail through the agent
 - **Raise a server** — one-click provisioning through Ilmari (or a
   generated compose stack to deploy by hand): places the flameagent
@@ -68,7 +70,7 @@ minutes and on shutdown by themselves).
 `docs/enshrouded-recon.md` records every externally-sourced game fact
 with its confidence level, and its verification ledger tracks what a real
 server has confirmed. `docs/roadmap.md` is the phased plan from here
-(A2S presence, ban/role editors, save rollback, the 1.0 wave).
+(A2S presence, save rollback, the 1.0 wave).
 
 ## Running it
 

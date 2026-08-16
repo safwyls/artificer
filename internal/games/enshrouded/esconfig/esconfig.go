@@ -254,5 +254,10 @@ func Validate(data []byte) error {
 			return errors.New("userGroups must be a list of role groups")
 		}
 	}
+	if bans, ok := doc["bannedAccounts"]; ok {
+		if _, ok := bans.([]any); !ok {
+			return errors.New("bannedAccounts must be a list")
+		}
+	}
 	return nil
 }

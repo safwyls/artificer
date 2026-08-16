@@ -147,16 +147,22 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	s.respondFreshConfig(w, r, srv, codec)
 }
 
-// writeConfig runs one validated ini write, pushing agent-backed copies
-// back before reporting success. Errors are written to w; false means the
-// response is already sent.
-func (s *Server) writeConfig(w http.ResponseWriter, r *http.Request, srv *store.Server, codec *configCodec, changes map[string]string) bool {
+// editConfigFile runs one edit against the server's config file and, for
+// agent-backed servers, ships the result back afterwards.
+//
+// Every writer of enshrouded_server.json goes through here — the flat
+// settings editor, the role groups, the ban list, the password rotation —
+// because the part that is easy to get wrong is the same for all of them:
+// an edit that lands only on the local cache copy looks like a success
+// and changes nothing the game will ever read. Errors are written to w;
+// false means the response is already sent.
+func (s *Server) editConfigFile(w http.ResponseWriter, r *http.Request, srv *store.Server, notConfigured error, edit func(path string) error) bool {
 	path, viaAgent, ok := s.resolveConfigPath(w, r, srv)
 	if !ok {
 		return false
 	}
-	err := codec.write(path, changes)
-	if errors.Is(err, codec.notConfigured) {
+	err := edit(path)
+	if errors.Is(err, notConfigured) {
 		writeError(w, http.StatusBadRequest, "no config path configured")
 		return false
 	}
@@ -164,9 +170,14 @@ func (s *Server) writeConfig(w http.ResponseWriter, r *http.Request, srv *store.
 		writeError(w, http.StatusBadGateway, "config file is read-only — mount it read-write to edit settings")
 		return false
 	}
+	if errors.Is(err, os.ErrNotExist) {
+		writeError(w, http.StatusNotFound, "enshrouded_server.json not found at the configured path")
+		return false
+	}
 	if err != nil {
-		// Validation failures (unknown key, wrong type) read as bad requests;
-		// they're the caller's input, not a server fault.
+		// Validation failures (unknown key, wrong type, a role group that
+		// would lock everyone out) read as bad requests; they're the
+		// caller's input, not a server fault.
 		writeError(w, http.StatusBadRequest, err.Error())
 		return false
 	}
@@ -181,6 +192,13 @@ func (s *Server) writeConfig(w http.ResponseWriter, r *http.Request, srv *store.
 		}
 	}
 	return true
+}
+
+// writeConfig runs one validated flat-settings write.
+func (s *Server) writeConfig(w http.ResponseWriter, r *http.Request, srv *store.Server, codec *configCodec, changes map[string]string) bool {
+	return s.editConfigFile(w, r, srv, codec.notConfigured, func(path string) error {
+		return codec.write(path, changes)
+	})
 }
 
 // respondFreshConfig returns the freshly-read settings so the client
@@ -222,25 +240,11 @@ func (s *Server) handleRotateAdminPassword(w http.ResponseWriter, r *http.Reques
 	}
 	password := hex.EncodeToString(buf)
 
-	path, viaAgent, ok := s.resolveConfigPath(w, r, srv)
+	ok = s.editConfigFile(w, r, srv, codec.notConfigured, func(path string) error {
+		return codec.rotateAdminPassword(path, password)
+	})
 	if !ok {
 		return
-	}
-	err := codec.rotateAdminPassword(path, password)
-	if errors.Is(err, os.ErrPermission) {
-		writeError(w, http.StatusBadGateway, "config file is read-only — mount it read-write to edit settings")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if viaAgent {
-		if err := s.files.PushConfig(r.Context(), srv, path); err != nil {
-			s.logger.Error("pushing config to agent failed", "server", srv.ID, "error", err)
-			writeError(w, http.StatusBadGateway, "saving to the agent failed: "+err.Error())
-			return
-		}
 	}
 	s.audit(r, srv.ID, "config-rotate-admin-password", "")
 	writeJSON(w, http.StatusOK, map[string]string{"password": password})

@@ -362,6 +362,56 @@ export interface ConfigResult {
   writable: boolean;
 }
 
+/** One `userGroups` entry: Enshrouded's whole permission system. A joining
+ * player types a group's password and holds that group's rights for the
+ * session. */
+export interface RoleGroup {
+  /** Position in the file as read, so a save can keep fields the console
+   * doesn't model. -1 for a group added here. */
+  index: number;
+  name: string;
+  /** In the clear, which is why this endpoint needs the settings grant. */
+  password: string;
+  canKickBan: boolean;
+  canAccessInventories: boolean;
+  canEditBase: boolean;
+  canExtendBase: boolean;
+  canEditWorld: boolean;
+  reservedSlots: number;
+}
+
+export interface RolesResult {
+  groups: RoleGroup[];
+  path: string;
+  writable: boolean;
+  /** Always true today: the game reads userGroups at boot. */
+  restartRequired: boolean;
+}
+
+/** One `bannedAccounts` entry. */
+export interface Ban {
+  index: number;
+  /** The account id the game bans by — a 17-digit SteamID64. */
+  id: string;
+  /** Only present when the file's element format carries one. */
+  name?: string;
+}
+
+export interface BansResult {
+  bans: Ban[];
+  path: string;
+  writable: boolean;
+  /** True when this file stores entries as objects rather than bare id
+   * strings. The console follows the file either way. */
+  objectShape: boolean;
+  /** Entries the backend could not read. They are preserved on save; the
+   * count exists so the UI can say so rather than appear to lose them. */
+  unreadable: number;
+  /** The game is up, and it owns this list while it is — its own ban UI
+   * writes the file, so an edit now can be overwritten. */
+  running: boolean;
+}
+
 /** One collected sample. Nulls are real gaps — the server was unreachable
  * or reported nothing — and must break the line rather than plot as zero. */
 export interface MetricPoint {
@@ -976,6 +1026,18 @@ export const api = {
   // next join.
   rotateAdminPassword: (id: number) =>
     request<{ password: string }>(`/servers/${id}/config/rotate-admin-password`, { method: "POST" }),
+  // Role groups, under the same settings grant as the rest of the config —
+  // each group carries its join password in the clear. Whole-list writes:
+  // order is part of the data and deletion has to be expressible.
+  serverRoles: (id: number) => request<RolesResult>(`/servers/${id}/config/roles`),
+  updateServerRoles: (id: number, groups: RoleGroup[]) =>
+    request<RolesResult>(`/servers/${id}/config/roles`, { method: "PUT", body: JSON.stringify({ groups }) }),
+  // The ban list, under the moderation grant — it holds no credentials, and
+  // a moderator should be able to lift a ban without being handed every
+  // password. Writing here ejects nobody: the game reads the list at start.
+  serverBans: (id: number) => request<BansResult>(`/servers/${id}/bans`),
+  updateServerBans: (id: number, bans: Ban[]) =>
+    request<BansResult>(`/servers/${id}/bans`, { method: "PUT", body: JSON.stringify({ bans }) }),
   serverMetrics: (id: number) => request<Metrics>(`/servers/${id}/metrics`),
   serverMetricsHistory: (id: number, minutes: number) =>
     request<MetricsHistory>(`/servers/${id}/metrics/history?minutes=${minutes}`),

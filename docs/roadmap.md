@@ -70,14 +70,24 @@ ledger.**
 2. **Ready state**: surface eslog's `HostOnline` in the Overview
    ("starting" vs "accepting players"), since a booting server binds its
    port well before it accepts joins.
-3. **Ban list editor**: `bannedAccounts` in the config editor as a
-   first-class list (gate: ledger row on its element format), plus a
-   "ban by SteamID" action that edits the json and prompts the
-   restart-to-apply flow. This is offline moderation — the honest kind
-   this game allows.
-4. **Role-group editor**: userGroups CRUD in the UI (names, permissions,
-   reserved slots, per-group password rotation) replacing the flat-editor
-   omission. Join-password rotate joins admin-password rotate.
+3. ~~**Ban list editor**~~ — **done 2026-08-16.** `bannedAccounts` is a
+   first-class list (`esconfig/bans.go`, `GET/PUT /bans` behind
+   `PermModerate`, the Bans panel on Flameborn), and the roster's Ban
+   button is live as **Add to ban list**. The ledger row on the element
+   format was never gating after all: the editor reads whichever of the
+   two plausible shapes the file uses, writes new entries in that same
+   shape, and preserves entries it can't model instead of dropping them.
+   Two things the surface states rather than hides — the ban applies at
+   the next restart, and a *running* server owns the file too, so an edit
+   made now can be overwritten.
+4. ~~**Role-group editor**~~ — **done 2026-08-16.** userGroups CRUD in
+   `esconfig/roles.go` (`GET/PUT /config/roles` behind `PermSettings`,
+   since each group carries its join password in the clear) and the Role
+   groups panel on Configuration. Validation refuses the three
+   self-inflicted wounds: no kick/ban group at all, an admin group with
+   an empty password, two groups sharing one password. Per-group password
+   *rotation* did not ship — the fields are editable in place, and the
+   existing admin rotate covers the one credential worth generating.
 5. **Version surfacing**: the log's build hash + Steam build id from the
    update job, so "a game update dropped" is visible before friends hit
    the version-mismatch join error.

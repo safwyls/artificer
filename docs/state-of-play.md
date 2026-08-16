@@ -102,6 +102,31 @@ Still unproven: the SIGINT stop's clean save-on-shutdown, A2S from
 off-host, the ban list's element format, and the save's rolling-copy
 rotation. All are ledger rows.
 
+### Since then (2026-08-16)
+
+- **Cloudflare Access SSO** — `internal/cfaccess` verifies the tunnel's
+  assertion, `api.handleCloudflareLogin` creates accounts on first
+  sign-in with no permissions, `CF_ACCESS_ADMIN_EMAILS` is the lockout
+  rescue. Password login stays; `docs/cloudflare-access.md` is the
+  contract, including why the audience check is mandatory.
+- **PWA install** — manifest plus a service worker with a real fetch
+  handler (network-first shell, cache-first assets, never `/api/` or
+  `/cdn-cgi/`), so the browser offers the install prompt.
+- **Launch mode removed.** Enshrouded ships one server build, so a
+  chooser offered a choice that does not exist. The agent still assembles
+  the one profile plus the custom escape hatch; `GET /launch` survives
+  read-only, because "can this agent's image actually run the game?" is
+  still worth asking. What the card became is **Rebuild agent**, in the
+  SteamCMD maintenance strip.
+- **Phase 2's moderation surface** — the ban list and the role-group
+  editor, both landed. See the roadmap's Phase 2 items 3 and 4 for what
+  shipped and what deliberately didn't. Two design notes worth carrying:
+  roles sit behind `PermSettings` because a group carries its join
+  password in the clear, while bans sit behind `PermModerate` because
+  they carry no credential; and the bans editor never imposes an element
+  format on the file, which is why that ledger row stopped gating
+  anything.
+
 ## Running it locally
 
 There is no local Enshrouded dev loop on this box yet (the game needs
@@ -113,14 +138,15 @@ loop meanwhile.
 ## Suggested next steps
 
 1. **Finish the ledger**: the open rows are a clean stop (does SIGINT
-   reach the exe through Wine and save?), A2S reachability, the ban list
-   format, and the save's rolling-copy rotation after a few days. Each
-   one gates something later.
-2. **Then Phase 2** (`docs/roadmap.md`), re-scoped by the first capture:
-   names now come from the log, so the A2S client is worth less than
-   planned and the moderation surface (ban list, role editor) is worth
-   more. A2S still buys authoritative presence, the real `slotCount`, and
-   a roster that survives a console restart mid-session.
+   reach the exe through Wine and save?), A2S reachability, whether a
+   running server overwrites a hand-edited ban list, and the save's
+   rolling-copy rotation after a few days. Each one gates or softens
+   something already shipped.
+2. **The rest of Phase 2** (`docs/roadmap.md`): the moderation surface is
+   done, so what's left is the A2S client and the ready-state signal.
+   A2S is worth less than originally planned — names come from the log —
+   but still buys authoritative presence, the real `slotCount`, and a
+   roster that survives a console restart mid-session.
 3. Keep `docs/porting-to-another-game.md` honest if the seams move: it
    is the document the *fourth* console will be built from.
 

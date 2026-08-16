@@ -347,7 +347,23 @@ Still open:
       authoritative presence, the real `slotCount`, and a liveness signal
       that doesn't depend on log inference.
 - [ ] `bannedAccounts` element format (bare SteamID64 strings vs
-      objects) — needed before the Phase 2 bans editor.
+      objects). No longer gates anything: the bans editor
+      (`esconfig/bans.go`) reads whichever shape the file uses, writes new
+      entries in that same shape, and defaults to bare strings only when
+      the file is empty and has no convention to read. Still worth
+      settling the first time a real ban lands — the console reports the
+      answer as `objectShape` on `GET /bans`.
+- [ ] Whether a **running** server overwrites a hand-edited
+      `bannedAccounts`. The in-game ban UI writes this file, so it is
+      plausible the game holds the list in memory and persists it on
+      shutdown, clobbering an edit made mid-session. The Bans panel warns
+      about this whenever the game is up; confirming it either way would
+      let the warning go away (or become a hard refusal).
+- [ ] Whether an **absent** per-group capability key in `userGroups`
+      defaults true or false in the game. It matters only for
+      hand-written configs: everything flameagent seeds, and everything
+      the roles editor saves, writes all five explicitly. The editor
+      reads an absent key as false, which is the assumption to check.
 - [ ] A failed save (`[server] Failed to save`) is still community-sourced.
 - [ ] A second *simultaneous* joiner, which is the case the FIFO name
       attachment in `eslog` is reasoned about but unproven against.

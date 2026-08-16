@@ -61,8 +61,11 @@ Tests: `go test ./...` and `cd web && npm test`. Production build:
 `cd web && npm run build` then `go build ./cmd/flametender` (embeds the
 bundle).
 
-Roadmap: `docs/roadmap.md` (Phase 2: A2S presence + names; Phase 3: save
-index reader + rollback; Phase 5: the 1.0 churn wave, 2026-10-15).
+Roadmap: `docs/roadmap.md` (Phase 2: the moderation surface landed
+2026-08-16 — role groups behind `PermSettings` because they carry
+passwords, bans behind `PermModerate` because they don't; A2S presence
+and the ready-state signal are what's left. Phase 3: save index reader +
+rollback; Phase 5: the 1.0 churn wave, 2026-10-15).
 
 Workflow: when a branch is pushed and ready for review, open the PR
 without asking — the maintainer has standing-approved PR creation

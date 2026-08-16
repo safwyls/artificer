@@ -172,6 +172,17 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 				r.With(s.requirePermission(store.PermSettings)).Get("/config", s.handleGetConfig)
 				r.With(s.requirePermission(store.PermSettings)).Put("/config", s.handleUpdateConfig)
 				r.With(s.requirePermission(store.PermSettings)).Post("/config/rotate-admin-password", s.handleRotateAdminPassword)
+				// Role groups live under the settings gate with the rest of
+				// the config, and for the same reason: each one carries its
+				// join password in the clear, so reading the list is reading
+				// the server's credentials.
+				r.With(s.requirePermission(store.PermSettings)).Get("/config/roles", s.handleGetRoles)
+				r.With(s.requirePermission(store.PermSettings)).Put("/config/roles", s.handleUpdateRoles)
+				// The ban list holds no credentials, so it sits with the
+				// other moderation grants instead — a moderator should be
+				// able to lift a ban without being handed every password.
+				r.With(s.requirePermission(store.PermModerate)).Get("/bans", s.handleGetBans)
+				r.With(s.requirePermission(store.PermModerate)).Put("/bans", s.handleUpdateBans)
 
 				// Automation: restart schedules are visible to anyone
 				// signed in ("when's the next restart?" is player-facing

@@ -130,6 +130,72 @@ what they do ("Save changes", "Stop server"). Errors explain and point;
 501 reasons come from the backend and are shown verbatim — they already
 say where each ability really lives.
 
+## The moderation surface (Phase 2)
+
+Written before the code, same rule. Two editors over
+`enshrouded_server.json`: role groups and the ban list.
+
+**Two panels, two homes, because two permissions.** Roles carry join
+passwords in the clear, so they live on **Configuration** under the
+settings gate that already guards that file. The ban list carries no
+credentials, so it lives on **Flameborn** under the moderation gate,
+beside the roster it is about. Putting both on one page would mean a
+moderator landing on a page whose first panel refuses them.
+
+**Roles: group cards, not a CRUD table.** Each group is one card — name
+(inline, Karla 600 bone), password (mono, masked, per-field reveal eye:
+the doctrine the settings rows already use), then a row of capability
+**chips** and a reserved-slots stepper. Delete is a single ✕ at the
+card's right that only takes `ft.spore` on hover.
+
+Chips rather than a checkbox grid because five booleans × N groups is a
+thicket, and the question an operator actually has is *who has admin
+here* — a badge row answers that at a scan. Lit chips take `ft.flame`
+(capability on = active state, which is exactly flame's role); unlit
+stay `ft.edge` outline. `Kick/ban` is the chip that means admin, so it
+carries more weight than the other four and is the only one allowed
+`ft.flamehi`.
+
+**Bans: a short mono list.** One id per row, display name beside it when
+the file's element format carries one, `Lift` on the right; an add row on
+top taking a SteamID64. Both panels use draft-then-Save with a count on
+the button, matching the settings table's rhythm — which also buys a free
+undo before anything is committed.
+
+**Ban from the roster.** The roster's Ban button has been dead-with-a-
+reason since Phase 1. It becomes live for moderators, relabelled **"Add
+to ban list"** so the label itself doesn't overpromise, with a confirm
+that says the whole truth: this writes them to the list the game reads at
+start; it does not remove them now. Kick stays dead — there is genuinely
+no kick outside the in-game player menu.
+
+**The overwrite warning.** While the server is up, the game owns
+`bannedAccounts` too — its own ban UI writes it — so a file edit under a
+live server can be overwritten when the game next persists. The panel
+says so in `ft.spore` whenever the API reports the game running. This is
+an unverified behavior stated as a risk, not a fact.
+
+No new visual vocabulary: FtPanel terraces, the stone/flame/spore
+three-role rule intact, no icons beyond the lucide glyphs already in the
+tree.
+
+### Self-critique of the moderation surface
+
+- *A CRUD table with an Actions column, pencil and trash icons, and a
+  modal per row?* The default shape, and rejected: inline cards, no
+  modal, one destructive glyph that colors only on hover.
+- *A checkbox grid for permissions?* Rejected for the chip row, above.
+- *Immediate writes with a toast per action?* Rejected: draft + one
+  Save, so a misclicked Lift is recoverable before it reaches the file.
+- *Green for "permission enabled"?* Rejected — `ft.ok` is toast-only by
+  the palette rule, and "on" is live-state, which is flame's job.
+- *The risk taken:* an enabled Ban button that ejects nobody. Bounded by
+  the label, the confirm copy and the restart note; if it reads as
+  overpromising in use it goes back to disabled-with-reason.
+- *The other risk:* passwords rendered in the clear on a page several
+  people can reach. Bounded by the settings gate — which is the file's
+  own gate, not a new one — and masked-by-default fields.
+
 ## Self-critique against the defaults
 
 - *Near-black + single acid accent?* No — green-cast ground, a

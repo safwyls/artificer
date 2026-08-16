@@ -7,6 +7,7 @@ import { api, ApiError, type ConfigSetting } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { copyText } from "../../lib/utils";
 import { FtNote, FtPanel } from "../../components/flametender/FtPanel";
+import { FtRoles } from "../../components/flametender/FtRoles";
 import {
   Dialog,
   DialogContent,
@@ -124,6 +125,11 @@ export function FtConfig() {
   return (
     <div className="flametender min-h-full font-ftbody">
       <div className="mx-auto max-w-[1180px] space-y-3.5 p-4 lg:p-7">
+        {/* Roles first: they're what an operator comes here to change. The
+            flat key/value table below is the fallback for everything the
+            console doesn't model. */}
+        <FtRoles serverId={id} />
+
         <FtPanel title="enshrouded_server.json" meta={config ? config.path : "restart to apply"}>
           {configQuery.isLoading && <p className="text-sm text-ft-lichen">Reading the file…</p>}
           {noPath && (
@@ -182,8 +188,9 @@ export function FtConfig() {
               <FtNote>
                 Edits apply on the next restart. Only existing keys can change, values are checked against their
                 current type, and the previous file is kept one level deep as{" "}
-                <code className="font-mono not-italic text-ft-flame">.bak</code>. Role passwords and difficulty presets
-                beyond these scalars are Phase 2's role editor — until then the gameSettings block only applies when{" "}
+                <code className="font-mono not-italic text-ft-flame">.bak</code>. Role groups and the ban list are
+                structured records rather than scalars, so they have their own editors — roles above, bans on
+                Flameborn. The gameSettings block only applies when{" "}
                 <code className="font-mono not-italic text-ft-flame">gameSettingsPreset</code> is{" "}
                 <code className="font-mono not-italic text-ft-flame">Custom</code>.
               </FtNote>

@@ -17,12 +17,11 @@ import (
 //
 // Scalars only. Top-level scalar keys appear under section "server";
 // gameSettings scalars appear as "gameSettings.<key>" under section
-// "gameSettings". userGroups (role passwords and permissions) and the
-// other array-valued keys are deliberately absent from the flat view —
-// passwords already have the rotate flow and the wizard, and a proper
-// role editor is roadmap Phase 2. The write policy is inherited: never
-// add or remove keys, validate each value against the existing one's
-// type, one .bak, atomic swap.
+// "gameSettings". The array-valued keys are deliberately absent from the
+// flat view: userGroups and bannedAccounts are structured records, not
+// strings, and they have their own editors in roles.go and bans.go. The
+// write policy is inherited: never add or remove keys, validate each
+// value against the existing one's type, one .bak, atomic swap.
 
 // ErrNotConfigured is returned for servers with no config path set.
 var ErrNotConfigured = errors.New("no config path configured for this server")
