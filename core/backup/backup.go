@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/safwyls/sampo/core/agentfiles"
+	"github.com/safwyls/sampo/core/game"
 	"github.com/safwyls/sampo/core/notify"
 	"github.com/safwyls/sampo/core/store"
 )
@@ -163,7 +164,17 @@ func (r *Runner) isDue(ctx context.Context, srv *store.Server) (bool, error) {
 		if err != nil {
 			return false, nil // save unreachable right now; try next sweep
 		}
-		world, err := newestWorldFile(savePath)
+		layout := layoutFor(srv)
+		sidecar := layout.IsSidecar
+		if sidecar == nil {
+			sidecar = isSidecar
+		}
+		world := ""
+		if layout.WorldFile != nil {
+			world, err = layout.WorldFile(savePath)
+		} else {
+			world, err = newestWorldFile(savePath, sidecar)
+		}
 		if err != nil {
 			return false, nil // no readable world save; nothing to back up
 		}
@@ -212,30 +223,38 @@ func (r *Runner) noteResult(serverID int64, err error) {
 	delete(r.lastErr, serverID)
 }
 
-// isSidecar reports the two JSON companions Enshrouded writes beside each
-// world: `<hex>-index` (which rolling copy is live) and `<hex>-info`
-// (world metadata). Both are archived like everything else — rollback
-// needs the index — but neither is a world, so neither may stand in for
-// one when the question is "is there something here worth backing up".
+// layoutFor resolves the server's game save layout; zero-value (the
+// documented defaults below) when the game declares none.
+func layoutFor(srv *store.Server) game.SaveLayout {
+	if def, ok := game.Get(srv.Game); ok && def.Save != nil {
+		return *def.Save
+	}
+	return game.SaveLayout{}
+}
+
+// isSidecar is the default sidecar rule: `-index`/`-info` suffixed JSON
+// companions (which rolling copy is live, world metadata) are archived
+// like everything else — rollback needs the index — but neither is a
+// world, so neither may stand in for one when the question is "is there
+// something here worth backing up".
 func isSidecar(name string) bool {
 	return strings.HasSuffix(name, "-index") || strings.HasSuffix(name, "-info")
 }
 
-// newestWorldFile finds the most recently written world blob.
-//
-// Enshrouded's saves are **extensionless, fixed hex names by creation
-// slot** (`3ad85aea` for world 1) plus rolling copies `<hex>-1` … `<hex>-10`
-// — see docs/enshrouded-recon.md, "Saves". There is no extension to match
-// on, which is exactly what the Palworld original assumed: it globbed
-// `*.sav`, found nothing, and failed every snapshot before writing a byte.
-func newestWorldFile(saveDir string) (string, error) {
+// newestWorldFile is the default world finder: the most recently written
+// non-sidecar regular file, no extension assumed. (Extensionless saves
+// are real — Enshrouded names worlds by bare hex slot — and assuming an
+// extension is exactly what once made every one of its snapshots
+// silently empty. A game whose layout knows better overrides via
+// game.SaveLayout.WorldFile.)
+func newestWorldFile(saveDir string, sidecar func(string) bool) (string, error) {
 	entries, err := os.ReadDir(saveDir)
 	if err != nil {
 		return "", fmt.Errorf("reading the save directory: %w", err)
 	}
 	best, bestMod := "", int64(-1)
 	for _, e := range entries {
-		if e.IsDir() || isSidecar(e.Name()) {
+		if e.IsDir() || sidecar(e.Name()) {
 			continue
 		}
 		info, err := e.Info()
@@ -303,11 +322,25 @@ func (r *Runner) backupNow(ctx context.Context, srv *store.Server) (*Snapshot, e
 	if err != nil {
 		return nil, fmt.Errorf("resolving save: %w", err)
 	}
-	world, err := newestWorldFile(saveDir)
+	layout := layoutFor(srv)
+	sidecar := layout.IsSidecar
+	if sidecar == nil {
+		sidecar = isSidecar
+	}
+	world := ""
+	if layout.WorldFile != nil {
+		world, err = layout.WorldFile(saveDir)
+	} else {
+		world, err = newestWorldFile(saveDir, sidecar)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if err := verifyWorldFile(world); err != nil {
+	verify := layout.VerifyWorld
+	if verify == nil {
+		verify = verifyWorldFile
+	}
+	if err := verify(world); err != nil {
 		return nil, err
 	}
 
@@ -319,7 +352,7 @@ func (r *Runner) backupNow(ctx context.Context, srv *store.Server) (*Snapshot, e
 	now := time.Now().UTC()
 	name := now.Format(nameFormat) + ".zip"
 	tmp := filepath.Join(dir, name+".tmp")
-	if err := writeArchive(ctx, saveDir, tmp); err != nil {
+	if err := writeArchive(ctx, saveDir, tmp, layout.IncludeInArchive); err != nil {
 		os.Remove(tmp)
 		return nil, err
 	}
@@ -354,7 +387,7 @@ func (r *Runner) backupNow(ctx context.Context, srv *store.Server) (*Snapshot, e
 // This is deliberately the same set the agent bundles
 // (flameagent.listSaveFiles), so an agent-synced backup and a
 // bind-mounted one archive identically. When one changes the other must.
-func writeArchive(ctx context.Context, saveDir, dest string) error {
+func writeArchive(ctx context.Context, saveDir, dest string, include func(rel string) bool) error {
 	out, err := os.Create(dest)
 	if err != nil {
 		return err
@@ -380,6 +413,9 @@ func writeArchive(ctx context.Context, saveDir, dest string) error {
 		rel, err := filepath.Rel(saveDir, path)
 		if err != nil {
 			return err
+		}
+		if include != nil && !include(rel) {
+			return nil
 		}
 		info, err := d.Info()
 		if err != nil {

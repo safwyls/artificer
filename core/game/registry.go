@@ -55,6 +55,10 @@ type Definition struct {
 	// Config is the game's settings-file codec. Nil means the console
 	// offers no settings editor for this game.
 	Config *ConfigCodec
+
+	// Save is the game's on-disk save shape for the backup archiver.
+	// Nil means the documented permissive default — see SaveLayout.
+	Save *SaveLayout
 }
 
 // Feature keys. These name dashboard views, not game concepts, so a second

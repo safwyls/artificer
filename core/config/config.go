@@ -42,6 +42,19 @@ type Config struct {
 	IlmariURL   string
 	IlmariToken string
 
+	// ProvisionerURL/Token point at a legacy provisioner-mode agent — the
+	// pre-Ilmari path palcon and wildskeeper deployments still run until
+	// their ports complete. Empty means no legacy provisioner; new
+	// consoles never set these.
+	ProvisionerURL   string
+	ProvisionerToken string
+
+	// AnthropicAPIKey / GeminiAPIKey enable the advisor chat — set one or
+	// the other. Both empty leaves the feature to a key saved through the
+	// admin UI; absent everywhere means the UI never offers it.
+	AnthropicAPIKey string
+	GeminiAPIKey    string
+
 	// CookieSecure marks the session cookie Secure for deployments behind
 	// TLS. Off by default so plain-HTTP LAN setups keep working.
 	CookieSecure bool
@@ -84,6 +97,11 @@ func Load() (*Config, error) {
 		// when unset, the new-server wizard is simply absent.
 		IlmariURL:   os.Getenv("ILMARI_URL"),
 		IlmariToken: os.Getenv("ILMARI_TOKEN"),
+
+		ProvisionerURL:   os.Getenv("PROVISIONER_URL"),
+		ProvisionerToken: os.Getenv("PROVISIONER_TOKEN"),
+		AnthropicAPIKey:  os.Getenv("ANTHROPIC_API_KEY"),
+		GeminiAPIKey:     os.Getenv("GEMINI_API_KEY"),
 		// Cloudflare Access SSO; both required to enable it.
 		AccessTeamDomain:  normalizeTeamDomain(os.Getenv("CF_ACCESS_TEAM_DOMAIN")),
 		AccessAUD:         strings.TrimSpace(os.Getenv("CF_ACCESS_AUD")),

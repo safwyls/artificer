@@ -65,6 +65,9 @@ func newTestApp(t *testing.T) *testApp {
 	srv := api.New(st, []byte("test-jwt-secret-0123456789abcdef"), logger, nil, notify.New(st, logger),
 		backup.New(st, nil, logger, t.TempDir(), files), files, nil)
 	srv.Provision = testProfile
+	// A console embeds its real docs; the fixture proves the endpoint
+	// serves whatever FS the wiring provides.
+	srv.DocsFS = fstest.MapFS{"advisor.md": &fstest.MapFile{Data: []byte("# The advisor\nHow it works.")}}
 	staticFS := fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html></html>")}}
 	return &testApp{handler: srv.Routes(staticFS), store: st, api: srv}
 }

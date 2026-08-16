@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -60,8 +61,10 @@ func (s *Server) hiddenPlayers(r *http.Request, serverID int64) (store.PlayerVis
 	return s.store.ListPlayerVisibility(r.Context(), serverID)
 }
 
-// rosterEntry names a player the admin can hide. Just enough to list them.
-type rosterEntry struct {
+// RosterEntry names a player the admin can hide. Just enough to list
+// them. Exported because the game module supplies the roster — see
+// RosterSource.
+type RosterEntry struct {
 	UID      string `json:"uid"`
 	Nickname string `json:"nickname"`
 	Level    int    `json:"level"`
@@ -80,7 +83,7 @@ type visibilityPayload struct {
 	// Everyone in the save, so the UI has a list to put switches against.
 	// Empty when the server has no readable save — say so rather than
 	// presenting an empty table as "no players".
-	Roster []rosterEntry `json:"roster"`
+	Roster []RosterEntry `json:"roster"`
 	// True when the roster is empty because the save couldn't be read, as
 	// opposed to a world with nobody in it.
 	RosterUnavailable bool `json:"rosterUnavailable"`
@@ -123,8 +126,24 @@ func (s *Server) handleServerVisibility(w http.ResponseWriter, r *http.Request) 
 // Dragonwilds has no save reader yet (the recon doc's Phase 3 gate), so the
 // roster is honestly unavailable and the visibility page says so; per-player
 // switches still work for uids typed in by hand once the reader exists.
-func (s *Server) roster(_ *http.Request, _ *store.Server) ([]rosterEntry, error) {
-	return nil, errors.New("no save reader for this game yet")
+// RosterSource reads the save-derived player roster the visibility editor
+// lists. The game module supplies the implementation (Palworld's palsave
+// reader is the one that exists — drift ledger, seam 6: its working
+// roster must not be replaced by a stub); nil means the game honestly
+// can't say, and the editor shows the switches without a player list.
+type RosterSource interface {
+	Roster(ctx context.Context, srv *store.Server, savePath string) ([]RosterEntry, error)
+}
+
+func (s *Server) roster(r *http.Request, srv *store.Server) ([]RosterEntry, error) {
+	if s.Roster == nil {
+		return nil, errors.New("no save-derived roster for this game")
+	}
+	savePath, err := s.files.SavePath(r.Context(), srv)
+	if err != nil {
+		return nil, err
+	}
+	return s.Roster.Roster(r.Context(), srv, savePath)
 }
 
 // handleUpdateServerVisibility replaces the switches. The whole state is sent

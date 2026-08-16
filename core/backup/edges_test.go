@@ -34,14 +34,14 @@ func TestNewestWorldFileAndVerify(t *testing.T) {
 		now := time.Now()
 		write("3ad85aea-1", 64, now.Add(-time.Hour))
 		newest := write("3ad85aea", 64, now)
-		got, err := newestWorldFile(dir)
+		got, err := newestWorldFile(dir, isSidecar)
 		if err != nil || got != newest {
 			t.Errorf("newestWorldFile = %q, %v; want %q", got, err, newest)
 		}
 	})
 
 	t.Run("empty directory reports no saves", func(t *testing.T) {
-		if _, err := newestWorldFile(t.TempDir()); err == nil {
+		if _, err := newestWorldFile(t.TempDir(), isSidecar); err == nil {
 			t.Error("an empty save dir was accepted")
 		}
 	})
@@ -58,7 +58,7 @@ func TestNewestWorldFileAndVerify(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(side, "3ad85aea-info"), []byte(`{"name":"x"}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := newestWorldFile(side); err == nil {
+		if _, err := newestWorldFile(side, isSidecar); err == nil {
 			t.Error("a directory of sidecars was accepted as a world")
 		}
 
@@ -71,7 +71,7 @@ func TestNewestWorldFileAndVerify(t *testing.T) {
 		if err := os.Chtimes(world, now.Add(-time.Hour), now.Add(-time.Hour)); err != nil {
 			t.Fatal(err)
 		}
-		got, err := newestWorldFile(side)
+		got, err := newestWorldFile(side, isSidecar)
 		if err != nil || got != world {
 			t.Errorf("newestWorldFile = %q, %v; want the world %q", got, err, world)
 		}
