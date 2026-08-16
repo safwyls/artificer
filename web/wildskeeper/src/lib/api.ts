@@ -66,6 +66,13 @@ export interface Me {
   role: string;
   isAdmin: boolean;
   permissions: Permission[];
+  /** True when this session began at Cloudflare Access rather than the
+   * password form. */
+  sso?: boolean;
+  /** Where to send the browser to end the *Access* session. Clearing only
+   * this console's cookie would leave the next person at a shared machine
+   * holding the previous identity. */
+  ssoLogoutURL?: string;
 }
 
 export interface AppUser {
@@ -898,6 +905,9 @@ export const api = {
   login: (username: string, password: string) =>
     request<{ username: string }>("/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   logout: () => request<void>("/logout", { method: "POST" }),
+  /** Silent sign-in for people Cloudflare Access already authenticated.
+   * 404 when SSO isn't configured; 401 when not proxied by Access. */
+  loginCloudflare: () => request<{ username: string; created: boolean }>("/login/cloudflare", { method: "POST" }),
   me: () => request<Me>("/me"),
   changeOwnPassword: (currentPassword: string, newPassword: string) =>
     request<void>("/me/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),

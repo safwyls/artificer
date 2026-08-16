@@ -89,8 +89,8 @@ func TestPowerViaSupervisorAgent(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &state); err != nil {
 		t.Fatal(err)
 	}
-	if state.Running || !strings.Contains(state.Name, "flameagent") {
-		t.Fatalf("initial state = %+v, want stopped flameagent-managed", state)
+	if state.Running || !strings.Contains(state.Name, "gtagent") {
+		t.Fatalf("initial state = %+v, want the agent-named supervisor state", state)
 	}
 
 	// Start → running.
