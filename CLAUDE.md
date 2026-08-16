@@ -16,12 +16,16 @@ wizard/Ilmari adapter, neutral `agentctl.Query*` types, per-console
 passes its full suite with only `game/gametest` registered. The four
 old repos remain imported at repo-name prefixes and still build
 independently — do not hand-sync code between them; that is what the
-drift ledger is for. Phase 2 is complete: 2b restored the advisor and
-landed seams 1/6; 2c extracted the agent kit — `core/agent` is the
-full sidecar implementation parameterized on an `agent.Game` spec, and
-the agent-backed api/agentctl tests run against it with a fake game.
-Next: Phase 3, the flametender port (first console rebuilt on core,
-gated on a real Enshrouded server).
+drift ledger is for. Phase 2 is complete (core framework + agent kit,
+game-blind, green with only the test game). Phase 3 (flametender
+rebuilt on core) is code-complete: `games/enshrouded/` (client, codec,
+eslog/esquery, banqueue behind the offline-work seam, esapi routes via
+seam 5, esagent's agent.Game spec), thin `cmd/flametender` +
+`cmd/flameagent`, `web/flametender`, and monorepo image publishing
+under the old ghcr names (`:main` channel; `:latest` flips after the
+gate). The gate — the real Enshrouded server — is
+`docs/flametender-port-verification.md`; the old flametender tree is
+archived only after it passes.
 
 Rules already in force (see the plan's "Structural rules"):
 

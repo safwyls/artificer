@@ -15,10 +15,15 @@
 > `agent.Game` spec — stop signal, grace, app id, config path/validator,
 > save dir, profile assembly, PrepareRuntime hook, and game routes —
 > and the five deferred agent-backed test files are back, running
-> against the kit with a fake game. **Phase 2 is complete.** Open work
-> now lives in the port phases: game-side SaveLayout/RosterSource/
-> Game-spec implementations, the enshrouded enforcement suite returning
-> as games/enshrouded tests, and every §F guard not yet checked off.
+> against the kit with a fake game. **Phase 2 is complete.** Phase 3
+> (flametender on core) is code-complete: games/enshrouded carries the
+> codec, banqueue (seam 2's implementation), esapi contributed routes
+> (seam 5's first user), esagent's agent.Game spec, and the returned
+> test suites (moderation, ban queue end-to-end on the real kit+spec,
+> enshrouded api, esquery, the enforcement suite, the app-id agreement
+> test). Gate: docs/flametender-port-verification.md. Open: the §F
+> guards not yet checked off (palworld/dragonwilds rows land with their
+> ports; Ilmari parity checks with Phase 6 wiring).
 
 Per-file reconciliation decisions for Phase 2 (core extraction), per
 `docs/unification-plan.md`. This is the working checklist: Phase 2
