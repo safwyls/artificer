@@ -1,0 +1,18 @@
+-- Record the in-game player uid on each observed join/leave.
+--
+-- player_events already stores the platform id (steam/xbox), which is the
+-- right stable identity for a person but not the key save files use: those
+-- are keyed by PlayerUId. With no column joining the two, nothing could ask
+-- "when did palcon last watch this save player leave?", so every "last seen"
+-- in the UI fell back to the save's own LastOnlineDateTime.
+--
+-- That field is a login stamp. Palworld writes it when a player connects and
+-- never touches it again — verified against a server's rolling backups, where
+-- the value appeared mid-session and did not move when the player logged off.
+-- Rendering it as "last seen" understated every offline player by the length
+-- of their final session.
+--
+-- Empty on every existing row, and empty is meaningful: the uid was never
+-- collected, so a backfill would have to invent it. Readers fall back to the
+-- save's login stamp when it's empty, which is exactly the old behaviour.
+ALTER TABLE player_events ADD COLUMN player_uid TEXT NOT NULL DEFAULT '';

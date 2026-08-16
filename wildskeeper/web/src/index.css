@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Wildskeeper theme — this app has no light/dark toggle. Values are the
+   HSL equivalents of tailwind.config.js's wk.* literal palette (deep night
+   ground, brass structure, rune-cyan live state, ember danger, parchment
+   text), mapped onto shadcn's semantic tokens so shared components need no
+   per-component work. Design source: mocks/dragonwilds-dashboard.html.
+   `.wildskeeper` is kept as an alias so page-scoped styling reads
+   intentionally; both selectors must stay identical. */
+:root,
+.wildskeeper {
+  --background: 215 24% 8%; /* wk.bg #10141a */
+  --foreground: 44 40% 84%; /* wk.parchment #e6dcc4 */
+  --card: 217 28% 15%; /* wk.panel #1b2330 */
+  --card-foreground: 44 40% 84%;
+  --popover: 217 28% 15%;
+  --popover-foreground: 44 40% 84%;
+  --primary: 40 40% 39%; /* wk.brass #8a6f3a */
+  --primary-foreground: 44 40% 84%;
+  --secondary: 216 27% 19%; /* wk.edge #232d3d */
+  --secondary-foreground: 44 40% 84%;
+  --muted: 213 26% 12%; /* wk.raise #161c24 */
+  --muted-foreground: 88 6% 56%; /* wk.mist #8e9688 */
+  --accent: 42 51% 54%; /* wk.brasshi #c9a24b */
+  --accent-foreground: 220 24% 6%; /* wk.ink */
+  --destructive: 16 71% 58%; /* wk.ember #e0704a */
+  --destructive-foreground: 44 40% 84%;
+  --border: 216 27% 19%;
+  --input: 216 27% 19%;
+  --ring: 176 63% 58%; /* wk.rune — focus is live-state territory */
+  --radius: 0.375rem; /* the mock's tight 6px corners */
+}
+
+body {
+  background-image:
+    radial-gradient(ellipse 900px 500px at 75% -10%, rgba(82, 216, 208, 0.06), transparent),
+    radial-gradient(ellipse 700px 600px at -10% 110%, rgba(201, 162, 75, 0.05), transparent);
+}
+::selection {
+  background: #2b6f6c;
+  color: #e6dcc4;
+}
+
+body {
+  @apply bg-background text-foreground font-body;
+}
+
+/* The hero band's brass corner brackets, from the mock's ::before/::after. */
+.wk-corners {
+  position: relative;
+}
+.wk-corners::before,
+.wk-corners::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #c9a24b;
+  pointer-events: none;
+}
+.wk-corners::before {
+  top: 6px;
+  left: 6px;
+  border-right: none;
+  border-bottom: none;
+}
+.wk-corners::after {
+  bottom: 6px;
+  right: 6px;
+  border-left: none;
+  border-top: none;
+}
+
+/* Dragon-eye pulse for the rune sigil; stilled for reduced motion. */
+@keyframes wk-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.wk-eye {
+  animation: wk-pulse 3.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wk-eye {
+    animation: none;
+    opacity: 0.9;
+  }
+}
+
+/* Horizontal pill-bar scroller (mobile nav): no scrollbar — the edge fade
+   and the half-visible next pill are the scroll affordance instead. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.scroll-fade-x {
+  mask-image: linear-gradient(90deg, transparent, black 14px, black calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 14px, black calc(100% - 14px), transparent);
+}
+
+/* Mobile browsers' collapsing address bars make 100vh taller than what's
+   actually visible, which shoved the bottom server rail behind the toolbar
+   until a scroll. dvh tracks the real visible height; the vh line is the
+   fallback for browsers that predate it. */
+.app-height {
+  height: 100vh;
+  height: 100dvh;
+}
+.app-min-height {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Signature clipped-corner shape from the mocks, used sparingly on primary
+   CTAs and hero panels — not applied globally, or it stops reading as a
+   deliberate accent. */
+.clip-notch {
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+.clip-notch-lg {
+  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+}
+
+
+/* Indeterminate sweep for the save-read progress bar — parsing reports no
+   real progress, so the bar shows activity rather than a made-up amount. */
+@keyframes saveread {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[saveread_1\.4s_ease-in-out_infinite\] {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}

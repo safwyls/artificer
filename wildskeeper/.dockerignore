@@ -1,0 +1,26 @@
+# Keep the build context small: only what the Dockerfile stages actually
+# COPY. Big offenders are localsaves/ (real world saves), data/ (runtime
+# state), and web/node_modules (the frontend stage runs its own install).
+# docs/ stays IN the context: the binary embeds it (docs/docs.go) for the
+# advisor's docs-search tool, and go build fails without the .md files.
+.git
+.github
+.claude
+.vscode
+.idea
+data
+localsaves
+mocks
+web/node_modules
+web/dist
+bin
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.env
+__pycache__
+*.pyc
+Dockerfile
+docker-compose.yml
+.dockerignore

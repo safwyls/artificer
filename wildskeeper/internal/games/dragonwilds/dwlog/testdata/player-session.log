@@ -1,0 +1,15 @@
+[2026.08.09-21.45.25:186][  0]LogInit:  - user name is 'host' (host)
+[2026.08.09-21.45.40:121][ 12]LogPersistence: [DedicatedServer] operator()() : Save completed SUCCESSFULLY (slot: World-75058)
+[2026.08.09-21.45.59:675][946]LogRedpointEOSNetworkAuth: Verbose: 0123456789abcdef0123456789abcdef: verification: IdTokenAuth: Starting...
+[2026.08.09-21.45.59:675][946]LogRedpointEOSNetworkAuth: Warning: Skipping verification of connecting user 0123456789abcdef0123456789abcdef because this connection is not trusted. To verify users, turn on trusted dedicated servers.
+[2026.08.09-21.45.59:910][953]LogRedpointEOSNetworkAuth: Verbose: Server authentication: 0123456789abcdef0123456789abcdef: Did not find any BAN sanctions for user.
+[2026.08.09-21.45.59:910][953]LogNet: Login request: ?p=?c?Name=Bramblejaw userId: RedpointEOS:0123456789abcdef0123456789abcdef platform: RedpointEOS
+[2026.08.09-21.46.01:648][  5]LogNet: Join request: /Game/Maps/Server/L_ServerStartup?p=?c?Name=Bramblejaw?SplitscreenCount=1
+[2026.08.09-21.46.01:649][  5]LogDomMatcherSession: Player ADDED to session [0123456789abcdef0123456789abcdef]-[Bramblejaw]
+[2026.08.09-21.46.01:650][  5]LogNet: Join succeeded: Bramblejaw
+[2026.08.09-21.46.01:855][ 11]LogRedpointEOS: Verbose: [LogEOSSessions] Finished registering players to session 'GameSession'.
+[2026.08.09-21.46.39:311][131]LogDominionPlayerController: ClientRequestDisconnect : DisconnectMe : PlayerStateSave result[true] - state saved for Account[XP:0123456789abcdef0123456789abcdef] Character Name[Bramblejaw] Guid[DCG:0123456789ABCDEF0123456789ABCDEF] Type[0]
+[2026.08.09-21.46.39:378][133]LogNet: UChannel::Close: Sending CloseBunch. ChIndex == 0. Name: [UChannel] ChIndex: 0, Closing: 0 [UNetConnection] RemoteAddr: 127.0.0.1:50469, Name: RedpointEOSIpNetConnection_2147481451, Driver: Name:GameNetDriver Def:GameNetDriver RedpointEOSNetDriver_2147481669, IsServer: YES, PC: BP_PlayerController_C_2147481446, Owner: BP_PlayerController_C_2147481446, UniqueId: RedpointEOS:0123456789abcdef0123456789abcdef
+[2026.08.09-21.46.39:311][131]LogPersistence: [DedicatedServer] operator()() : Save completed SUCCESSFULLY (slot: World-75058)
+[2026.08.09-21.46.39:411][134]LogDomMatcherSession: Player Removed from session [0123456789abcdef0123456789abcdef]-[Bramblejaw]
+[2026.08.09-21.46.39:416][134]LogRedpointEOS: Warning: Failure ErrorCode=errors.com.redpoint.eos.no_change, Message=(Call) FOnlineSessionInterfaceEOS::UnregisterPlayers (Context) Failed to unregister one or more players for session 'GameSession'. (Message) The request had no effect, Raw=errors.com.redpoint.eos.no_change
