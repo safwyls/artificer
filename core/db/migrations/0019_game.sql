@@ -1,0 +1,11 @@
+-- Which game a server runs. Everything above internal/game resolves a row
+-- through its registered game.Definition — how to reach it, which Steam app
+-- to update, how to spell a player id, which dashboard views it can fill.
+--
+-- The default is empty on purpose: which game an unlabelled row means is a
+-- console fact, not a schema fact — game.Get treats an empty value as the
+-- console's registered default, so old rows keep resolving without the
+-- schema having to name a game. (Consoles that shipped this migration
+-- before the monorepo wrote their own game id here; those rows are
+-- explicit now, which is also correct.)
+ALTER TABLE servers ADD COLUMN game TEXT NOT NULL DEFAULT '';

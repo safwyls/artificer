@@ -6,14 +6,20 @@ provisioning service. **`docs/unification-plan.md` is the plan of
 record; read it before structural work.** `docs/drift-ledger.md` holds
 the per-file reconciliation decisions that Phase 2 executes.
 
-Current state: **Phase 1**. The four old repos are imported with full
-history at repo-name prefixes (`palcon/`, `wildskeeper/`,
-`flametender/`, `ilmari/`) and are still self-contained modules — each
-keeps its own CLAUDE.md, docs, go.mod, and tests. The target layout
-(`core/` extracted from flametender's shared layer, `games/{palworld,
-dragonwilds,enshrouded}`, `web/core`, single go.mod) lands in Phase 2;
-until then do not hand-sync code between the imported trees — that is
-what the drift ledger and Phase 2 are for.
+Current state: **Phase 2 in progress**. `core/` is the extracted
+console framework (root module `github.com/safwyls/sampo`), taken from
+flametender's shared layer with the game-shaped hardcodes replaced by
+seams: `game.ConfigCodec` on the Definition, `OfflineConfigWork` in
+api/sched (banqueue generalized), `api.ProvisionProfile` for the
+wizard/Ilmari adapter, neutral `agentctl.Query*` types, per-console
+`DefaultID` and session-cookie name. The gate holds: core builds and
+passes its full suite with only `game/gametest` registered. The four
+old repos remain imported at repo-name prefixes and still build
+independently — do not hand-sync code between them; that is what the
+drift ledger is for. Still to land in Phase 2: the advisor restore
+(from palcon), remaining merge-P/merge-W ledger rows, and the agent
+kit (`core/agent` holds the wire types; the shared implementation and
+the five agent-backed api/agentctl test files follow it).
 
 Rules already in force (see the plan's "Structural rules"):
 
