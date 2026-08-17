@@ -4,7 +4,7 @@
 // for wildskeeper to drive. The shared machinery is core/agent; the
 // Dragonwilds half is games/dragonwilds/dwagent.
 //
-// Provisioner mode is gone on purpose: placing containers is Ilmari's
+// Provisioner mode is gone on purpose: placing containers is Anvil's
 // job, so WKAGENT_DOCKER_HOST and its provisioning siblings are no
 // longer read.
 package main
@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/games/dragonwilds/dwagent"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/games/dragonwilds/dwagent"
 )
 
 // version is stamped by the release build via

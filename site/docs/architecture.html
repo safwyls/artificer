@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Architecture — Sampo docs</title>
+<title>Architecture — Artificer docs</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
 <meta name="description" content="Core, games, agents and consoles — how the repository fits together.">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Architecture — Sampo docs">
+<meta property="og:title" content="Architecture — Artificer docs">
 <meta property="og:description" content="Core, games, agents and consoles — how the repository fits together.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,15 +18,15 @@
 <a class="skip-link" href="#content">Skip to content</a>
 <header class="nav">
   <div class="nav-inner">
-    <a class="brand" href="../index.html" aria-label="Sampo home">
+    <a class="brand" href="../index.html" aria-label="Artificer home">
       <span class="mark" aria-hidden="true"><i></i></span>
-      <span class="wordmark">sampo</span>
+      <span class="wordmark">artificer</span>
       <span class="crumb-docs">docs</span>
     </a>
     <nav class="nav-links" aria-label="Site">
       <a class="hide-sm" href="../index.html#consoles">Consoles</a>
       <a class="hide-sm" href="../index.html#deploy">Deploy</a>
-      <a class="nav-gh" href="https://github.com/safwyls/sampo"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
+      <a class="nav-gh" href="https://github.com/safwyls/artificer"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
     </nav>
   </div>
 </header>
@@ -46,7 +46,7 @@
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
   <ul>
     <li><a href="architecture.html" class="active" aria-current="page">Architecture</a></li>
-    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
   </ul>
 </div><div class="side-cat">
@@ -74,7 +74,7 @@
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
   <ul>
     <li><a href="architecture.html" class="active" aria-current="page">Architecture</a></li>
-    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
   </ul>
 </div><div class="side-cat">
@@ -98,11 +98,11 @@ allowed to point. Everything else follows from that.</p>
 <table>
   <thead><tr><th>Path</th><th>What lives there</th></tr></thead>
   <tbody>
-    <tr><td><code>core/</code></td><td>The console framework: HTTP API, auth, store, backups, scheduler, collector, the sidecar agent kit, the Ilmari client. Knows nothing about any specific game.</td></tr>
+    <tr><td><code>core/</code></td><td>The console framework: HTTP API, auth, store, backups, scheduler, collector, the sidecar agent kit, the Anvil client. Knows nothing about any specific game.</td></tr>
     <tr><td><code>games/&lt;game&gt;/</code></td><td>One directory per game: its client, its config-file codec, its log or save readers, its agent spec, and any routes only it has.</td></tr>
     <tr><td><code>cmd/</code></td><td>The binaries. Each console main is thin wiring: register the game, set the cookie name, hand core its profile.</td></tr>
     <tr><td><code>web/&lt;console&gt;/</code></td><td>One React app per console, each with its own theme.</td></tr>
-    <tr><td><code>ilmari/</code></td><td>The host provisioning service. A separate module — it references no console and no game.</td></tr>
+    <tr><td><code>anvil/</code></td><td>The host provisioning service. A separate module — it references no console and no game.</td></tr>
     <tr><td><code>deploy/</code></td><td>Dockerfiles, one directory per console.</td></tr>
   </tbody>
 </table>
@@ -118,7 +118,7 @@ and expensive to unpick later:</p>
   <li><b>An agent never imports its console-side game package.</b> The agent binary has no business
     linking a console registry, so shared constants like a Steam app id are spelled twice, with a
     test keeping the copies honest.</li>
-  <li><b>Ilmari references nothing above it.</b> It is game-blind by contract.</li>
+  <li><b>Anvil references nothing above it.</b> It is game-blind by contract.</li>
 </ul>
 
 <h2 id="seams">How a game plugs in</h2>
@@ -145,21 +145,21 @@ alerts. That is the floor.</p>
   <tbody>
     <tr><td>Console web UI</td><td><code>8080</code></td><td>Override with <code>HTTP_ADDR</code>.</td></tr>
     <tr><td>Sidecar agent API</td><td><code>8811</code></td><td>Same for every game. Must be published for the console to reach it.</td></tr>
-    <tr><td>Ilmari API</td><td><code>8820</code></td><td>Console-facing only; never expose it publicly.</td></tr>
+    <tr><td>Anvil API</td><td><code>8820</code></td><td>Console-facing only; never expose it publicly.</td></tr>
     <tr><td>Palworld</td><td><code>8211/udp</code></td><td>Plus REST <code>8212</code> and RCON <code>25575</code>, both TCP.</td></tr>
     <tr><td>Dragonwilds</td><td><code>7777–7778/udp</code></td><td>The game binds a contiguous pair.</td></tr>
     <tr><td>Enshrouded</td><td><code>15637/udp</code></td><td>One port carries both game traffic and the Steam query.</td></tr>
   </tbody>
 </table>
-<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="migrating.html"><small>← Previous</small><b>Migrate an existing server</b></a><a class="pager-card next" href="ilmari.html"><small>Next →</small><b>Ilmari, the host service</b></a></nav>
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="migrating.html"><small>← Previous</small><b>Migrate an existing server</b></a><a class="pager-card next" href="anvil.html"><small>Next →</small><b>Anvil, the host service</b></a></nav>
   </main>
 </div>
 <footer class="doc-footer">
   <div class="wrap-doc">
-    <p>Sampo is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
+    <p>Artificer is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
     © Jagex Ltd. Enshrouded is © Keen Games GmbH. No affiliation or endorsement is implied.</p>
-    <p><a href="https://github.com/safwyls/sampo">GitHub</a> ·
-       <a href="https://github.com/safwyls/sampo/issues">Issues</a> ·
+    <p><a href="https://github.com/safwyls/artificer">GitHub</a> ·
+       <a href="https://github.com/safwyls/artificer/issues">Issues</a> ·
        <a href="../index.html">Homepage</a></p>
   </div>
 </footer>

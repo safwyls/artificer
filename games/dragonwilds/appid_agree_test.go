@@ -3,8 +3,8 @@ package dragonwilds_test
 import (
 	"testing"
 
-	"github.com/safwyls/sampo/games/dragonwilds"
-	"github.com/safwyls/sampo/games/dragonwilds/dwagent"
+	"github.com/safwyls/artificer/games/dragonwilds"
+	"github.com/safwyls/artificer/games/dragonwilds/dwagent"
 )
 
 // The app id and default port are deliberately spelled twice — console-

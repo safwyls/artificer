@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // supervisorAgent is a flameagent reporting supervisor mode with the game in

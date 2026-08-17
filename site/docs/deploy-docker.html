@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deploy with Docker — Sampo docs</title>
+<title>Deploy with Docker — Artificer docs</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
-<meta name="description" content="One compose file on any Docker host: console, Ilmari, secrets, TLS and updates.">
+<meta name="description" content="One compose file on any Docker host: console, Anvil, secrets, TLS and updates.">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Deploy with Docker — Sampo docs">
-<meta property="og:description" content="One compose file on any Docker host: console, Ilmari, secrets, TLS and updates.">
+<meta property="og:title" content="Deploy with Docker — Artificer docs">
+<meta property="og:description" content="One compose file on any Docker host: console, Anvil, secrets, TLS and updates.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -18,15 +18,15 @@
 <a class="skip-link" href="#content">Skip to content</a>
 <header class="nav">
   <div class="nav-inner">
-    <a class="brand" href="../index.html" aria-label="Sampo home">
+    <a class="brand" href="../index.html" aria-label="Artificer home">
       <span class="mark" aria-hidden="true"><i></i></span>
-      <span class="wordmark">sampo</span>
+      <span class="wordmark">artificer</span>
       <span class="crumb-docs">docs</span>
     </a>
     <nav class="nav-links" aria-label="Site">
       <a class="hide-sm" href="../index.html#consoles">Consoles</a>
       <a class="hide-sm" href="../index.html#deploy">Deploy</a>
-      <a class="nav-gh" href="https://github.com/safwyls/sampo"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
+      <a class="nav-gh" href="https://github.com/safwyls/artificer"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
     </nav>
   </div>
 </header>
@@ -46,7 +46,7 @@
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
   <ul>
     <li><a href="architecture.html">Architecture</a></li>
-    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
   </ul>
 </div><div class="side-cat">
@@ -74,7 +74,7 @@
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
   <ul>
     <li><a href="architecture.html">Architecture</a></li>
-    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
   </ul>
 </div><div class="side-cat">
@@ -107,13 +107,13 @@ user and the directories yourself.</p>
 <h2 id="layout">2. Lay out the directories</h2>
 <div class="code-card" data-copy>
 <div class="code-head"><span>shell</span><button class="copy-btn">Copy</button></div>
-<pre>mkdir -p ~/sampo/{data,servers}
-cd ~/sampo
+<pre>mkdir -p ~/artificer/{data,servers}
+cd ~/artificer
 
 <span class="c"># Run everything as yourself rather than root; note the ids.</span>
 id -u; id -g</pre>
 </div>
-<p><code>data/</code> holds the console database. <code>servers/</code> is the data root — Ilmari
+<p><code>data/</code> holds the console database. <code>servers/</code> is the data root — Anvil
 creates one subdirectory per game server inside it.</p>
 
 <h2 id="secrets">3. Generate the secrets</h2>
@@ -125,7 +125,7 @@ openssl rand -hex 32
 <span class="c"># Encryption key — must be EXACTLY 32 characters</span>
 openssl rand -hex 16
 
-<span class="c"># Ilmari token — shared between ilmari and the console</span>
+<span class="c"># Anvil token — shared between anvil and the console</span>
 openssl rand -hex 24</pre>
 </div>
 <div class="callout danger"><p><code>ENCRYPTION_KEY</code> must be exactly 32 characters and must
@@ -134,10 +134,10 @@ it orphans every stored credential. <code>openssl rand -hex 16</code> gives exac
 characters, which is why it is 16 and not 32 there.</p></div>
 
 <h2 id="compose">4. Write the compose file</h2>
-<p>This runs one console and Ilmari. Replace the placeholder secrets, the public host and the uid
+<p>This runs one console and Anvil. Replace the placeholder secrets, the public host and the uid
 pair with your own.</p>
 <div class="code-card" data-copy>
-<div class="code-head"><span>~/sampo/docker-compose.yml</span><button class="copy-btn">Copy</button></div>
+<div class="code-head"><span>~/artificer/docker-compose.yml</span><button class="copy-btn">Copy</button></div>
 <pre><span class="k">services</span>:
   <span class="k">palcon</span>:
     <span class="k">image</span>: <span class="v">ghcr.io/safwyls/palcon:latest</span>
@@ -150,32 +150,32 @@ pair with your own.</p>
       <span class="k">ENCRYPTION_KEY</span>: <span class="v">&lt;openssl rand -hex 16&gt;</span>
       <span class="k">ADMIN_USERNAME</span>: <span class="v">admin</span>
       <span class="k">ADMIN_PASSWORD</span>: <span class="v">&lt;first-login password&gt;</span>
-      <span class="k">ILMARI_URL</span>: <span class="v">http://ilmari:8820</span>
-      <span class="k">ILMARI_TOKEN</span>: <span class="v">&lt;shared token&gt;</span>
+      <span class="k">ANVIL_URL</span>: <span class="v">http://anvil:8820</span>
+      <span class="k">ANVIL_TOKEN</span>: <span class="v">&lt;shared token&gt;</span>
     <span class="k">volumes</span>:
       - <span class="v">./data:/data</span>
     <span class="k">restart</span>: <span class="v">unless-stopped</span>
 
-  <span class="k">ilmari</span>:
-    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/ilmari:latest</span>
+  <span class="k">anvil</span>:
+    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/anvil:latest</span>
     <span class="c"># root: it holds the docker socket and chowns data directories</span>
     <span class="k">environment</span>:
-      <span class="k">ILMARI_CLIENTS</span>: <span class="v">'[{"id":"palcon","token":"&lt;shared token&gt;",
-        "dataRoot":"/home/you/sampo/servers","envPrefix":"PALAGENT_"}]'</span>
-      <span class="k">ILMARI_PUBLIC_HOST</span>: <span class="v">203.0.113.10</span>   <span class="c"># how players reach this host</span>
-      <span class="k">ILMARI_DEFAULT_RUN_AS</span>: <span class="v">"1000:1000"</span>
+      <span class="k">ANVIL_CLIENTS</span>: <span class="v">'[{"id":"palcon","token":"&lt;shared token&gt;",
+        "dataRoot":"/home/you/artificer/servers","envPrefix":"PALAGENT_"}]'</span>
+      <span class="k">ANVIL_PUBLIC_HOST</span>: <span class="v">203.0.113.10</span>   <span class="c"># how players reach this host</span>
+      <span class="k">ANVIL_DEFAULT_RUN_AS</span>: <span class="v">"1000:1000"</span>
     <span class="k">volumes</span>:
       - <span class="v">/var/run/docker.sock:/var/run/docker.sock</span>
       <span class="c"># The data root, at the SAME path it is registered as above.</span>
-      - <span class="v">/home/you/sampo/servers:/home/you/sampo/servers</span>
+      - <span class="v">/home/you/artificer/servers:/home/you/artificer/servers</span>
     <span class="k">restart</span>: <span class="v">unless-stopped</span></pre>
 </div>
 <div class="callout danger"><p>The <code>dataRoot</code> path must be identical on both sides of
-that mount, and identical to what <code>ILMARI_CLIENTS</code> declares. Ilmari creates each
+that mount, and identical to what <code>ANVIL_CLIENTS</code> declares. Anvil creates each
 server's directory and chowns it to <code>runAs</code>; if the path is not mounted it does that
 inside its own container, Docker creates the real one as <code>root</code>, and the agent cannot
 write its install. The failure is silent — SteamCMD exits 0 having downloaded nothing.</p></div>
-<p>Note that Ilmari is not published to a host port here. The console reaches it by service name on
+<p>Note that Anvil is not published to a host port here. The console reaches it by service name on
 the compose network, which is exactly as much exposure as it needs.</p>
 
 <h2 id="up">5. Bring it up</h2>
@@ -185,19 +185,19 @@ the compose network, which is exactly as much exposure as it needs.</p>
 docker compose logs -f palcon</pre>
 </div>
 <p>Then open <code>http://&lt;host&gt;:8080</code> and sign in. The Raise-a-server wizard appears
-once the console can reach Ilmari; if it is missing, the console's logs will say why.</p>
+once the console can reach Anvil; if it is missing, the console's logs will say why.</p>
 
 <h2 id="first">6. Raise a server</h2>
 <p>Press <b>+</b>, choose <b>Provision a new server</b>, and fill in a name. The wizard proposes
 ports and the data directory; the agent installs the game on first boot. Details of each field are
 in <a href="first-server.html">Your first server</a>.</p>
-<p>You do not write an agent compose file yourself — Ilmari creates that container. If you would
+<p>You do not write an agent compose file yourself — Anvil creates that container. If you would
 rather deploy it by hand, the wizard also generates a stack you can paste, and the console will
 adopt it once it is running.</p>
 
 <h2 id="more">7. Running more than one game</h2>
-<p>Add another console service and another Ilmari client entry. Each console needs its own token,
-its own data root, its own env prefix, and its own mount into Ilmari.</p>
+<p>Add another console service and another Anvil client entry. Each console needs its own token,
+its own data root, its own env prefix, and its own mount into Anvil.</p>
 <div class="code-card" data-copy>
 <div class="code-head"><span>adding wildskeeper</span><button class="copy-btn">Copy</button></div>
 <pre><span class="k">wildskeeper</span>:
@@ -208,17 +208,17 @@ its own data root, its own env prefix, and its own mount into Ilmari.</p>
     <span class="k">DATA_DIR</span>: <span class="v">/data</span>
     <span class="k">JWT_SECRET</span>: <span class="v">&lt;its own&gt;</span>
     <span class="k">ENCRYPTION_KEY</span>: <span class="v">&lt;its own, 32 chars&gt;</span>
-    <span class="k">ILMARI_URL</span>: <span class="v">http://ilmari:8820</span>
-    <span class="k">ILMARI_TOKEN</span>: <span class="v">&lt;its own&gt;</span>
+    <span class="k">ANVIL_URL</span>: <span class="v">http://anvil:8820</span>
+    <span class="k">ANVIL_TOKEN</span>: <span class="v">&lt;its own&gt;</span>
   <span class="k">volumes</span>: [<span class="v">"./data-wk:/data"</span>]
   <span class="k">restart</span>: <span class="v">unless-stopped</span>
 
-<span class="c"># and in ILMARI_CLIENTS, a second entry:</span>
-<span class="c"># {"id":"wildskeeper","token":"...","dataRoot":"/home/you/sampo/wk-servers",</span>
+<span class="c"># and in ANVIL_CLIENTS, a second entry:</span>
+<span class="c"># {"id":"wildskeeper","token":"...","dataRoot":"/home/you/artificer/wk-servers",</span>
 <span class="c">#  "envPrefix":"WKAGENT_"}</span>
-<span class="c"># plus its mount on the ilmari service.</span></pre>
+<span class="c"># plus its mount on the anvil service.</span></pre>
 </div>
-<p>Consoles never see each other's servers: Ilmari scopes discovery by ownership label and image
+<p>Consoles never see each other's servers: Anvil scopes discovery by ownership label and image
 family, and each console filters again on its own agent family.</p>
 
 <h2 id="tls">8. TLS and a reverse proxy</h2>
@@ -250,7 +250,7 @@ already does that.</p>
 <pre>docker compose pull
 docker compose up -d</pre>
 </div>
-<p>Agents are updated from the console instead — the agent-image action asks Ilmari to recreate that
+<p>Agents are updated from the console instead — the agent-image action asks Anvil to recreate that
 container on a new tag, preserving its ports, volume and environment. The game install lives on the
 volume, so nothing is downloaded again.</p>
 <nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="deploy-truenas.html"><small>← Previous</small><b>Deploy on TrueNAS Scale</b></a><a class="pager-card next" href="first-server.html"><small>Next →</small><b>Your first server</b></a></nav>
@@ -258,10 +258,10 @@ volume, so nothing is downloaded again.</p>
 </div>
 <footer class="doc-footer">
   <div class="wrap-doc">
-    <p>Sampo is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
+    <p>Artificer is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
     © Jagex Ltd. Enshrouded is © Keen Games GmbH. No affiliation or endorsement is implied.</p>
-    <p><a href="https://github.com/safwyls/sampo">GitHub</a> ·
-       <a href="https://github.com/safwyls/sampo/issues">Issues</a> ·
+    <p><a href="https://github.com/safwyls/artificer">GitHub</a> ·
+       <a href="https://github.com/safwyls/artificer/issues">Issues</a> ·
        <a href="../index.html">Homepage</a></p>
   </div>
 </footer>

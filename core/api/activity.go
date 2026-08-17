@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/sampo/core/collector"
+	"github.com/safwyls/artificer/core/collector"
 )
 
 // audit records a management action against a server. Best-effort by

@@ -1,11 +1,11 @@
 package api
 
 // ProvisionProfile is one game's provisioning knowledge: everything
-// game-shaped that the Raise-a-server wizard and the Ilmari adapter
+// game-shaped that the Raise-a-server wizard and the Anvil adapter
 // interpolate. Core's handlers are game-blind templates; the console's
 // wiring assigns a profile next to the Provisioner. This is where the
 // knowledge that used to live in each console's agent provisioner mode
-// now concentrates — Ilmari itself knows none of it, by contract.
+// now concentrates — Anvil itself knows none of it, by contract.
 //
 // Every seam-4 variance is now expressed here: port-run arity
 // (Dragonwilds' pair), required owner identity, and named TCP admin
@@ -44,7 +44,7 @@ type ProvisionProfile struct {
 	OwnerIDHelp     string
 	// AdminPorts are named TCP admin transports the game exposes beside
 	// the game port (Palworld's REST + RCON). Each becomes a wizard
-	// field (<key>Port), a stack and Ilmari mapping, a port-proposal
+	// field (<key>Port), a stack and Anvil mapping, a port-proposal
 	// entry, and — for the well-known keys "rest" and "rcon" — the
 	// server row's transport wiring.
 	AdminPorts []AdminPort

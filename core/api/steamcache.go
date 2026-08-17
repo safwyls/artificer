@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/safwyls/sampo/core/steamcmd"
+	"github.com/safwyls/artificer/core/steamcmd"
 )
 
 // handleClearSteamCache empties the SteamCMD cache directories — the

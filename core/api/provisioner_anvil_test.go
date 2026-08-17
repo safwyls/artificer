@@ -8,20 +8,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/core/ilmariclient"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/core/anvilclient"
 )
 
-// fakeIlmari records what the adapter sends, and answers with Ilmari's real
+// fakeAnvil records what the adapter sends, and answers with Anvil's real
 // wire shapes.
-type fakeIlmari struct {
+type fakeAnvil struct {
 	provisionBody map[string]any
 	adoptEnv      map[string]string
 }
 
-// ilmariTestProfile mirrors api_test's testProfile for this internal
+// anvilTestProfile mirrors api_test's testProfile for this internal
 // package — the adapter is asserted against the same fake game shape.
-var ilmariTestProfile = &ProvisionProfile{
+var anvilTestProfile = &ProvisionProfile{
 	AgentName:       "gtagent",
 	ImageRepo:       "ghcr.io/example/gtagent",
 	EnvPrefix:       "GTAGENT",
@@ -30,15 +30,15 @@ var ilmariTestProfile = &ProvisionProfile{
 	SlugFallback:    "gametest",
 }
 
-func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
+func newFakeAnvil(t *testing.T) (*fakeAnvil, *AnvilProvisioner) {
 	t.Helper()
-	f := &fakeIlmari{adoptEnv: map[string]string{}}
+	f := &fakeAnvil{adoptEnv: map[string]string{}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/v1/health":
 			json.NewEncoder(w).Encode(map[string]any{
-				"service": "ilmari", "version": "test", "apiVersion": 1,
+				"service": "anvil", "version": "test", "apiVersion": 1,
 				"client": "flametender", "dataRoot": "/mnt/tank/apps/dragonwilds-servers",
 				"publicHost": "192.168.1.9", "runAs": "568:568", "dockerOk": true,
 			})
@@ -49,7 +49,7 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 				"container": f.provisionBody["name"], "dataDir": "/mnt/tank/apps/dragonwilds-servers/x", "image": f.provisionBody["image"],
 			})
 		case "/v1/discover":
-			// Ilmari reports every console's containers on the host —
+			// Anvil reports every console's containers on the host —
 			// including another console's agent family, which the adapter
 			// must filter out of this console's list.
 			json.NewEncoder(w).Encode(map[string]any{"servers": []map[string]any{{
@@ -79,7 +79,7 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 				"ports": []map[string]any{},
 			}}})
 		case "/v1/adopt":
-			// Echo the requested name, as the real Ilmari does — with the
+			// Echo the requested name, as the real Anvil does — with the
 			// image that container would really carry, since the adapter's
 			// family check reads it.
 			var req struct {
@@ -103,11 +103,11 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	client, err := ilmariclient.New(srv.URL, "test-token-0123456789abcdef")
+	client, err := anvilclient.New(srv.URL, "test-token-0123456789abcdef")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return f, NewIlmariProvisioner(client, ilmariTestProfile)
+	return f, NewAnvilProvisioner(client, anvilTestProfile)
 }
 
 // The adapter is where the profile's provisioning knowledge lives, so this
@@ -116,8 +116,8 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 // the data mount. Any drift here provisions a container that looks right
 // and boots wrong. (Each game module re-runs this assertion with its own
 // profile values in its port phase — see the drift ledger's stack rows.)
-func TestIlmariProvisionCarriesTheGameShape(t *testing.T) {
-	f, p := newFakeIlmari(t)
+func TestAnvilProvisionCarriesTheGameShape(t *testing.T) {
+	f, p := newFakeAnvil(t)
 
 	res, err := p.Provision(context.Background(), agent.ProvisionRequest{
 		Slug: "ashenfall", ImageTag: "latest-wine",
@@ -167,9 +167,9 @@ func TestIlmariProvisionCarriesTheGameShape(t *testing.T) {
 }
 
 // Health synthesizes the legacy shape the wizard reads: data root, public
-// host and runAs come from this console's Ilmari registration.
-func TestIlmariHealthFeedsTheWizardDefaults(t *testing.T) {
-	_, p := newFakeIlmari(t)
+// host and runAs come from this console's Anvil registration.
+func TestAnvilHealthFeedsTheWizardDefaults(t *testing.T) {
+	_, p := newFakeAnvil(t)
 	h, err := p.Health(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -182,10 +182,10 @@ func TestIlmariHealthFeedsTheWizardDefaults(t *testing.T) {
 	}
 }
 
-// Discover and adopt translate Ilmari's generic port lists back into the
+// Discover and adopt translate Anvil's generic port lists back into the
 // well-known ports the wizard shape names.
-func TestIlmariDiscoverAndAdoptMapPorts(t *testing.T) {
-	f, p := newFakeIlmari(t)
+func TestAnvilDiscoverAndAdoptMapPorts(t *testing.T) {
+	f, p := newFakeAnvil(t)
 	f.adoptEnv = map[string]string{
 		"GTAGENT_MODE": "supervisor", "GTAGENT_TOKEN": "recovered-token",
 		"GTAGENT_ADMIN_PASSWORD": "recovered-pw", "GTAGENT_SERVER_NAME": "Ashenfall",
@@ -197,7 +197,7 @@ func TestIlmariDiscoverAndAdoptMapPorts(t *testing.T) {
 	}
 	// Exactly two: the wizard-named container and the hand-deployed stack
 	// running this console's agent image. The foreign otheragent-* row and
-	// the prefix lookalike never appear — a shared Ilmari host serves
+	// the prefix lookalike never appear — a shared Anvil host serves
 	// every console, and the adapter keeps only its own family.
 	names := map[string]bool{}
 	for _, d := range found {
@@ -231,11 +231,11 @@ func TestIlmariDiscoverAndAdoptMapPorts(t *testing.T) {
 	}
 }
 
-// The legacy provisioner container is discoverable under Ilmari (flameagent
+// The legacy provisioner container is discoverable under Anvil (flameagent
 // image, no labels) but must not be adoptable as a game server — the old
 // provisioner filtered it out of discovery; the refusal now lives here.
-func TestIlmariAdoptRefusesAProvisionerContainer(t *testing.T) {
-	f, p := newFakeIlmari(t)
+func TestAnvilAdoptRefusesAProvisionerContainer(t *testing.T) {
+	f, p := newFakeAnvil(t)
 	f.adoptEnv = map[string]string{"GTAGENT_MODE": "provisioner", "GTAGENT_TOKEN": "x"}
 
 	_, err := p.Adopt(context.Background(), "wkprovisioner")

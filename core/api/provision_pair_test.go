@@ -5,15 +5,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/store"
 )
 
 func pairHealth() *agentctl.Health {
 	return &agentctl.Health{
-		Agent: "ilmari", Mode: "provisioner",
+		Agent: "anvil", Mode: "provisioner",
 		Provision: &agent.ProvisionDefaults{
 			DataRoot: "/data", PublicHost: "10.99.0.5", RunAs: "568:568", ImageTag: "latest",
 		},

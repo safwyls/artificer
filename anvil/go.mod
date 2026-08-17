@@ -1,4 +1,4 @@
-module github.com/safwyls/ilmari
+module github.com/safwyls/anvil
 
 go 1.26
 

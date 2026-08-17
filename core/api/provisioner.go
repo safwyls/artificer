@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/ilmariclient"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/anvilclient"
 )
 
 // Provisioner is what the API layer needs from whatever places containers
-// on the host. Exactly one implementation exists — Ilmari, the shared host
+// on the host. Exactly one implementation exists — Anvil, the shared host
 // service — but the seam stays an interface: tests fake it, and the wizard
-// speaks these shapes rather than Ilmari's wire types.
+// speaks these shapes rather than Anvil's wire types.
 type Provisioner interface {
 	BaseURL() string
 	Health(ctx context.Context) (*agentctl.Health, error)
@@ -25,29 +25,29 @@ type Provisioner interface {
 }
 
 // Interface satisfaction is a compile-time fact, not a hope.
-var _ Provisioner = (*IlmariProvisioner)(nil)
+var _ Provisioner = (*AnvilProvisioner)(nil)
 
-// IlmariProvisioner adapts the Ilmari host service to the Provisioner
+// AnvilProvisioner adapts the Anvil host service to the Provisioner
 // interface.
 //
 // The game knowledge that used to live in each agent's provisioner mode
 // lives in the ProvisionProfile this adapter carries: which env vars
 // configure the sidecar, which ports the game claims, which image family
-// to deploy. Ilmari itself knows none of it — that is the contract — so
+// to deploy. Anvil itself knows none of it — that is the contract — so
 // anything game-shaped in a provisioning flow belongs in the profile and
 // nowhere further down. (The stale note this comment once carried about
 // "a Dragonwilds sidecar" in an Enshrouded console was drift-ledger
 // evidence; it dies with the parameterization.)
-type IlmariProvisioner struct {
-	c *ilmariclient.Client
+type AnvilProvisioner struct {
+	c *anvilclient.Client
 	p *ProvisionProfile
 }
 
-func NewIlmariProvisioner(c *ilmariclient.Client, p *ProvisionProfile) *IlmariProvisioner {
-	return &IlmariProvisioner{c: c, p: p}
+func NewAnvilProvisioner(c *anvilclient.Client, p *ProvisionProfile) *AnvilProvisioner {
+	return &AnvilProvisioner{c: c, p: p}
 }
 
-func (p *IlmariProvisioner) BaseURL() string { return p.c.BaseURL() }
+func (p *AnvilProvisioner) BaseURL() string { return p.c.BaseURL() }
 
 // ours reports whether a container belongs to this console's agent
 // family: named by the wizard's convention, or running this console's
@@ -56,7 +56,7 @@ func (p *IlmariProvisioner) BaseURL() string { return p.c.BaseURL() }
 // TrueNAS app, not the wizard, and the legacy consoles discovered by
 // image for exactly that reason. Cross-console isolation holds either
 // way: another console's agent runs a different image family.
-func (p *IlmariProvisioner) ours(name, image string) bool {
+func (p *AnvilProvisioner) ours(name, image string) bool {
 	if strings.HasPrefix(name, p.p.AgentName+"-") {
 		return true
 	}
@@ -68,10 +68,10 @@ func (p *IlmariProvisioner) ours(name, image string) bool {
 // protocol's, not a game's: every sidecar agent serves its API on 8811.
 const agentContainerPort = 8811
 
-// adminPortMaps renders the named TCP admin transports as Ilmari
+// adminPortMaps renders the named TCP admin transports as Anvil
 // mappings.
-func adminPortMaps(p *ProvisionProfile, req agent.ProvisionRequest) []ilmariclient.PortMap {
-	out := make([]ilmariclient.PortMap, 0, len(p.AdminPorts))
+func adminPortMaps(p *ProvisionProfile, req agent.ProvisionRequest) []anvilclient.PortMap {
+	out := make([]anvilclient.PortMap, 0, len(p.AdminPorts))
 	for _, ap := range p.AdminPorts {
 		host := 0
 		switch ap.Key {
@@ -81,33 +81,33 @@ func adminPortMaps(p *ProvisionProfile, req agent.ProvisionRequest) []ilmariclie
 			host = req.RCONPort
 		}
 		if host != 0 {
-			out = append(out, ilmariclient.PortMap{Host: host, Container: ap.Container, Proto: "tcp"})
+			out = append(out, anvilclient.PortMap{Host: host, Container: ap.Container, Proto: "tcp"})
 		}
 	}
 	return out
 }
 
-// gamePortMaps renders the game's contiguous port run as Ilmari mappings.
-func gamePortMaps(p *ProvisionProfile, gamePort int) []ilmariclient.PortMap {
-	out := make([]ilmariclient.PortMap, 0, p.portCount())
+// gamePortMaps renders the game's contiguous port run as Anvil mappings.
+func gamePortMaps(p *ProvisionProfile, gamePort int) []anvilclient.PortMap {
+	out := make([]anvilclient.PortMap, 0, p.portCount())
 	for i := 0; i < p.portCount(); i++ {
-		out = append(out, ilmariclient.PortMap{Host: gamePort + i, Container: p.DefaultGamePort + i, Proto: "udp"})
+		out = append(out, anvilclient.PortMap{Host: gamePort + i, Container: p.DefaultGamePort + i, Proto: "udp"})
 	}
 	return out
 }
 
-// Health synthesizes the legacy health shape from Ilmari's. The wizard
+// Health synthesizes the legacy health shape from Anvil's. The wizard
 // reads Provision.DataRoot to place data directories and PublicHost to
-// prefill the join address; both come straight from this console's Ilmari
-// registration. ImageTag has no Ilmari-side counterpart — the channel is
+// prefill the join address; both come straight from this console's Anvil
+// registration. ImageTag has no Anvil-side counterpart — the channel is
 // the console's own default.
-func (p *IlmariProvisioner) Health(ctx context.Context) (*agentctl.Health, error) {
+func (p *AnvilProvisioner) Health(ctx context.Context) (*agentctl.Health, error) {
 	h, err := p.c.Health(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &agentctl.Health{
-		Agent:      "ilmari",
+		Agent:      "anvil",
 		Version:    h.Version,
 		APIVersion: agent.APIVersion,
 		Mode:       "provisioner",
@@ -120,10 +120,10 @@ func (p *IlmariProvisioner) Health(ctx context.Context) (*agentctl.Health, error
 	}, nil
 }
 
-// Provision translates the game-shaped request into Ilmari's spec — the
+// Provision translates the game-shaped request into Anvil's spec — the
 // same assembly flameagent's own handler performs, kept in step with it until
 // that handler is retired.
-func (p *IlmariProvisioner) Provision(ctx context.Context, req agent.ProvisionRequest) (*agentctl.ProvisionResult, error) {
+func (p *AnvilProvisioner) Provision(ctx context.Context, req agent.ProvisionRequest) (*agentctl.ProvisionResult, error) {
 	env := map[string]string{
 		"HOME":                            "/tmp",
 		p.p.EnvPrefix + "_MODE":           "supervisor",
@@ -149,14 +149,14 @@ func (p *IlmariProvisioner) Provision(ctx context.Context, req agent.ProvisionRe
 	if tag == "" {
 		tag = "latest"
 	}
-	res, err := p.c.Provision(ctx, ilmariclient.Spec{
+	res, err := p.c.Provision(ctx, anvilclient.Spec{
 		Name:  p.p.AgentName + "-" + req.Slug,
 		Slug:  req.Slug,
 		Image: p.p.ImageRepo + ":" + tag,
 		User:  req.RunAs,
 		Env:   env,
 		Ports: append(append(gamePortMaps(p.p, req.GamePort), adminPortMaps(p.p, req)...),
-			ilmariclient.PortMap{Host: req.AgentPort, Container: agentContainerPort, Proto: "tcp"}),
+			anvilclient.PortMap{Host: req.AgentPort, Container: agentContainerPort, Proto: "tcp"}),
 		DataMount: p.p.MountPath,
 	})
 	if err != nil {
@@ -165,20 +165,20 @@ func (p *IlmariProvisioner) Provision(ctx context.Context, req agent.ProvisionRe
 	return &agentctl.ProvisionResult{Container: res.Container, DataDir: res.DataDir}, nil
 }
 
-// Discover maps Ilmari's candidates into the legacy shape. Mode is honest
-// emptiness: Ilmari does not read container environments for discovery, so
+// Discover maps Anvil's candidates into the legacy shape. Mode is honest
+// emptiness: Anvil does not read container environments for discovery, so
 // unlike the old provisioner it cannot say supervisor/companion — and it
 // cannot filter out a still-running legacy provisioner container either,
 // which will appear in the list until Phase 4 removes it. Adopt refuses it
 // with a clear message if selected.
-func (p *IlmariProvisioner) Discover(ctx context.Context) ([]agentctl.DiscoveredServer, error) {
+func (p *AnvilProvisioner) Discover(ctx context.Context) ([]agentctl.DiscoveredServer, error) {
 	found, err := p.c.Discover(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]agentctl.DiscoveredServer, 0, len(found))
 	for _, f := range found {
-		// Ilmari sees every console's containers on the host and cannot
+		// Anvil sees every console's containers on the host and cannot
 		// tell them apart — that is its contract. The adapter can: only
 		// this console's agent family belongs in its discovery list, or
 		// wildskeeper offers to adopt flametender's servers (and a
@@ -204,10 +204,10 @@ func (p *IlmariProvisioner) Discover(ctx context.Context) ([]agentctl.Discovered
 	return out, nil
 }
 
-// Adopt recovers a registration from the env Ilmari returns — already
+// Adopt recovers a registration from the env Anvil returns — already
 // filtered to this console's registered env prefix, so reading it here
 // is reading our own writes back.
-func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agentctl.AdoptResult, error) {
+func (p *AnvilProvisioner) Adopt(ctx context.Context, container string) (*agentctl.AdoptResult, error) {
 	a, err := p.c.Adopt(ctx, container)
 	if err != nil {
 		return nil, err
@@ -222,9 +222,9 @@ func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agent
 	if mode == "provisioner" {
 		// The legacy provisioner container is discoverable (it runs the
 		// agent image, unlabelled) but is not a game server. The old
-		// provisioner filtered it out of discovery; Ilmari cannot, so the
+		// provisioner filtered it out of discovery; Anvil cannot, so the
 		// refusal lands here instead.
-		return nil, fmt.Errorf("%s is a provisioner, not a game server — it is retired in the last step of the Ilmari migration", container)
+		return nil, fmt.Errorf("%s is a provisioner, not a game server — it is retired in the last step of the Anvil migration", container)
 	}
 	res := &agentctl.AdoptResult{
 		Name:          a.Name,
@@ -244,7 +244,7 @@ func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agent
 	return res, nil
 }
 
-func (p *IlmariProvisioner) RecreateAgent(ctx context.Context, container, imageTag string) (*agent.RecreateResult, error) {
+func (p *AnvilProvisioner) RecreateAgent(ctx context.Context, container, imageTag string) (*agent.RecreateResult, error) {
 	res, err := p.c.Recreate(ctx, container, p.p.ImageRepo+":"+imageTag)
 	if err != nil {
 		return nil, err
@@ -252,7 +252,7 @@ func (p *IlmariProvisioner) RecreateAgent(ctx context.Context, container, imageT
 	return &agent.RecreateResult{Container: res.Container, Image: res.Image, Previous: res.Previous}, nil
 }
 
-func (p *IlmariProvisioner) Destroy(ctx context.Context, container string) (*agentctl.DestroyResult, error) {
+func (p *AnvilProvisioner) Destroy(ctx context.Context, container string) (*agentctl.DestroyResult, error) {
 	res, err := p.c.Destroy(ctx, container)
 	if err != nil {
 		return nil, err
@@ -262,7 +262,7 @@ func (p *IlmariProvisioner) Destroy(ctx context.Context, container string) (*age
 
 // hostPortFor finds the published host port for a container-side port, the
 // way the old provisioner read its well-known ports.
-func hostPortFor(ports []ilmariclient.PortMap, containerPort int, proto string) int {
+func hostPortFor(ports []anvilclient.PortMap, containerPort int, proto string) int {
 	for _, p := range ports {
 		if p.Container == containerPort && (p.Proto == proto || p.Proto == "") {
 			return p.Host

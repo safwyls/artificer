@@ -11,8 +11,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/safwyls/sampo/core/cfaccess"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/cfaccess"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // defaultSessionCookie names the session cookie when the console doesn't

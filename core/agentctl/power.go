@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
+	"github.com/safwyls/artificer/core/agent"
 )
 
 // GameStatus mirrors the agent's wire type, like Job and Health.
@@ -48,9 +48,9 @@ func (c *Client) GameLogs(ctx context.Context, tail int) ([]string, error) {
 }
 
 // The provisioning wire vocabulary, re-exported so the console's
-// provisioning code (the wizard, the Ilmari adapter) speaks one set of
+// provisioning code (the wizard, the Anvil adapter) speaks one set of
 // names. The HTTP methods that used to drive a provisioner-mode agent are
-// gone with that mode — Ilmari is the only placer of containers now.
+// gone with that mode — Anvil is the only placer of containers now.
 
 // ProvisionResult reports what provisioning created.
 type ProvisionResult struct {

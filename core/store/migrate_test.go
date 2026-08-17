@@ -5,13 +5,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/safwyls/sampo/core/crypto"
-	"github.com/safwyls/sampo/core/db"
-	"github.com/safwyls/sampo/core/game"
+	"github.com/safwyls/artificer/core/crypto"
+	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/game"
 
 	// Registers the games, so the definition lookups below resolve for real
 	// instead of skipping.
-	_ "github.com/safwyls/sampo/core/game/gametest"
+	_ "github.com/safwyls/artificer/core/game/gametest"
 )
 
 // Existing installs upgrade in place, and a server row that predates the game

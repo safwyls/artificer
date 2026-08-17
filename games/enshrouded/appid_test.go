@@ -3,8 +3,8 @@ package enshrouded_test
 import (
 	"testing"
 
-	"github.com/safwyls/sampo/games/enshrouded"
-	"github.com/safwyls/sampo/games/enshrouded/esagent"
+	"github.com/safwyls/artificer/games/enshrouded"
+	"github.com/safwyls/artificer/games/enshrouded/esagent"
 )
 
 // The app id is deliberately spelled twice — the console-side game

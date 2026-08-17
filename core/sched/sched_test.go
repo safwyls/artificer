@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // mustTime parses a local wall-clock time for test fixtures.

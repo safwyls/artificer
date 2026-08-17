@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deploy on TrueNAS Scale — Sampo docs</title>
+<title>Deploy on TrueNAS Scale — Artificer docs</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
-<meta name="description" content="The reference setup: datasets, Custom Apps, Ilmari, and the ownership rules that decide whether installs work.">
+<meta name="description" content="The reference setup: datasets, Custom Apps, Anvil, and the ownership rules that decide whether installs work.">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Deploy on TrueNAS Scale — Sampo docs">
-<meta property="og:description" content="The reference setup: datasets, Custom Apps, Ilmari, and the ownership rules that decide whether installs work.">
+<meta property="og:title" content="Deploy on TrueNAS Scale — Artificer docs">
+<meta property="og:description" content="The reference setup: datasets, Custom Apps, Anvil, and the ownership rules that decide whether installs work.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -18,15 +18,15 @@
 <a class="skip-link" href="#content">Skip to content</a>
 <header class="nav">
   <div class="nav-inner">
-    <a class="brand" href="../index.html" aria-label="Sampo home">
+    <a class="brand" href="../index.html" aria-label="Artificer home">
       <span class="mark" aria-hidden="true"><i></i></span>
-      <span class="wordmark">sampo</span>
+      <span class="wordmark">artificer</span>
       <span class="crumb-docs">docs</span>
     </a>
     <nav class="nav-links" aria-label="Site">
       <a class="hide-sm" href="../index.html#consoles">Consoles</a>
       <a class="hide-sm" href="../index.html#deploy">Deploy</a>
-      <a class="nav-gh" href="https://github.com/safwyls/sampo"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
+      <a class="nav-gh" href="https://github.com/safwyls/artificer"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
     </nav>
   </div>
 </header>
@@ -46,7 +46,7 @@
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
   <ul>
     <li><a href="architecture.html">Architecture</a></li>
-    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
   </ul>
 </div><div class="side-cat">
@@ -74,7 +74,7 @@
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
   <ul>
     <li><a href="architecture.html">Architecture</a></li>
-    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
   </ul>
 </div><div class="side-cat">
@@ -91,8 +91,8 @@
   <main class="doc" id="content">
     <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Getting started <span>/</span> Deploy on TrueNAS Scale</p>
     <h1>Deploy on TrueNAS Scale</h1>
-<p class="lead">This is the setup Sampo is developed against. You will create two or three datasets,
-deploy Ilmari once, deploy one console per game, and raise servers from the dashboard. Nothing here
+<p class="lead">This is the setup Artificer is developed against. You will create two or three datasets,
+deploy Anvil once, deploy one console per game, and raise servers from the dashboard. Nothing here
 needs the shell except one <code>chown</code>, and even that is avoidable if you get the dataset
 permissions right the first time.</p>
 
@@ -122,34 +122,34 @@ cannot be written. SteamCMD does not report that as an error — it exits succes
 installed nothing, and the only symptom you ever see is a server refusing to start because "the
 game is not installed". If that happens, this is why.</p></div>
 
-<h2 id="ilmari">3. Deploy Ilmari</h2>
+<h2 id="anvil">3. Deploy Anvil</h2>
 <p>One per host, shared by every console. In <b>Apps → Discover Apps → Custom App</b>, choose
 <b>Install via YAML</b> and paste:</p>
 <div class="code-card" data-copy>
-<div class="code-head"><span>Custom App — ilmari</span><button class="copy-btn">Copy</button></div>
+<div class="code-head"><span>Custom App — anvil</span><button class="copy-btn">Copy</button></div>
 <pre><span class="k">services</span>:
-  <span class="k">ilmari</span>:
-    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/ilmari:latest</span>
+  <span class="k">anvil</span>:
+    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/anvil:latest</span>
     <span class="k">pull_policy</span>: <span class="v">always</span>
     <span class="k">ports</span>:
       - <span class="v">8820:8820</span>
     <span class="k">environment</span>:
-      <span class="k">ILMARI_CLIENTS</span>: <span class="v">'[{"id":"palcon","token":"&lt;32+ random chars&gt;",
+      <span class="k">ANVIL_CLIENTS</span>: <span class="v">'[{"id":"palcon","token":"&lt;32+ random chars&gt;",
         "dataRoot":"/mnt/tank/apps/palcon-servers","envPrefix":"PALAGENT_"}]'</span>
-      <span class="k">ILMARI_PUBLIC_HOST</span>: <span class="v">192.168.1.9</span>    <span class="c"># this box's LAN IP</span>
-      <span class="k">ILMARI_DEFAULT_RUN_AS</span>: <span class="v">"568:568"</span>
+      <span class="k">ANVIL_PUBLIC_HOST</span>: <span class="v">192.168.1.9</span>    <span class="c"># this box's LAN IP</span>
+      <span class="k">ANVIL_DEFAULT_RUN_AS</span>: <span class="v">"568:568"</span>
     <span class="k">volumes</span>:
       - <span class="v">/var/run/docker.sock:/var/run/docker.sock</span>
       <span class="c"># Each dataRoot, mounted at the exact path it is registered as.</span>
       - <span class="v">/mnt/tank/apps/palcon-servers:/mnt/tank/apps/palcon-servers</span>
     <span class="k">restart</span>: <span class="v">unless-stopped</span></pre>
 </div>
-<div class="callout danger"><p><b>The data root mount is mandatory.</b> Ilmari creates and chowns
+<div class="callout danger"><p><b>The data root mount is mandatory.</b> Anvil creates and chowns
 each server's directory itself. Without the mount it does that inside its own container, Docker
 creates the real directory on the host as <code>root</code>, and you land in exactly the failure
 described in step 2. Add one mount line per data root, and add a new one whenever you register
 another console.</p></div>
-<p>Ilmari runs as root — it holds the Docker socket, and it has to be able to chown directories to
+<p>Anvil runs as root — it holds the Docker socket, and it has to be able to chown directories to
 the <code>apps</code> user. Do not add a <code>user:</code> line to this app.</p>
 
 <h2 id="console">4. Deploy a console</h2>
@@ -170,9 +170,9 @@ nothing else changes.</p>
       <span class="k">ENCRYPTION_KEY</span>: <span class="v">&lt;exactly 32 characters&gt;</span>
       <span class="k">ADMIN_USERNAME</span>: <span class="v">admin</span>
       <span class="k">ADMIN_PASSWORD</span>: <span class="v">&lt;your first-login password&gt;</span>
-      <span class="c"># One-click provisioning. Same token as the ILMARI_CLIENTS entry.</span>
-      <span class="k">ILMARI_URL</span>: <span class="v">http://192.168.1.9:8820</span>
-      <span class="k">ILMARI_TOKEN</span>: <span class="v">&lt;32+ random chars&gt;</span>
+      <span class="c"># One-click provisioning. Same token as the ANVIL_CLIENTS entry.</span>
+      <span class="k">ANVIL_URL</span>: <span class="v">http://192.168.1.9:8820</span>
+      <span class="k">ANVIL_TOKEN</span>: <span class="v">&lt;32+ random chars&gt;</span>
     <span class="k">volumes</span>:
       - <span class="v">/mnt/tank/apps/palcon:/data</span>
     <span class="k">restart</span>: <span class="v">unless-stopped</span></pre>
@@ -196,10 +196,10 @@ account, and leaving a password in an app spec is worth avoiding.</p>
 
 <h2 id="raise">6. Raise your first server</h2>
 <p>Press <b>+</b> in the rail and choose <b>Provision a new server</b>. The wizard prefills the host
-and the data root from Ilmari, and proposes ports that avoid both existing rows and containers
+and the data root from Anvil, and proposes ports that avoid both existing rows and containers
 already on the host. See <a href="first-server.html">Your first server</a> for what each field
 does.</p>
-<p>Ilmari creates the container, the agent installs the game, and the card shows progress. A first
+<p>Anvil creates the container, the agent installs the game, and the card shows progress. A first
 Palworld install is roughly 5&nbsp;GB and takes a few minutes.</p>
 
 <h2 id="ports">7. Ports and collisions</h2>
@@ -214,7 +214,7 @@ must not collide with each other or with anything else on the box.</p>
     <tr><td>Enshrouded</td><td><code>15637/udp</code> game and query, <code>8811</code> agent</td></tr>
   </tbody>
 </table>
-<p>The wizard's port proposal handles this for you when it can see the host through Ilmari. If you
+<p>The wizard's port proposal handles this for you when it can see the host through Anvil. If you
 run two servers of the same game, the second gets a different published set automatically.</p>
 <div class="callout warn"><p>The agent port must be published, even though only the console talks to
 it. A container without it can be discovered but never adopted — there is no address to reach its
@@ -226,7 +226,7 @@ Access in front of it, the console can accept that sign-in instead of its own pa
 <code>CF_ACCESS_TEAM_DOMAIN</code>, <code>CF_ACCESS_AUD</code> and
 <code>CF_ACCESS_ADMIN_EMAILS</code>. Password login stays available either way.</p>
 <p>Set <code>COOKIE_SECURE=true</code> once the console is only reachable over HTTPS.</p>
-<div class="callout warn"><p>Do not expose Ilmari. It holds the Docker socket and only consoles on
+<div class="callout warn"><p>Do not expose Anvil. It holds the Docker socket and only consoles on
 the same host need to reach it. If your consoles run on the same box, its port never has to leave
 the LAN at all.</p></div>
 
@@ -234,7 +234,7 @@ the LAN at all.</p></div>
 <p>With <code>pull_policy: always</code>, redeploying an app in the TrueNAS UI pulls the new image
 and restarts it. TrueNAS will not repull a tag it already has on its own, so an app that looks
 unchanged after a release usually just needs an explicit update.</p>
-<p>Agents update separately, from the console's agent-image action — the console asks Ilmari to
+<p>Agents update separately, from the console's agent-image action — the console asks Anvil to
 recreate that container on a new tag, keeping its ports, volume and environment. The game install
 and world are on the volume, so nothing is re-downloaded.</p>
 <nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="introduction.html"><small>← Previous</small><b>Introduction</b></a><a class="pager-card next" href="deploy-docker.html"><small>Next →</small><b>Deploy with Docker</b></a></nav>
@@ -242,10 +242,10 @@ and world are on the volume, so nothing is re-downloaded.</p>
 </div>
 <footer class="doc-footer">
   <div class="wrap-doc">
-    <p>Sampo is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
+    <p>Artificer is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
     © Jagex Ltd. Enshrouded is © Keen Games GmbH. No affiliation or endorsement is implied.</p>
-    <p><a href="https://github.com/safwyls/sampo">GitHub</a> ·
-       <a href="https://github.com/safwyls/sampo/issues">Issues</a> ·
+    <p><a href="https://github.com/safwyls/artificer">GitHub</a> ·
+       <a href="https://github.com/safwyls/artificer/issues">Issues</a> ·
        <a href="../index.html">Homepage</a></p>
   </div>
 </footer>

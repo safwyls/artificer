@@ -11,9 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/dockerctl"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/dockerctl"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // containerFor resolves the server's configured docker container,

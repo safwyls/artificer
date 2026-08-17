@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/safwyls/ilmari/internal/dockerctl"
+	"github.com/safwyls/anvil/internal/dockerctl"
 )
 
 // placeError carries the status a failed placement should answer with, so
@@ -312,7 +312,7 @@ func (s *Service) handleDestroy(w http.ResponseWriter, r *http.Request) {
 // error means the response has already been written.
 //
 // The two refusals are deliberately different messages: "not created by
-// Ilmari" points at wherever the container is actually managed, while
+// Anvil" points at wherever the container is actually managed, while
 // "belongs to a different console" names the real problem without letting
 // one console act across the boundary. What a foreign container never gets
 // is silently treated as fair game.
@@ -329,7 +329,7 @@ func (s *Service) findOwned(ctx context.Context, name string, c *client, w http.
 		owner, _, ok := ownerOf(containers[i].Labels)
 		if !ok {
 			writeError(w, http.StatusBadRequest,
-				"that container was not created by Ilmari — manage it wherever it was deployed")
+				"that container was not created by Anvil — manage it wherever it was deployed")
 			return nil, nil
 		}
 		if owner != c.ID {
@@ -347,7 +347,7 @@ type ManagedContainer struct {
 	Name    string `json:"name"`
 	Image   string `json:"image"`
 	Running bool   `json:"running"`
-	// Managed reports whether Ilmari made it; Mine whether the calling
+	// Managed reports whether Anvil made it; Mine whether the calling
 	// console may act on it. Unmanaged and foreign containers are still
 	// listed — they hold ports and disk, and leaving them out is how a
 	// console ends up proposing a port something else already has — but
@@ -364,7 +364,7 @@ type ManagedContainer struct {
 //
 // Deliberately everything: the reason this service exists is that two
 // consoles could not see past their own containers, and a view that only
-// showed Ilmari's would reproduce exactly that blindness one level up.
+// showed Anvil's would reproduce exactly that blindness one level up.
 // Nothing about a container's configuration is included — env carries
 // tokens and passwords, and a fleet view is not worth leaking them for.
 // (Adopt is the one deliberate exception, scoped to the caller's own env

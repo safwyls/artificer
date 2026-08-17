@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
+	"github.com/safwyls/artificer/core/agent"
 )
 
 const defaultsIni = `[/Script/Pal.PalGameWorldSettings]

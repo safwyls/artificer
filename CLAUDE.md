@@ -1,17 +1,17 @@
-# Sampo (monorepo)
+# Artificer (monorepo)
 
 Unifies the three game consoles — palcon (Palworld), wildskeeper
-(Dragonwilds), flametender (Enshrouded) — and ilmari, the host
+(Dragonwilds), flametender (Enshrouded) — and anvil, the host
 provisioning service. **`docs/unification-plan.md` is the plan of
 record; read it before structural work.** `docs/drift-ledger.md` holds
 the per-file reconciliation decisions that Phase 2 executes.
 
 Current state: **Phase 2 in progress**. `core/` is the extracted
-console framework (root module `github.com/safwyls/sampo`), taken from
+console framework (root module `github.com/safwyls/artificer`), taken from
 flametender's shared layer with the game-shaped hardcodes replaced by
 seams: `game.ConfigCodec` on the Definition, `OfflineConfigWork` in
 api/sched (banqueue generalized), `api.ProvisionProfile` for the
-wizard/Ilmari adapter, neutral `agentctl.Query*` types, per-console
+wizard/Anvil adapter, neutral `agentctl.Query*` types, per-console
 `DefaultID` and session-cookie name. The gate holds: core builds and
 passes its full suite with only `game/gametest` registered. The four
 old repos remain imported at repo-name prefixes and still build
@@ -46,7 +46,7 @@ provision_trio tests) and the runtime identity gained ServerDesc,
 `web/palcon` (Cloudflare Access SSO ported in), and image publishing
 on the :main channel. Gate: docs/palcon-port-verification.md — note
 the one behavior change: the legacy provisioner-mode agent is retired;
-provisioning is Ilmari-only (`PROVISIONER_URL` → `ILMARI_URL`; the doc
+provisioning is Anvil-only (`PROVISIONER_URL` → `ANVIL_URL`; the doc
 has the migration).
 
 Rules already in force (see the plan's "Structural rules"):
@@ -55,9 +55,9 @@ Rules already in force (see the plan's "Structural rules"):
   console trees. Bug fixes are allowed but must update their file's row
   in `docs/drift-ledger.md` the same day.
 - **Dependency rules**, enforced by `scripts/checkbounds.sh` in CI:
-  production code never imports `gametest`; ilmari never imports
+  production code never imports `gametest`; anvil never imports
   console or game code. Post-restructure rules (core ✗→ games, games
-  ✗→ each other, dockerctl only under ilmari/) are listed there and
+  ✗→ each other, dockerctl only under anvil/) are listed there and
   activate in Phase 2.
 - The old repos are frozen-then-archived as each console's port is
   verified against a real server (plan, Phases 3–5). Image names, env

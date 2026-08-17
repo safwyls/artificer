@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/advisor"
+	"github.com/safwyls/artificer/core/advisor"
 )
 
 // fakeAdvisor answers without a network, recording what the handler passed.

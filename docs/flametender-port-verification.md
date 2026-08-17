@@ -55,8 +55,8 @@ Backups & saves
 - [ ] An induced failure (briefly misconfigure the save path) surfaces
       `lastFailure` in the UI instead of failing silently.
 
-Provisioning (Ilmari)
-- [ ] Wizard defaults prefill from Ilmari; raise a throwaway server
+Provisioning (Anvil)
+- [ ] Wizard defaults prefill from Anvil; raise a throwaway server
       end to end; join it once; destroy it (world dir must survive the
       destroy, per the DestroyResult contract).
 - [ ] Discover/adopt still lists and adopts.

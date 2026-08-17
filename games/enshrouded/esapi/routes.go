@@ -12,10 +12,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/store"
-	"github.com/safwyls/sampo/games/enshrouded/banqueue"
-	"github.com/safwyls/sampo/games/enshrouded/esconfig"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/store"
+	"github.com/safwyls/artificer/games/enshrouded/banqueue"
+	"github.com/safwyls/artificer/games/enshrouded/esconfig"
 )
 
 // Mount builds Enshrouded's contributed per-server routes for

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/games/palworld/rcon"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/games/palworld/rcon"
 )
 
 // RCONClient is Palworld's command vocabulary on top of the generic Source

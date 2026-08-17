@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/core/agentctl"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/core/agentctl"
 )
 
 // AgentClient extends the core agent client with the dwbridge verbs.

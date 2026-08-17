@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/sampo/core/savecache"
+	"github.com/safwyls/artificer/core/savecache"
 )
 
 //go:embed extract_pals.py

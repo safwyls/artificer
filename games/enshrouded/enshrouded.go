@@ -19,8 +19,8 @@ package enshrouded
 import (
 	"strings"
 
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/games/enshrouded/esconfig"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/games/enshrouded/esconfig"
 )
 
 // AppID is the Steam app id of the *dedicated server* tool (the game

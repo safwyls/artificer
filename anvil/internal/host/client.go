@@ -145,6 +145,14 @@ func ownerOf(labels map[string]string) (owner, slug string, ok bool) {
 	if labels[LabelManaged] == "true" {
 		return labels[LabelOwner], labels[LabelSlug], true
 	}
+	// Containers this service made under its former name (ilmari) carry the
+	// old label namespace. Recognising them keeps a live host's managed
+	// servers from being orphaned when the service is renamed — the same
+	// courtesy the per-console legacy labels below already get. New
+	// containers get anvil.* above; these are only ever read, never written.
+	if labels["ilmari.managed"] == "true" {
+		return labels["ilmari.owner"], labels["ilmari.slug"], true
+	}
 	for i, key := range legacyManagedLabels {
 		if labels[key] == "true" {
 			return legacyOwners[i], labels[legacySlugLabels[i]], true

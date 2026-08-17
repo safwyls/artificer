@@ -35,15 +35,15 @@ type Config struct {
 	// Flametender should never require access to a docker socket to run.
 	DockerHost string
 
-	// IlmariURL/Token point at the shared Ilmari host service
-	// (github.com/safwyls/ilmari) — the only component with Docker rights,
+	// AnvilURL/Token point at the shared Anvil host service
+	// (github.com/safwyls/anvil) — the only component with Docker rights,
 	// and this console's only way to place containers. Empty means the
 	// Raise-a-server wizard is absent and servers are registered by hand.
-	IlmariURL   string
-	IlmariToken string
+	AnvilURL   string
+	AnvilToken string
 
 	// ProvisionerURL/Token point at a legacy provisioner-mode agent — the
-	// pre-Ilmari path palcon and wildskeeper deployments still run until
+	// pre-Anvil path palcon and wildskeeper deployments still run until
 	// their ports complete. Empty means no legacy provisioner; new
 	// consoles never set these.
 	ProvisionerURL   string
@@ -93,10 +93,10 @@ func Load() (*Config, error) {
 		AdminUsername: getEnv("ADMIN_USERNAME", "admin"),
 		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
 		DockerHost:    os.Getenv("DOCKER_HOST"),
-		// One-click provisioning rides the shared Ilmari host service;
+		// One-click provisioning rides the shared Anvil host service;
 		// when unset, the new-server wizard is simply absent.
-		IlmariURL:   os.Getenv("ILMARI_URL"),
-		IlmariToken: os.Getenv("ILMARI_TOKEN"),
+		AnvilURL:   os.Getenv("ANVIL_URL"),
+		AnvilToken: os.Getenv("ANVIL_TOKEN"),
 
 		ProvisionerURL:   os.Getenv("PROVISIONER_URL"),
 		ProvisionerToken: os.Getenv("PROVISIONER_TOKEN"),

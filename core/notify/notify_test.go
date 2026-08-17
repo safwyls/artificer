@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/crypto"
-	"github.com/safwyls/sampo/core/db"
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/crypto"
+	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // discordSpy stands in for the incoming webhook, capturing the payloads

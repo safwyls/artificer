@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/crypto"
-	"github.com/safwyls/sampo/core/db"
-	"github.com/safwyls/sampo/core/game/gametest"
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/crypto"
+	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/game/gametest"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/store"
 
-	_ "github.com/safwyls/sampo/core/game/gametest"
+	_ "github.com/safwyls/artificer/core/game/gametest"
 )
 
 // palSpy serves the two endpoints a sample touches: the player list (both

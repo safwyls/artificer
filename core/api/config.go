@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // The config codec seam (game.ConfigCodec) keeps the handlers below

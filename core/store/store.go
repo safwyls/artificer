@@ -5,7 +5,7 @@ package store
 import (
 	"database/sql"
 
-	"github.com/safwyls/sampo/core/crypto"
+	"github.com/safwyls/artificer/core/crypto"
 )
 
 type Store struct {

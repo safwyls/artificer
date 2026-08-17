@@ -12,13 +12,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/savecache"
-	"github.com/safwyls/sampo/core/store"
-	"github.com/safwyls/sampo/games/dragonwilds/dwbridge"
-	"github.com/safwyls/sampo/games/dragonwilds/dwsave"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/savecache"
+	"github.com/safwyls/artificer/core/store"
+	"github.com/safwyls/artificer/games/dragonwilds/dwbridge"
+	"github.com/safwyls/artificer/games/dragonwilds/dwsave"
 )
 
 type handlers struct {

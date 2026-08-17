@@ -17,9 +17,9 @@ Repoint the TrueNAS app tags from `:latest` to `:main` (agents to
 Rollback is repointing back.
 
 **Provisioning note (the one behavior change):** legacy provisioner-mode
-agents are retired — the monorepo console provisions through Ilmari
-only (`ILMARI_URL`/`ILMARI_TOKEN`; `PROVISIONER_URL` is no longer
-read). Wildskeeper's deployment already runs Ilmari and adoption was
+agents are retired — the monorepo console provisions through Anvil
+only (`ANVIL_URL`/`ANVIL_TOKEN`; `PROVISIONER_URL` is no longer
+read). Wildskeeper's deployment already runs Anvil and adoption was
 verified 2026-08-15, so this should be a no-op — but confirm the wizard
 still works before anything else, and re-adopt if any server was still
 registered through the legacy path.
@@ -61,7 +61,7 @@ World & saves
 - [ ] Induced backup failure surfaces `lastFailure` in the UI — **new to
       wildskeeper with the port** (flametender's fix, now core's).
 
-Provisioning (Ilmari)
+Provisioning (Anvil)
 - [ ] Wizard defaults prefill; the **port pair** proposal strides by two
       and refuses an agent port inside the pair; ownerId is required
       with the in-game pointer.

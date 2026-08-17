@@ -1,4 +1,4 @@
-// Package host is Ilmari: one service per machine that places, inspects and
+// Package host is Anvil: one service per machine that places, inspects and
 // rebuilds the containers a game console asks for.
 //
 // # Why this exists as its own thing
@@ -15,7 +15,7 @@
 //
 // # What it knows, and what it refuses to know
 //
-// Ilmari knows about containers, images, ports, paths and disk. It does not
+// Anvil knows about containers, images, ports, paths and disk. It does not
 // know what a "world name" is, which game a container runs, or what its
 // settings mean — all of that arrives as data in a ProvisionSpec and is
 // passed through untouched. That is the whole design: a console owns its
@@ -45,7 +45,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/ilmari/internal/dockerctl"
+	"github.com/safwyls/anvil/internal/dockerctl"
 )
 
 // APIVersion lets a console refuse to drive a service it doesn't
@@ -57,21 +57,21 @@ const APIVersion = 1
 // Docker socket, so "someone guessed the token" is not a small event.
 const minTokenLen = 16
 
-// Ownership labels. Every container Ilmari makes carries these, and every
+// Ownership labels. Every container Anvil makes carries these, and every
 // destroy or rebuild checks them before touching anything.
 const (
-	LabelManaged = "ilmari.managed"
-	LabelSlug    = "ilmari.slug"
+	LabelManaged = "anvil.managed"
+	LabelSlug    = "anvil.slug"
 	// LabelOwner records which console placed a container. Enforced, not
 	// advisory: the owner is taken from the caller's token, never from the
 	// request, and every destroy and rebuild requires it to match.
-	LabelOwner = "ilmari.owner"
+	LabelOwner = "anvil.owner"
 )
 
 // legacyManagedLabels are the per-console labels that existed before this
 // service did. Containers carrying them were made by a console's own
 // built-in provisioner and are still ours to manage — recognising them is
-// what lets an existing deployment move to Ilmari without relabelling live
+// what lets an existing deployment move to Anvil without relabelling live
 // containers or, worse, orphaning them. The label also names the console
 // that made the container, so ownership survives the migration too.
 var legacyManagedLabels = []string{"wildskeeper.provisioned", "palcon.provisioned"}
@@ -111,7 +111,7 @@ type Service struct {
 
 func New(cfg Config) (*Service, error) {
 	if len(cfg.Clients) == 0 {
-		return nil, errors.New("at least one client must be registered (ILMARI_CLIENTS / ILMARI_CLIENTS_FILE)")
+		return nil, errors.New("at least one client must be registered (ANVIL_CLIENTS / ANVIL_CLIENTS_FILE)")
 	}
 	if cfg.DockerHost == "" {
 		return nil, errors.New("docker host is required")
@@ -216,7 +216,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 	c := caller(r)
 	_, err := s.docker.ContainerList(r.Context())
 	writeJSON(w, http.StatusOK, Health{
-		Service:              "ilmari",
+		Service:              "anvil",
 		Version:              s.cfg.Version,
 		APIVersion:           APIVersion,
 		Client:               c.ID,

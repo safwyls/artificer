@@ -117,7 +117,7 @@ type Health struct {
 	// supervisor mode, where nothing is launched at all.
 	Launch *LaunchStatus `json:"launch,omitempty"`
 	// Provision carries the wizard defaults. An agent itself never sets
-	// it — it survives in the Health shape because the console's Ilmari
+	// it — it survives in the Health shape because the console's Anvil
 	// adapter synthesizes a Health for the wizard, defaults included.
 	Provision *ProvisionDefaults `json:"provision,omitempty"`
 	// Job is the running job if there is one, else the most recently
@@ -204,8 +204,8 @@ func extraKeys(data []byte, known map[string]bool) map[string]any {
 }
 
 // The provisioning wire vocabulary: the shapes the Raise-a-server wizard
-// and the Ilmari adapter speak to each other. Ilmari itself knows none of
-// it — the adapter translates into Ilmari's spec at the boundary.
+// and the Anvil adapter speak to each other. Anvil itself knows none of
+// it — the adapter translates into Anvil's spec at the boundary.
 
 // ProvisionRequest is everything the wizard collects to raise one server.
 // Every field is data for a fixed template — none of it changes what kind
@@ -280,7 +280,7 @@ type DiscoveredServer struct {
 // existing agent container — including its secrets. Deliberately: the
 // console's own provisioning injected those secrets in the first place,
 // so returning them to the (token-authenticated) control plane stays
-// within the same trust boundary, and Ilmari filters the env to this
+// within the same trust boundary, and Anvil filters the env to this
 // console's registered prefix.
 type AdoptResult struct {
 	Name          string `json:"name"`

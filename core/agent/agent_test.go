@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
+	"github.com/safwyls/artificer/core/agent"
 )
 
 const testToken = "test-token-0123456789abcdef"
@@ -112,7 +112,7 @@ func TestAgentRejectsShortToken(t *testing.T) {
 	}
 }
 
-// Provisioner mode is gone on purpose — placing containers is Ilmari's job
+// Provisioner mode is gone on purpose — placing containers is Anvil's job
 // — so an agent configured with the retired mode must refuse to start
 // rather than silently run as something else.
 func TestAgentRejectsRetiredProvisionerMode(t *testing.T) {

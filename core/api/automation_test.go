@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // createTestServer inserts a server row directly; automation endpoints

@@ -69,5 +69,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=sampo-${{ matrix.image }}${{ matrix.suffix && format('-{0}', matrix.suffix) || '' }}
-          cache-to: type=gha,mode=min,scope=sampo-${{ matrix.image }}${{ matrix.suffix && format('-{0}', matrix.suffix) || '' }}
+          cache-from: type=gha,scope=artificer-${{ matrix.image }}${{ matrix.suffix && format('-{0}', matrix.suffix) || '' }}
+          cache-to: type=gha,mode=min,scope=artificer-${{ matrix.image }}${{ matrix.suffix && format('-{0}', matrix.suffix) || '' }}

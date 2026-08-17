@@ -24,9 +24,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/games/enshrouded/esconfig"
-	"github.com/safwyls/sampo/games/enshrouded/esquery"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/games/enshrouded/esconfig"
+	"github.com/safwyls/artificer/games/enshrouded/esquery"
 )
 
 // AppID is the Enshrouded dedicated-server tool (the game client is

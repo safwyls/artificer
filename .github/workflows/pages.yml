@@ -39,7 +39,7 @@ jobs:
         working-directory: web/palcon
         run: |
           npm ci
-          VITE_DEMO=1 npx vite build --base=/sampo/demo/palcon/ --outDir dist-demo
+          VITE_DEMO=1 npx vite build --base=/artificer/demo/palcon/ --outDir dist-demo
 
       - name: Assemble site + demo
         run: |

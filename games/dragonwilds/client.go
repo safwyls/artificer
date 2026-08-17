@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/games/dragonwilds/dwbridge"
-	"github.com/safwyls/sampo/games/dragonwilds/dwlog"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/games/dragonwilds/dwbridge"
+	"github.com/safwyls/artificer/games/dragonwilds/dwlog"
 )
 
 // errNoAgent is the config-level failure: without a sidecar there is no

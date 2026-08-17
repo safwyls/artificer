@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/sampo/core/dockerctl"
+	"github.com/safwyls/artificer/core/dockerctl"
 )
 
 // dockerSpy records the requests a client makes and answers with canned

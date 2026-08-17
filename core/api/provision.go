@@ -13,16 +13,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // Provisioning ("new server from the dashboard"): the console deliberately
 // holds no docker create rights, so this endpoint does everything short of
 // placing the container — it registers a fully wired server row (host,
 // game port, agent URL + token), generates a supervisor-mode stack file
-// for manual deploys, and, when Ilmari is configured, asks it to place the
+// for manual deploys, and, when Anvil is configured, asks it to place the
 // container now. Everything game-shaped it interpolates comes from the
 // console's ProvisionProfile.
 
@@ -622,7 +622,7 @@ func (s *Server) handleAdoptServer(w http.ResponseWriter, r *http.Request) {
 	// operator hunting through the wrong config.
 	if adopted.Token == "" {
 		writeError(w, http.StatusBadRequest,
-			"the provisioner returned no agent token for that container — adopting through Ilmari, that usually means this console's client registration is missing its envPrefix (\""+
+			"the provisioner returned no agent token for that container — adopting through Anvil, that usually means this console's client registration is missing its envPrefix (\""+
 				s.Provision.EnvPrefix+"_\"), so every variable was filtered out; fix the registration and re-adopt, or add the server manually")
 		return
 	}

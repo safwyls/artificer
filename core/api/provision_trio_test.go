@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // trioProfile is a REST+RCON game (Palworld's shape): one UDP game port

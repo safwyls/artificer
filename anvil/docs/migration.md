@@ -1,7 +1,7 @@
-# Migrating to Ilmari
+# Migrating to Anvil
 
 How to get from "two consoles each running their own provisioner" to "one
-Ilmari per host", without a flag day and without disturbing a running game
+Anvil per host", without a flag day and without disturbing a running game
 server.
 
 Written 2026-08-13, against wildskeeper `aedbae6` and palcon `82aee47`.
@@ -16,9 +16,9 @@ On the TrueNAS box today:
 - **palcon** (console) → its own `palagent` in provisioner mode, with its
   own data root.
 - Both reach Docker through a **tecnativa socket proxy**, not the raw
-  socket. That layer stays — Ilmari inherits it rather than replacing it.
+  socket. That layer stays — Anvil inherits it rather than replacing it.
 - Game server containers were made by those provisioners and carry
-  `wildskeeper.provisioned` / `palcon.provisioned` labels. Ilmari already
+  `wildskeeper.provisioned` / `palcon.provisioned` labels. Anvil already
   recognises both, so adopting it does not orphan anything.
 
 Both provisioner apps *are* TrueNAS apps, so replacing them is an ordinary
@@ -36,10 +36,10 @@ whole reason `recreate` exists.
 **2. One token or two — decided: per-console tokens.** Each console is a
 registered client with its own credential, and ownership is enforced from
 the token rather than recorded as a label: a wildskeeper token cannot act
-on a Palworld server, including ones that predate Ilmari. Generate two
+on a Palworld server, including ones that predate Anvil. Generate two
 tokens (`openssl rand -hex 24` each) before Phase 1.
 
-**3. Port.** Ilmari defaults to **8820**. Check it's free before deploying —
+**3. Port.** Anvil defaults to **8820**. Check it's free before deploying —
 `docker ps` for published ports, or read `/v1/ports` from the existing
 provisioner. (Yes: the collision this service exists to prevent is one it
 can suffer during its own install.)
@@ -48,7 +48,7 @@ can suffer during its own install.)
 
 ## Phase 0 — close the gaps (code only, nothing deployed)
 
-Ilmari cannot serve the consoles yet. Concretely:
+Anvil cannot serve the consoles yet. Concretely:
 
 - [x] **`GET /v1/discover`** — scoped to the caller: its own containers
       (legacy labels included) plus unmanaged ones under its image
@@ -61,21 +61,21 @@ Ilmari cannot serve the consoles yet. Concretely:
       destroy (done 2026-08-13).
 - [x] **Per-console registration** — tokens, data roots and allowlists are
       per client, with ownership enforced from the token (done 2026-08-13).
-- [x] **Deploy artifact** — `deploy/truenas-app.yaml`: Ilmari + its own
+- [x] **Deploy artifact** — `deploy/truenas-app.yaml`: Anvil + its own
       tecnativa socket proxy. Consoles reach it via the published port on
       the host's LAN IP — deliberately not via any console's shared
-      network, which Ilmari must not depend on existing (done 2026-08-13,
+      network, which Anvil must not depend on existing (done 2026-08-13,
       corrected same day: the first cut hard-required `wildskeeper-net`,
       which would fail the deploy on any host without wildskeeper's stack
       and quietly made the neutral service depend on one console).
-- [x] **CI green, `ghcr.io/safwyls/ilmari:latest` published** (verified
+- [x] **CI green, `ghcr.io/safwyls/anvil:latest` published** (verified
       2026-08-13: three runs, all green, docker job publishing on main).
 
-One Phase 0 item moves to Phase 2, where it belongs: the **`ilmariclient`
+One Phase 0 item moves to Phase 2, where it belongs: the **`anvilclient`
 package in each console**. It is console-side code, needed for the
 cut-over, not for deploying the service — Phase 1 is pure curl.
 
-Socket proxy permissions Ilmari needs (tecnativa env flags):
+Socket proxy permissions Anvil needs (tecnativa env flags):
 
 ```yaml
 CONTAINERS: 1   # list, inspect
@@ -93,11 +93,11 @@ file you could paste.
 
 ## Phase 1 — deploy read-only, and prove it against real Docker
 
-Ilmari has never placed a real container; every test so far runs against an
+Anvil has never placed a real container; every test so far runs against an
 httptest fake. This phase fixes that at zero risk, because nothing points at
 it yet.
 
-1. [x] Deploy Ilmari as a TrueNAS app **alongside** both existing
+1. [x] Deploy Anvil as a TrueNAS app **alongside** both existing
        provisioners. Do not change `PROVISIONER_URL` on either console.
        (Deployed 2026-08-14.)
 2. [x] `curl -H "Authorization: Bearer $TOKEN" http://<host>:8820/v1/health`
@@ -114,18 +114,18 @@ it yet.
 
 **Rollback:** stop the app. Nothing depended on it.
 
-**Exit criteria:** Ilmari can see the truth of the host. No write path has
+**Exit criteria:** Anvil can see the truth of the host. No write path has
 been exercised yet — deliberately.
 
 ---
 
 ## Phase 2 — wildskeeper cuts over, with its old provisioner still standing
 
-1. [x] Add `ILMARI_URL` / `ILMARI_TOKEN` to wildskeeper. When set, the
-       console uses Ilmari; when unset, it uses `PROVISIONER_URL` exactly as
+1. [x] Add `ANVIL_URL` / `ANVIL_TOKEN` to wildskeeper. When set, the
+       console uses Anvil; when unset, it uses `PROVISIONER_URL` exactly as
        today. A flag, not a replacement — so the fallback is one env var
        away for the whole phase. (Code merged 2026-08-15, wildskeeper #5:
-       `internal/ilmari` client + `api.IlmariProvisioner` adapter. Known
+       `internal/anvil` client + `api.AnvilProvisioner` adapter. Known
        quirk recorded there: the legacy provisioner container appears in
        discovery until Phase 4 deletes it; adopt refuses it with a clear
        message.)
@@ -140,9 +140,9 @@ been exercised yet — deliberately.
 5. [ ] Deliberately request a port `palagent-palhalla` holds, and confirm
        the **409 before anything is created**, naming the holder. That is
        the payoff for the whole exercise; see it work once.
-6. [ ] Leave it running on Ilmari for a few days of ordinary use.
+6. [ ] Leave it running on Anvil for a few days of ordinary use.
 
-**Rollback:** unset `ILMARI_URL`, redeploy console. `wkprovisioner` is still
+**Rollback:** unset `ANVIL_URL`, redeploy console. `wkprovisioner` is still
 there and still works.
 
 ---
@@ -150,7 +150,7 @@ there and still works.
 ## Phase 3 — palcon cuts over
 
 Same change, same shape, one console later. Doing them separately is the
-point: if something is wrong with Ilmari, only one game is affected and the
+point: if something is wrong with Anvil, only one game is affected and the
 other is untouched evidence of what "working" looks like.
 
 1. [ ] Add the same flag to palcon, with **palcon's own token** — identity
@@ -158,7 +158,7 @@ other is untouched evidence of what "working" looks like.
 2. [ ] Deploy, leaving palcon's provisioner running.
 3. [ ] Provision, rebuild and destroy a throwaway Palworld server.
 4. [ ] Confirm from `/v1/containers` that both consoles' servers now appear
-       with `ilmari.owner` set on the new ones and legacy labels on the old.
+       with `anvil.owner` set on the new ones and legacy labels on the old.
 
 **Rollback:** unset the flag, redeploy. Palcon's provisioner is still there.
 
@@ -166,7 +166,7 @@ other is untouched evidence of what "working" looks like.
 
 ## Phase 4 — retire the old provisioners
 
-Only once both consoles have run on Ilmari long enough that you'd be
+Only once both consoles have run on Anvil long enough that you'd be
 surprised by a new failure.
 
 1. [ ] **Stop** (don't delete) the `wkprovisioner` and palcon provisioner
@@ -188,11 +188,11 @@ surprised by a new failure.
        game sidecars.
 2. [ ] Drop the now-dead `PROVISIONER_*` plumbing from both consoles.
 3. [ ] Update `deploy/truenas-app.yaml` in both repos so a fresh install
-       gets Ilmari and never learns the old shape.
+       gets Anvil and never learns the old shape.
 
 Labels stay mixed forever, and that's fine: Docker cannot relabel without
 recreating, and recreating every server to tidy a label would be a bad
-trade. Ilmari recognises both, permanently, and the reason is written down
+trade. Anvil recognises both, permanently, and the reason is written down
 in `legacyManagedLabels`.
 
 ---
@@ -211,6 +211,6 @@ Worth restating, since it is easy to lose in the checklist:
 
 And what it costs: **independent deployability**. Today either console can
 break without touching the other. Afterwards, a version-skewed or down
-Ilmari affects both. The phased rollout above exists to make that trade
+Anvil affects both. The phased rollout above exists to make that trade
 visible before it is irreversible — which is why the old provisioners stay
 stopped rather than deleted for a week.

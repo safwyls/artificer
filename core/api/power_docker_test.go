@@ -13,14 +13,14 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/backup"
-	"github.com/safwyls/sampo/core/crypto"
-	"github.com/safwyls/sampo/core/db"
-	"github.com/safwyls/sampo/core/dockerctl"
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/backup"
+	"github.com/safwyls/artificer/core/crypto"
+	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/dockerctl"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // dockerFake answers the handful of endpoints the power handlers use and

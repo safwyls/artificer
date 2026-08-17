@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
+	"github.com/safwyls/artificer/core/agent"
 )
 
 // newSupervisorAgent builds a supervisor-mode agent whose "game" is the

@@ -20,9 +20,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/store"
-	"github.com/safwyls/sampo/games/enshrouded/esconfig"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/store"
+	"github.com/safwyls/artificer/games/enshrouded/esconfig"
 )
 
 type Queue struct {

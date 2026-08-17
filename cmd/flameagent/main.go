@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/games/enshrouded/esagent"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/games/enshrouded/esagent"
 )
 
 // version is stamped by the release build via

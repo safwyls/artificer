@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/api/apitest"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/api/apitest"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // A Dragonwilds server end to end through the API: the config editor speaks

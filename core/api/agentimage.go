@@ -12,7 +12,7 @@ import (
 // This exists because provisioned containers belong to no orchestrator:
 // they don't appear in a TrueNAS apps list or any compose file, so
 // changing their image otherwise means hand-writing docker commands on
-// the host. Ilmari placed them and can rebuild them, which makes this a
+// the host. Anvil placed them and can rebuild them, which makes this a
 // button instead of a runbook.
 // handleGetLaunch reports how the agent will start the game.
 //

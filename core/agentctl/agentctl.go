@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
+	"github.com/safwyls/artificer/core/agent"
 )
 
 // ErrNotConfigured means this server has no agent URL; agent-backed

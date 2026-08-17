@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/safwyls/sampo/core/game"
+	"github.com/safwyls/artificer/core/game"
 )
 
 // Views an admin can switch off per server. The keys double as the frontend's

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/agent"
+	"github.com/safwyls/artificer/core/agent"
 )
 
 func profileFor(name string) agent.Profile {

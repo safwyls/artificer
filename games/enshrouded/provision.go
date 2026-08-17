@@ -1,9 +1,9 @@
 package enshrouded
 
-import "github.com/safwyls/sampo/core/api"
+import "github.com/safwyls/artificer/core/api"
 
 // ProvisionProfile is Enshrouded's provisioning knowledge for the
-// Raise-a-server wizard and the Ilmari adapter — the values that used to
+// Raise-a-server wizard and the Anvil adapter — the values that used to
 // be flametender's hardcodes (drift ledger, seam 4).
 func ProvisionProfile() *api.ProvisionProfile {
 	return &api.ProvisionProfile{

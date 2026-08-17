@@ -1,6 +1,6 @@
 package palworld
 
-import "github.com/safwyls/sampo/core/api"
+import "github.com/safwyls/artificer/core/api"
 
 // ProvisionProfile is Palworld's provisioning knowledge: the UDP game
 // port plus the REST and RCON admin transports — four published ports,

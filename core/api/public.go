@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/collector"
-	"github.com/safwyls/sampo/core/sched"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/collector"
+	"github.com/safwyls/artificer/core/sched"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // handlePublicStatus is the one unauthenticated data endpoint: a read-only

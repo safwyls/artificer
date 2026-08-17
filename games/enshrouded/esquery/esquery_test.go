@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/games/enshrouded/esquery"
+	"github.com/safwyls/artificer/games/enshrouded/esquery"
 )
 
 // The tests run against a real UDP socket speaking the wire format by

@@ -1,4 +1,4 @@
-# Ilmari
+# Anvil
 
 The host provisioning service for [wildskeeper](https://github.com/safwyls/wildskeeper),
 [palcon](https://github.com/safwyls/palcon) and anything else that needs a
@@ -19,7 +19,7 @@ A host has one Docker socket. It should have one thing holding it.
 
 ## What it knows, and what it refuses to know
 
-Ilmari knows containers, images, ports, paths and disk. It does **not** know
+Anvil knows containers, images, ports, paths and disk. It does **not** know
 what a world name is, which game a container runs, or what its settings
 mean. All of that arrives as data in a provisioning spec and is passed
 through untouched.
@@ -38,7 +38,7 @@ has a test:
 
 1. **Images are allowlisted** by prefix, defaulting to the operator's own
    registry namespace. A leaked token deploys a newer agent, not a payload.
-2. **Host paths are never caller-controlled.** A caller names a slug; Ilmari
+2. **Host paths are never caller-controlled.** A caller names a slug; Anvil
    decides the directory beneath its data root. There is deliberately no
    bind-mount field in the spec.
 3. **Ownership labels cannot be forged.** They are applied last, and they
@@ -64,7 +64,7 @@ data root, and optionally its own image allowlist:
 ]
 ```
 
-(`ILMARI_CLIENTS` inline, or `ILMARI_CLIENTS_FILE` — the file wins, and is
+(`ANVIL_CLIENTS` inline, or `ANVIL_CLIENTS_FILE` — the file wins, and is
 the better habit for secrets.)
 
 The contracts are deliberately **similar but separate**: same verbs, same
@@ -73,7 +73,7 @@ token says who is asking; ownership is enforced from it, never from the
 request. Concretely:
 
 - a wildskeeper token **cannot destroy or rebuild** a Palworld server
-  (403), including servers that predate Ilmari — the legacy
+  (403), including servers that predate Anvil — the legacy
   `palcon.provisioned` label names their owner;
 - each console's containers land under **its own data root**;
 - each console can be held to **its own image allowlist**;
@@ -100,7 +100,7 @@ All routes need `Authorization: Bearer <that console's token>`.
 | GET | `/v1/ports` | every published host port and what holds it |
 
 `/v1/containers` and `/v1/ports` deliberately report **everything on the
-host**, not just Ilmari's. A view that only showed its own would reproduce
+host**, not just Anvil's. A view that only showed its own would reproduce
 exactly the blindness this service replaces.
 
 ### Provisioning spec
@@ -121,27 +121,27 @@ exactly the blindness this service replaces.
 }
 ```
 
-Everything under `env` is the console's business. Ilmari never reads it.
+Everything under `env` is the console's business. Anvil never reads it.
 
 ## Configuration
 
 | Variable | Meaning |
 |---|---|
-| `ILMARI_CLIENTS` | JSON array of client registrations (see above); required unless the file is set |
-| `ILMARI_CLIENTS_FILE` | path to the same JSON; wins over the inline form |
-| `ILMARI_DOCKER_HOST` | Docker endpoint (default `unix:///var/run/docker.sock`) |
-| `ILMARI_PUBLIC_HOST` | the address consoles and players reach this machine on |
-| `ILMARI_ALLOWED_IMAGE_PREFIXES` | fallback allowlist for clients that don't bring their own |
-| `ILMARI_DEFAULT_RUN_AS` | uid:gid suggested to consoles that don't specify |
-| `ILMARI_ADDR` | listen address (default `:8820`) |
+| `ANVIL_CLIENTS` | JSON array of client registrations (see above); required unless the file is set |
+| `ANVIL_CLIENTS_FILE` | path to the same JSON; wins over the inline form |
+| `ANVIL_DOCKER_HOST` | Docker endpoint (default `unix:///var/run/docker.sock`) |
+| `ANVIL_PUBLIC_HOST` | the address consoles and players reach this machine on |
+| `ANVIL_ALLOWED_IMAGE_PREFIXES` | fallback allowlist for clients that don't bring their own |
+| `ANVIL_DEFAULT_RUN_AS` | uid:gid suggested to consoles that don't specify |
+| `ANVIL_ADDR` | listen address (default `:8820`) |
 
 ## Migrating from the built-in provisioners
 
 Containers created by a console's own provisioner carry
-`wildskeeper.provisioned` or `palcon.provisioned`. Ilmari recognises both
+`wildskeeper.provisioned` or `palcon.provisioned`. Anvil recognises both
 and treats them as its own, so an existing deployment can adopt it without
 relabelling live containers or orphaning running servers. New containers get
-the neutral `ilmari.managed` / `ilmari.slug` / `ilmari.owner`.
+the neutral `anvil.managed` / `anvil.slug` / `anvil.owner`.
 
 ## Status
 
@@ -152,8 +152,8 @@ published, and `deploy/truenas-app.yaml` is ready to paste.
 
 Two honest limits remain. Nothing here has talked to a real Docker socket —
 every test runs against a fake — which is exactly what Phase 1 exists to
-prove, at zero risk, because nothing points at Ilmari on day one. And the
-consoles cannot *use* it yet: each needs a small `ilmariclient` package
+prove, at zero risk, because nothing points at Anvil on day one. And the
+consoles cannot *use* it yet: each needs a small `anvilclient` package
 before its cut-over, which is Phase 2's first step.
 
 [`docs/migration.md`](docs/migration.md) is the full plan from here to

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/ilmari/internal/host"
+	"github.com/safwyls/anvil/internal/host"
 )
 
 // Two consoles, two tokens: the tests exercise the boundary between them.
@@ -234,7 +234,7 @@ func TestCallerCannotForgeOwnershipLabels(t *testing.T) {
 }
 
 // Containers made by a console's own provisioner, before this service
-// existed, are still ours — otherwise adopting Ilmari would orphan every
+// existed, are still ours — otherwise adopting Anvil would orphan every
 // server already running.
 func TestRecognisesContainersFromBeforeThisServiceExisted(t *testing.T) {
 	srv, fake, dataRoot := newService(t)
@@ -301,7 +301,7 @@ func TestPortsReportsEveryPublishedPort(t *testing.T) {
 
 // The boundary the per-console tokens exist for: wildskeeper's token must
 // not be able to destroy or rebuild a Palworld server. This holds for
-// legacy containers too — palagent-palhalla predates Ilmari, and its
+// legacy containers too — palagent-palhalla predates Anvil, and its
 // palcon.provisioned label is what names its owner.
 func TestAConsoleCannotActOnAnotherConsolesServers(t *testing.T) {
 	srv, fake, _ := newService(t)

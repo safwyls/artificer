@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/sampo/core/game"
+	"github.com/safwyls/artificer/core/game"
 )
 
 // ID is the game id test rows set to resolve to this client.

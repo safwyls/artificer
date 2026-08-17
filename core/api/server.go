@@ -13,13 +13,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/safwyls/sampo/core/advisor"
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/backup"
-	"github.com/safwyls/sampo/core/cfaccess"
-	"github.com/safwyls/sampo/core/dockerctl"
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/advisor"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/backup"
+	"github.com/safwyls/artificer/core/cfaccess"
+	"github.com/safwyls/artificer/core/dockerctl"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // AccessVerifier is what the API needs from Cloudflare Access: turn the
@@ -55,7 +55,7 @@ type Server struct {
 	files *agentfiles.Syncer
 	// Provisioner, when set (like CookieSecure, assigned after New), lets
 	// the new-server wizard deploy stacks itself instead of handing the
-	// operator a file. Exactly one implementation exists: the shared Ilmari
+	// operator a file. Exactly one implementation exists: the shared Anvil
 	// host service (see provisioner.go). This console deliberately has no
 	// built-in provisioner — one host, one Docker-socket holder.
 	Provisioner Provisioner

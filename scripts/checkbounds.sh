@@ -33,31 +33,31 @@ if [ -n "$hits" ]; then
 fi
 
 # Rule: core never imports a game module, a console module, or the
-# ilmari service — the dependency arrow points at core only.
-hits=$(grep -rn --include='*.go' -E '"github.com/safwyls/(sampo/(games|ilmari)|palcon|wildskeeper|flametender|ilmari)' core 2>/dev/null || true)
+# anvil service — the dependency arrow points at core only.
+hits=$(grep -rn --include='*.go' -E '"github.com/safwyls/(artificer/(games|anvil)|palcon|wildskeeper|flametender|anvil)' core 2>/dev/null || true)
 if [ -n "$hits" ]; then
-  echo "BOUNDARY: core imports game/console/ilmari code:"
+  echo "BOUNDARY: core imports game/console/anvil code:"
   echo "$hits"
   fail=1
 fi
 
 # Rule: core's docker client is lifecycle-only (the power path for
-# adopted containers). Create/remove/pull rights live in ilmari alone —
+# adopted containers). Create/remove/pull rights live in anvil alone —
 # a console must never grow the ability to place or unmake containers.
 hits=$(grep -rn --include='*.go' -E 'containers/create|images/create|func \(c \*Client\) (ContainerCreate|ContainerRemove|ImagePull)' core/dockerctl 2>/dev/null || true)
 if [ -n "$hits" ]; then
-  echo "BOUNDARY: core/dockerctl has container create/remove/pull rights (ilmari-only):"
+  echo "BOUNDARY: core/dockerctl has container create/remove/pull rights (anvil-only):"
   echo "$hits"
   fail=1
 fi
 
-# --- ilmari ---
+# --- anvil ---
 
-# Rule: ilmari knows containers, not games or consoles. Neither its
+# Rule: anvil knows containers, not games or consoles. Neither its
 # go.mod nor its source may reference a console module or core.
-hits=$(grep -rn --include='*.go' -E 'safwyls/(palcon|wildskeeper|flametender|sampo)' ilmari 2>/dev/null || true)
-if [ -n "$hits" ] || grep -qE 'safwyls/(palcon|wildskeeper|flametender|sampo)' ilmari/go.mod; then
-  echo "BOUNDARY: ilmari references a console/core module:"
+hits=$(grep -rn --include='*.go' -E 'safwyls/(palcon|wildskeeper|flametender|artificer)' anvil 2>/dev/null || true)
+if [ -n "$hits" ] || grep -qE 'safwyls/(palcon|wildskeeper|flametender|artificer)' anvil/go.mod; then
+  echo "BOUNDARY: anvil references a console/core module:"
   echo "$hits"
   fail=1
 fi
@@ -66,7 +66,7 @@ fi
 for g in games/*/; do
   g=${g%/}
   name=${g#games/}
-  hits=$(grep -rn --include='*.go' '"github.com/safwyls/sampo/games/' "$g" 2>/dev/null     | grep -v "games/$name" || true)
+  hits=$(grep -rn --include='*.go' '"github.com/safwyls/artificer/games/' "$g" 2>/dev/null     | grep -v "games/$name" || true)
   if [ -n "$hits" ]; then
     echo "BOUNDARY: $g imports another game module:"
     echo "$hits"
@@ -80,7 +80,7 @@ done
 for d in games/*/*agent/; do
   [ -d "$d" ] || continue
   parent=$(dirname "${d%/}")
-  hits=$(grep -rn --include='*.go' "\"github.com/safwyls/sampo/$parent\"" "$d" 2>/dev/null | grep -v '_test\.go:' || true)
+  hits=$(grep -rn --include='*.go' "\"github.com/safwyls/artificer/$parent\"" "$d" 2>/dev/null | grep -v '_test\.go:' || true)
   if [ -n "$hits" ]; then
     echo "BOUNDARY: $d links the console-side game package:"
     echo "$hits"

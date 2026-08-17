@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/games/enshrouded/esagent"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/games/enshrouded/esagent"
 )
 
 const testToken = "test-token-0123456789abcdef"

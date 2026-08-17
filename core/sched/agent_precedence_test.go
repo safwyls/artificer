@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/dockerctl"
-	"github.com/safwyls/sampo/core/game/gametest"
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/dockerctl"
+	"github.com/safwyls/artificer/core/game/gametest"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // agentSpy is a flameagent that reports whichever mode a test asks for and

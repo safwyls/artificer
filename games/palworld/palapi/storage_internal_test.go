@@ -3,7 +3,7 @@ package palapi
 import (
 	"testing"
 
-	"github.com/safwyls/sampo/games/palworld/palsave"
+	"github.com/safwyls/artificer/games/palworld/palsave"
 )
 
 // TestStorageForWithholdsWorldLoot pins the world-loot toggle as a server-side
