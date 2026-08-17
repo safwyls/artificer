@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palworld-branded light theme — this app has no light/dark toggle.
+   Values are the HSL equivalents of mocks/tailwind.config.js's literal
+   palette (brand red-orange, amber, grass green, sky blue, warm ink/paper
+   neutrals), mapped onto shadcn's semantic tokens so existing components
+   didn't need per-component rewrites. See mocks/*.html for the source design. */
+:root {
+  --background: 36 50% 92%; /* paper #F5EDE1 */
+  --foreground: 22 15% 15%; /* ink #2B2420 */
+  --card: 33 40% 96%;
+  --card-foreground: 22 15% 15%;
+  --popover: 33 40% 96%;
+  --popover-foreground: 22 15% 15%;
+  --primary: 13 82% 51%; /* brand red-orange #E8491D */
+  --primary-foreground: 36 50% 96%;
+  --secondary: 30 20% 88%;
+  --secondary-foreground: 22 15% 15%;
+  --muted: 33 25% 90%;
+  --muted-foreground: 25 12% 42%;
+  --accent: 36 88% 59%; /* brand amber #F2A93B */
+  --accent-foreground: 22 15% 15%;
+  --destructive: 3 71% 41%; /* deliberately a deeper, more alarm-toned red
+    than --primary so destructive actions (kick/ban/delete/shutdown) stay
+    visually distinct from routine primary actions */
+  --destructive-foreground: 36 50% 96%;
+  --border: 25 20% 84%;
+  --input: 25 20% 84%;
+  --ring: 13 82% 51%;
+  --radius: 0.85rem;
+}
+
+body {
+  @apply bg-background text-foreground font-body;
+}
+
+/* Horizontal pill-bar scroller (mobile nav): no scrollbar — the edge fade
+   and the half-visible next pill are the scroll affordance instead. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.scroll-fade-x {
+  mask-image: linear-gradient(90deg, transparent, black 14px, black calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 14px, black calc(100% - 14px), transparent);
+}
+
+/* Mobile browsers' collapsing address bars make 100vh taller than what's
+   actually visible, which shoved the bottom server rail behind the toolbar
+   until a scroll. dvh tracks the real visible height; the vh line is the
+   fallback for browsers that predate it. */
+.app-height {
+  height: 100vh;
+  height: 100dvh;
+}
+.app-min-height {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Signature clipped-corner shape from the mocks, used sparingly on primary
+   CTAs and hero panels — not applied globally, or it stops reading as a
+   deliberate accent. */
+.clip-notch {
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+.clip-notch-lg {
+  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+}
+
+/* Pal Sphere ring: top half in the server's assigned color, bottom half ink,
+   like the capture-sphere split. Used by the server rail buttons. */
+.sphere-ring {
+  background: conic-gradient(var(--ring-color, #4A9D7C) 0 50%, #2B2420 50% 100%);
+}
+
+/* Indeterminate sweep for the save-read progress bar — parsing reports no
+   real progress, so the bar shows activity rather than a made-up amount. */
+@keyframes saveread {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[saveread_1\.4s_ease-in-out_infinite\] {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}

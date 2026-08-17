@@ -59,6 +59,19 @@ func (s *Server) Audit(r *http.Request, serverID int64, action, detail string) {
 	s.audit(r, serverID, action, detail)
 }
 
+// RequireFeature gates a game route on the server's visibility switches
+// the way core's own feature-gated routes are; false means the response
+// is already written.
+func RequireFeature(w http.ResponseWriter, r *http.Request, srv *store.Server, features ...string) bool {
+	return requireFeature(w, r, srv, features...)
+}
+
+// HiddenPlayers returns the per-player opt-outs that apply to this
+// request — empty for an admin, who sees everyone.
+func (s *Server) HiddenPlayers(r *http.Request, serverID int64) (store.PlayerVisibility, error) {
+	return s.hiddenPlayers(r, serverID)
+}
+
 // AgentSupervisor resolves the server's agent when it is a supervisor
 // (nil health otherwise) — how game routes ask "is the game up".
 func (s *Server) AgentSupervisor(ctx context.Context, srv *store.Server) (*agentctl.Client, *agentctl.Health) {

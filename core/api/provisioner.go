@@ -53,6 +53,25 @@ func (p *IlmariProvisioner) BaseURL() string { return p.c.BaseURL() }
 // protocol's, not a game's: every sidecar agent serves its API on 8811.
 const agentContainerPort = 8811
 
+// adminPortMaps renders the named TCP admin transports as Ilmari
+// mappings.
+func adminPortMaps(p *ProvisionProfile, req agent.ProvisionRequest) []ilmariclient.PortMap {
+	out := make([]ilmariclient.PortMap, 0, len(p.AdminPorts))
+	for _, ap := range p.AdminPorts {
+		host := 0
+		switch ap.Key {
+		case "rest":
+			host = req.RESTPort
+		case "rcon":
+			host = req.RCONPort
+		}
+		if host != 0 {
+			out = append(out, ilmariclient.PortMap{Host: host, Container: ap.Container, Proto: "tcp"})
+		}
+	}
+	return out
+}
+
 // gamePortMaps renders the game's contiguous port run as Ilmari mappings.
 func gamePortMaps(p *ProvisionProfile, gamePort int) []ilmariclient.PortMap {
 	out := make([]ilmariclient.PortMap, 0, p.portCount())
@@ -108,6 +127,9 @@ func (p *IlmariProvisioner) Provision(ctx context.Context, req agent.ProvisionRe
 	if req.WorldName != "" {
 		env[p.p.EnvPrefix+"_WORLD_NAME"] = req.WorldName
 	}
+	if req.ServerDesc != "" {
+		env[p.p.EnvPrefix+"_SERVER_DESC"] = req.ServerDesc
+	}
 	tag := req.ImageTag
 	if tag == "" {
 		tag = "latest"
@@ -118,7 +140,7 @@ func (p *IlmariProvisioner) Provision(ctx context.Context, req agent.ProvisionRe
 		Image: p.p.ImageRepo + ":" + tag,
 		User:  req.RunAs,
 		Env:   env,
-		Ports: append(gamePortMaps(p.p, req.GamePort),
+		Ports: append(append(gamePortMaps(p.p, req.GamePort), adminPortMaps(p.p, req)...),
 			ilmariclient.PortMap{Host: req.AgentPort, Container: agentContainerPort, Proto: "tcp"}),
 		DataMount: p.p.MountPath,
 	})
@@ -149,13 +171,20 @@ func (p *IlmariProvisioner) Discover(ctx context.Context) ([]agentctl.Discovered
 		if !strings.HasPrefix(f.Name, p.p.AgentName+"-") {
 			continue
 		}
-		out = append(out, agentctl.DiscoveredServer{
+		d := agentctl.DiscoveredServer{
 			Name:      f.Name,
 			Image:     f.Image,
 			Running:   f.Running,
 			GamePort:  hostPortFor(f.Ports, p.p.DefaultGamePort, "udp"),
 			AgentPort: hostPortFor(f.Ports, agentContainerPort, "tcp"),
-		})
+		}
+		if ap := p.p.adminPort("rest"); ap != nil {
+			d.RESTPort = hostPortFor(f.Ports, ap.Container, "tcp")
+		}
+		if ap := p.p.adminPort("rcon"); ap != nil {
+			d.RCONPort = hostPortFor(f.Ports, ap.Container, "tcp")
+		}
+		out = append(out, d)
 	}
 	return out, nil
 }
@@ -182,7 +211,7 @@ func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agent
 		// refusal lands here instead.
 		return nil, fmt.Errorf("%s is a provisioner, not a game server — it is retired in the last step of the Ilmari migration", container)
 	}
-	return &agentctl.AdoptResult{
+	res := &agentctl.AdoptResult{
 		Name:          a.Name,
 		Mode:          mode,
 		ServerName:    a.Env[p.p.EnvPrefix+"_SERVER_NAME"],
@@ -190,7 +219,14 @@ func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agent
 		AdminPassword: a.Env[p.p.EnvPrefix+"_ADMIN_PASSWORD"],
 		GamePort:      hostPortFor(a.Ports, p.p.DefaultGamePort, "udp"),
 		AgentPort:     hostPortFor(a.Ports, agentContainerPort, "tcp"),
-	}, nil
+	}
+	if ap := p.p.adminPort("rest"); ap != nil {
+		res.RESTPort = hostPortFor(a.Ports, ap.Container, "tcp")
+	}
+	if ap := p.p.adminPort("rcon"); ap != nil {
+		res.RCONPort = hostPortFor(a.Ports, ap.Container, "tcp")
+	}
+	return res, nil
 }
 
 func (p *IlmariProvisioner) RecreateAgent(ctx context.Context, container, imageTag string) (*agent.RecreateResult, error) {

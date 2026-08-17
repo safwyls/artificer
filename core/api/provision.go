@@ -35,8 +35,15 @@ type provisionRequest struct {
 	DataPath string `json:"dataPath"`
 	// GamePort is the published game port. In-container it stays at the
 	// game's own default, and the agent's API at 8811.
-	GamePort  int `json:"gamePort"`
-	AgentPort int `json:"agentPort"`
+	GamePort int `json:"gamePort"`
+	// RESTPort/RCONPort publish the named admin transports, for games
+	// whose profile declares them (Palworld). Ignored otherwise.
+	RESTPort int `json:"restPort"`
+	RCONPort int `json:"rconPort"`
+	// ServerDesc is the server-browser description, for games that have
+	// one.
+	ServerDesc string `json:"serverDesc"`
+	AgentPort  int    `json:"agentPort"`
 	// ImageTag selects the flameagent channel; default latest.
 	ImageTag string `json:"imageTag"`
 	// AdminPassword is generated when blank: it becomes the Keepers role
@@ -109,7 +116,7 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	case p.OwnerIDRequired && req.OwnerID == "":
 		writeError(w, http.StatusBadRequest, ownerRequiredMessage(p))
 		return
-	case controlChars.MatchString(req.Name + req.Host + req.OwnerID + req.ServerName + req.WorldName + req.DataPath):
+	case controlChars.MatchString(req.Name + req.Host + req.OwnerID + req.ServerName + req.WorldName + req.ServerDesc + req.DataPath):
 		writeError(w, http.StatusBadRequest, "names, paths and ids cannot contain line breaks or control characters")
 		return
 	// With a provisioner configured the data path is its call (<data
@@ -138,6 +145,11 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	if req.AgentPort == 0 {
 		req.AgentPort = 8811
 	}
+	for _, ap := range p.AdminPorts {
+		if adminPortValue(&req, ap.Key) == 0 {
+			setAdminPortValue(&req, ap.Key, ap.Default)
+		}
+	}
 	// The game binds GamePortCount contiguous ports from GamePort, so the
 	// whole run has to fit and stay clear of the agent's port.
 	maxGamePort := 65536 - p.portCount()
@@ -151,6 +163,30 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.AgentPort < 1 || req.AgentPort > 65535 {
 		writeError(w, http.StatusBadRequest, "agent port must be in 1-65535")
+		return
+	}
+	// Every published port must be distinct: the game's run, the named
+	// admin transports, and the agent's port (Palworld's four-way check).
+	seen := map[int]string{}
+	for i := 0; i < p.portCount(); i++ {
+		seen[req.GamePort+i] = "game"
+	}
+	for _, ap := range p.AdminPorts {
+		v := adminPortValue(&req, ap.Key)
+		if v < 1 || v > 65535 {
+			writeError(w, http.StatusBadRequest, ap.Key+" port must be in 1-65535")
+			return
+		}
+		if prev, dup := seen[v]; dup {
+			writeError(w, http.StatusBadRequest,
+				fmt.Sprintf("%s port %d collides with the %s port", ap.Key, v, prev))
+			return
+		}
+		seen[v] = ap.Key
+	}
+	if prev, dup := seen[req.AgentPort]; dup && prev != "game" {
+		writeError(w, http.StatusBadRequest,
+			fmt.Sprintf("agent port %d collides with the %s port", req.AgentPort, prev))
 		return
 	}
 	if req.AgentPort >= req.GamePort && req.AgentPort < req.GamePort+p.portCount() {
@@ -215,6 +251,9 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 		identityEnv += fmt.Sprintf("      %s_OWNER_ID: %q\n", p.EnvPrefix, req.OwnerID)
 	}
 	identityEnv += fmt.Sprintf("      %s_SERVER_NAME: %q\n", p.EnvPrefix, req.ServerName)
+	if req.ServerDesc != "" {
+		identityEnv += fmt.Sprintf("      %s_SERVER_DESC: %q\n", p.EnvPrefix, req.ServerDesc)
+	}
 	if req.WorldName != "" {
 		identityEnv += fmt.Sprintf("      %s_WORLD_NAME: %q\n", p.EnvPrefix, req.WorldName)
 	}
@@ -243,7 +282,7 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 `, req.Name, p.StackHeadline, p.StackNotes,
 		p.AgentName, p.ImageRepo, req.ImageTag, userLine,
 		p.EnvPrefix, p.EnvPrefix, token, p.EnvPrefix, req.AdminPassword, identityEnv,
-		stackGamePorts(p, req.GamePort),
+		stackGamePorts(p, &req),
 		req.AgentPort, req.DataPath, p.MountPath)
 
 	// One-click (phase 5): when a provisioner is configured, deploy the
@@ -266,10 +305,13 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 			AdminPassword: req.AdminPassword,
 			JoinPassword:  req.JoinPassword,
 			ServerName:    req.ServerName,
+			ServerDesc:    req.ServerDesc,
 			OwnerID:       req.OwnerID,
 			WorldName:     req.WorldName,
 			RunAs:         req.RunAs,
 			GamePort:      req.GamePort,
+			RESTPort:      req.RESTPort,
+			RCONPort:      req.RCONPort,
 			AgentPort:     req.AgentPort,
 		})
 		switch {
@@ -293,8 +335,6 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	srv := &store.Server{
-		// No RCON or REST ports: the game has neither, and everything the
-		// dashboard reads arrives through the agent.
 		Name: req.Name, Host: req.Host,
 		GamePort:   req.GamePort,
 		Enabled:    true,
@@ -306,6 +346,15 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 		// viewer and watchdog key off. Power control is unaffected either
 		// way, since every power site tries agentSupervisor before docker.
 		ContainerName: container,
+	}
+	// Games with named admin transports get the row wired for them, so
+	// the dashboard can speak REST/RCON the moment the server exists.
+	if p.adminPort("rcon") != nil {
+		srv.RCONPort, srv.RCONPassword = req.RCONPort, req.AdminPassword
+	}
+	if p.adminPort("rest") != nil {
+		srv.RESTPort, srv.RESTPassword = req.RESTPort, req.AdminPassword
+		srv.UseREST = true
 	}
 	id, err := s.store.CreateServer(r.Context(), srv)
 	if err != nil {
@@ -367,7 +416,7 @@ func (s *Server) handleProvisionDefaults(w http.ResponseWriter, r *http.Request)
 	var containerPorts []int
 	if found, err := s.Provisioner.Discover(r.Context()); err == nil {
 		for _, f := range found {
-			containerPorts = append(containerPorts, f.GamePort, f.AgentPort)
+			containerPorts = append(containerPorts, f.GamePort, f.RESTPort, f.RCONPort, f.AgentPort)
 		}
 	}
 
@@ -441,20 +490,59 @@ func proposePorts(p *ProvisionProfile, servers []*store.Server, containerPorts [
 		for i := 0; free && i < count; i++ {
 			free = !used[gamePort+i]
 		}
+		proposal := map[string]int{"game": gamePort, "agent": agentPort}
+		for _, ap := range p.AdminPorts {
+			v := ap.Default + offset
+			if used[v] || v == gamePort || v == agentPort {
+				free = false
+				break
+			}
+			proposal[ap.Key] = v
+		}
 		if free {
-			return map[string]int{"game": gamePort, "agent": agentPort}
+			return proposal
 		}
 	}
-	return map[string]int{"game": p.DefaultGamePort, "agent": 8811}
+	fallback := map[string]int{"game": p.DefaultGamePort, "agent": 8811}
+	for _, ap := range p.AdminPorts {
+		fallback[ap.Key] = ap.Default
+	}
+	return fallback
 }
 
-// stackGamePorts renders the game's port mapping lines for the stack.
-func stackGamePorts(p *ProvisionProfile, gamePort int) string {
-	out := fmt.Sprintf("      - %q   # %s\n", fmt.Sprintf("%d:%d/udp", gamePort, p.DefaultGamePort), p.GamePortComment)
+// stackGamePorts renders the game's port mapping lines for the stack —
+// the UDP run, then the named TCP admin transports.
+func stackGamePorts(p *ProvisionProfile, req *provisionRequest) string {
+	out := fmt.Sprintf("      - %q   # %s\n", fmt.Sprintf("%d:%d/udp", req.GamePort, p.DefaultGamePort), p.GamePortComment)
 	for i := 1; i < p.portCount(); i++ {
-		out += fmt.Sprintf("      - %q   # the game's paired port\n", fmt.Sprintf("%d:%d/udp", gamePort+i, p.DefaultGamePort+i))
+		out += fmt.Sprintf("      - %q   # the game's paired port\n", fmt.Sprintf("%d:%d/udp", req.GamePort+i, p.DefaultGamePort+i))
+	}
+	for _, ap := range p.AdminPorts {
+		out += fmt.Sprintf("      - %q   # %s\n", fmt.Sprintf("%d:%d", adminPortValue(req, ap.Key), ap.Container), ap.Comment)
 	}
 	return out
+}
+
+// adminPortValue/setAdminPortValue map the well-known admin keys onto
+// the typed request fields — the wire shape the consoles' wizards
+// already send.
+func adminPortValue(req *provisionRequest, key string) int {
+	switch key {
+	case "rest":
+		return req.RESTPort
+	case "rcon":
+		return req.RCONPort
+	}
+	return 0
+}
+
+func setAdminPortValue(req *provisionRequest, key string, v int) {
+	switch key {
+	case "rest":
+		req.RESTPort = v
+	case "rcon":
+		req.RCONPort = v
+	}
 }
 
 // ownerRequiredMessage explains the refusal, with the game's own pointer
@@ -565,6 +653,13 @@ func (s *Server) handleAdoptServer(w http.ResponseWriter, r *http.Request) {
 		AgentURL:      fmt.Sprintf("http://%s:%d", host, adopted.AgentPort),
 		AgentToken:    adopted.Token,
 		ContainerName: adopted.Name,
+	}
+	if s.Provision.adminPort("rcon") != nil && adopted.RCONPort != 0 {
+		srv.RCONPort, srv.RCONPassword = adopted.RCONPort, adopted.AdminPassword
+	}
+	if s.Provision.adminPort("rest") != nil && adopted.RESTPort != 0 {
+		srv.RESTPort, srv.RESTPassword = adopted.RESTPort, adopted.AdminPassword
+		srv.UseREST = true
 	}
 	id, err := s.store.CreateServer(r.Context(), srv)
 	if err != nil {

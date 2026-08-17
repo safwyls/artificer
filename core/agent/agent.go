@@ -84,6 +84,9 @@ type Config struct {
 	// ServerName seeds and then enforces the server-browser name.
 	// Supervisor mode only.
 	ServerName string
+	// ServerDesc seeds the server-browser description/MOTD, for games
+	// that have one. Supervisor mode only.
+	ServerDesc string
 	// OwnerID is the in-game identity that owns the server, for games
 	// that refuse to start without one. Supervisor mode only.
 	OwnerID string
