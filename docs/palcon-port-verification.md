@@ -1,12 +1,19 @@
 # Palcon port — real-server verification
 
-The Phase 5 gate: the monorepo-built images must run against the real
+**Gate passed 2026-08-17** — palcon and palagent verified on `:main`
+against the live Palworld server, no major issues. `:latest` now
+publishes from the monorepo, the imported `palcon/` tree is deleted, and
+this document stays as the record of what was checked and the traps
+found along the way.
+
+The Phase 5 gate was: the monorepo-built images must run against the real
 Palworld server before the old palcon repo is archived.
 
 ## Deploying the candidate
 
-The `Docker (palcon)` workflow publishes on every push to main, same
-ghcr names, no `:latest` yet:
+The `Docker (palcon)` workflow publishes on every push to main under the
+same ghcr names. During the gate only `:main` was published; `:latest`
+now publishes too.
 
     ghcr.io/safwyls/palcon:main
     ghcr.io/safwyls/palagent:main
@@ -14,13 +21,12 @@ ghcr names, no `:latest` yet:
 Repoint the deployment's tags from `:latest` to `:main` (console and
 agents). Rollback is repointing back.
 
-**Set the image tag to `main` in the wizard too.** The Raise/Provision
-dialog prefills the agent image tag with `latest`, and for palagent
-`:latest` is still the *legacy* image built from the old repo — this
-workflow deliberately does not publish `:latest` until the gate passes.
-Leaving the default means provisioning a monorepo console against a
-legacy agent, which is not what this gate is testing. Set it under
-Advanced, per server, until the flip.
+**During the gate, the image tag had to be set to `main` in the wizard
+too.** The Raise/Provision dialog prefills `latest`, which was still the
+*legacy* palagent image built from the old repo — leaving the default
+would have provisioned a monorepo console against a legacy agent. Now
+that `:latest` publishes from here, the prefilled default is correct and
+no override is needed.
 
 **Provisioning migration (the one behavior change):** the legacy
 provisioner-mode agent is retired — the monorepo console provisions
@@ -48,6 +54,12 @@ Boot must be a schema no-op on the existing database — a migration
 running here is a gate failure.
 
 ## Checklist
+
+This was walked against the live server and signed off as a whole
+("tested palcon and agent on main, both work as expected, no major
+issues") rather than ticked box by box, so the boxes are left as
+written — they are the list that was exercised, and the record of what
+a future port should cover.
 
 Login & identity
 - [ ] Password login works; existing sessions survive
@@ -144,9 +156,9 @@ Continuity
 
 ## After the gate
 
-1. Flip `:latest` on in `.github/workflows/docker-palcon.yml`.
-2. Archive `safwyls/palcon` with a pointer commit.
-3. Delete the imported `palcon/` tree, its CI job, checkbounds legacy
-   rule, and go.work entry.
-4. Tick the satisfied §F guards in `docs/drift-ledger.md` (the trio
-   rows are asserted in core's provision_trio tests).
+1. [x] Flip `:latest` on in `.github/workflows/docker-palcon.yml`.
+2. [ ] Archive `safwyls/palcon` with a pointer commit.
+3. [x] Delete the imported `palcon/` tree, its CI job, checkbounds
+   legacy rule, and go.work entry.
+4. [x] §F guards — every palworld row was already ticked when the port
+   landed; the four still open are Anvil-parity items for Phase 6.

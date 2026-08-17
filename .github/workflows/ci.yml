@@ -1,10 +1,8 @@
 name: CI
 
-# Phase 1 CI: the imported modules still build independently, so verify
-# each one the way its old repo did — web bundle first (the Go build
-# embeds web/dist), then go build/vet/test — plus the dependency-rule
-# check. Docker publishing stays in the old repos until each console's
-# port phase moves it here (docs/unification-plan.md, Phases 3-5).
+# Verifies the monorepo (web bundles first, since the Go build embeds
+# them), the anvil host service, and the dependency rules. All three
+# console ports are complete, so no legacy tree is built here.
 on:
   push:
     branches: [main]
@@ -61,40 +59,6 @@ jobs:
           go-version: "1.26"
           cache-dependency-path: go.sum
       - name: Go build, vet & tests (core, games, cmd)
-        run: |
-          go build ./...
-          go vet ./...
-          go test ./...
-
-  console:
-    strategy:
-      fail-fast: false
-      matrix:
-        module: [palcon]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: ${{ matrix.module }}/web/package-lock.json
-
-      - name: Frontend build & tests
-        working-directory: ${{ matrix.module }}/web
-        run: |
-          npm ci
-          npm run build
-          npm test
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.26"
-          cache-dependency-path: ${{ matrix.module }}/go.sum
-
-      - name: Go build, vet & tests
-        working-directory: ${{ matrix.module }}
         run: |
           go build ./...
           go vet ./...
