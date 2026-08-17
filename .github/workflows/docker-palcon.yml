@@ -50,11 +50,9 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
-            # Off until the Phase 5 gate passes (a live Palworld server
-            # provisioned and driven from this build) — the old repo keeps
-            # owning :latest so existing deployments never pull an
-            # unverified console.
-            type=raw,value=latest,enable=false
+            # Enabled since the Phase 5 gate passed (2026-08-17, live
+            # Palworld server) — the old repo's channel is replaced.
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v7
         with:

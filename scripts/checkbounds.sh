@@ -6,21 +6,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 fail=0
 
-# --- Legacy trees (until their port phases) ---
-
-# Rule: production code never imports gametest. The test-only game is
-# how core proves it is game-agnostic; a production import would make
-# the fake load-bearing.
-for m in palcon; do
-  hits=$(grep -rn --include='*.go' 'internal/game/gametest' "$m/internal" "$m/cmd" 2>/dev/null \
-    | grep -v '_test\.go:' || true)
-  if [ -n "$hits" ]; then
-    echo "BOUNDARY: $m production code imports gametest:"
-    echo "$hits"
-    fail=1
-  fi
-done
-
 # --- core/ (active since the Phase 2 extraction) ---
 
 # Rule: the same gametest rule, at core's paths.
