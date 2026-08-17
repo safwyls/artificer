@@ -5,8 +5,7 @@ import { type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
 import { ServerSphere } from "./ServerSphere";
-import { ServerFormDialog } from "./ServerFormDialog";
-import { ProvisionServerDialog } from "./ProvisionServerDialog";
+import { AddServerFlow } from "./AddServerFlow";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 /** Desktop icon rail: logo orb, one Pal Sphere per server, add button, logout. */
@@ -15,7 +14,6 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
   const navigate = useNavigate();
   const location = useLocation();
   const [addOpen, setAddOpen] = useState(false);
-  const [provisionOpen, setProvisionOpen] = useState(false);
 
   // Switching servers keeps the current view: from a map, land on the new
   // server's map; otherwise its dashboard.
@@ -84,16 +82,7 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
         <TooltipContent side="right">Log out {username}</TooltipContent>
       </Tooltip>
 
-      <ServerFormDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        mode="create"
-        onProvision={() => {
-          setAddOpen(false);
-          setProvisionOpen(true);
-        }}
-      />
-      <ProvisionServerDialog open={provisionOpen} onOpenChange={setProvisionOpen} />
+      <AddServerFlow open={addOpen} onOpenChange={setAddOpen} />
     </aside>
   );
 }
