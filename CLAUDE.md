@@ -40,10 +40,10 @@ provisioner-mode agent is retired (`PROVISIONER_URL` → `ANVIL_URL` —
 the drift ledger: the missing-vs-refused invariant, a destroy test for
 the keep-the-volume promise, InspectSpec edge cases on recreate, and
 `Containers()`/`Ports()` + an APIVersion assertion on the client), plus
-doc consolidation. One known gap outside that: the GitHub repo is still
-named `sampo`. Anvil's image now builds here (`docker-anvil.yml`),
-publishing `anvil` plus `ilmari` as a migration channel for hosts pinned
-to the old name.
+doc consolidation. The rename is complete on both sides: the GitHub repo
+is `safwyls/artificer`, and Anvil's image builds here
+(`docker-anvil.yml`), publishing `anvil` plus `ilmari` as a migration
+channel for hosts pinned to the old name.
 
 Rules already in force (see the plan's "Structural rules"):
 
