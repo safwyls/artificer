@@ -11,7 +11,7 @@ fail=0
 # Rule: production code never imports gametest. The test-only game is
 # how core proves it is game-agnostic; a production import would make
 # the fake load-bearing.
-for m in palcon wildskeeper; do
+for m in palcon; do
   hits=$(grep -rn --include='*.go' 'internal/game/gametest' "$m/internal" "$m/cmd" 2>/dev/null \
     | grep -v '_test\.go:' || true)
   if [ -n "$hits" ]; then

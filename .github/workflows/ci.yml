@@ -61,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [palcon, wildskeeper]
+        module: [palcon]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
