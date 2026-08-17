@@ -14,6 +14,14 @@ ghcr names, no `:latest` yet:
 Repoint the deployment's tags from `:latest` to `:main` (console and
 agents). Rollback is repointing back.
 
+**Set the image tag to `main` in the wizard too.** The Raise/Provision
+dialog prefills the agent image tag with `latest`, and for palagent
+`:latest` is still the *legacy* image built from the old repo — this
+workflow deliberately does not publish `:latest` until the gate passes.
+Leaving the default means provisioning a monorepo console against a
+legacy agent, which is not what this gate is testing. Set it under
+Advanced, per server, until the flip.
+
 **Provisioning migration (the one behavior change):** the legacy
 provisioner-mode agent is retired — the monorepo console provisions
 through Ilmari only. Concretely:
@@ -87,6 +95,13 @@ Provisioning (Ilmari)
 - [ ] Wizard defaults prefill; the **admin-port trio** proposal moves
       game + REST + RCON ports together and refuses any collision among
       the four (incl. the agent port).
+- [ ] A newly raised server installs and starts: the agent's own boot
+      runs SteamCMD, then autostarts. A 502 on Start carries the agent's
+      message verbatim (the console maps any agent 500 that way), so
+      read it — `game is not installed under /palworld` means the
+      install never finished, and `docker logs palagent-<slug>` says
+      why. Check `runAs` against the image: unlike wkagent, the palagent
+      image has no baked-in unprivileged user.
 - [ ] Raise a throwaway server end to end: ini seeded from the game's
       defaults with ServerName/ServerDescription applied once,
       AdminPassword + RCONEnabled + RESTAPIEnabled enforced, REST and

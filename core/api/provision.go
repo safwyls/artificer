@@ -617,8 +617,18 @@ func (s *Server) handleAdoptServer(w http.ResponseWriter, r *http.Request) {
 		writeAgentError(w, err)
 		return
 	}
-	if adopted.Token == "" || adopted.AgentPort == 0 {
-		writeError(w, http.StatusBadRequest, "that container has no agent token or published agent port — add it manually")
+	// The two halves of reachability fail for unrelated reasons, so name
+	// the one that's actually missing — "add it manually" alone sends the
+	// operator hunting through the wrong config.
+	if adopted.Token == "" {
+		writeError(w, http.StatusBadRequest,
+			"the provisioner returned no agent token for that container — adopting through Ilmari, that usually means this console's client registration is missing its envPrefix (\""+
+				s.Provision.EnvPrefix+"_\"), so every variable was filtered out; fix the registration and re-adopt, or add the server manually")
+		return
+	}
+	if adopted.AgentPort == 0 {
+		writeError(w, http.StatusBadRequest,
+			"that container does not publish the agent port (8811) to the host, so there is no address to reach its agent on — republish the port, or add the server manually")
 		return
 	}
 

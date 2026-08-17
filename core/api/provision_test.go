@@ -554,3 +554,29 @@ func TestProvisionAdminOnly(t *testing.T) {
 		t.Errorf("non-admin provision: got %d, want 403", rec.Code)
 	}
 }
+
+// The adopt refusal names the missing half: a token the provisioner
+// didn't return points at the Ilmari envPrefix registration, an
+// unpublished agent port at the container itself. One combined message
+// sent operators hunting through the wrong config.
+func TestAdoptRefusalsNameTheMissingHalf(t *testing.T) {
+	app, admin := newTestAppWithAdmin(t)
+	fake := &fakeProvisioner{
+		health: &agentctl.Health{Agent: "ilmari", Mode: "provisioner"},
+		adoptRes: &agentctl.AdoptResult{
+			Name: "gtagent-x", Mode: "supervisor", AgentPort: 9911,
+		},
+	}
+	app.api.Provisioner = fake
+
+	rec := app.do(t, "POST", "/api/servers/adopt", map[string]string{"container": "gtagent-x"}, admin)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "envPrefix") {
+		t.Errorf("tokenless adopt: %d (body %s), want a refusal naming the envPrefix registration", rec.Code, rec.Body)
+	}
+
+	fake.adoptRes = &agentctl.AdoptResult{Name: "gtagent-x", Mode: "supervisor", Token: "recovered-token-0123456789abcdef"}
+	rec = app.do(t, "POST", "/api/servers/adopt", map[string]string{"container": "gtagent-x"}, admin)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "agent port") {
+		t.Errorf("portless adopt: %d (body %s), want a refusal naming the unpublished agent port", rec.Code, rec.Body)
+	}
+}

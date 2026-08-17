@@ -63,9 +63,14 @@ func (s *Service) place(ctx context.Context, spec ProvisionSpec, c *client) (str
 			gid, _ = strconv.Atoi(parts[1])
 		}
 		if err := os.Chown(dataDir, uid, gid); err != nil {
-			// Not fatal on its own: the directory may already be writable by
-			// that user. Whatever runs inside will complain far more
-			// usefully than a guess here could.
+			// Not fatal here, and deliberately not verified here either:
+			// this service can only see its own filesystem. When the data
+			// root is not mounted in, this whole directory is created and
+			// chowned inside this container while docker makes the real
+			// bind source itself — so a check right here would inspect the
+			// wrong path and pass. The agent settles it from inside the
+			// game container, where the truth is (its health reports
+			// installDirOk as "exists and writable").
 			s.cfg.Logger.Warn("could not chown data dir", "dir", dataDir, "error", err)
 		}
 	}
