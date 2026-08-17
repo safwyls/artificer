@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Migrate an existing server — Sampo docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
+<meta name="description" content="Bring a server you already run under a console — by adopting it, registering it, or re-raising it onto its existing world.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Migrate an existing server — Sampo docs">
+<meta property="og:description" content="Bring a server you already run under a console — by adopting it, registering it, or re-raising it onto its existing world.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html" aria-label="Sampo home">
+      <span class="mark" aria-hidden="true"><i></i></span>
+      <span class="wordmark">sampo</span>
+      <span class="crumb-docs">docs</span>
+    </a>
+    <nav class="nav-links" aria-label="Site">
+      <a class="hide-sm" href="../index.html#consoles">Consoles</a>
+      <a class="hide-sm" href="../index.html#deploy">Deploy</a>
+      <a class="nav-gh" href="https://github.com/safwyls/sampo"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs-shell">
+  <details class="side-mobile">
+    <summary>Docs navigation</summary>
+    <nav aria-label="Docs"><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--ember)" aria-hidden="true"><i></i></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">Your first server</a></li>
+    <li><a href="migrating.html" class="active" aria-current="page">Migrate an existing server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
+  <ul>
+    <li><a href="architecture.html">Architecture</a></li>
+    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="agents.html">Sidecar agents</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-wild)" aria-hidden="true"><i></i></span>Reference</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-flame-ink)" aria-hidden="true"><i></i></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div></nav>
+  </details>
+  <aside class="side" aria-label="Docs"><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--ember)" aria-hidden="true"><i></i></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">Your first server</a></li>
+    <li><a href="migrating.html" class="active" aria-current="page">Migrate an existing server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
+  <ul>
+    <li><a href="architecture.html">Architecture</a></li>
+    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="agents.html">Sidecar agents</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-wild)" aria-hidden="true"><i></i></span>Reference</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-flame-ink)" aria-hidden="true"><i></i></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div></aside>
+  <main class="doc" id="content">
+    <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Getting started <span>/</span> Migrate an existing server</p>
+    <h1>Migrate an existing server</h1>
+<p class="lead">You already have a server with a world people care about. Nothing here deletes that
+world, and every route can be rolled back — but take a snapshot first anyway, because the cheapest
+insurance is the one you didn't need.</p>
+
+<h2 id="which">Which route is yours</h2>
+<table>
+  <thead><tr><th>What you have now</th><th>Route</th></tr></thead>
+  <tbody>
+    <tr><td>It already runs one of our agent images (<code>palagent</code>, <code>wkagent</code>, <code>flameagent</code>)</td><td><a href="#adopt">1 — Adopt it</a></td></tr>
+    <tr><td>It runs some other way and you want the dashboard today, with the least disruption</td><td><a href="#byhand">2 — Register it by hand</a></td></tr>
+    <tr><td>You want the full thing: provisioning, file access, backups, supervised power</td><td><a href="#ilmari">3 — Re-raise it under Ilmari</a></td></tr>
+    <tr><td>You ran an older console with a provisioner-mode agent</td><td><a href="#legacy">4 — Retire the legacy provisioner</a></td></tr>
+  </tbody>
+</table>
+<p>Routes 2 and 3 are not exclusive. Registering by hand takes five minutes and gets the server on
+the dashboard now; you can do the full move later without losing anything.</p>
+
+<h2 id="before">Before you start</h2>
+<p>Whichever route, collect these four facts. Every one of them comes up later, and two of them are
+the difference between a migration that works and one that silently doesn't.</p>
+<div class="code-card" data-copy>
+<div class="code-head"><span>shell — replace with your container's name</span><button class="copy-btn">Copy</button></div>
+<pre><span class="c"># 1. Where the world actually lives, and 2. as which user it runs</span>
+docker inspect &lt;container&gt; --format \
+  '{{.Config.User}}{{range .Mounts}}{{printf "\n%s %s -&gt; %s" .Type .Source .Destination}}{{end}}'
+
+<span class="c"># 3. Which ports it publishes — reuse these and nobody has to re-bookmark</span>
+docker port &lt;container&gt;
+
+<span class="c"># 4. The admin password, if it was set through the environment</span>
+docker inspect &lt;container&gt; --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -i password</pre>
+</div>
+<div class="callout warn"><p>Check whether the world is on a <b>bind</b> mount (a host path) or a
+docker <b>volume</b>. A bind survives deleting the app; a named volume may not. If it is a volume,
+copy the data out to a host directory before you remove anything.</p></div>
+<p>Then snapshot it. On TrueNAS a ZFS snapshot of the dataset is instant and free; anywhere else,
+<code>cp -a</code> the world directory somewhere off to one side.</p>
+
+<h2 id="adopt">Route 1 — Adopt it</h2>
+<p>The whole migration, if it applies. The console finds the container, recovers its token, admin
+password, server name and ports, and writes the row itself. Nothing to type and no downtime — the
+server keeps running throughout.</p>
+<p>Press <b>+</b> in the server rail. Containers the console can claim appear at the top of the
+dialog; click <b>Adopt</b>.</p>
+<p>Two conditions have to hold, and each fails with its own message:</p>
+<ul>
+  <li><b>The agent port must be published.</b> Adoption needs an address to reach the agent on. If
+    <code>docker port</code> showed no <code>8811</code>, republish it — or use route 2 now and
+    route 3 later.</li>
+  <li><b>Ilmari must know this console's environment namespace.</b> That console's entry in
+    <code>ILMARI_CLIENTS</code> needs its <code>envPrefix</code>, or Ilmari returns no environment
+    and there is no token to recover. See <a href="ilmari.html#register">Ilmari</a>.</li>
+</ul>
+<p>A container that does not appear at all is usually neither owned nor image-matched — check it
+runs one of our agent images, or that its image falls under that console's allowlist.</p>
+
+<h2 id="byhand">Route 2 — Register it by hand</h2>
+<p>Works with any server the console can reach over the network, however it was deployed. Press
+<b>+</b> → <b>Add an existing server by hand</b> and fill in the address and credentials.</p>
+<table>
+  <thead><tr><th>You get</th><th>You don't</th></tr></thead>
+  <tbody>
+    <tr><td>Live state, player list, metrics</td><td>Config editing</td></tr>
+    <tr><td>Moderation over the game's own protocol</td><td>Save-backed views (pals, storage, world)</td></tr>
+    <tr><td>Power control, if <code>DOCKER_HOST</code> is set</td><td>Backups</td></tr>
+    <tr><td>Scheduled restarts and alerts</td><td>SteamCMD updates from the UI</td></tr>
+  </tbody>
+</table>
+<p>The right-hand column is everything that needs file access. To get it without a full move, point
+the server's save path at a bind mount of the world directory, or deploy an agent alongside the
+game in companion mode — see <a href="agents.html#modes">Sidecar agents</a>.</p>
+
+<h2 id="ilmari">Route 3 — Re-raise it under Ilmari</h2>
+<p>This ends with a supervised, Ilmari-managed server with every feature working, wrapped around
+the world you already have. It is a container replacement, not a world migration: the world never
+moves between machines, only into the directory the platform expects.</p>
+<div class="callout note"><p><b>Why re-raise instead of relabel?</b> Ilmari can only recreate or
+destroy containers it made. One deployed by hand — a TrueNAS app, your own compose file — has
+another orchestrator that would fight it. Letting Ilmari build the container is what makes it
+manageable.</p></div>
+
+<h3>The one rule that decides everything</h3>
+<p>Ilmari always places data at <code>&lt;that console's dataRoot&gt;/&lt;slug&gt;</code>, and the
+slug comes from the server name you type. So <b>pick a name whose slug matches the directory you
+are going to put the world in</b> — name it "Fluffy" and the directory is
+<code>&lt;dataRoot&gt;/fluffy</code>.</p>
+
+<h3>Steps</h3>
+<ol>
+  <li><b>Snapshot</b>, per the section above.</li>
+  <li><b>Stop and remove the old stack.</b> Its world is on a host path and survives; the container
+    is what has to go, so its ports are free and nothing else is writing the world. Removing a
+    TrueNAS app does not touch a host-path mount.</li>
+  <li><b>Move the world into place.</b> If the old server was run by <i>our</i> agent, the data
+    directory is already the full game install — move the whole thing:
+    <div class="code-card" data-copy>
+    <div class="code-head"><span>shell</span><button class="copy-btn">Copy</button></div>
+    <pre>mv /old/path/fluffy /mnt/tank/apps/palcon-servers/fluffy</pre>
+    </div>
+    If it was someone else's image, its layout probably differs. Let the agent install the game
+    fresh in step 5, stop it, then copy just your world in — see the table below.</li>
+  <li><b>Fix ownership</b> to the user the new container will run as:
+    <div class="code-card" data-copy>
+    <div class="code-head"><span>shell</span><button class="copy-btn">Copy</button></div>
+    <pre>sudo chown -R 568:568 /mnt/tank/apps/palcon-servers/fluffy</pre>
+    </div>
+  </li>
+  <li><b>Raise it from the wizard.</b> Use the name whose slug matches the directory, the
+    <b>same published ports</b> as before, the <b>same admin password</b> (paste it under Advanced,
+    or players and admins get a new one), and a <b>Run as</b> matching step 4.</li>
+  <li><b>Watch the first boot.</b> The agent should find the install already present and start in
+    seconds.</li>
+  <li><b>Delete the old row</b> if you had registered the server by hand.</li>
+</ol>
+<div class="callout danger"><p><b>If SteamCMD starts downloading several gigabytes, stop.</b> That
+means the agent did not find your install where the slug expects it — the directory name and the
+server's slug disagree, or the move landed somewhere else. Nothing is lost, but fix the path before
+letting it write.</p></div>
+
+<h3>Where each game keeps its world</h3>
+<p>Relative to the install directory, if you are copying a world into a fresh install rather than
+moving a whole one:</p>
+<table>
+  <thead><tr><th>Game</th><th>World lives at</th></tr></thead>
+  <tbody>
+    <tr><td>Palworld</td><td><code>Pal/Saved/SaveGames/0/&lt;world-id&gt;/</code> — the folder holding <code>Level.sav</code></td></tr>
+    <tr><td>Dragonwilds</td><td><code>RSDragonwilds/Saved/SaveGames/</code> — <code>.sav</code> files</td></tr>
+    <tr><td>Enshrouded</td><td><code>savegame/</code> — extensionless blobs plus their <code>-index</code>/<code>-info</code> sidecars</td></tr>
+  </tbody>
+</table>
+<p>Copy the whole directory, sidecars included, and match the ownership of everything around it.</p>
+
+<h3>Keeping players' bookmarks</h3>
+<p>Reuse the same host and the same published game ports and nobody has to do anything — the server
+is at the address they already saved. Changing ports means everyone re-adds it, so it is worth
+some effort to keep them, even if the wizard proposes different ones.</p>
+
+<h2 id="legacy">Route 4 — Retire a legacy provisioner</h2>
+<p>Older palcon deployments ran an agent in <i>provisioner</i> mode: one container that placed the
+others. That role is Ilmari's now, and the console no longer reads
+<code>PROVISIONER_URL</code>/<code>PROVISIONER_TOKEN</code>.</p>
+<ol>
+  <li>Stand up Ilmari — <a href="ilmari.html#run">Running it</a> — with a client entry for this
+    console, including its <code>envPrefix</code> and a mounted data root.</li>
+  <li>Swap the console's environment: <code>ILMARI_URL</code> and <code>ILMARI_TOKEN</code> in,
+    <code>PROVISIONER_URL</code> and <code>PROVISIONER_TOKEN</code> out. Setting only the old pair
+    logs a warning and leaves the wizard absent — the two speak different protocols, so the old URL
+    cannot be reused.</li>
+  <li>Your existing game servers are untouched: their agent containers keep running with the same
+    environment. Bring them into the wizard with route 1.</li>
+  <li>Remove the old provisioner container. It is not a game server, and adopting it is refused for
+    that reason.</li>
+</ol>
+
+<h2 id="rollback">Rolling back</h2>
+<p>Until you have joined the migrated server and seen your world, keep the old stack <b>stopped
+rather than deleted</b>. Rolling back is then starting it again and pointing the console back at
+it. Once you are satisfied, delete the old stack so two things never contend for the same ports or
+the same directory.</p>
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="first-server.html"><small>← Previous</small><b>Your first server</b></a><a class="pager-card next" href="architecture.html"><small>Next →</small><b>Architecture</b></a></nav>
+  </main>
+</div>
+<footer class="doc-footer">
+  <div class="wrap-doc">
+    <p>Sampo is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
+    © Jagex Ltd. Enshrouded is © Keen Games GmbH. No affiliation or endorsement is implied.</p>
+    <p><a href="https://github.com/safwyls/sampo">GitHub</a> ·
+       <a href="https://github.com/safwyls/sampo/issues">Issues</a> ·
+       <a href="../index.html">Homepage</a></p>
+  </div>
+</footer>
+<script>
+  for (const card of document.querySelectorAll(".code-card[data-copy]")) {
+    const btn = card.querySelector(".copy-btn");
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(card.querySelector("pre").innerText);
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = "Copy"), 1600);
+      } catch { btn.textContent = "Select & copy"; }
+    });
+  }
+</script>
+</body>
+</html>

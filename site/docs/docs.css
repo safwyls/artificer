@@ -194,7 +194,14 @@ header.nav {
   width: 100%; border-collapse: collapse; margin: 1rem 0 1.4rem;
   font-size: .91rem; background: var(--birch);
   border: 1px solid var(--rule); border-radius: 10px;
-  display: block; overflow-x: auto;
+  /* display:table so columns actually divide the width — a block-level
+     table sizes to its content and leaves a dead strip on the right of any
+     two-column table. Narrow screens trade that back for scrolling, where
+     a wide table overflowing the viewport is the worse problem. */
+  display: table; table-layout: auto;
+}
+@media (max-width: 700px) {
+  .doc table { display: block; overflow-x: auto; }
 }
 .doc th, .doc td { text-align: left; padding: .55rem .8rem; border-bottom: 1px solid rgba(23, 27, 34, .08); vertical-align: top; }
 .doc th {
