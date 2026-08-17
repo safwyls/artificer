@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/safwyls/ilmari/internal/dockerctl"
 )
@@ -63,10 +64,23 @@ func (s *Service) place(ctx context.Context, spec ProvisionSpec, c *client) (str
 			gid, _ = strconv.Atoi(parts[1])
 		}
 		if err := os.Chown(dataDir, uid, gid); err != nil {
-			// Not fatal on its own: the directory may already be writable by
-			// that user. Whatever runs inside will complain far more
-			// usefully than a guess here could.
+			// Not fatal on its own: the directory may already be writable
+			// by that user. The check below decides.
 			s.cfg.Logger.Warn("could not chown data dir", "dir", dataDir, "error", err)
+		}
+		// Verify rather than hope. This once trusted "whatever runs inside
+		// will complain more usefully" — it does not: SteamCMD exits 0
+		// having written nothing, the agent records the job as done, and
+		// the only symptom is a game that will not start because it is
+		// "not installed". The failure worth catching is a data root that
+		// is not mounted into *this* service: the directory then gets
+		// created here, in this container's own filesystem, docker creates
+		// the real bind source itself, and it lands owned by root while
+		// the game container runs as someone else.
+		if !dataDirUsableBy(dataDir, uid, gid) {
+			return "", &placeError{http.StatusInternalServerError, fmt.Errorf(
+				"data dir %s is not writable by the container's user %s — check that %s is mounted into this service, or chown the directory",
+				dataDir, spec.User, c.DataRoot)}
 		}
 	}
 
@@ -300,6 +314,31 @@ func (s *Service) handleDestroy(w http.ResponseWriter, r *http.Request) {
 	// consent to delete what it was holding.
 	s.cfg.Logger.Info("destroyed container", "container", req.Container, "dataKept", dataDir)
 	writeJSON(w, http.StatusOK, map[string]any{"container": req.Container, "dataDir": dataDir})
+}
+
+// dataDirUsableBy reports whether a container running as uid:gid could
+// write into dir. Ownership and mode are the practical test — a chown can
+// report success against a path this service sees but the container never
+// will.
+func dataDirUsableBy(dir string, uid, gid int) bool {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return false
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		// Unknown platform: don't invent a refusal.
+		return true
+	}
+	mode := info.Mode().Perm()
+	switch {
+	case int(st.Uid) == uid && mode&0o200 != 0:
+		return true
+	case int(st.Gid) == gid && mode&0o020 != 0:
+		return true
+	default:
+		return mode&0o002 != 0
+	}
 }
 
 // findOwned resolves a container name to something *this caller* may act

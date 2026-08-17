@@ -186,6 +186,15 @@ func (a *Agent) Run() {
 				break
 			}
 		}
+		// SteamCMD reports success even when it could not write a byte
+		// into the install dir, so "the job finished" is not the same
+		// question as "the game is here now". Asking the second one is
+		// what turns a silent dead end into a fixable message.
+		if !a.game.Installed() {
+			a.cfg.Logger.Error("install reported success but the game is still missing — is the install dir writable by this container's user?",
+				"dir", a.cfg.InstallDir, "writable", installDirUsable(a.cfg.InstallDir))
+			return
+		}
 	}
 
 	autostart := a.cfg.Autostart == nil || *a.cfg.Autostart
@@ -252,11 +261,27 @@ func (a *Agent) requireToken(next http.Handler) http.Handler {
 	})
 }
 
-func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	installOk := false
-	if _, err := os.Stat(a.cfg.InstallDir); err == nil {
-		installOk = true
+// installDirUsable reports whether the install dir exists *and* this
+// process can write into it. Existence alone was the old test, and it
+// answered "ok" for a directory the agent could not write a single byte
+// into — which is the exact shape of a provisioning mistake (a data dir
+// left owned by root under a container running as an unprivileged user).
+// That mistake is otherwise close to undiagnosable, because SteamCMD
+// exits 0 having installed nothing, the job is recorded as done, and the
+// only visible symptom is the game refusing to start as "not installed".
+func installDirUsable(dir string) bool {
+	f, err := os.CreateTemp(dir, ".agent-write-probe-*")
+	if err != nil {
+		return false
 	}
+	name := f.Name()
+	_ = f.Close()
+	_ = os.Remove(name)
+	return true
+}
+
+func (a *Agent) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	installOk := installDirUsable(a.cfg.InstallDir)
 	_, saveErr := a.findSaveDir()
 	_, configErr := os.Stat(a.configPath())
 	h := Health{
