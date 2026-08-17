@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/sched"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/sched"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // scheduleJSON is the wire form of a restart schedule. Times are the

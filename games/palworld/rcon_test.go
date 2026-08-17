@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/games/palworld/rcon/rcontest"
+	"github.com/safwyls/artificer/games/palworld/rcon/rcontest"
 )
 
 // These cover Palworld's command vocabulary — the exact strings put on the

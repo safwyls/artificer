@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/safwyls/sampo/core/api/apitest"
+	"github.com/safwyls/artificer/core/api/apitest"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // An Enshrouded server end to end through the API: the config editor speaks

@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Migrate an existing server — Sampo docs</title>
+<title>Migrate an existing server — Artificer docs</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
 <meta name="description" content="Bring a server you already run under a console — from a bare-metal install, from another container setup, or from an older console.">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Migrate an existing server — Sampo docs">
+<meta property="og:title" content="Migrate an existing server — Artificer docs">
 <meta property="og:description" content="Bring a server you already run under a console — from a bare-metal install, from another container setup, or from an older console.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,15 +18,15 @@
 <a class="skip-link" href="#content">Skip to content</a>
 <header class="nav">
   <div class="nav-inner">
-    <a class="brand" href="../index.html" aria-label="Sampo home">
+    <a class="brand" href="../index.html" aria-label="Artificer home">
       <span class="mark" aria-hidden="true"><i></i></span>
-      <span class="wordmark">sampo</span>
+      <span class="wordmark">artificer</span>
       <span class="crumb-docs">docs</span>
     </a>
     <nav class="nav-links" aria-label="Site">
       <a class="hide-sm" href="../index.html#consoles">Consoles</a>
       <a class="hide-sm" href="../index.html#deploy">Deploy</a>
-      <a class="nav-gh" href="https://github.com/safwyls/sampo"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
+      <a class="nav-gh" href="https://github.com/safwyls/artificer"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
     </nav>
   </div>
 </header>
@@ -46,7 +46,7 @@
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
   <ul>
     <li><a href="architecture.html">Architecture</a></li>
-    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
   </ul>
 </div><div class="side-cat">
@@ -74,7 +74,7 @@
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
   <ul>
     <li><a href="architecture.html">Architecture</a></li>
-    <li><a href="ilmari.html">Ilmari, the host service</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
   </ul>
 </div><div class="side-cat">
@@ -296,8 +296,8 @@ itself — no downtime and nothing typed.</p>
 to hold, and each fails with its own message:</p>
 <ul>
   <li><b>The agent port must be published</b>, or there is no address to reach it on.</li>
-  <li><b>Ilmari must know this console's <code>envPrefix</code></b>, or it returns no environment
-    and there is no token to recover — see <a href="ilmari.html#register">Ilmari</a>.</li>
+  <li><b>Anvil must know this console's <code>envPrefix</code></b>, or it returns no environment
+    and there is no token to recover — see <a href="anvil.html#register">Anvil</a>.</li>
 </ul>
 
 <h2 id="container">Route 3 — From another container setup</h2>
@@ -310,7 +310,7 @@ existing world:</p>
 <ol>
   <li>Snapshot, then stop and remove the old container. Its world is on a host path and survives;
     confirm it is a <b>bind</b> mount and not a named volume before removing anything.</li>
-  <li>Move the world to <code>&lt;that console's dataRoot&gt;/&lt;slug&gt;</code>. Ilmari always
+  <li>Move the world to <code>&lt;that console's dataRoot&gt;/&lt;slug&gt;</code>. Anvil always
     places data there and the slug comes from the server name you type, so <b>pick a name whose
     slug matches the directory</b> — "Fluffy" means <code>&lt;dataRoot&gt;/fluffy</code>.</li>
   <li><code>chown</code> it to the user the new container will run as.</li>
@@ -318,18 +318,18 @@ existing world:</p>
 </ol>
 <div class="callout danger"><p><b>If SteamCMD starts downloading, stop.</b> The install is not
 where the slug expects it. Nothing is lost yet — fix the path before letting it write.</p></div>
-<div class="callout note"><p><b>Why replace the container instead of relabelling it?</b> Ilmari can
+<div class="callout note"><p><b>Why replace the container instead of relabelling it?</b> Anvil can
 only recreate or destroy containers it made. One deployed by hand has another orchestrator that
-would fight it, so letting Ilmari build the container is what makes it manageable.</p></div>
+would fight it, so letting Anvil build the container is what makes it manageable.</p></div>
 
 <h2 id="legacy">Route 4 — Retire a legacy provisioner</h2>
 <p>Older palcon deployments ran an agent in <i>provisioner</i> mode: one container that placed the
-others. That role is Ilmari's now, and the console no longer reads
+others. That role is Anvil's now, and the console no longer reads
 <code>PROVISIONER_URL</code>/<code>PROVISIONER_TOKEN</code>.</p>
 <ol>
-  <li>Stand up Ilmari — <a href="ilmari.html#run">Running it</a> — with a client entry for this
+  <li>Stand up Anvil — <a href="anvil.html#run">Running it</a> — with a client entry for this
     console, including its <code>envPrefix</code> and a mounted data root.</li>
-  <li>Swap the console's environment: <code>ILMARI_URL</code> and <code>ILMARI_TOKEN</code> in, the
+  <li>Swap the console's environment: <code>ANVIL_URL</code> and <code>ANVIL_TOKEN</code> in, the
     old pair out. Setting only the old pair logs a warning and leaves the wizard absent — the two
     speak different protocols, so the old URL cannot be reused.</li>
   <li>Existing game servers are untouched; bring them into the wizard with
@@ -353,10 +353,10 @@ never contend for the same ports or the same files.</p>
 </div>
 <footer class="doc-footer">
   <div class="wrap-doc">
-    <p>Sampo is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
+    <p>Artificer is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
     © Jagex Ltd. Enshrouded is © Keen Games GmbH. No affiliation or endorsement is implied.</p>
-    <p><a href="https://github.com/safwyls/sampo">GitHub</a> ·
-       <a href="https://github.com/safwyls/sampo/issues">Issues</a> ·
+    <p><a href="https://github.com/safwyls/artificer">GitHub</a> ·
+       <a href="https://github.com/safwyls/artificer/issues">Issues</a> ·
        <a href="../index.html">Homepage</a></p>
   </div>
 </footer>

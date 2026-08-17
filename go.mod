@@ -1,4 +1,4 @@
-module github.com/safwyls/sampo
+module github.com/safwyls/artificer
 
 go 1.26
 

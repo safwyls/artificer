@@ -10,9 +10,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // WriteJSON writes a JSON response — the same encoder core's handlers use.

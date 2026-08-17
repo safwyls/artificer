@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/core/store"
 
 	// The registry is populated by the test-only game, exactly as a
 	// console binary populates it with a real one. Without a registration
 	// every server row resolves to "unknown game" — a failure no compiler
 	// catches, which is what the tests below are for.
-	_ "github.com/safwyls/sampo/core/game/gametest"
+	_ "github.com/safwyls/artificer/core/game/gametest"
 )
 
 // A server row must resolve to a live client. This is the wiring the binary

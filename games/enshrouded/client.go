@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/games/enshrouded/eslog"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/games/enshrouded/eslog"
 )
 
 // errNoAgent is the config-level failure: without a sidecar there is no

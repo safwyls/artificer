@@ -64,5 +64,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=sampo-${{ matrix.image }}
-          cache-to: type=gha,mode=min,scope=sampo-${{ matrix.image }}
+          cache-from: type=gha,scope=artificer-${{ matrix.image }}
+          cache-to: type=gha,mode=min,scope=artificer-${{ matrix.image }}

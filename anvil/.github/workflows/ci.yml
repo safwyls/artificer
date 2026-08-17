@@ -34,7 +34,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/ilmari
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/anvil
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/ilmari/internal/dockerctl"
+	"github.com/safwyls/anvil/internal/dockerctl"
 )
 
 // dockerSpy records the requests a client makes and answers with canned
@@ -116,7 +116,7 @@ func TestContainerRemoveReportsARunningContainer(t *testing.T) {
 func TestContainerList(t *testing.T) {
 	_, client := newSpy(t, `[
 	  {"Id":"c1","Names":["/wkagent-main"],"Image":"ghcr.io/safwyls/wkagent:latest","State":"running",
-	   "Labels":{"ilmari.provisioned":"true","ilmari.slug":"main"},
+	   "Labels":{"anvil.provisioned":"true","anvil.slug":"main"},
 	   "Ports":[{"PrivatePort":8211,"PublicPort":9211,"Type":"udp"},
 	            {"PrivatePort":8811,"PublicPort":0,"Type":"tcp"}]},
 	  {"Id":"c2","Names":[],"Image":"nginx","State":"exited","Labels":null,"Ports":[]}
@@ -136,7 +136,7 @@ func TestContainerList(t *testing.T) {
 	if first.Name != "wkagent-main" {
 		t.Errorf("Name = %q, want the slash stripped", first.Name)
 	}
-	if first.Labels["ilmari.slug"] != "main" {
+	if first.Labels["anvil.slug"] != "main" {
 		t.Errorf("labels = %v", first.Labels)
 	}
 	if first.Ports["8211/udp"] != 9211 {

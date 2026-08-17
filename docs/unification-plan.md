@@ -1,8 +1,8 @@
 # Console unification: the monorepo migration plan
 
-Decision (2026-08-16): palcon, wildskeeper, flametender, and ilmari merge
+Decision (2026-08-16): palcon, wildskeeper, flametender, and anvil merge
 into one monorepo — a shared `core/` console framework, one module per
-game, and ilmari as the host-service module — instead of continuing as
+game, and anvil as the host-service module — instead of continuing as
 four hand-synchronized repos. This document is the plan of record for
 that migration.
 
@@ -17,8 +17,8 @@ casualties of the current model:
 
 - flametender's "Fix backups, which had never once produced a file" has
   no automatic path back to palcon or wildskeeper.
-- The Ilmari *client* exists twice (`internal/ilmari` in wildskeeper and
-  flametender) and the two copies already differ, while the Ilmari
+- The Anvil *client* exists twice (`internal/anvil` in wildskeeper and
+  flametender) and the two copies already differ, while the Anvil
   *server* versions independently in its own repo.
 - flametender's `internal/api/provisioner.go` still carries comments
   about "Dragonwilds sidecars" — transplant residue. Even fresh copies
@@ -36,7 +36,7 @@ dependency rule; the monorepo turns that convention into structure.
 Two source-of-truth choices, decided up front:
 
 - **Core comes from flametender.** It has the newest shared layer: the
-  revised Ilmari provisioner/companion flow, Cloudflare Access SSO,
+  revised Anvil provisioner/companion flow, Cloudflare Access SSO,
   the cleanest agent management, and the most recent shared-layer
   fixes. Wildskeeper and palcon improvements that flametender lacks
   (notably the advisor, wildskeeper's launch/actions work) are merged
@@ -53,33 +53,34 @@ Two source-of-truth choices, decided up front:
 ## Target layout
 
 One repo, one Go module, npm workspaces on the web side. Proposed name:
-**`safwyls/sampo`** — the artifact Ilmarinen forged; fits the naming
-culture, and it's what the consoles are built from. (Placeholder until
+**`safwyls/artificer`** — a maker of devices; it's what the consoles
+are built from, and it sets the forge theme the host service (`anvil`)
+continues. (Placeholder until
 the maintainer blesses a name; nothing below depends on it.)
 
 ```
-sampo/
-  go.mod                      # module github.com/safwyls/sampo
+artificer/
+  go.mod                      # module github.com/safwyls/artificer
   core/                       # the console framework (today's shared internal/*)
     api/  game/  store/  db/  config/  crypto/
     agentctl/  agentfiles/  steamcmd/  backup/  sched/  notify/
     collector/  savecache/  watchdog/  advisor/  cfaccess/
     agent/                    # shared agent kit: files, jobs, diskfree, launch bones
-    ilmariclient/             # the ONE Ilmari client (replaces both internal/ilmari copies)
+    ilmariclient/             # the ONE Anvil client (replaces both internal/anvil copies)
     game/gametest/            # unchanged role: core must pass with only this
   games/
     palworld/                 # palconfig, palsave, rcon, rest, uid, fallback,
-                              #   palagent supervisor, IlmariProvisioner adapter
+                              #   palagent supervisor, AnvilProvisioner adapter
     dragonwilds/              # dwconfig, dwlog, dwsave, client,
                               #   wkagent supervisor, adapter
     enshrouded/               # esconfig, eslog, esquery, client, banqueue,
                               #   flameagent supervisor, adapter
-  ilmari/                     # the host service (host/, dockerctl/) — only module
+  anvil/                     # the host service (host/, dockerctl/) — only module
                               #   allowed to hold a Docker socket
   cmd/
     palcon/  wildskeeper/  flametender/     # console binaries (names/brands unchanged)
     palagent/  wkagent/  flameagent/        # sidecar agents
-    ilmari/
+    anvil/
   web/                        # npm workspaces
     core/                     # shared pages, components, api lib, test kit, semantic vars
     palcon/  wildskeeper/  flametender/     # theme tokens, game pages, vendored data, entry
@@ -92,19 +93,19 @@ sampo/
 Import-boundary checks live in CI as tests, in the repos' own style
 ("interface satisfaction is a compile-time fact, not a hope"):
 
-1. `core` never imports `games/*` or `ilmari`.
+1. `core` never imports `games/*` or `anvil`.
 2. Game modules never import each other.
-3. `ilmari` never imports `core` or `games/*` — its README's contract
+3. `anvil` never imports `core` or `games/*` — its README's contract
    ("it does not know what a game is") becomes mechanical.
 4. Nothing outside tests imports `gametest`.
-5. `dockerctl` exists only under `ilmari/` — consoles lose Docker
+5. `dockerctl` exists only under `anvil/` — consoles lose Docker
    rights entirely, monorepo-wide, the way flametender already did.
 
 Single Go module (not go.work multi-module): at one maintainer,
 intra-repo versioning is pure tax; the boundaries above do the isolation
-work. Ilmari still **deploys** independently — shared source, separate
+work. Anvil still **deploys** independently — shared source, separate
 images and cadence, so "a game's change never becomes a deploy of
-ilmari" survives the merge.
+anvil" survives the merge.
 
 ### The one new abstraction: game-contributed surface
 
@@ -170,8 +171,8 @@ is debugged before it meets palcon's bulk.
 - Extract `core/agent`: the three sidecar agents share files.go,
   jobs.go, diskfree, appid, launch bones almost verbatim — that's the
   kit; supervisors stay per-game.
-- Collapse the two `internal/ilmari` clients into `core/ilmariclient`,
-  reconciled against the actual ilmari server in-repo (first payoff of
+- Collapse the two `internal/anvil` clients into `core/ilmariclient`,
+  reconciled against the actual anvil server in-repo (first payoff of
   coupling client and server).
 - **Gate:** core compiles and passes its full test suite with *only*
   `gametest` registered. That is the definition of "game-agnostic".
@@ -183,7 +184,7 @@ Nearly free by construction (core *is* its shared layer): move
 and its web app onto `web/core` + theme tokens.
 
 - **Gate:** image built from the monorepo runs against the real
-  Enshrouded server — provisioning via ilmari, stop/save behavior, ban
+  Enshrouded server — provisioning via anvil, stop/save behavior, ban
   queue, backups. The old repo then goes read-only (final commit points
   here).
 
@@ -192,7 +193,7 @@ and its web app onto `web/core` + theme tokens.
 - `games/dragonwilds` moves over; wkagent onto `core/agent`; dwbridge
   into `tools/`.
 - Its self-provisioning path becomes a Dragonwilds
-  `IlmariProvisioner` adapter (it already half-lives in the Ilmari
+  `AnvilProvisioner` adapter (it already half-lives in the Anvil
   world — adoption/discovery shipped). Direct-Docker provisioning does
   not make the jump.
 - Wildskeeper *gains* from core here: cfaccess, flametender-era fixes
@@ -206,8 +207,8 @@ and its web app onto `web/core` + theme tokens.
 - `games/palworld` wholesale; `api/pals.go` becomes the first user of
   the game-contributed-routes seam; the deep-game UI, vendored data,
   and a new `pages/palworld/` land in `web/palcon` on `web/core`.
-- palcon converges on Ilmari provisioning (adapter written here;
-  ilmari already runs on the shared TrueNAS host). Console-side
+- palcon converges on Anvil provisioning (adapter written here;
+  anvil already runs on the shared TrueNAS host). Console-side
   `dockerctl` is deleted monorepo-wide at the end of this phase.
 - palcon *gains*: cfaccess, every core fix since drift began.
 - **Gate:** real Palworld server — save reading, RCON/REST paths,
@@ -250,7 +251,7 @@ and its web app onto `web/core` + theme tokens.
 | 1 | History import, CI, drift ledger | 1 PR + the ledger (the judgment work) |
 | 2 | Core from flametender + ledger, cfaccess/advisor/agent-kit/ilmariclient | the big one; a small PR stack |
 | 3 | Flametender port + real-server gate | small |
-| 4 | Wildskeeper port, Ilmari adapter, TrueNAS gate | medium |
+| 4 | Wildskeeper port, Anvil adapter, TrueNAS gate | medium |
 | 5 | palcon port, game-routes seam, docker retirement | large |
 | 6 | Archive, docs consolidation | small |
 

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/safwyls/sampo/core/collector"
+	"github.com/safwyls/artificer/core/collector"
 )
 
 // metricPointDTO is one charted sample. Fields are pointers so a gap in the

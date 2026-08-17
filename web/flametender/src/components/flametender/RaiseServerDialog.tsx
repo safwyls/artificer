@@ -11,7 +11,7 @@ import { NumberField } from "../ui/number-field";
 
 /**
  * Stands up a new Enshrouded server: registers the row, and either
- * deploys the container through Ilmari or hands back the stack to deploy
+ * deploys the container through Anvil or hands back the stack to deploy
  * by hand.
  *
  * The join password gets the top of the dialog because it is the one
@@ -106,7 +106,7 @@ export function RaiseServerDialog({
               <DialogTitle className="font-ftdisplay tracking-[0.06em] text-ft-stonehi">Raise a server</DialogTitle>
               <DialogDescription className="text-ft-lichen">
                 {hasProvisioner
-                  ? "Ilmari will place the container and install the game. First boot takes a while — the Windows depot plus a Wine prefix — watch it from the server's card."
+                  ? "Anvil will place the container and install the game. First boot takes a while — the Windows depot plus a Wine prefix — watch it from the server's card."
                   : "No provisioner is configured, so this generates a stack for you to deploy. The server is registered either way."}
               </DialogDescription>
             </DialogHeader>

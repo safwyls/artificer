@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/core/store"
 )
 
 var errBadServerID = errors.New("invalid server id")

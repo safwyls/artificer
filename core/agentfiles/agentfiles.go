@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // ErrNotConfigured means the server has neither a local path nor an agent

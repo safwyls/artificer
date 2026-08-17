@@ -16,12 +16,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/api/apitest"
-	"github.com/safwyls/sampo/core/store"
-	"github.com/safwyls/sampo/games/palworld"
-	"github.com/safwyls/sampo/games/palworld/palapi"
-	"github.com/safwyls/sampo/games/palworld/palsave"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/api/apitest"
+	"github.com/safwyls/artificer/core/store"
+	"github.com/safwyls/artificer/games/palworld"
+	"github.com/safwyls/artificer/games/palworld/palapi"
+	"github.com/safwyls/artificer/games/palworld/palsave"
 )
 
 // hasPython reports whether the save extractor's dependencies are present.

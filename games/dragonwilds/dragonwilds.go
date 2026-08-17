@@ -21,8 +21,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/games/dragonwilds/dwconfig"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/games/dragonwilds/dwconfig"
 )
 
 // AppID is the Steam app id of the *dedicated server* tool (the game client

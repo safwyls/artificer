@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/safwyls/sampo/core/game"
+	"github.com/safwyls/artificer/core/game"
 )
 
 // RESTClient talks to a Palworld server's built-in REST API

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/savecache"
+	"github.com/safwyls/artificer/core/savecache"
 )
 
 // world is a stand-in for a game's parsed save.

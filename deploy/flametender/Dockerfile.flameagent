@@ -1,5 +1,5 @@
 # flameagent — the per-server sidecar agent (docs/sidecar-agent.md).
-# Placed by Ilmari (or a pasted stack) with the /enshrouded install
+# Placed by Anvil (or a pasted stack) with the /enshrouded install
 # volume; flametender drives it over HTTP with a bearer token.
 #
 # Wine is in the base set, not a variant: Enshrouded ships no Linux

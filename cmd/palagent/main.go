@@ -4,7 +4,7 @@
 // to drive. The shared machinery is core/agent; the Palworld half is
 // games/palworld/palagent.
 //
-// Provisioner mode is gone on purpose: placing containers is Ilmari's
+// Provisioner mode is gone on purpose: placing containers is Anvil's
 // job, so PALAGENT_DOCKER_HOST and its provisioning siblings
 // (PALAGENT_DATA_ROOT, PALAGENT_PUBLIC_HOST, …) are no longer read.
 package main
@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/games/palworld/palagent"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/games/palworld/palagent"
 )
 
 // version is stamped by the release build via

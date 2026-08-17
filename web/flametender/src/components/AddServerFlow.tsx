@@ -50,10 +50,10 @@ export function AddServerFlow({ open, onOpenChange }: { open: boolean; onOpenCha
 
   // Which discoveries are offered for adoption. The legacy provisioner
   // reports each container's FLAMEAGENT_MODE, so "supervisor" means a game
-  // server and "provisioner" means itself. Ilmari doesn't read container
+  // server and "provisioner" means itself. Anvil doesn't read container
   // env for discovery, so its candidates arrive with mode "" — unknown is
   // not disqualifying, or the adopt list would be empty for every
-  // Ilmari-backed console (which is exactly the bug this line once had).
+  // Anvil-backed console (which is exactly the bug this line once had).
   // The one wrong pick an unknown allows — the legacy provisioner's own
   // container — is refused server-side by adopt, with an explanation.
   // Already-registered containers stay out: they're in the rail already,

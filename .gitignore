@@ -5,7 +5,7 @@
 /wkagent
 /palcon
 /palagent
-/ilmari-bin
+/anvil-bin
 web/*/dist/
 web/*/dist-demo/
 web/*/node_modules/

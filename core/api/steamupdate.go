@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // agentFor builds the agentctl client for a server row. Errors collapse to

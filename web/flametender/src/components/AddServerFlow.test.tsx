@@ -31,17 +31,17 @@ describe("AddServerFlow chooser", () => {
     vi.spyOn(api, "provisionDiscover").mockResolvedValue({ available: true, servers: [] });
   });
 
-  // The regression that hid adoption behind Ilmari: the legacy provisioner
-  // reports mode "supervisor" for game servers, but Ilmari's discovery
+  // The regression that hid adoption behind Anvil: the legacy provisioner
+  // reports mode "supervisor" for game servers, but Anvil's discovery
   // cannot read container env, so its candidates arrive with mode "".
   // Both must be offered; a known provisioner is withheld, and so is a
   // container that's already registered here — it's in the rail already.
-  it("offers legacy and Ilmari-shaped candidates, never a provisioner or a registered one", async () => {
+  it("offers legacy and Anvil-shaped candidates, never a provisioner or a registered one", async () => {
     vi.spyOn(api, "provisionDiscover").mockResolvedValue({
       available: true,
       servers: [
         discovered("flameagent-legacy", "supervisor"),
-        discovered("flameagent-via-ilmari", ""),
+        discovered("flameagent-via-anvil", ""),
         discovered("wkprovisioner", "provisioner"),
         discovered("flameagent-already-here", "", true),
       ],
@@ -49,7 +49,7 @@ describe("AddServerFlow chooser", () => {
     openFlow();
 
     expect(await screen.findByText("flameagent-legacy")).toBeInTheDocument();
-    expect(screen.getByText("flameagent-via-ilmari")).toBeInTheDocument();
+    expect(screen.getByText("flameagent-via-anvil")).toBeInTheDocument();
     expect(screen.queryByText("wkprovisioner")).not.toBeInTheDocument();
     expect(screen.queryByText("flameagent-already-here")).not.toBeInTheDocument();
     expect(screen.getByText(/2 servers are running on your host/i)).toBeInTheDocument();

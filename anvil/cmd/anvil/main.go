@@ -1,4 +1,4 @@
-// Command ilmari runs the host provisioning service.
+// Command anvil runs the host provisioning service.
 //
 // One per machine. It holds the Docker socket so the game consoles don't
 // have to, and serves them a shaped set of verbs over a bearer token.
@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/safwyls/ilmari/internal/host"
+	"github.com/safwyls/anvil/internal/host"
 )
 
 // version is stamped at build time (-ldflags "-X main.version=...").
@@ -26,7 +26,7 @@ func main() {
 	healthz := flag.Bool("healthz", false, "probe the local service and exit 0 when healthy")
 	flag.Parse()
 
-	addr := envOr("ILMARI_ADDR", ":8820")
+	addr := envOr("ANVIL_ADDR", ":8820")
 	if *healthz {
 		os.Exit(probe(addr))
 	}
@@ -35,22 +35,22 @@ func main() {
 	// Per-console registrations: each game dashboard gets its own token,
 	// data root and (optionally) image allowlist. JSON, inline or from a
 	// file — the file wins, and is the better habit for secrets:
-	//   ILMARI_CLIENTS='[{"id":"wildskeeper","token":"...","dataRoot":"/mnt/tank/apps/dragonwilds-servers"},
+	//   ANVIL_CLIENTS='[{"id":"wildskeeper","token":"...","dataRoot":"/mnt/tank/apps/dragonwilds-servers"},
 	//                    {"id":"palcon","token":"...","dataRoot":"/mnt/tank/apps/palworld-servers"}]'
-	clients, err := host.LoadClients(os.Getenv("ILMARI_CLIENTS"), os.Getenv("ILMARI_CLIENTS_FILE"))
+	clients, err := host.LoadClients(os.Getenv("ANVIL_CLIENTS"), os.Getenv("ANVIL_CLIENTS_FILE"))
 	if err != nil {
 		logger.Error("invalid client registrations", "error", err)
 		os.Exit(1)
 	}
 	svc, err := host.New(host.Config{
 		Clients:    clients,
-		DockerHost: envOr("ILMARI_DOCKER_HOST", "unix:///var/run/docker.sock"),
-		PublicHost: os.Getenv("ILMARI_PUBLIC_HOST"),
+		DockerHost: envOr("ANVIL_DOCKER_HOST", "unix:///var/run/docker.sock"),
+		PublicHost: os.Getenv("ANVIL_PUBLIC_HOST"),
 		// Comma-separated. Leaving it unset keeps the narrow default rather
 		// than opening the host up, which is the right way round for a
 		// service holding the docker socket.
-		AllowedImagePrefixes: splitList(os.Getenv("ILMARI_ALLOWED_IMAGE_PREFIXES")),
-		DefaultRunAs:         os.Getenv("ILMARI_DEFAULT_RUN_AS"),
+		AllowedImagePrefixes: splitList(os.Getenv("ANVIL_ALLOWED_IMAGE_PREFIXES")),
+		DefaultRunAs:         os.Getenv("ANVIL_DEFAULT_RUN_AS"),
 		Version:              version,
 		Logger:               logger,
 	})
@@ -77,7 +77,7 @@ func main() {
 		_ = srv.Shutdown(ctx)
 	}()
 
-	logger.Info("ilmari listening", "addr", addr, "version", version)
+	logger.Info("anvil listening", "addr", addr, "version", version)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)

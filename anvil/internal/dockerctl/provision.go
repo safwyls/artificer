@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// This file exists for the wkagent provisioner, not for ilmari: ilmari's
+// This file exists for the wkagent provisioner, not for anvil: anvil's
 // proxy deliberately can't create containers (see the package comment).
 // The provisioner is the one component allowed to hold create rights, and
 // even it only ever instantiates the locked Palworld template
@@ -78,7 +78,7 @@ type ContainerSpec struct {
 	Binds []string
 	// Ports maps host port -> container "port/proto" (e.g. "8211/udp").
 	Ports map[int]string
-	// Labels tag the container (e.g. as ilmari-provisioned, for discovery).
+	// Labels tag the container (e.g. as anvil-provisioned, for discovery).
 	Labels map[string]string
 	// RestartUnlessStopped applies docker's unless-stopped policy.
 	RestartUnlessStopped bool

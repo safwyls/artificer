@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/store"
 )
 
 type userDTO struct {

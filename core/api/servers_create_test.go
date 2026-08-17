@@ -1,7 +1,7 @@
 package api_test
 
 import (
-	"github.com/safwyls/sampo/core/game"
+	"github.com/safwyls/artificer/core/game"
 
 	"encoding/json"
 	"net/http"

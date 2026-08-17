@@ -15,15 +15,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/crypto"
-	"github.com/safwyls/sampo/core/db"
-	"github.com/safwyls/sampo/core/game/gametest"
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/crypto"
+	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/game/gametest"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/store"
 
 	// The scheduler talks to a server through its game client, which only
 	// resolves once the registry is populated the way the binary does it.
-	_ "github.com/safwyls/sampo/core/game/gametest"
+	_ "github.com/safwyls/artificer/core/game/gametest"
 )
 
 // gameSpy is a Palworld REST endpoint that records the calls the scheduler

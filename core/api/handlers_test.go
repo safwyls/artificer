@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // TestDiscord proves a pasted webhook works, so it is the one notification

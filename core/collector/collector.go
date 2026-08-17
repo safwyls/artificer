@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/store"
 )
 
 const (

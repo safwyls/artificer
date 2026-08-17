@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/games/palworld/rcon"
-	"github.com/safwyls/sampo/games/palworld/rcon/rcontest"
+	"github.com/safwyls/artificer/games/palworld/rcon"
+	"github.com/safwyls/artificer/games/palworld/rcon/rcontest"
 )
 
 func TestPacketRoundTrip(t *testing.T) {

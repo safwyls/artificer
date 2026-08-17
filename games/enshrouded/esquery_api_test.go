@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/safwyls/sampo/core/api/apitest"
+	"github.com/safwyls/artificer/core/api/apitest"
 	"net/http"
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // The Steam query as the console consumes it. Two sources describe a live

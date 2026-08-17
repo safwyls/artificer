@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/games/palworld/palconfig"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/games/palworld/palconfig"
 )
 
 // AppID is the Steam app id of the Palworld dedicated server. The agent

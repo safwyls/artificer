@@ -6,7 +6,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // Visibility is two switches on the same data.

@@ -1,8 +1,8 @@
-/* Sampo docs — shared styles. Same token system as ../index.html.
+/* Artificer docs — shared styles. Same token system as ../index.html.
    The palette is a northern forge: cold ground, heat used sparingly.
-   Named for the artifact Ilmarinen hammered out, which is also why the
-   host service is called ilmari — the naming is the project's own, so
-   the identity follows it rather than inventing a theme. */
+   Artificer builds the consoles; anvil is the host service they're
+   forged on — the maker's-forge theme those names set, followed rather
+   than invented. */
 :root {
   --frost: #EEF1F5;      /* page — cold blue-white, not cream */
   --birch: #FAFCFD;      /* raised card */
@@ -49,7 +49,7 @@ img { max-width: 100%; height: auto; display: block; }
 :focus-visible { outline: 3px solid var(--ember); outline-offset: 2px; border-radius: 3px; }
 
 /* ---------- the mark: a struck square, not a sphere ----------
-   Palcon's mark is a Pal Sphere. Sampo's is the anvil face: a square
+   Palcon's mark is a Pal Sphere. Artificer's is the anvil face: a square
    rotated 45° with a notch, so the two sites read as siblings without
    borrowing each other's iconography. */
 .mark {

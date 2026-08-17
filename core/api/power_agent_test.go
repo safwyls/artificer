@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // supervisorServer registers a server whose agent supervises a fake game.

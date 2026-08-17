@@ -3,8 +3,8 @@ package palworld_test
 import (
 	"testing"
 
-	"github.com/safwyls/sampo/games/palworld"
-	"github.com/safwyls/sampo/games/palworld/palagent"
+	"github.com/safwyls/artificer/games/palworld"
+	"github.com/safwyls/artificer/games/palworld/palagent"
 )
 
 // The app id and default port are deliberately spelled twice — console-

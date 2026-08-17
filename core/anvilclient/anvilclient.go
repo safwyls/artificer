@@ -1,15 +1,15 @@
-// Package ilmari is the client for the Ilmari host-provisioning service
-// (github.com/safwyls/ilmari) — the shared, game-agnostic replacement for
+// Package anvil is the client for the Anvil host-provisioning service
+// (github.com/safwyls/anvil) — the shared, game-agnostic replacement for
 // the per-console provisioner-mode agents.
 //
-// The division of knowledge is the point of the wire shapes here: Ilmari
+// The division of knowledge is the point of the wire shapes here: Anvil
 // knows containers, images, ports and data directories, and this console
 // knows what a Dragonwilds server is made of. So everything in this package
 // is deliberately dumb — specs in, results out — and the translation from
 // "a server named Ashenfall on port 7777" into env vars and port maps lives
 // with the caller (internal/api's provisioner adapter), not here and never
-// in Ilmari.
-package ilmariclient
+// in Anvil.
+package anvilclient
 
 import (
 	"bytes"
@@ -32,10 +32,10 @@ type Client struct {
 func New(baseURL, token string) (*Client, error) {
 	baseURL = strings.TrimSuffix(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
-		return nil, errors.New("ilmari url is empty")
+		return nil, errors.New("anvil url is empty")
 	}
 	if token == "" {
-		return nil, errors.New("ilmari token is empty")
+		return nil, errors.New("anvil token is empty")
 	}
 	// No client-wide timeout: each call sets its own, because a single
 	// deadline can't cover both a fast health read and a provision that
@@ -66,7 +66,7 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any, timeo
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("ilmari unreachable: %w", err)
+		return fmt.Errorf("anvil unreachable: %w", err)
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -75,9 +75,9 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any, timeo
 			Error string `json:"error"`
 		}
 		if json.Unmarshal(data, &e) == nil && e.Error != "" {
-			return fmt.Errorf("ilmari: %s", e.Error)
+			return fmt.Errorf("anvil: %s", e.Error)
 		}
-		return fmt.Errorf("ilmari: %s", resp.Status)
+		return fmt.Errorf("anvil: %s", resp.Status)
 	}
 	if out != nil {
 		return json.Unmarshal(data, out)
@@ -85,7 +85,7 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any, timeo
 	return nil
 }
 
-// Health mirrors Ilmari's /v1/health — already scoped to this client's
+// Health mirrors Anvil's /v1/health — already scoped to this client's
 // registration (its own data root, its own allowlist).
 type Health struct {
 	Service              string   `json:"service"`
@@ -114,7 +114,7 @@ type PortMap struct {
 	Proto     string `json:"proto,omitempty"`
 }
 
-// Spec is Ilmari's provisioning contract: everything the game needs, as
+// Spec is Anvil's provisioning contract: everything the game needs, as
 // data. See the package comment for who fills it in.
 type Spec struct {
 	Name      string            `json:"name"`
@@ -197,7 +197,7 @@ func (c *Client) Discover(ctx context.Context) ([]Discovered, error) {
 }
 
 // Adopted is a recovered registration: the container plus its environment,
-// filtered by Ilmari to this console's registered namespace (FLAMEAGENT_*).
+// filtered by Anvil to this console's registered namespace (FLAMEAGENT_*).
 type Adopted struct {
 	Name    string            `json:"name"`
 	Image   string            `json:"image"`

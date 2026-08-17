@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/sampo/games/palworld/rcon"
+	"github.com/safwyls/artificer/games/palworld/rcon"
 )
 
 // Server speaks just enough Source RCON for a client: auth (optionally

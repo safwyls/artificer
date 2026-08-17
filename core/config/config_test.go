@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/config"
+	"github.com/safwyls/artificer/core/config"
 )
 
 const (
@@ -59,7 +59,7 @@ func TestLoadReadsTheEnvironment(t *testing.T) {
 		"JWT_SECRET": goodJWT, "ENCRYPTION_KEY": goodKey, "DATA_DIR": dir,
 		"HTTP_ADDR": ":9999", "ADMIN_USERNAME": "root", "ADMIN_PASSWORD": "hunter2",
 		"DOCKER_HOST": "tcp://10.0.0.5:2375",
-		"ILMARI_URL":  "http://ilmari:8820", "ILMARI_TOKEN": "tok",
+		"ANVIL_URL":   "http://anvil:8820", "ANVIL_TOKEN": "tok",
 		"PROVISIONER_URL": "http://legacy-agent:8811", "PROVISIONER_TOKEN": "ptok",
 		"ANTHROPIC_API_KEY": "sk-ant-test", "GEMINI_API_KEY": "gm-test",
 	})
@@ -74,8 +74,8 @@ func TestLoadReadsTheEnvironment(t *testing.T) {
 	if cfg.DockerHost != "tcp://10.0.0.5:2375" {
 		t.Errorf("DockerHost = %q", cfg.DockerHost)
 	}
-	if cfg.IlmariURL != "http://ilmari:8820" || cfg.IlmariToken != "tok" {
-		t.Errorf("ilmari = %q / %q", cfg.IlmariURL, cfg.IlmariToken)
+	if cfg.AnvilURL != "http://anvil:8820" || cfg.AnvilToken != "tok" {
+		t.Errorf("anvil = %q / %q", cfg.AnvilURL, cfg.AnvilToken)
 	}
 	if cfg.ProvisionerURL != "http://legacy-agent:8811" || cfg.ProvisionerToken != "ptok" {
 		t.Errorf("legacy provisioner = %q / %q", cfg.ProvisionerURL, cfg.ProvisionerToken)

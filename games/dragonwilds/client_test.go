@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/games/dragonwilds"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/games/dragonwilds"
 )
 
 // fakeAgent is a wkagent just complete enough for the derived client:

@@ -3,9 +3,9 @@ package palworld
 import (
 	"context"
 
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/store"
-	"github.com/safwyls/sampo/games/palworld/palsave"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/store"
+	"github.com/safwyls/artificer/games/palworld/palsave"
 )
 
 // Roster is Palworld's save-derived roster for the visibility editor

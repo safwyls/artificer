@@ -3,7 +3,7 @@ package esapi_test
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/safwyls/sampo/core/api/apitest"
+	"github.com/safwyls/artificer/core/api/apitest"
 	"net/http"
 	"net/http/httptest"
 	"os"

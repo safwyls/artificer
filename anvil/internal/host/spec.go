@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// The provisioning contract Ilmari serves.
+// The provisioning contract Anvil serves.
 //
 // Placing a container on a host is not a game-specific act. What differs
 // between one game console and another is only *data*: which image the

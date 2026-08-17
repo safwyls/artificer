@@ -16,8 +16,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/games/palworld/palconfig"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/games/palworld/palconfig"
 )
 
 // AppID is the Palworld dedicated server (the game client is 1623730) —

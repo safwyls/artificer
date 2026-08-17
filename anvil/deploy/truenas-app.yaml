@@ -1,7 +1,7 @@
-# Ilmari on TrueNAS SCALE — paste into Apps → Discover → Custom App →
+# Anvil on TrueNAS SCALE — paste into Apps → Discover → Custom App →
 # "Install via YAML".
 #
-# One Ilmari per host. It replaces the per-console provisioners
+# One Anvil per host. It replaces the per-console provisioners
 # (wkprovisioner, palcon's equivalent); deploy it ALONGSIDE them first and
 # follow docs/migration.md — nothing needs to point at it on day one, and
 # proving it can see your existing containers costs nothing.
@@ -13,27 +13,27 @@
 #      provisioner tokens.
 #   2. The data roots, if yours differ from the paths below. Each console's
 #      root is where its per-server data directories already live.
-#   3. ILMARI_PUBLIC_HOST: the LAN IP of this machine (not the WAN IP —
+#   3. ANVIL_PUBLIC_HOST: the LAN IP of this machine (not the WAN IP —
 #      hairpin NAT; same lesson as WKAGENT_PUBLIC_HOST).
 #
-# Port 8820 is Ilmari's API. Check nothing on the host publishes it before
+# Port 8820 is Anvil's API. Check nothing on the host publishes it before
 # deploying — `docker ps` or the old provisioner's port view.
 
 services:
-  ilmari:
-    image: ghcr.io/safwyls/ilmari:latest
+  anvil:
+    image: ghcr.io/safwyls/anvil:latest
     restart: unless-stopped
     ports:
       - "8820:8820"
     environment:
-      ILMARI_DOCKER_HOST: tcp://ilmari-docker-proxy:2375
-      ILMARI_PUBLIC_HOST: "192.168.1.CHANGE-ME"
-      ILMARI_DEFAULT_RUN_AS: "568:568"
+      ANVIL_DOCKER_HOST: tcp://anvil-docker-proxy:2375
+      ANVIL_PUBLIC_HOST: "192.168.1.CHANGE-ME"
+      ANVIL_DEFAULT_RUN_AS: "568:568"
       # Registered consoles. Similar contracts, separate credentials: each
       # entry is one game dashboard, with its own token, its own data root,
       # its own image namespace, and the env prefix its adopt flow may read
       # back. JSON on one line.
-      ILMARI_CLIENTS: >-
+      ANVIL_CLIENTS: >-
         [{"id":"wildskeeper",
           "token":"CHANGE-ME-openssl-rand-hex-24",
           "dataRoot":"/mnt/tank/apps/dragonwilds-servers",
@@ -45,22 +45,22 @@ services:
           "imagePrefixes":["ghcr.io/safwyls/palagent"],
           "envPrefix":"PALAGENT_"}]
     volumes:
-      # The data roots must be visible to Ilmari at the SAME paths the
+      # The data roots must be visible to Anvil at the SAME paths the
       # docker daemon uses, because it creates the per-server directories
       # itself and then binds them into containers by host path.
       - /mnt/tank/apps/dragonwilds-servers:/mnt/tank/apps/dragonwilds-servers
       - /mnt/tank/apps/palworld-servers:/mnt/tank/apps/palworld-servers
     networks:
-      - ilmari-net
+      - anvil-net
       - default
     depends_on:
-      - ilmari-docker-proxy
+      - anvil-docker-proxy
 
-  # The socket proxy is the same pattern the existing stack uses: Ilmari
+  # The socket proxy is the same pattern the existing stack uses: Anvil
   # never touches /var/run/docker.sock directly, and the proxy grants only
   # what placement needs. Everything not listed stays denied — no exec, no
   # volumes API, no networks API, no swarm.
-  ilmari-docker-proxy:
+  anvil-docker-proxy:
     image: ghcr.io/tecnativa/docker-socket-proxy:latest
     restart: unless-stopped
     environment:
@@ -70,16 +70,16 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
-      - ilmari-net
+      - anvil-net
 
-# How the consoles reach Ilmari: the published port on the host's LAN IP
+# How the consoles reach Anvil: the published port on the host's LAN IP
 # (http://<LAN-IP>:8820) — the same proven route the consoles already use
 # to reach provisioned agents. Deliberately NOT a shared external network:
 # an `external: true` network that doesn't exist fails the whole deploy,
 # and this service must not depend on any one console's stack being
 # present. If you want service-name DNS from a console that shares a
 # network (wildskeeper's stack exports wildskeeper-net), add it here and
-# under the ilmari service's networks — as an option, knowing the cost.
+# under the anvil service's networks — as an option, knowing the cost.
 networks:
-  ilmari-net:
+  anvil-net:
     internal: true

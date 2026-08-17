@@ -3,14 +3,14 @@ package dragonwilds_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/safwyls/sampo/core/api/apitest"
+	"github.com/safwyls/artificer/core/api/apitest"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/safwyls/sampo/core/store"
-	"github.com/safwyls/sampo/games/dragonwilds/dwsave"
+	"github.com/safwyls/artificer/core/store"
+	"github.com/safwyls/artificer/games/dragonwilds/dwsave"
 )
 
 // realSaveDir is a directory holding the genuine Dragonwilds capture, as a

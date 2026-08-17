@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sampo — one console framework, three games</title>
+<title>Artificer — one console framework, three games</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
 <meta name="description" content="Self-hosted management consoles for Palworld, RuneScape Dragonwilds and Enshrouded servers, built from one shared framework and provisioned by one host service.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Sampo — one console framework, three games">
+<meta property="og:title" content="Artificer — one console framework, three games">
 <meta property="og:description" content="Self-hosted management consoles for Palworld, Dragonwilds and Enshrouded, built from one shared framework.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -230,16 +230,16 @@ footer.site a { color: rgba(238,241,245,.82); }
 
 <header class="nav">
   <div class="nav-inner">
-    <a class="brand" href="#top" aria-label="Sampo home">
+    <a class="brand" href="#top" aria-label="Artificer home">
       <span class="mark" aria-hidden="true"><i></i></span>
-      <span class="wordmark">sampo</span>
+      <span class="wordmark">artificer</span>
     </a>
     <nav class="nav-links" aria-label="Site">
       <a class="hide-sm" href="#consoles">Consoles</a>
       <a class="hide-sm" href="#raise">How it works</a>
       <a class="hide-sm" href="#deploy">Deploy</a>
       <a href="docs/index.html">Docs</a>
-      <a class="nav-gh" href="https://github.com/safwyls/sampo">
+      <a class="nav-gh" href="https://github.com/safwyls/artificer">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
         GitHub
       </a>
@@ -253,7 +253,7 @@ footer.site a { color: rgba(238,241,245,.82); }
     <div>
       <p class="eyebrow">Self-hosted game server consoles</p>
       <h1>One framework.<br>Three <span class="hot">games</span>.</h1>
-      <p class="lead">Sampo is the codebase behind three server dashboards — Palworld, RuneScape
+      <p class="lead">Artificer is the codebase behind three server dashboards — Palworld, RuneScape
       Dragonwilds and Enshrouded. They share a core, so a fix to backups or scheduling lands in all
       three at once, and each game keeps only the parts that are genuinely its own.</p>
       <div class="hero-cta">
@@ -266,7 +266,7 @@ footer.site a { color: rgba(238,241,245,.82); }
       <figcaption class="forge-cap">The shape of the repository</figcaption>
       <div class="forge-spine">
         <b>core/</b>
-        <span>api · agent kit · store · backups · scheduler · auth · ilmari client</span>
+        <span>api · agent kit · store · backups · scheduler · auth · anvil client</span>
       </div>
       <div class="forge-drops" aria-hidden="true">
         <i style="--drop: var(--c-palcon)"></i>
@@ -357,11 +357,11 @@ footer.site a { color: rgba(238,241,245,.82); }
   </div>
 </section>
 
-<section class="section alt" id="ilmari">
+<section class="section alt" id="anvil">
   <div class="wrap">
     <div class="section-head">
       <p class="section-label">The host service</p>
-      <h2>Ilmari places the containers</h2>
+      <h2>Anvil places the containers</h2>
       <p>No console holds Docker create rights. One small service does, and it is deliberately
       blind to games: it knows nothing about Palworld or Enshrouded, only about images it is
       allowed to run and data directories it owns. Each console registers with its own token,
@@ -370,7 +370,7 @@ footer.site a { color: rgba(238,241,245,.82); }
     <div class="feature-grid">
       <article class="feature" style="--dot: var(--quench)">
         <h3>Raise a server</h3>
-        <p>A console asks for a container by image, ports and environment. Ilmari checks the image
+        <p>A console asks for a container by image, ports and environment. Anvil checks the image
         against that console's allowlist, creates the data directory and starts it.</p>
       </article>
       <article class="feature" style="--dot: var(--quench)">
@@ -402,7 +402,7 @@ footer.site a { color: rgba(238,241,245,.82); }
         containers already on the host.</p>
       </div>
       <div class="step">
-        <b>Ilmari places it</b>
+        <b>Anvil places it</b>
         <p>It pulls the agent image, makes the data directory, publishes the ports and starts the
         container with a generated token.</p>
       </div>
@@ -446,7 +446,7 @@ footer.site a { color: rgba(238,241,245,.82); }
         <p>A generic server — VPS, home box, anything with Docker Compose and a directory you
         control.</p>
         <ul>
-          <li>One compose file for console, Ilmari and a first agent</li>
+          <li>One compose file for console, Anvil and a first agent</li>
           <li>Generating the secrets that must never change</li>
           <li>Reverse proxy and TLS in front of the console</li>
           <li>Updating without disturbing a running game</li>
@@ -482,10 +482,10 @@ footer.site a { color: rgba(238,241,245,.82); }
       <h2>Read the rest</h2>
     </div>
     <div class="doc-links">
-      <a class="doc-link" href="docs/introduction.html"><b>Introduction</b><span>What Sampo is, and which console you want.</span></a>
+      <a class="doc-link" href="docs/introduction.html"><b>Introduction</b><span>What Artificer is, and which console you want.</span></a>
       <a class="doc-link" href="docs/migrating.html"><b>Migrate an existing server</b><span>Bring a server you already run under a console.</span></a>
       <a class="doc-link" href="docs/architecture.html"><b>Architecture</b><span>Core, games, agents and where a new game plugs in.</span></a>
-      <a class="doc-link" href="docs/ilmari.html"><b>Ilmari</b><span>Registering consoles, allowlists and data roots.</span></a>
+      <a class="doc-link" href="docs/anvil.html"><b>Anvil</b><span>Registering consoles, allowlists and data roots.</span></a>
       <a class="doc-link" href="docs/agents.html"><b>Sidecar agents</b><span>How the game actually gets installed and supervised.</span></a>
       <a class="doc-link" href="docs/environment.html"><b>Environment variables</b><span>Every variable each console and agent reads.</span></a>
       <a class="doc-link" href="docs/troubleshooting.html"><b>Troubleshooting</b><span>The failures worth recognising on sight.</span></a>
@@ -496,10 +496,10 @@ footer.site a { color: rgba(238,241,245,.82); }
 
 <footer class="site">
   <div class="wrap">
-    <p>Sampo is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
+    <p>Artificer is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
     © Jagex Ltd. Enshrouded is © Keen Games GmbH. No affiliation or endorsement is implied.</p>
-    <p><a href="https://github.com/safwyls/sampo">GitHub</a> ·
-       <a href="https://github.com/safwyls/sampo/issues">Issues</a> ·
+    <p><a href="https://github.com/safwyls/artificer">GitHub</a> ·
+       <a href="https://github.com/safwyls/artificer/issues">Issues</a> ·
        <a href="docs/index.html">Docs</a></p>
   </div>
 </footer>

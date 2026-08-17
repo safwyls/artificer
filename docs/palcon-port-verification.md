@@ -24,22 +24,22 @@ Advanced, per server, until the flip.
 
 **Provisioning migration (the one behavior change):** the legacy
 provisioner-mode agent is retired — the monorepo console provisions
-through Ilmari only. Concretely:
+through Anvil only. Concretely:
 
 - `PROVISIONER_URL` / `PROVISIONER_TOKEN` are **no longer read** by the
-  console; set `ILMARI_URL` / `ILMARI_TOKEN` instead (Ilmari already
+  console; set `ANVIL_URL` / `ANVIL_TOKEN` instead (Anvil already
   runs on the shared host for flametender and wildskeeper — palcon's
   allowlist needs `ghcr.io/safwyls/palagent` in
-  `ILMARI_ALLOWED_IMAGE_PREFIXES` if it isn't there yet).
+  `ANVIL_ALLOWED_IMAGE_PREFIXES` if it isn't there yet).
 - The palagent image no longer reads `PALAGENT_DOCKER_HOST`,
   `PALAGENT_DATA_ROOT`, `PALAGENT_PUBLIC_HOST`,
   `PALAGENT_DEFAULT_IMAGE_TAG` or `PALAGENT_DEFAULT_RUN_AS`. A
   container that only ever acted as a per-server sidecar is unaffected;
   a container that was *also* the provisioner simply loses that role to
-  Ilmari.
+  Anvil.
 - Existing game stacks keep working untouched (their `PALAGENT_*`
   runtime env is unchanged). Re-home them into the wizard via
-  Discover/Adopt once Ilmari can see them.
+  Discover/Adopt once Anvil can see them.
 
 `DOCKER_HOST` power control is unchanged — deployments that drive
 compose-stack containers directly keep doing so.
@@ -91,7 +91,7 @@ Backups
 - [ ] Induced backup failure surfaces `lastFailure` in the UI — **new
       to palcon with the port** (flametender's fix, now core's).
 
-Provisioning (Ilmari)
+Provisioning (Anvil)
 - [ ] Wizard defaults prefill; the **admin-port trio** proposal moves
       game + REST + RCON ports together and refuses any collision among
       the four (incl. the agent port).
@@ -105,12 +105,12 @@ Provisioning (Ilmari)
 
 ### The data-directory ownership trap (hit for real, 2026-08-17)
 
-**Ilmari's data root must be mounted into the Ilmari container**, at the
+**Anvil's data root must be mounted into the Anvil container**, at the
 same path it is registered as `dataRoot` for this console. Without that
 mount, provisioning produces a server that can never install, and every
 signal along the way looks healthy:
 
-1. Ilmari creates `<dataRoot>/<slug>` and chowns it to `runAs` — inside
+1. Anvil creates `<dataRoot>/<slug>` and chowns it to `runAs` — inside
    its *own* filesystem, because the real path isn't mounted.
 2. Docker then creates the actual bind source itself, owned by **root**.
 3. The game container runs as `568:568` and cannot write `/palworld`.
@@ -120,7 +120,7 @@ signal along the way looks healthy:
    update first`, forever, with an install job that "succeeded" in ~75s
    and re-runs in ~11s.
 
-Ilmari cannot detect this — it can only see its own filesystem, where
+Anvil cannot detect this — it can only see its own filesystem, where
 the directory looks correctly owned (a guard placed there was written,
 found useless for exactly this reason, and reverted; see the comment in
 `place()`). The agent settles it from inside the container instead:

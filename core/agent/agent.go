@@ -32,7 +32,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/steamcmd"
+	"github.com/safwyls/artificer/core/steamcmd"
 )
 
 // APIVersion is reported in /v1/health so the control plane can refuse to
@@ -141,9 +141,9 @@ func New(cfg Config) (*Agent, error) {
 	}
 	if cfg.Mode != "companion" && cfg.Mode != "supervisor" {
 		// Provisioner mode is gone on purpose: placing containers is
-		// Ilmari's job (github.com/safwyls/ilmari), and an agent that also
+		// Anvil's job (github.com/safwyls/anvil), and an agent that also
 		// held Docker rights would be a second socket-holder on the host —
-		// the exact blindness Ilmari exists to end.
+		// the exact blindness Anvil exists to end.
 		return nil, fmt.Errorf("unknown mode %q: use companion or supervisor", cfg.Mode)
 	}
 	if cfg.Logger == nil {

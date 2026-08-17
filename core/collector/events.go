@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // downAfter is how many consecutive failed probes declare a server down.

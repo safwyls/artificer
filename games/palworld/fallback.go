@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/safwyls/sampo/core/game"
+	"github.com/safwyls/artificer/core/game"
 )
 
 // fallbackClient tries the REST API first and falls back to RCON only when

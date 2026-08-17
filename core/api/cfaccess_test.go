@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/safwyls/sampo/core/cfaccess"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/cfaccess"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // errForged stands for anything cfaccess refuses — a bad signature, the

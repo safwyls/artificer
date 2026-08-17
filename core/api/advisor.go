@@ -10,8 +10,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/safwyls/sampo/core/advisor"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/advisor"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // handleDocs serves the embedded project documentation for the advisor's

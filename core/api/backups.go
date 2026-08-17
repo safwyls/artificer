@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/backup"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/backup"
 )
 
 // Backups are admin-only end to end: a snapshot is the entire world,

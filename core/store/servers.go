@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/safwyls/sampo/core/game"
+	"github.com/safwyls/artificer/core/game"
 )
 
 var ErrNotFound = errors.New("not found")

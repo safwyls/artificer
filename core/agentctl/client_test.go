@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/core/agentctl"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/core/agentctl"
 )
 
 func TestBaseURLIsTheConfiguredEndpoint(t *testing.T) {

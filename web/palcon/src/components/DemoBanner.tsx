@@ -22,7 +22,7 @@ export function DemoBanner() {
           <span className="font-semibold text-paper">Demo</span> · sample world, actions are simulated
         </span>
         <a
-          href="https://safwyls.github.io/sampo/"
+          href="https://safwyls.github.io/artificer/"
           className="shrink-0 whitespace-nowrap font-semibold text-brand-amber hover:underline"
         >
           Get Palcon →

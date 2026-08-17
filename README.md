@@ -1,9 +1,10 @@
-# Sampo
+# Artificer
 
-The monorepo behind three self-hosted game-server consoles — named for the
-artifact Ilmarinen forged, which is also why the host service is `ilmari`.
+The monorepo behind three self-hosted game-server consoles — one shared
+framework that forges all three. The host service they're forged on is
+`anvil`: the fixed thing on the machine that places every container.
 
-**[Documentation and live demo →](https://safwyls.github.io/sampo/)**
+**[Documentation and live demo →](https://safwyls.github.io/artificer/)**
 
 | Console | Game | Agent | Image |
 |---|---|---|---|
@@ -11,23 +12,23 @@ artifact Ilmarinen forged, which is also why the host service is `ilmari`.
 | wildskeeper | RuneScape Dragonwilds | `wkagent` | `ghcr.io/safwyls/wildskeeper` |
 | flametender | Enshrouded | `flameagent` | `ghcr.io/safwyls/flametender` |
 
-Plus `ilmari` — one per host, the only component holding Docker rights, and
+Plus `anvil` — one per host, the only component holding Docker rights, and
 what makes the Raise-a-server wizard work.
 
 ## Layout
 
 | Path | What lives there |
 |---|---|
-| `core/` | The console framework: API, auth, store, backups, scheduler, the sidecar agent kit, the Ilmari client. Game-blind. |
+| `core/` | The console framework: API, auth, store, backups, scheduler, the sidecar agent kit, the Anvil client. Game-blind. |
 | `games/<game>/` | One directory per game: client, config codec, save/log readers, agent spec, contributed routes. |
 | `cmd/` | The binaries — each console main is thin wiring over `core`. |
 | `web/<console>/` | One React app per console, each themed for its game. |
-| `ilmari/` | The host provisioning service. Separate module; references no console. |
+| `anvil/` | The host provisioning service. Separate module; references no console. |
 | `deploy/` | Dockerfiles, one directory per console. |
 | `site/` | The public docs site and landing page, published to GitHub Pages. |
 
 Dependency rules — core never imports a game, games never import each other,
-an agent never imports its console-side game package, ilmari references
+an agent never imports its console-side game package, anvil references
 nothing above it — are enforced in CI by `scripts/checkbounds.sh`.
 
 ## Status

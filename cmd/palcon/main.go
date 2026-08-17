@@ -13,27 +13,27 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/safwyls/sampo/cmd/palcon/docs"
-	"github.com/safwyls/sampo/core/advisor"
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/backup"
-	"github.com/safwyls/sampo/core/cfaccess"
-	"github.com/safwyls/sampo/core/collector"
-	"github.com/safwyls/sampo/core/config"
-	"github.com/safwyls/sampo/core/crypto"
-	"github.com/safwyls/sampo/core/db"
-	"github.com/safwyls/sampo/core/dockerctl"
-	"github.com/safwyls/sampo/core/game"
-	ilmari "github.com/safwyls/sampo/core/ilmariclient"
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/sched"
-	"github.com/safwyls/sampo/core/store"
-	"github.com/safwyls/sampo/core/watchdog"
-	"github.com/safwyls/sampo/games/palworld"
-	"github.com/safwyls/sampo/games/palworld/palapi"
-	"github.com/safwyls/sampo/games/palworld/palsave"
-	web "github.com/safwyls/sampo/web/palcon"
+	"github.com/safwyls/artificer/cmd/palcon/docs"
+	"github.com/safwyls/artificer/core/advisor"
+	"github.com/safwyls/artificer/core/agentfiles"
+	anvil "github.com/safwyls/artificer/core/anvilclient"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/backup"
+	"github.com/safwyls/artificer/core/cfaccess"
+	"github.com/safwyls/artificer/core/collector"
+	"github.com/safwyls/artificer/core/config"
+	"github.com/safwyls/artificer/core/crypto"
+	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/dockerctl"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/sched"
+	"github.com/safwyls/artificer/core/store"
+	"github.com/safwyls/artificer/core/watchdog"
+	"github.com/safwyls/artificer/games/palworld"
+	"github.com/safwyls/artificer/games/palworld/palapi"
+	"github.com/safwyls/artificer/games/palworld/palsave"
+	web "github.com/safwyls/artificer/web/palcon"
 )
 
 func main() {
@@ -180,23 +180,23 @@ func run(logger *slog.Logger) error {
 		logger.Info("cloudflare access sign-in enabled",
 			"issuer", verifier.Issuer(), "adminEmails", len(cfg.AccessAdminEmails))
 	}
-	// Optional one-click provisioning, through Ilmari and only Ilmari —
+	// Optional one-click provisioning, through Anvil and only Anvil —
 	// this console holds no Docker rights of its own beyond power control
-	// (the ilmari module's README is the contract). Without ILMARI_URL the
+	// (the anvil module's README is the contract). Without ANVIL_URL the
 	// Raise-a-server wizard is simply absent and servers are registered by
 	// hand. The old PROVISIONER_URL agent mode is retired; see
 	// docs/palcon-port-verification.md for the migration.
-	if cfg.IlmariURL != "" {
-		client, err := ilmari.New(cfg.IlmariURL, cfg.IlmariToken)
+	if cfg.AnvilURL != "" {
+		client, err := anvil.New(cfg.AnvilURL, cfg.AnvilToken)
 		if err != nil {
-			return fmt.Errorf("configuring ilmari: %w", err)
+			return fmt.Errorf("configuring anvil: %w", err)
 		}
-		apiServer.Provisioner = api.NewIlmariProvisioner(client, apiServer.Provision)
-		logger.Info("provisioner enabled", "endpoint", cfg.IlmariURL, "via", "ilmari")
+		apiServer.Provisioner = api.NewAnvilProvisioner(client, apiServer.Provision)
+		logger.Info("provisioner enabled", "endpoint", cfg.AnvilURL, "via", "anvil")
 	} else if cfg.ProvisionerURL != "" {
 		// The pre-monorepo deployments set this; going quiet about it
 		// would read as the wizard vanishing for no reason.
-		logger.Warn("PROVISIONER_URL is no longer supported — provisioning goes through Ilmari now; set ILMARI_URL/ILMARI_TOKEN (see docs/palcon-port-verification.md)")
+		logger.Warn("PROVISIONER_URL is no longer supported — provisioning goes through Anvil now; set ANVIL_URL/ANVIL_TOKEN (see docs/palcon-port-verification.md)")
 	}
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,

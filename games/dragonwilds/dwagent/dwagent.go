@@ -29,9 +29,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/games/dragonwilds/dwbridge"
-	"github.com/safwyls/sampo/games/dragonwilds/dwconfig"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/games/dragonwilds/dwbridge"
+	"github.com/safwyls/artificer/games/dragonwilds/dwconfig"
 )
 
 // AppID is the Dragonwilds dedicated-server tool.

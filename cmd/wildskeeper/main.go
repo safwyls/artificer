@@ -13,26 +13,26 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/backup"
-	"github.com/safwyls/sampo/core/cfaccess"
-	"github.com/safwyls/sampo/core/collector"
-	"github.com/safwyls/sampo/core/config"
-	"github.com/safwyls/sampo/core/crypto"
-	"github.com/safwyls/sampo/core/db"
-	"github.com/safwyls/sampo/core/dockerctl"
-	"github.com/safwyls/sampo/core/game"
-	ilmari "github.com/safwyls/sampo/core/ilmariclient"
-	"github.com/safwyls/sampo/core/notify"
-	"github.com/safwyls/sampo/core/savecache"
-	"github.com/safwyls/sampo/core/sched"
-	"github.com/safwyls/sampo/core/store"
-	"github.com/safwyls/sampo/core/watchdog"
-	"github.com/safwyls/sampo/games/dragonwilds"
-	"github.com/safwyls/sampo/games/dragonwilds/dwapi"
-	"github.com/safwyls/sampo/games/dragonwilds/dwsave"
-	web "github.com/safwyls/sampo/web/wildskeeper"
+	"github.com/safwyls/artificer/core/agentfiles"
+	anvil "github.com/safwyls/artificer/core/anvilclient"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/backup"
+	"github.com/safwyls/artificer/core/cfaccess"
+	"github.com/safwyls/artificer/core/collector"
+	"github.com/safwyls/artificer/core/config"
+	"github.com/safwyls/artificer/core/crypto"
+	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/dockerctl"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/savecache"
+	"github.com/safwyls/artificer/core/sched"
+	"github.com/safwyls/artificer/core/store"
+	"github.com/safwyls/artificer/core/watchdog"
+	"github.com/safwyls/artificer/games/dragonwilds"
+	"github.com/safwyls/artificer/games/dragonwilds/dwapi"
+	"github.com/safwyls/artificer/games/dragonwilds/dwsave"
+	web "github.com/safwyls/artificer/web/wildskeeper"
 )
 
 func main() {
@@ -145,17 +145,17 @@ func run(logger *slog.Logger) error {
 		logger.Info("cloudflare access sign-in enabled",
 			"issuer", verifier.Issuer(), "adminEmails", len(cfg.AccessAdminEmails))
 	}
-	// Optional one-click provisioning, through Ilmari and only Ilmari —
-	// this console holds no Docker rights of its own (the ilmari repo's
-	// README is the contract). Without ILMARI_URL the Raise-a-server
+	// Optional one-click provisioning, through Anvil and only Anvil —
+	// this console holds no Docker rights of its own (the anvil repo's
+	// README is the contract). Without ANVIL_URL the Raise-a-server
 	// wizard is simply absent and servers are registered by hand.
-	if cfg.IlmariURL != "" {
-		client, err := ilmari.New(cfg.IlmariURL, cfg.IlmariToken)
+	if cfg.AnvilURL != "" {
+		client, err := anvil.New(cfg.AnvilURL, cfg.AnvilToken)
 		if err != nil {
-			return fmt.Errorf("configuring ilmari: %w", err)
+			return fmt.Errorf("configuring anvil: %w", err)
 		}
-		apiServer.Provisioner = api.NewIlmariProvisioner(client, apiServer.Provision)
-		logger.Info("provisioner enabled", "endpoint", cfg.IlmariURL, "via", "ilmari")
+		apiServer.Provisioner = api.NewAnvilProvisioner(client, apiServer.Provision)
+		logger.Info("provisioner enabled", "endpoint", cfg.AnvilURL, "via", "anvil")
 	}
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,

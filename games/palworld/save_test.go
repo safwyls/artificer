@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/backup"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/backup"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // A save caught mid-write would archive fine and only reveal itself on

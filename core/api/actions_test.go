@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/sampo/core/game/gametest"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/game/gametest"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // fakeGame is a Palworld REST API just complete enough for the action

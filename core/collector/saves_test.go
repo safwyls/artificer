@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // fakeReader stands in for a game's save reader, recording which paths the

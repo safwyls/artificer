@@ -7,13 +7,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/api/apitest"
-	"github.com/safwyls/sampo/core/game"
-	"github.com/safwyls/sampo/core/savecache"
-	"github.com/safwyls/sampo/games/dragonwilds"
-	"github.com/safwyls/sampo/games/dragonwilds/dwapi"
-	"github.com/safwyls/sampo/games/dragonwilds/dwsave"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/api/apitest"
+	"github.com/safwyls/artificer/core/game"
+	"github.com/safwyls/artificer/core/savecache"
+	"github.com/safwyls/artificer/games/dragonwilds"
+	"github.com/safwyls/artificer/games/dragonwilds/dwapi"
+	"github.com/safwyls/artificer/games/dragonwilds/dwsave"
 )
 
 // itoa mirrors the old harness helper.

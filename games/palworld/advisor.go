@@ -1,6 +1,6 @@
 package palworld
 
-import "github.com/safwyls/sampo/core/advisor"
+import "github.com/safwyls/artificer/core/advisor"
 
 // AdvisorPrompt is the advisor's Palworld payload — the system text that
 // teaches the model the save-data shape and the game mechanics its

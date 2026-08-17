@@ -1,9 +1,9 @@
 package dragonwilds
 
-import "github.com/safwyls/sampo/core/api"
+import "github.com/safwyls/artificer/core/api"
 
 // ProvisionProfile is Dragonwilds' provisioning knowledge for the
-// Raise-a-server wizard and the Ilmari adapter: the UDP port pair, the
+// Raise-a-server wizard and the Anvil adapter: the UDP port pair, the
 // required owner id, and the wkagent image family (drift ledger, seam 4).
 func ProvisionProfile() *api.ProvisionProfile {
 	return &api.ProvisionProfile{

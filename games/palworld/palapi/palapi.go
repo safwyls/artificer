@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/safwyls/sampo/core/agentfiles"
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/store"
-	"github.com/safwyls/sampo/games/palworld/palsave"
+	"github.com/safwyls/artificer/core/agentfiles"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/store"
+	"github.com/safwyls/artificer/games/palworld/palsave"
 )
 
 type handlers struct {

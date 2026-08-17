@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // Discord embed accent colors, decimal RGB.

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/safwyls/ilmari/internal/dockerctl"
+	"github.com/safwyls/anvil/internal/dockerctl"
 )
 
 // Discovery and adoption: how a console recovers servers it no longer has
@@ -14,7 +14,7 @@ import (
 // and deployed by hand.
 //
 // Which containers a console may discover follows from what it registered:
-// containers it owns (by Ilmari or legacy label), plus unmanaged containers
+// containers it owns (by Anvil or legacy label), plus unmanaged containers
 // whose image falls under its own allowlist. The second half matters for
 // paste-flow deploys — a hand-deployed wkagent stack carries no ownership
 // label at all, and the image prefix is the only honest signal of whose
@@ -78,7 +78,7 @@ func (s *Service) handleDiscover(w http.ResponseWriter, r *http.Request) {
 // provisioners injected these values when they created the containers, and
 // the (token-authenticated) console is the party that supplied them — so
 // handing them back stays inside the original trust boundary, exactly as
-// the per-console provisioners did before Ilmari existed. What is new here
+// the per-console provisioners did before Anvil existed. What is new here
 // is the scoping: only variables under the caller's registered env prefix
 // cross, so a wildskeeper token recovers WKAGENT_* and nothing else, even
 // from a container it owns. A client registered without an env prefix gets

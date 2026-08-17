@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/safwyls/sampo/core/game"
+	"github.com/safwyls/artificer/core/game"
 )
 
 // stubClient counts calls and fails every operation with err when set.

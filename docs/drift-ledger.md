@@ -29,7 +29,7 @@
 > the client, codec, palsave, palapi (seam 5), Roster (seam 6), advisor
 > prompt, and palagent's spec; seam 4 gained the REST/RCON trio form
 > (provision_trio tests) and ServerDesc; every palworld §F guard below is
-> ticked. Open: the Ilmari parity §F guards (Phase 6 wiring), and the
+> ticked. Open: the Anvil parity §F guards (Phase 6 wiring), and the
 > Phase 5 real-server gate (docs/palcon-port-verification.md).
 
 Per-file reconciliation decisions for Phase 2 (core extraction), per
@@ -182,7 +182,7 @@ All paths under `internal/`. Seam numbers reference §"New core seams".
 | `api/auth.go` | take-F | F's cfaccess rewrite drops nothing from P==W. Cookie name → seam 9. Verify store signatures at promotion. |
 | `api/config.go` | take-F | Seam 3. F's `editConfigFile`/rotate-password stay core; hardcoded `enshrouded_server.json` in the ErrNotExist branch → `codec.filename`. Palworld's nil rotate = existing 501 path. |
 | `config/config.go` | take-F-merge-P | F's Access fields + helpers promote verbatim. Carry back: `ProvisionerURL/Token` (P/W still run legacy agents until their ports) and the advisor keys (see Lost feature). |
-| `config/config_test.go` | take-F-merge-P | Restore provisioner env assertions beside Ilmari's. Add missing coverage: `normalizeTeamDomain`, `splitEmails`. |
+| `config/config_test.go` | take-F-merge-P | Restore provisioner env assertions beside Anvil's. Add missing coverage: `normalizeTeamDomain`, `splitEmails`. |
 | `api/server.go` | three-way | Seams 5, 9. Core keeps the union of shared route groups + F's SSO routes + W/F's `/capabilities`; `Provisioner` takes the interface form; `palReader` leaves the `New()` signature; banqueue wiring becomes seam-2-conditional. |
 | `api/actions.go` | take-F | W/F's `writeClientError` (501 vs 502 split) + capability probe. Needs `UnsupportedError`/`CommandProber` from game/client.go (union = F). |
 | `api/visibility.go` | take-F-merge-P | Seam 6 — P's working palsave roster must survive as the palworld capability; F's stub error is the default, not the behavior. |
@@ -190,22 +190,22 @@ All paths under `internal/`. Seam numbers reference §"New core seams".
 | `api/middleware.go` | take-F | SSO context plumbing; additive. |
 | `notify/notify.go` | take-F | `SaveOutcome` + honest `RestartingNow(…, save)`. P's scheduler passes `SaveDone`. "No command bridge" phrasing → game-supplied reason string. |
 | `notify/notify_test.go` | take-F | Moves with notify.go. |
-| `api/review_fixes_test.go` | take-F | Interface-level `fakeProvisioner` beats the wire-level agentctl stub post-Ilmari. Verify `agentctl.ErrNotFound/ErrRejected` exist in P/W or backport the sentinel refactor. |
+| `api/review_fixes_test.go` | take-F | Interface-level `fakeProvisioner` beats the wire-level agentctl stub post-Anvil. Verify `agentctl.ErrNotFound/ErrRejected` exist in P/W or backport the sentinel refactor. |
 | `api/agentfiles_test.go` | three-way | Shared sync/push/round-trip body parameterized over per-game `seedAgentWorld` fixtures (which relocate to game modules). Keep P's `TestSaveEndpointsUnconfigured` re-pointed at a core endpoint. |
 | `agentfiles/agentfiles.go` | take-F | Seam 3: config filename from the codec, not hardcoded. |
 | `api/provision.go` | take-F-merge-P | Seam 4. F's shape + `controlChars` gate (security fix P lacks). P's REST/RCON port trio + 4-way distinctness → palworld profile; W's pair-stride/neighbour-reservation → dragonwilds profile; `ownerId` required-400 preserved. |
 | `api/provision_test.go` | take-F | F's `fakeProvisioner` harness is the only one that survives docker retirement. Keep F's negative leak-assertions, generalized to "reject any other game's env keys". Carry W's arity collision cases + P's duplicate-ports row into game profiles. |
-| `api/provisioner.go` | take-F | Ilmari-only form; W's legacy dual-impl assertion is exactly what retires. Env-building block → seam 4. P's concrete `*agentctl.Client` field must become the interface at its convergence. |
+| `api/provisioner.go` | take-F | Anvil-only form; W's legacy dual-impl assertion is exactly what retires. Env-building block → seam 4. P's concrete `*agentctl.Client` field must become the interface at its convergence. |
 | `api/provisioner_ilmari_test.go` | take-F | Keep F's phantom-second-port negative check parameterized on declared arity; preserve W's port-pair reasoning in the dragonwilds test. |
 | `api/power.go` | take-F | F-only ban-queue orchestration (stop→Apply→start on both agent and docker paths) is a real lost-write-race fix; both branches survive (docker *power* path outlives docker *provisioning*). Behind seam 2. |
 | `api/power_agent_test.go` | take-F | `supervisorServerWithInstall` + explicit `GameCommand` de-hardcodes launcher names; `trap INT TERM` is the superset. |
 | `api/power_docker_test.go` | take-F | Signature follows api.New (docker provisioning param removed). |
 | `agentctl/agentctl.go` | take-F | P==F. W's four dwbridge methods (with their deliberate 30s/60s budgets) relocate to `games/dragonwilds` as an extension embedding the core client. |
-| `agentctl/client_test.go` | take-F | Deleted tests died with provisioner-mode. Guard: re-assert `TestMissingIsDistinctFromRefused`'s invariant (ErrNotFound vs ErrRejected) against the Ilmari client before this lands. |
+| `agentctl/client_test.go` | take-F | Deleted tests died with provisioner-mode. Guard: re-assert `TestMissingIsDistinctFromRefused`'s invariant (ErrNotFound vs ErrRejected) against the Anvil client before this lands. |
 | `agentctl/agentctl_test.go` | take-F | Pure game constants → fixtures. W's copy has a stale assertion message F already fixed. |
 | `agentctl/extract_test.go`, `agentctl/files.go` | take-F | P lacks the mtime-preservation work (W-origin, in F). Fix F's stale `DedicatedServer.ini` comments while touching. |
-| `agentctl/power.go` | take-F | F keeps only the wire vocabulary + `RecreateAgent` (15-min Wine-image budget, W-origin, already in F). Carry the Destroy-abort failure-mode reasoning to the Ilmari client docs. |
-| `dockerctl/client_test.go` | take-F | Deletion-follows-deletion; dockerctl.go itself is identical everywhere. Guard: `TestContainerRemoveKeepsTheVolume`'s promise (world survives removal) moves to an Ilmari destroy test before this file's deletion is accepted. |
+| `agentctl/power.go` | take-F | F keeps only the wire vocabulary + `RecreateAgent` (15-min Wine-image budget, W-origin, already in F). Carry the Destroy-abort failure-mode reasoning to the Anvil client docs. |
+| `dockerctl/client_test.go` | take-F | Deletion-follows-deletion; dockerctl.go itself is identical everywhere. Guard: `TestContainerRemoveKeepsTheVolume`'s promise (world survives removal) moves to an Anvil destroy test before this file's deletion is accepted. |
 | `game/client.go` | take-F | Strict nesting P⊂W⊂F — union is F verbatim (`Readiness` + `UnsupportedError` + `CommandProber` + agent fields on `Conn`). Rewrite stale palworld-referencing doc comments. |
 | `game/registry.go` | take-F | Union is F (adds `FeatureSaves`/`FeatureLogs`; ten feature keys total). Seam 9: `DefaultID` cannot stay a package const. |
 | `store/servers.go` | take-F | W/F's normalize-onto-struct fix (response must agree with the row written). Generalize the ini-name comment. |
@@ -228,11 +228,11 @@ All paths under `internal/`. Seam numbers reference §"New core seams".
 | `api/pals.go`, `pals_internal_test.go`, `pals_save_test.go`, `storage_internal_test.go` | P | relocate:games/palworld | Via seam 5 — the first user of game-contributed routes. |
 | `advisor/*`, `api/advisor.go`, `store/settings.go` | P,W | promote-core (source P) / restore | See §Lost feature. |
 | `rcon/{rcon.go,rcon_test.go,rcontest/}` | P,W | relocate:games/palworld | W's copy is confirmed vestigial (zero importers) — drop. Single-consumer rule says games/palworld, not core; revisit only if a second RCON game is planned. |
-| `dockerctl/provision.go`, `provision_test.go` | P,W | retire | Guard: W's `InspectSpec`+`Networks` logic (skip dynamic publishes; exclude default bridge) is the engine behind agent recreate — confirm Ilmari's recreate path reproduces both edge cases before deletion, or image swaps silently drop networks. P's copy deletes outright. |
+| `dockerctl/provision.go`, `provision_test.go` | P,W | retire | Guard: W's `InspectSpec`+`Networks` logic (skip dynamic publishes; exclude default bridge) is the engine behind agent recreate — confirm Anvil's recreate path reproduces both edge cases before deletion, or image swaps silently drop networks. P's copy deletes outright. |
 | `api/launch.go` | W | split | `handleGetLaunch`/`handleRecreateAgent` already exist in F's agentimage.go (core — take F's post-retirement wording). `handleSetLaunch` + `handleInstallBridge` (+ `SetLaunchProfile`/`InstallBridgeKit` clients) → games/dragonwilds. |
 | `api/world.go`, `world_test.go`, `dragonwilds_test.go` | W | relocate:games/dragonwilds | dwsave world endpoint. |
 | `api/actions_internal_test.go`, `api/stack_test.go`, `api/servers_create_test.go`, `sched/save_before_restart_test.go`, `game/gametest/gametest.go` | W,F | take-F | gametest and save_before_restart are zero-drift. stack_test: keep F's scaffolding, table over games (carry W's `ownerId`/`worldName` + 3-port case). servers_create_test: read expectations from the registered Definition, run per game. |
-| `internal/ilmari/ilmari.go` | W,F | promote-core as `core/ilmariclient` | W and F are the same file (one comment differs). **Gap found**: no client methods for `GET /v1/containers` / `GET /v1/ports` — the fleet view that matters with three consoles on one Ilmari. Add both; also assert `APIVersion` at the seam. |
+| `internal/anvil/anvil.go` | W,F | promote-core as `core/ilmariclient` | W and F are the same file (one comment differs). **Gap found**: no client methods for `GET /v1/containers` / `GET /v1/ports` — the fleet view that matters with three consoles on one Anvil. Add both; also assert `APIVersion` at the seam. |
 
 ## D. Game modules and agents — wholesale moves
 
@@ -281,14 +281,14 @@ Checked off only when the protection exists in the monorepo:
 - [x] P's working palsave roster (seam 6 — F's stub must not win)
       (games/palworld Roster, wired in cmd/palcon and the harness, Phase 5).
 - [x] W's port-pair provisioning logic + "pair swallows agent port" case (core provision_pair tests, Phase 4).
-- [ ] `TestMissingIsDistinctFromRefused` invariant re-asserted vs Ilmari client.
-- [ ] `TestContainerRemoveKeepsTheVolume` promise moved to an Ilmari destroy test. (Live-verified at the Phase 3 gate — destroy left the world dir — but the test guard is still owed.)
-- [ ] W's `InspectSpec` network/port edge cases verified in Ilmari recreate.
+- [ ] `TestMissingIsDistinctFromRefused` invariant re-asserted vs Anvil client.
+- [ ] `TestContainerRemoveKeepsTheVolume` promise moved to an Anvil destroy test. (Live-verified at the Phase 3 gate — destroy left the world dir — but the test guard is still owed.)
+- [ ] W's `InspectSpec` network/port edge cases verified in Anvil recreate.
 - [x] Advisor restored (P source) + F's dead migrations get a live reader (2b).
-- [ ] Ilmari client gains `Containers()`/`Ports()` + APIVersion assertion.
+- [ ] Anvil client gains `Containers()`/`Ports()` + APIVersion assertion.
 - [x] `lastFailure` consumed by the UI — live-verified at the Phase 3 gate.
 - [x] Palcon env migration documented at its port: `PROVISIONER_URL/TOKEN` →
-      `ILMARI_URL/TOKEN` (docs/palcon-port-verification.md; cmd/palcon logs
+      `ANVIL_URL/TOKEN` (docs/palcon-port-verification.md; cmd/palcon logs
       a pointed warning when only the legacy pair is set — the URL is not
       silently reused, because the legacy provisioner-mode agent spoke a
-      different protocol than Ilmari, Phase 5).
+      different protocol than Anvil, Phase 5).

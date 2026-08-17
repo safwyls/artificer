@@ -11,10 +11,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safwyls/sampo/core/agent"
-	"github.com/safwyls/sampo/core/agentctl"
-	"github.com/safwyls/sampo/core/api"
-	"github.com/safwyls/sampo/core/store"
+	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/store"
 )
 
 // testProfile is the fake game's provisioning knowledge, mirrored by the
@@ -33,9 +33,9 @@ var testProfile = &api.ProvisionProfile{
 }
 
 // fakeProvisioner implements api.Provisioner with configurable answers —
-// the wizard and delete paths are tested against the interface the Ilmari
+// the wizard and delete paths are tested against the interface the Anvil
 // adapter fills in production (the adapter's own translation has its own
-// tests in provisioner_ilmari_test.go).
+// tests in provisioner_anvil_test.go).
 type fakeProvisioner struct {
 	mu           sync.Mutex
 	health       *agentctl.Health
@@ -52,7 +52,7 @@ type fakeProvisioner struct {
 	destroyCalls int
 }
 
-func (f *fakeProvisioner) BaseURL() string { return "http://ilmari:8410" }
+func (f *fakeProvisioner) BaseURL() string { return "http://anvil:8410" }
 
 func (f *fakeProvisioner) Health(ctx context.Context) (*agentctl.Health, error) {
 	if f.healthErr != nil {
@@ -61,7 +61,7 @@ func (f *fakeProvisioner) Health(ctx context.Context) (*agentctl.Health, error) 
 	if f.health != nil {
 		return f.health, nil
 	}
-	return &agentctl.Health{Agent: "ilmari", Mode: "provisioner"}, nil
+	return &agentctl.Health{Agent: "anvil", Mode: "provisioner"}, nil
 }
 
 func (f *fakeProvisioner) Provision(ctx context.Context, req agent.ProvisionRequest) (*agentctl.ProvisionResult, error) {
@@ -177,7 +177,7 @@ func TestProvisionOneClickDeploy(t *testing.T) {
 	dataRoot := t.TempDir()
 	fake := &fakeProvisioner{
 		health: &agentctl.Health{
-			Agent: "ilmari", Mode: "provisioner",
+			Agent: "anvil", Mode: "provisioner",
 			Provision: &agent.ProvisionDefaults{DataRoot: dataRoot, RunAs: "568:568", ImageTag: "latest"},
 		},
 		provisionRes: &agentctl.ProvisionResult{
@@ -389,7 +389,7 @@ func TestProvisionNameConflictRegistersNothing(t *testing.T) {
 func TestProvisionKeepsRowWhenProvisionerUnreachable(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 
-	unreachable := errors.New("ilmari unreachable: connection refused")
+	unreachable := errors.New("anvil unreachable: connection refused")
 	app.api.Provisioner = &fakeProvisioner{
 		healthErr: unreachable, discoverErr: unreachable, provisionErr: unreachable,
 	}
@@ -425,7 +425,7 @@ func TestProvisionDefaultsAndDiscover(t *testing.T) {
 
 	fake := &fakeProvisioner{
 		health: &agentctl.Health{
-			Agent: "ilmari", Mode: "provisioner",
+			Agent: "anvil", Mode: "provisioner",
 			Provision: &agent.ProvisionDefaults{
 				DataRoot: "/data", PublicHost: "10.99.0.5", RunAs: "568:568", ImageTag: "latest",
 			},
@@ -556,13 +556,13 @@ func TestProvisionAdminOnly(t *testing.T) {
 }
 
 // The adopt refusal names the missing half: a token the provisioner
-// didn't return points at the Ilmari envPrefix registration, an
+// didn't return points at the Anvil envPrefix registration, an
 // unpublished agent port at the container itself. One combined message
 // sent operators hunting through the wrong config.
 func TestAdoptRefusalsNameTheMissingHalf(t *testing.T) {
 	app, admin := newTestAppWithAdmin(t)
 	fake := &fakeProvisioner{
-		health: &agentctl.Health{Agent: "ilmari", Mode: "provisioner"},
+		health: &agentctl.Health{Agent: "anvil", Mode: "provisioner"},
 		adoptRes: &agentctl.AdoptResult{
 			Name: "gtagent-x", Mode: "supervisor", AgentPort: 9911,
 		},
