@@ -2,9 +2,11 @@ package collector
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
+	"github.com/safwyls/sampo/core/agentctl"
 	"github.com/safwyls/sampo/core/agentfiles"
 	"github.com/safwyls/sampo/core/store"
 )
@@ -88,7 +90,17 @@ func (s *SaveRefresher) refreshAll(ctx context.Context) {
 		savePath, err := s.files.SavePath(ctx, srv)
 		if err != nil {
 			s.nextAttempt[srv.ID] = time.Now().Add(saveAttemptFloor)
-			s.logger.Warn("save refresh: resolving save", "server", srv.Name, "error", err)
+			// A rejection is the agent answering clearly, and by far the
+			// most common answer is "no world yet" — the normal state of
+			// a server whose game has never run. Warning about that every
+			// cycle fills a freshly provisioned console's log with a
+			// problem it doesn't have, and buries the failures that are
+			// real. Anything else (unreachable, bad token) still warns.
+			if errors.Is(err, agentctl.ErrRejected) {
+				s.logger.Debug("save refresh: nothing to sync yet", "server", srv.Name, "reason", err)
+			} else {
+				s.logger.Warn("save refresh: resolving save", "server", srv.Name, "error", err)
+			}
 			continue
 		}
 		if s.reader != nil {
