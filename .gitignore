@@ -7,4 +7,5 @@
 /palagent
 /ilmari-bin
 web/*/dist/
+web/*/dist-demo/
 web/*/node_modules/
