@@ -20,7 +20,8 @@ func setEnv(t *testing.T, env map[string]string) {
 	t.Helper()
 	for _, k := range []string{
 		"HTTP_ADDR", "DATA_DIR", "ADMIN_USERNAME", "ADMIN_PASSWORD", "DOCKER_HOST",
-		"PROVISIONER_URL", "PROVISIONER_TOKEN", "COOKIE_SECURE", "JWT_SECRET", "ENCRYPTION_KEY",
+		"ANVIL_URL", "ANVIL_TOKEN", "COOKIE_SECURE", "JWT_SECRET", "ENCRYPTION_KEY",
+		"ILMARI_URL", "ILMARI_TOKEN", "PROVISIONER_URL", "PROVISIONER_TOKEN",
 	} {
 		t.Setenv(k, "")
 	}
@@ -60,7 +61,6 @@ func TestLoadReadsTheEnvironment(t *testing.T) {
 		"HTTP_ADDR": ":9999", "ADMIN_USERNAME": "root", "ADMIN_PASSWORD": "hunter2",
 		"DOCKER_HOST": "tcp://10.0.0.5:2375",
 		"ANVIL_URL":   "http://anvil:8820", "ANVIL_TOKEN": "tok",
-		"PROVISIONER_URL": "http://legacy-agent:8811", "PROVISIONER_TOKEN": "ptok",
 		"ANTHROPIC_API_KEY": "sk-ant-test", "GEMINI_API_KEY": "gm-test",
 	})
 
@@ -76,9 +76,6 @@ func TestLoadReadsTheEnvironment(t *testing.T) {
 	}
 	if cfg.AnvilURL != "http://anvil:8820" || cfg.AnvilToken != "tok" {
 		t.Errorf("anvil = %q / %q", cfg.AnvilURL, cfg.AnvilToken)
-	}
-	if cfg.ProvisionerURL != "http://legacy-agent:8811" || cfg.ProvisionerToken != "ptok" {
-		t.Errorf("legacy provisioner = %q / %q", cfg.ProvisionerURL, cfg.ProvisionerToken)
 	}
 	if cfg.AnthropicAPIKey != "sk-ant-test" || cfg.GeminiAPIKey != "gm-test" {
 		t.Errorf("advisor keys = %q / %q", cfg.AnthropicAPIKey, cfg.GeminiAPIKey)
@@ -162,4 +159,39 @@ func TestLoadReportsAnUncreatableDataDir(t *testing.T) {
 
 func writeFile(path string) error {
 	return os.WriteFile(path, []byte("x"), 0o644)
+}
+
+// A deployment carrying a retired name (ILMARI_URL, or the retired
+// provisioner-mode pair) loses the feature silently otherwise: the console
+// simply boots without a provisioner and the wizard is absent, with nothing
+// pointing at the setting that stopped being read.
+func TestRetiredSettingsReportsOnlyUnreplacedNames(t *testing.T) {
+	setEnv(t, map[string]string{"ILMARI_URL": "http://ilmari:8820"})
+	got := config.RetiredSettings()
+	if len(got) != 1 || !strings.Contains(got[0], "ILMARI_URL") || !strings.Contains(got[0], "ANVIL_URL") {
+		t.Fatalf("RetiredSettings() = %q, want one message naming ILMARI_URL and ANVIL_URL", got)
+	}
+
+	// Already migrated: the old name may linger in a compose file, but the
+	// replacement is set, so there is nothing to warn about.
+	setEnv(t, map[string]string{
+		"ILMARI_URL": "http://ilmari:8820", "ANVIL_URL": "http://anvil:8820",
+	})
+	if got := config.RetiredSettings(); len(got) != 0 {
+		t.Errorf("RetiredSettings() = %q, want silence once ANVIL_URL is set", got)
+	}
+
+	// Both retired pairs point at the same replacements, and each old name
+	// is reported on its own.
+	setEnv(t, map[string]string{
+		"ILMARI_TOKEN": "a", "PROVISIONER_URL": "http://legacy-agent:8811",
+	})
+	if got := config.RetiredSettings(); len(got) != 2 {
+		t.Errorf("RetiredSettings() = %q, want one message per retired name", got)
+	}
+
+	setEnv(t, nil)
+	if got := config.RetiredSettings(); len(got) != 0 {
+		t.Errorf("RetiredSettings() = %q on a clean environment", got)
+	}
 }

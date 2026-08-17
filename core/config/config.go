@@ -42,13 +42,6 @@ type Config struct {
 	AnvilURL   string
 	AnvilToken string
 
-	// ProvisionerURL/Token point at a legacy provisioner-mode agent — the
-	// pre-Anvil path palcon and wildskeeper deployments still run until
-	// their ports complete. Empty means no legacy provisioner; new
-	// consoles never set these.
-	ProvisionerURL   string
-	ProvisionerToken string
-
 	// AnthropicAPIKey / GeminiAPIKey enable the advisor chat — set one or
 	// the other. Both empty leaves the feature to a key saved through the
 	// admin UI; absent everywhere means the UI never offers it.
@@ -98,10 +91,8 @@ func Load() (*Config, error) {
 		AnvilURL:   os.Getenv("ANVIL_URL"),
 		AnvilToken: os.Getenv("ANVIL_TOKEN"),
 
-		ProvisionerURL:   os.Getenv("PROVISIONER_URL"),
-		ProvisionerToken: os.Getenv("PROVISIONER_TOKEN"),
-		AnthropicAPIKey:  os.Getenv("ANTHROPIC_API_KEY"),
-		GeminiAPIKey:     os.Getenv("GEMINI_API_KEY"),
+		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
+		GeminiAPIKey:    os.Getenv("GEMINI_API_KEY"),
 		// Cloudflare Access SSO; both required to enable it.
 		AccessTeamDomain:  normalizeTeamDomain(os.Getenv("CF_ACCESS_TEAM_DOMAIN")),
 		AccessAUD:         strings.TrimSpace(os.Getenv("CF_ACCESS_AUD")),
@@ -172,6 +163,34 @@ func splitEmails(v string) []string {
 	for _, part := range strings.Split(v, ",") {
 		if e := strings.ToLower(strings.TrimSpace(part)); e != "" {
 			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// retiredEnv names settings this console no longer reads, each with what
+// replaced it. Renames and removals both land here.
+var retiredEnv = []struct{ old, replacement, why string }{
+	{"ILMARI_URL", "ANVIL_URL", "the host service is now called anvil"},
+	{"ILMARI_TOKEN", "ANVIL_TOKEN", "the host service is now called anvil"},
+	{"PROVISIONER_URL", "ANVIL_URL", "provisioner-mode agents are retired; provisioning goes through anvil"},
+	{"PROVISIONER_TOKEN", "ANVIL_TOKEN", "provisioner-mode agents are retired; provisioning goes through anvil"},
+}
+
+// RetiredSettings reports environment variables that are set but no longer
+// read, and whose replacement is missing — so a console can say so at boot.
+//
+// This exists because the failure mode is silence. A deployment upgraded
+// with only the old names loses provisioning entirely: the wizard is
+// simply absent, which looks like a bug in the console rather than an
+// unset variable. Naming it costs one log line. Variables whose
+// replacement is already set are not reported: that is a harmless
+// leftover, not a problem to fix.
+func RetiredSettings() []string {
+	var out []string
+	for _, r := range retiredEnv {
+		if os.Getenv(r.old) != "" && os.Getenv(r.replacement) == "" {
+			out = append(out, r.old+" is no longer read — set "+r.replacement+" instead ("+r.why+")")
 		}
 	}
 	return out

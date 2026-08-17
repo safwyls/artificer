@@ -68,8 +68,11 @@ Anvil cannot serve the consoles yet. Concretely:
       corrected same day: the first cut hard-required `wildskeeper-net`,
       which would fail the deploy on any host without wildskeeper's stack
       and quietly made the neutral service depend on one console).
-- [x] **CI green, `ghcr.io/safwyls/anvil:latest` published** (verified
-      2026-08-13: three runs, all green, docker job publishing on main).
+- [x] **CI green, image published** (verified 2026-08-13: three runs,
+      all green, docker job publishing on main). That build published
+      `ghcr.io/safwyls/ilmari:latest`, the name at the time; the monorepo
+      workflow now publishes `anvil` and keeps `ilmari` as a migration
+      channel for hosts still pinned to it.
 
 One Phase 0 item moves to Phase 2, where it belongs: the **`anvilclient`
 package in each console**. It is console-side code, needed for the
