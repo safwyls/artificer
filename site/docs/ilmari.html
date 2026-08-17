@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ilmari, the host service — Sampo docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
+<meta name="description" content="The host provisioning service: registering consoles, allowlists, data roots and adoption.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Ilmari, the host service — Sampo docs">
+<meta property="og:description" content="The host provisioning service: registering consoles, allowlists, data roots and adoption.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html" aria-label="Sampo home">
+      <span class="mark" aria-hidden="true"><i></i></span>
+      <span class="wordmark">sampo</span>
+      <span class="crumb-docs">docs</span>
+    </a>
+    <nav class="nav-links" aria-label="Site">
+      <a class="hide-sm" href="../index.html#consoles">Consoles</a>
+      <a class="hide-sm" href="../index.html#deploy">Deploy</a>
+      <a class="nav-gh" href="https://github.com/safwyls/sampo"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs-shell">
+  <details class="side-mobile">
+    <summary>Docs navigation</summary>
+    <nav aria-label="Docs"><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--ember)" aria-hidden="true"><i></i></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">Your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
+  <ul>
+    <li><a href="architecture.html">Architecture</a></li>
+    <li><a href="ilmari.html" class="active" aria-current="page">Ilmari, the host service</a></li>
+    <li><a href="agents.html">Sidecar agents</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-wild)" aria-hidden="true"><i></i></span>Reference</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-flame-ink)" aria-hidden="true"><i></i></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div></nav>
+  </details>
+  <aside class="side" aria-label="Docs"><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--ember)" aria-hidden="true"><i></i></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">Your first server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
+  <ul>
+    <li><a href="architecture.html">Architecture</a></li>
+    <li><a href="ilmari.html" class="active" aria-current="page">Ilmari, the host service</a></li>
+    <li><a href="agents.html">Sidecar agents</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-wild)" aria-hidden="true"><i></i></span>Reference</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-flame-ink)" aria-hidden="true"><i></i></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div></aside>
+  <main class="doc" id="content">
+    <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> How it works <span>/</span> Ilmari, the host service</p>
+    <h1>Ilmari, the host service</h1>
+<p class="lead">Ilmari is the only component that holds Docker rights. Consoles ask it for
+containers; it decides whether they may have them. One instance per host serves every console on
+that host, and it is deliberately blind to games.</p>
+
+<h2 id="why">Why it exists</h2>
+<p>A console is a web application people log into. Giving one the Docker socket means a bug in it
+is a bug with root on your host. Ilmari takes that surface and reduces it to a narrow API: create a
+container from an allowed image, list them, recreate one, destroy one. It cannot run arbitrary
+images, cannot mount arbitrary paths, and cannot tell you anything about another console's
+servers.</p>
+
+<h2 id="register">Registering your consoles</h2>
+<p>Each console gets its own entry: an id, a token, a data root, and the environment namespace it
+is allowed to read back when adopting. Supply it as JSON, inline or from a file — the file wins,
+and is the better habit for secrets.</p>
+<div class="code-card" data-copy>
+<div class="code-head"><span>ILMARI_CLIENTS_FILE → clients.json</span><button class="copy-btn">Copy</button></div>
+<pre>[
+  {
+    <span class="k">"id"</span>: <span class="v">"palcon"</span>,
+    <span class="k">"token"</span>: <span class="v">"&lt;long random string&gt;"</span>,
+    <span class="k">"dataRoot"</span>: <span class="v">"/mnt/tank/apps/palcon-servers"</span>,
+    <span class="k">"envPrefix"</span>: <span class="v">"PALAGENT_"</span>,
+    <span class="k">"imagePrefixes"</span>: [<span class="v">"ghcr.io/safwyls/palagent"</span>]
+  },
+  {
+    <span class="k">"id"</span>: <span class="v">"wildskeeper"</span>,
+    <span class="k">"token"</span>: <span class="v">"&lt;long random string&gt;"</span>,
+    <span class="k">"dataRoot"</span>: <span class="v">"/mnt/tank/apps/dragonwilds-servers"</span>,
+    <span class="k">"envPrefix"</span>: <span class="v">"WKAGENT_"</span>
+  },
+  {
+    <span class="k">"id"</span>: <span class="v">"flametender"</span>,
+    <span class="k">"token"</span>: <span class="v">"&lt;long random string&gt;"</span>,
+    <span class="k">"dataRoot"</span>: <span class="v">"/mnt/tank/apps/enshrouded-servers"</span>,
+    <span class="k">"envPrefix"</span>: <span class="v">"FLAMEAGENT_"</span>
+  }
+]</pre>
+</div>
+<div class="callout warn"><p><b><code>envPrefix</code> is not optional in practice.</b> Adoption
+returns a container's environment so a console can recover its agent token and passwords, and
+Ilmari filters that to the registered namespace. A client registered without a prefix gets no
+environment back at all, so adoption produces a server row with no token — which fails with a
+message telling you exactly this.</p></div>
+
+<h2 id="allowlist">The image allowlist</h2>
+<p>Ilmari will only run images whose reference starts with an allowed prefix. A console's own
+<code>imagePrefixes</code> wins; otherwise the service-wide
+<code>ILMARI_ALLOWED_IMAGE_PREFIXES</code> applies; otherwise the default,
+<code>ghcr.io/safwyls/</code>, which already covers every agent image here.</p>
+<p>The allowlist does double duty: it also decides which unlabelled containers a console may
+discover and adopt.</p>
+
+<h2 id="dataroot">Data roots — and the mount that must exist</h2>
+<p>Every server's data directory is <code>&lt;that console's dataRoot&gt;/&lt;slug&gt;</code>. The
+host side is never the caller's choice, which is what stops a console from asking Ilmari to mount
+anything it likes.</p>
+<div class="callout danger">
+<p><b>Every data root must be mounted into the Ilmari container, at the same path it is registered
+as.</b> Ilmari creates and chowns those directories itself. If the path is not mounted, it creates
+them inside its own filesystem instead, Docker then creates the real directory on the host as
+<code>root</code>, and the agent container — running as an unprivileged user — cannot write to
+it.</p>
+<p>Nothing complains at the time. SteamCMD exits successfully having installed nothing, and the
+only symptom is a server that will not start, insisting the game is not installed. See
+<a href="troubleshooting.html#not-installed">Troubleshooting</a>.</p>
+</div>
+
+<h2 id="discover">Discovery and adoption</h2>
+<p>A console can find servers it does not have rows for — after a database loss, or servers you
+deployed by hand before setting the console up. Ilmari offers a container to a console when
+either:</p>
+<ul>
+  <li>the container carries that console's ownership label, including the legacy per-console labels
+    from before Ilmari existed; or</li>
+  <li>it carries no ownership label at all and its image falls under that console's allowlist.</li>
+</ul>
+<p>Adopting recovers the agent token, admin password, server name and published ports, so a
+recovered server needs nothing typed in. Containers belonging to another console are refused with a
+message saying so, never silently hidden.</p>
+
+<h2 id="destroy">Destroying a server</h2>
+<p>Removing a container never removes its data directory. Unmaking a container is not consent to
+delete what it was holding — Ilmari reports the directory path back so you know what survived and
+where.</p>
+<div class="callout note"><p>Ilmari can only recreate or destroy containers <i>it</i> created. One
+deployed by hand — a TrueNAS app, your own compose file — is adoptable and readable, but managing
+its lifecycle stays with whatever deployed it. Two orchestrators fighting over one container helps
+nobody.</p></div>
+
+<h2 id="run">Running it</h2>
+<div class="code-card" data-copy>
+<div class="code-head"><span>docker-compose.yml — ilmari</span><button class="copy-btn">Copy</button></div>
+<pre><span class="k">services</span>:
+  <span class="k">ilmari</span>:
+    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/ilmari:latest</span>
+    <span class="k">ports</span>: [<span class="v">"8820:8820"</span>]        <span class="c"># reachable by consoles only</span>
+    <span class="k">environment</span>:
+      <span class="k">ILMARI_CLIENTS_FILE</span>: <span class="v">/config/clients.json</span>
+      <span class="k">ILMARI_PUBLIC_HOST</span>: <span class="v">192.168.1.9</span>   <span class="c"># how players reach this box</span>
+      <span class="k">ILMARI_DEFAULT_RUN_AS</span>: <span class="v">"568:568"</span>
+    <span class="k">volumes</span>:
+      - <span class="v">/var/run/docker.sock:/var/run/docker.sock</span>
+      - <span class="v">./clients.json:/config/clients.json:ro</span>
+      <span class="c"># Every dataRoot, at the path it is registered as. Not optional.</span>
+      - <span class="v">/mnt/tank/apps/palcon-servers:/mnt/tank/apps/palcon-servers</span>
+      - <span class="v">/mnt/tank/apps/dragonwilds-servers:/mnt/tank/apps/dragonwilds-servers</span>
+      - <span class="v">/mnt/tank/apps/enshrouded-servers:/mnt/tank/apps/enshrouded-servers</span>
+    <span class="k">restart</span>: <span class="v">unless-stopped</span></pre>
+</div>
+<p>Then point each console at it with <code>ILMARI_URL</code> and that console's
+<code>ILMARI_TOKEN</code>. The Raise-a-server wizard appears once the console can reach it.</p>
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="architecture.html"><small>← Previous</small><b>Architecture</b></a><a class="pager-card next" href="agents.html"><small>Next →</small><b>Sidecar agents</b></a></nav>
+  </main>
+</div>
+<footer class="doc-footer">
+  <div class="wrap-doc">
+    <p>Sampo is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
+    © Jagex Ltd. Enshrouded is © Keen Games GmbH. No affiliation or endorsement is implied.</p>
+    <p><a href="https://github.com/safwyls/sampo">GitHub</a> ·
+       <a href="https://github.com/safwyls/sampo/issues">Issues</a> ·
+       <a href="../index.html">Homepage</a></p>
+  </div>
+</footer>
+<script>
+  for (const card of document.querySelectorAll(".code-card[data-copy]")) {
+    const btn = card.querySelector(".copy-btn");
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(card.querySelector("pre").innerText);
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = "Copy"), 1600);
+      } catch { btn.textContent = "Select & copy"; }
+    });
+  }
+</script>
+</body>
+</html>
