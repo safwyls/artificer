@@ -1,17 +1,21 @@
 /* Artificer docs — shared styles. Same token system as ../index.html.
-   The palette is a northern forge: cold ground, heat used sparingly.
-   Artificer builds the consoles; anvil is the host service they're
-   forged on — the maker's-forge theme those names set, followed rather
-   than invented. */
+   The identity follows the names: an artificer's smithy. The ground is
+   warm ash, the dark surfaces are coal, and heat — the ember-to-molten
+   gradient — marks whatever is active or important. The mark is the
+   anvil itself, drawn as a silhouette, because anvil is the service the
+   whole thing stands on. */
 :root {
-  --frost: #EEF1F5;      /* page — cold blue-white, not cream */
-  --birch: #FAFCFD;      /* raised card */
-  --iron: #171B22;       /* ink, and the dark code blocks */
-  --iron-2: #212733;     /* raised dark */
-  --slate: #5A6473;      /* secondary text */
+  --ash: #F4F1EC;        /* page — warm ash, the smithy floor */
+  --tin: #FCFAF7;        /* raised card */
+  --coal: #1D1916;       /* ink, and the dark code blocks */
+  --coal-2: #2A241F;     /* raised dark */
+  --soot: #6A6158;       /* secondary text */
   --ember: #D6431B;      /* heat: actions, active state. Used sparingly. */
+  --molten: #F0A028;     /* yellow heat — only ever inside the gradient */
   --quench: #17786B;     /* quenched steel — secondary structure */
-  --rule: rgba(23, 27, 34, .12);
+  --rule: rgba(29, 25, 22, .12);
+  /* the signature: steel drawn from the fire, hottest at the tip */
+  --heat: linear-gradient(90deg, var(--molten), var(--ember) 55%, #A32B10);
 
   /* The three consoles, in their own real token colors. These are data,
      not decoration: each is lifted from that console's tailwind theme. */
@@ -20,7 +24,11 @@
   --c-flame: #7FC3F0;
   --c-flame-ink: #2E7EB5;   /* legible weight of the same hue on light */
 
-  --display: "Familjen Grotesk", system-ui, sans-serif;
+  /* the anvil, as a silhouette any element can take */
+  --anvil: polygon(0% 34%, 30% 17%, 100% 17%, 100% 43%, 64% 43%, 58% 60%,
+                   88% 71%, 88% 87%, 12% 87%, 12% 71%, 42% 60%, 36% 43%, 21% 43%);
+
+  --display: "Bricolage Grotesque", system-ui, sans-serif;
   --body: "IBM Plex Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -28,8 +36,8 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: var(--body);
-  background: var(--frost);
-  color: var(--iron);
+  background: var(--ash);
+  color: var(--coal);
   line-height: 1.7;
   font-size: 16.5px;
   -webkit-font-smoothing: antialiased;
@@ -39,6 +47,7 @@ body {
   min-height: 100vh;
 }
 img { max-width: 100%; height: auto; display: block; }
+::selection { background: rgba(214, 67, 27, .22); }
 
 .skip-link {
   position: absolute; left: -9999px; top: 0;
@@ -48,55 +57,47 @@ img { max-width: 100%; height: auto; display: block; }
 .skip-link:focus { left: 0; }
 :focus-visible { outline: 3px solid var(--ember); outline-offset: 2px; border-radius: 3px; }
 
-/* ---------- the mark: a struck square, not a sphere ----------
-   Palcon's mark is a Pal Sphere. Artificer's is the anvil face: a square
-   rotated 45° with a notch, so the two sites read as siblings without
-   borrowing each other's iconography. */
+/* ---------- the mark: the anvil ----------
+   Not an abstraction of one — the silhouette itself, horn to the left,
+   cut from a plain block by clip-path so the markup stays a bare span.
+   Category colors pour in through --mark-fill. */
 .mark {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; flex: none;
+  display: inline-block; flex: none;
+  width: 32px; height: 26px;
   background: var(--mark-fill, var(--ember));
-  transform: rotate(45deg);
-  border-radius: 5px;
+  clip-path: var(--anvil);
 }
-.mark i {
-  display: block; width: 9px; height: 9px;
-  background: var(--frost);
-  border-radius: 2px;
-  transform: rotate(-45deg);
-}
-.mark.sm { width: 18px; height: 18px; border-radius: 4px; }
-.mark.sm i { width: 6px; height: 6px; }
+.mark i { display: none; }
+.mark.sm { width: 20px; height: 16px; }
 
 /* ---------- top nav ---------- */
 header.nav {
   position: sticky; top: 0; z-index: 50;
-  background: var(--iron);
-  color: var(--frost);
-  border-bottom: 1px solid rgba(238, 241, 245, .1);
+  background: var(--coal);
+  color: var(--ash);
+  border-bottom: 1px solid rgba(244, 241, 236, .1);
 }
 .nav-inner { display: flex; align-items: center; gap: 1rem; padding: .8rem 24px; max-width: 1280px; margin: 0 auto; }
-.brand { display: flex; align-items: center; gap: .7rem; text-decoration: none; margin-right: auto; color: var(--frost); }
-.brand .mark i { background: var(--iron); }
+.brand { display: flex; align-items: center; gap: .7rem; text-decoration: none; margin-right: auto; color: var(--ash); }
 .wordmark {
-  font-family: var(--display); font-weight: 700; font-size: 1.3rem;
+  font-family: var(--display); font-weight: 800; font-size: 1.3rem;
   letter-spacing: -.01em;
 }
 .crumb-docs {
-  font-family: var(--mono); font-size: .74rem; color: rgba(238, 241, 245, .55);
-  border: 1px solid rgba(238, 241, 245, .22); border-radius: 999px; padding: .05rem .6rem;
+  font-family: var(--mono); font-size: .74rem; color: rgba(244, 241, 236, .55);
+  border: 1px solid rgba(244, 241, 236, .22); border-radius: 999px; padding: .05rem .6rem;
 }
 .nav-links { display: flex; gap: 1.4rem; align-items: center; font-weight: 500; font-size: .92rem; }
-.nav-links a { text-decoration: none; color: rgba(238, 241, 245, .72); }
-.nav-links a:hover { color: var(--frost); }
+.nav-links a { text-decoration: none; color: rgba(244, 241, 236, .72); }
+.nav-links a:hover { color: var(--ash); }
 .nav-gh {
   display: inline-flex; align-items: center; gap: .45rem;
-  border: 1.5px solid rgba(238, 241, 245, .25); border-radius: 9px;
+  border: 1.5px solid rgba(244, 241, 236, .25); border-radius: 9px;
   padding: .42rem .85rem; font-weight: 600; font-size: .92rem;
-  color: var(--frost) !important; text-decoration: none;
+  color: var(--ash) !important; text-decoration: none;
   transition: border-color .15s, background .15s;
 }
-.nav-gh:hover { border-color: var(--frost); background: rgba(238, 241, 245, .07); }
+.nav-gh:hover { border-color: var(--ash); background: rgba(244, 241, 236, .07); }
 @media (max-width: 820px) { .nav-links a.hide-sm { display: none; } }
 
 /* ---------- shell: sidebar + content ---------- */
@@ -117,17 +118,18 @@ header.nav {
   display: flex; align-items: center; gap: .55rem;
   font-family: var(--mono); font-size: .7rem; font-weight: 500;
   letter-spacing: .14em; text-transform: uppercase;
-  margin-bottom: .55rem; color: var(--slate);
+  margin-bottom: .55rem; color: var(--soot);
 }
 .side-cat ul, .side-mobile ul { list-style: none; }
 .side-cat a, .side-mobile a {
-  display: block; text-decoration: none; color: var(--slate);
+  display: block; text-decoration: none; color: var(--soot);
   font-size: .93rem; font-weight: 500;
   padding: .3rem .7rem; border-radius: 7px; margin-left: 1.5rem;
 }
-.side-cat a:hover, .side-mobile a:hover { color: var(--iron); background: rgba(23, 27, 34, .05); }
+.side-cat a:hover, .side-mobile a:hover { color: var(--coal); background: rgba(29, 25, 22, .05); }
 .side-cat a.active, .side-mobile a.active {
-  color: var(--ember); background: rgba(214, 67, 27, .08); font-weight: 600;
+  color: var(--ember); background: rgba(214, 67, 27, .09); font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--ember);
 }
 
 /* mobile disclosure nav */
@@ -138,7 +140,7 @@ header.nav {
   .side-mobile {
     display: block; margin: 1.2rem 0 0;
     border: 1px solid var(--rule); border-radius: 12px;
-    background: var(--birch);
+    background: var(--tin);
   }
   .side-mobile summary {
     cursor: pointer; font-weight: 600; font-size: .95rem;
@@ -153,17 +155,24 @@ header.nav {
 .doc { padding: 2.4rem 0 3rem; max-width: 46rem; }
 .breadcrumb {
   font-family: var(--mono); font-size: .74rem; letter-spacing: .05em;
-  color: var(--slate); margin-bottom: .8rem;
+  color: var(--soot); margin-bottom: .8rem;
 }
-.breadcrumb a { color: var(--slate); text-decoration: none; }
+.breadcrumb a { color: var(--soot); text-decoration: none; }
 .breadcrumb a:hover { color: var(--ember); }
 .breadcrumb span { margin: 0 .35rem; opacity: .45; }
 
 .doc h1 {
-  font-family: var(--display); font-weight: 700;
+  font-family: var(--display); font-weight: 800;
   font-size: clamp(2rem, 4.4vw, 2.65rem); line-height: 1.08;
   letter-spacing: -.02em;
-  margin-bottom: .9rem;
+  margin-bottom: 1rem;
+}
+/* the heat bar: every page is stamped once, under its title */
+.doc h1::after {
+  content: ""; display: block;
+  width: 3.4rem; height: 4px; border-radius: 2px;
+  background: var(--heat);
+  margin-top: .75rem;
 }
 .doc h2 {
   font-family: var(--display); font-weight: 700; font-size: 1.38rem; line-height: 1.25;
@@ -174,25 +183,25 @@ header.nav {
   font-family: var(--display); font-weight: 600; font-size: 1.08rem;
   margin: 1.6rem 0 .4rem;
 }
-.doc p { margin-bottom: .9rem; color: #2C3440; }
-.doc p.lead { font-size: 1.08rem; color: var(--slate); }
-.doc ul, .doc ol { margin: 0 0 1rem 1.3rem; color: #2C3440; }
+.doc p { margin-bottom: .9rem; color: #38332D; }
+.doc p.lead { font-size: 1.08rem; color: var(--soot); }
+.doc ul, .doc ol { margin: 0 0 1rem 1.3rem; color: #38332D; }
 .doc li { margin-bottom: .45rem; }
 .doc li::marker { color: var(--ember); }
 .doc ol li::marker { font-family: var(--mono); font-size: .85em; }
 .doc a { color: #B3380F; text-decoration: underline; text-decoration-color: rgba(179, 56, 15, .35); text-underline-offset: 2px; }
 .doc a:hover { text-decoration-color: currentColor; }
-.doc b, .doc strong { color: var(--iron); font-weight: 600; }
+.doc b, .doc strong { color: var(--coal); font-weight: 600; }
 
 .doc code {
   font-family: var(--mono); font-size: .84em;
-  background: rgba(23, 27, 34, .07); border-radius: 4px; padding: .12em .35em;
-  color: #10141A;
+  background: rgba(29, 25, 22, .07); border-radius: 4px; padding: .12em .35em;
+  color: #17130F;
 }
 
 .doc table {
   width: 100%; border-collapse: collapse; margin: 1rem 0 1.4rem;
-  font-size: .91rem; background: var(--birch);
+  font-size: .91rem; background: var(--tin);
   border: 1px solid var(--rule); border-radius: 10px;
   /* display:table so columns actually divide the width — a block-level
      table sizes to its content and leaves a dead strip on the right of any
@@ -203,10 +212,10 @@ header.nav {
 @media (max-width: 700px) {
   .doc table { display: block; overflow-x: auto; }
 }
-.doc th, .doc td { text-align: left; padding: .55rem .8rem; border-bottom: 1px solid rgba(23, 27, 34, .08); vertical-align: top; }
+.doc th, .doc td { text-align: left; padding: .55rem .8rem; border-bottom: 1px solid rgba(29, 25, 22, .08); vertical-align: top; }
 .doc th {
   font-family: var(--mono); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--slate); background: rgba(23, 27, 34, .04); font-weight: 500;
+  color: var(--soot); background: rgba(29, 25, 22, .04); font-weight: 500;
 }
 .doc tr:last-child td { border-bottom: none; }
 .doc td code { white-space: nowrap; }
@@ -215,39 +224,39 @@ header.nav {
 .callout {
   border: 1px solid var(--rule); border-left-width: 3px; border-radius: 9px;
   padding: .85rem 1.1rem; margin: 1rem 0 1.2rem;
-  background: var(--birch);
+  background: var(--tin);
 }
 .callout p { margin: 0; font-size: .93rem; }
 .callout p + p { margin-top: .5rem; }
 .callout.note { border-left-color: var(--quench); }
 .callout.warn { border-left-color: var(--c-wild); }
-.callout.danger { border-left-color: var(--ember); }
+.callout.danger { border-left-color: var(--ember); background: rgba(214, 67, 27, .05); }
 
-/* code cards */
+/* code cards — coal blocks, still warm from the fire */
 .code-card {
-  border: 1px solid rgba(23, 27, 34, .22); border-radius: 11px; overflow: hidden;
-  background: var(--iron); margin: 1rem 0 1.4rem;
+  border: 1px solid rgba(29, 25, 22, .22); border-radius: 11px; overflow: hidden;
+  background: var(--coal); margin: 1rem 0 1.4rem;
 }
 .code-head {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: .5rem .8rem .5rem 1rem;
-  background: var(--iron-2);
-  font-family: var(--mono); font-size: .73rem; color: rgba(238, 241, 245, .6);
+  background: var(--coal-2);
+  font-family: var(--mono); font-size: .73rem; color: rgba(244, 241, 236, .6);
 }
 .code-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .copy-btn {
   font-family: var(--body); font-weight: 600; font-size: .77rem;
-  background: none; border: 1.5px solid rgba(238, 241, 245, .25); border-radius: 7px;
-  color: var(--frost); padding: .22rem .7rem; cursor: pointer; flex: none;
+  background: none; border: 1.5px solid rgba(244, 241, 236, .25); border-radius: 7px;
+  color: var(--ash); padding: .22rem .7rem; cursor: pointer; flex: none;
   transition: border-color .15s, background .15s;
 }
-.copy-btn:hover { border-color: var(--frost); background: rgba(238, 241, 245, .08); }
+.copy-btn:hover { border-color: var(--ash); background: rgba(244, 241, 236, .08); }
 .code-card pre {
   padding: 1rem 1.2rem; overflow-x: auto;
   font-family: var(--mono); font-size: .78rem; line-height: 1.7;
-  color: #D6DCE4;
+  color: #E4DED6;
 }
-.code-card .c { color: rgba(214, 220, 228, .4); }
+.code-card .c { color: rgba(228, 222, 214, .4); }
 .code-card .k { color: #8FD0C4; }
 .code-card .v { color: #F0A878; }
 
@@ -256,22 +265,22 @@ header.nav {
 @media (max-width: 640px) { .consoles { grid-template-columns: minmax(0, 1fr); } }
 .console-chip {
   border: 1px solid var(--rule); border-top: 3px solid var(--chip, var(--ember));
-  border-radius: 10px; background: var(--birch); padding: .8rem .9rem;
+  border-radius: 10px; background: var(--tin); padding: .8rem .9rem;
 }
-.console-chip b { display: block; font-family: var(--display); font-size: 1rem; }
-.console-chip span { display: block; font-size: .82rem; color: var(--slate); }
+.console-chip b { display: block; font-family: var(--display); font-size: 1rem; font-weight: 700; }
+.console-chip span { display: block; font-size: .82rem; color: var(--soot); }
 .console-chip code { font-size: .76rem; }
 
 /* pager */
 .pager { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin-top: 2.6rem; }
 .pager-card {
   display: block; border: 1px solid var(--rule); border-radius: 11px;
-  padding: .8rem 1.1rem; text-decoration: none !important; background: var(--birch);
+  padding: .8rem 1.1rem; text-decoration: none !important; background: var(--tin);
   transition: border-color .15s, transform .15s;
 }
 .pager-card:hover { border-color: var(--ember); transform: translateY(-2px); }
-.pager-card small { display: block; font-family: var(--mono); font-size: .68rem; letter-spacing: .07em; color: var(--slate); }
-.pager-card b { color: var(--iron); font-size: .97rem; font-weight: 600; }
+.pager-card small { display: block; font-family: var(--mono); font-size: .68rem; letter-spacing: .07em; color: var(--soot); }
+.pager-card b { color: var(--coal); font-size: .97rem; font-weight: 600; }
 .pager-card.next { text-align: right; }
 @media (max-width: 620px) { .pager { grid-template-columns: 1fr; } .pager-card.next { text-align: left; } }
 
@@ -279,34 +288,40 @@ header.nav {
 .docs-home { max-width: 1280px; margin: 0 auto; padding: 2.6rem 24px 3.5rem; flex: 1 0 auto; width: 100%; }
 .docs-home-head { max-width: 44rem; margin-bottom: 2.2rem; }
 .docs-home-head h1 {
-  font-family: var(--display); font-weight: 700; letter-spacing: -.02em;
-  font-size: clamp(2.2rem, 5vw, 2.9rem); margin-bottom: .6rem;
+  font-family: var(--display); font-weight: 800; letter-spacing: -.02em;
+  font-size: clamp(2.2rem, 5vw, 2.9rem); margin-bottom: .7rem;
 }
-.docs-home-head p { color: var(--slate); }
+.docs-home-head h1::after {
+  content: ""; display: block;
+  width: 3.4rem; height: 4px; border-radius: 2px;
+  background: var(--heat);
+  margin-top: .75rem;
+}
+.docs-home-head p { color: var(--soot); }
 .docs-home-head a { color: #B3380F; }
 .cat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; }
 @media (max-width: 820px) { .cat-grid { grid-template-columns: minmax(0, 1fr); } }
 .cat-card {
   border: 1px solid var(--rule); border-top: 3px solid var(--cat-color, var(--ember));
-  border-radius: 13px; background: var(--birch);
+  border-radius: 13px; background: var(--tin);
   padding: 1.3rem 1.4rem;
 }
 .cat-card .side-label { margin-bottom: .9rem; }
 .cat-card ul { list-style: none; }
-.cat-card li + li { border-top: 1px solid rgba(23, 27, 34, .07); }
+.cat-card li + li { border-top: 1px solid rgba(29, 25, 22, .07); }
 .cat-card a { display: block; text-decoration: none; padding: .6rem .2rem; border-radius: 7px; }
-.cat-card a b { color: var(--iron); font-size: .97rem; font-weight: 600; }
-.cat-card a span { display: block; font-size: .85rem; color: var(--slate); }
+.cat-card a b { color: var(--coal); font-size: .97rem; font-weight: 600; }
+.cat-card a span { display: block; font-size: .85rem; color: var(--soot); }
 .cat-card a:hover b { color: var(--ember); }
 
 /* ---------- footer ---------- */
 .doc-footer {
-  background: var(--iron); color: rgba(238, 241, 245, .55);
+  background: var(--coal); color: rgba(244, 241, 236, .55);
   font-size: .85rem; padding: 1.8rem 0;
 }
 .wrap-doc { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
 .doc-footer p { margin: 0 0 .3rem; max-width: 60rem; }
-.doc-footer a { color: rgba(238, 241, 245, .82); }
+.doc-footer a { color: rgba(244, 241, 236, .82); }
 
 @media (prefers-reduced-motion: reduce) {
   .pager-card { transition: none; }

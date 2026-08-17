@@ -4,80 +4,101 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Artificer — one console framework, three games</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231D1916'/%3E%3Cpath d='M4 12.5 10 8.5h19V14h-9.5L18 18.5l8.5 3v4h-21v-4l8.5-3-1.5-4.5H4Z' fill='%23D6431B'/%3E%3C/svg%3E">
 <meta name="description" content="Self-hosted management consoles for Palworld, RuneScape Dragonwilds and Enshrouded servers, built from one shared framework and provisioned by one host service.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Artificer — one console framework, three games">
 <meta property="og:description" content="Self-hosted management consoles for Palworld, Dragonwilds and Enshrouded, built from one shared framework.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+/* The identity follows the names: an artificer's smithy. Warm ash ground,
+   coal darks, and heat — the ember-to-molten gradient — only where
+   something is active or important. The mark is the anvil itself. */
 :root {
-  --frost: #EEF1F5;
-  --birch: #FAFCFD;
-  --iron: #171B22;
-  --iron-2: #212733;
-  --slate: #5A6473;
+  --ash: #F4F1EC;
+  --tin: #FCFAF7;
+  --coal: #1D1916;
+  --coal-2: #2A241F;
+  --soot: #6A6158;
   --ember: #D6431B;
+  --molten: #F0A028;
   --quench: #17786B;
-  --rule: rgba(23, 27, 34, .12);
+  --rule: rgba(29, 25, 22, .12);
+  --heat: linear-gradient(90deg, var(--molten), var(--ember) 55%, #A32B10);
   --c-palcon: #E8491D;
   --c-wild: #C9A24B;
   --c-flame: #7FC3F0;
   --c-flame-ink: #2E7EB5;
-  --display: "Familjen Grotesk", system-ui, sans-serif;
+  --anvil: polygon(0% 34%, 30% 17%, 100% 17%, 100% 43%, 64% 43%, 58% 60%,
+                   88% 71%, 88% 87%, 12% 87%, 12% 71%, 42% 60%, 36% 43%, 21% 43%);
+  --display: "Bricolage Grotesque", system-ui, sans-serif;
   --body: "IBM Plex Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  font-family: var(--body); background: var(--frost); color: var(--iron);
+  font-family: var(--body); background: var(--ash); color: var(--coal);
   line-height: 1.7; font-size: 16.5px; -webkit-font-smoothing: antialiased;
 }
 img { max-width: 100%; height: auto; display: block; }
+::selection { background: rgba(214, 67, 27, .22); }
 .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 .skip-link { position: absolute; left: -9999px; top: 0; background: var(--ember); color: #fff; padding: .6rem 1rem; border-radius: 0 0 10px 0; z-index: 99; }
 .skip-link:focus { left: 0; }
 :focus-visible { outline: 3px solid var(--ember); outline-offset: 3px; border-radius: 3px; }
 
-/* ---------- mark: the anvil face ---------- */
+/* ---------- mark: the anvil itself ----------
+   The silhouette, horn to the left, cut by clip-path from a plain span. */
 .mark {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; flex: none;
+  display: inline-block; flex: none;
+  width: 32px; height: 26px;
   background: var(--mark-fill, var(--ember));
-  transform: rotate(45deg); border-radius: 5px;
+  clip-path: var(--anvil);
 }
-.mark i { display: block; width: 9px; height: 9px; background: var(--iron); border-radius: 2px; transform: rotate(-45deg); }
+.mark i { display: none; }
+.mark.sm { width: 20px; height: 16px; }
 
 /* ---------- nav ---------- */
-header.nav { position: sticky; top: 0; z-index: 50; background: var(--iron); color: var(--frost); border-bottom: 1px solid rgba(238,241,245,.1); }
+header.nav { position: sticky; top: 0; z-index: 50; background: var(--coal); color: var(--ash); border-bottom: 1px solid rgba(244,241,236,.1); }
 .nav-inner { display: flex; align-items: center; gap: 1rem; padding: .8rem 24px; max-width: 1120px; margin: 0 auto; }
-.brand { display: flex; align-items: center; gap: .7rem; text-decoration: none; margin-right: auto; color: var(--frost); }
-.wordmark { font-family: var(--display); font-weight: 700; font-size: 1.3rem; letter-spacing: -.01em; }
+.brand { display: flex; align-items: center; gap: .7rem; text-decoration: none; margin-right: auto; color: var(--ash); }
+.wordmark { font-family: var(--display); font-weight: 800; font-size: 1.3rem; letter-spacing: -.01em; }
 .nav-links { display: flex; gap: 1.4rem; align-items: center; font-weight: 500; font-size: .92rem; }
-.nav-links a { text-decoration: none; color: rgba(238,241,245,.72); }
-.nav-links a:hover { color: var(--frost); }
-.nav-gh { display: inline-flex; align-items: center; gap: .45rem; border: 1.5px solid rgba(238,241,245,.25); border-radius: 9px; padding: .42rem .85rem; font-weight: 600; color: var(--frost) !important; text-decoration: none; transition: border-color .15s, background .15s; }
-.nav-gh:hover { border-color: var(--frost); background: rgba(238,241,245,.07); }
+.nav-links a { text-decoration: none; color: rgba(244,241,236,.72); }
+.nav-links a:hover { color: var(--ash); }
+.nav-gh { display: inline-flex; align-items: center; gap: .45rem; border: 1.5px solid rgba(244,241,236,.25); border-radius: 9px; padding: .42rem .85rem; font-weight: 600; color: var(--ash) !important; text-decoration: none; transition: border-color .15s, background .15s; }
+.nav-gh:hover { border-color: var(--ash); background: rgba(244,241,236,.07); }
 @media (max-width: 860px) { .nav-links a.hide-sm { display: none; } }
 
-/* ---------- hero: the forge, cold ---------- */
-.hero { background: var(--iron); color: var(--frost); padding: 4.5rem 0 4rem; overflow: hidden; }
+/* ---------- hero: inside the smithy, lit by the coals ---------- */
+.hero {
+  background:
+    radial-gradient(52rem 26rem at 78% -12%, rgba(214, 67, 27, .30), transparent 62%),
+    radial-gradient(30rem 18rem at 8% 112%, rgba(240, 160, 40, .10), transparent 60%),
+    var(--coal);
+  color: var(--ash); padding: 4.5rem 0 4rem; overflow: hidden;
+}
 .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3rem; }
 .eyebrow {
   font-family: var(--mono); font-size: .74rem; letter-spacing: .16em; text-transform: uppercase;
-  color: rgba(238,241,245,.5); margin-bottom: 1.1rem;
+  color: rgba(244,241,236,.5); margin-bottom: 1.1rem;
   display: flex; align-items: center; gap: .6rem;
 }
-.eyebrow::after { content: ""; height: 1px; flex: 1; background: rgba(238,241,245,.16); max-width: 180px; }
+.eyebrow::after { content: ""; height: 2px; flex: 1; background: var(--heat); opacity: .55; border-radius: 1px; max-width: 180px; }
 .hero h1 {
-  font-family: var(--display); font-weight: 700; letter-spacing: -.03em;
+  font-family: var(--display); font-weight: 800; letter-spacing: -.03em;
   font-size: clamp(2.6rem, 7vw, 4.4rem); line-height: .98;
   margin-bottom: 1.1rem;
 }
-.hero h1 .hot { color: var(--ember); }
-.hero p.lead { font-size: clamp(1.02rem, 2vw, 1.16rem); color: rgba(238,241,245,.72); max-width: 40rem; margin-bottom: 1.8rem; }
+.hero h1 .hot {
+  color: var(--ember);
+  background: var(--heat);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero p.lead { font-size: clamp(1.02rem, 2vw, 1.16rem); color: rgba(244,241,236,.72); max-width: 40rem; margin-bottom: 1.8rem; }
 .hero-cta { display: flex; flex-wrap: wrap; gap: .7rem; }
 .btn {
   display: inline-flex; align-items: center; gap: .5rem;
@@ -87,36 +108,37 @@ header.nav { position: sticky; top: 0; z-index: 50; background: var(--iron); col
 }
 .btn:hover { transform: translateY(-2px); }
 .btn-hot { background: var(--ember); color: #fff; }
-.btn-hot:hover { background: #EC4E22; }
-.btn-ghost { border-color: rgba(238,241,245,.28); color: var(--frost); }
-.btn-ghost:hover { border-color: var(--frost); background: rgba(238,241,245,.06); }
+.btn-hot:hover { background: #E44E20; }
+.btn-ghost { border-color: rgba(244,241,236,.28); color: var(--ash); }
+.btn-ghost:hover { border-color: var(--ash); background: rgba(244,241,236,.06); }
 
 /* ---------- signature: the forge diagram ----------
    The architecture drawn honestly. One shared core, three game modules,
    each branch carrying that console's own theme color — so the picture is
    the codebase rather than an illustration of it. */
 .forge { margin: 0; }
-.forge-cap { font-family: var(--mono); font-size: .72rem; letter-spacing: .13em; text-transform: uppercase; color: rgba(238,241,245,.42); margin-bottom: .8rem; }
+.forge-cap { font-family: var(--mono); font-size: .72rem; letter-spacing: .13em; text-transform: uppercase; color: rgba(244,241,236,.42); margin-bottom: .8rem; }
 .forge-spine {
-  border: 1px solid rgba(238,241,245,.22); border-radius: 10px;
-  background: linear-gradient(180deg, rgba(238,241,245,.09), rgba(238,241,245,.03));
+  border: 1px solid rgba(244,241,236,.22); border-radius: 10px;
+  background: linear-gradient(180deg, rgba(244,241,236,.09), rgba(244,241,236,.03));
   padding: .85rem 1.1rem;
   display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap;
   transform-origin: left center;
 }
-.forge-spine b { font-family: var(--mono); font-size: .95rem; color: var(--frost); font-weight: 500; }
-.forge-spine span { font-size: .84rem; color: rgba(238,241,245,.5); }
+.forge-spine .mark.sm { align-self: center; }
+.forge-spine b { font-family: var(--mono); font-size: .95rem; color: var(--ash); font-weight: 500; }
+.forge-spine span { font-size: .84rem; color: rgba(244,241,236,.5); }
 .forge-drops { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; height: 30px; }
 .forge-drops i { display: block; width: 2px; height: 100%; background: var(--drop); margin: 0 auto; transform-origin: top center; }
 .forge-branches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 .branch {
-  border: 1px solid rgba(238,241,245,.16); border-top: 3px solid var(--branch);
-  border-radius: 10px; padding: .95rem 1rem; background: rgba(238,241,245,.04);
+  border: 1px solid rgba(244,241,236,.16); border-top: 3px solid var(--branch);
+  border-radius: 10px; padding: .95rem 1rem; background: rgba(244,241,236,.04);
 }
-.branch code { display: block; font-family: var(--mono); font-size: .72rem; color: rgba(238,241,245,.45); margin-bottom: .35rem; }
+.branch code { display: block; font-family: var(--mono); font-size: .72rem; color: rgba(244,241,236,.45); margin-bottom: .35rem; }
 .branch b { display: block; font-family: var(--display); font-size: 1.18rem; font-weight: 700; color: var(--branch); letter-spacing: -.01em; }
-.branch span { display: block; font-size: .87rem; color: rgba(238,241,245,.68); }
-.branch em { display: block; font-style: normal; font-family: var(--mono); font-size: .72rem; color: rgba(238,241,245,.4); margin-top: .5rem; }
+.branch span { display: block; font-size: .87rem; color: rgba(244,241,236,.68); }
+.branch em { display: block; font-style: normal; font-family: var(--mono); font-size: .72rem; color: rgba(244,241,236,.4); margin-top: .5rem; }
 @media (max-width: 720px) {
   .forge-drops { display: none; }
   .forge-branches { grid-template-columns: minmax(0, 1fr); gap: .7rem; margin-top: 1rem; }
@@ -139,31 +161,32 @@ header.nav { position: sticky; top: 0; z-index: 50; background: var(--iron); col
 
 /* demo strip — sits between the dark hero and the light body, so it reads as
    part of the hero's block rather than a third colour band. */
-.demo-strip { background: var(--iron-2); color: var(--frost); padding: 1.9rem 0; border-top: 1px solid rgba(238,241,245,.09); }
+.demo-strip { background: var(--coal-2); color: var(--ash); padding: 1.9rem 0; border-top: 1px solid rgba(244,241,236,.09); }
 .demo-inner { display: flex; align-items: center; justify-content: space-between; gap: 2rem; flex-wrap: wrap; }
 .demo-h { font-family: var(--display); font-weight: 700; font-size: 1.35rem; letter-spacing: -.01em; margin-bottom: .3rem; }
-.demo-strip p { color: rgba(238,241,245,.7); font-size: .93rem; max-width: 46rem; margin: 0; }
+.demo-strip p { color: rgba(244,241,236,.7); font-size: .93rem; max-width: 46rem; margin: 0; }
 .demo-strip .btn { flex: none; }
 
 /* ---------- sections ---------- */
 .section { padding: 4.2rem 0; }
 .section-head { max-width: 42rem; margin-bottom: 2.2rem; }
-.section-label { font-family: var(--mono); font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--slate); margin-bottom: .7rem; }
-.section h2 { font-family: var(--display); font-weight: 700; letter-spacing: -.02em; font-size: clamp(1.8rem, 3.6vw, 2.4rem); line-height: 1.1; margin-bottom: .7rem; }
-.section-head p { color: var(--slate); }
-.alt { background: var(--birch); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.section-label { font-family: var(--mono); font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--soot); margin-bottom: .7rem; }
+.section-label::before { content: ""; display: inline-block; width: 1.4rem; height: 3px; border-radius: 2px; background: var(--heat); margin-right: .55rem; vertical-align: .18em; }
+.section h2 { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; font-size: clamp(1.8rem, 3.6vw, 2.4rem); line-height: 1.1; margin-bottom: .7rem; }
+.section-head p { color: var(--soot); }
+.alt { background: var(--tin); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 
 .feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.2rem; }
 @media (max-width: 860px) { .feature-grid { grid-template-columns: minmax(0, 1fr); } }
 .feature {
-  background: var(--birch); border: 1px solid var(--rule); border-radius: 13px;
+  background: var(--tin); border: 1px solid var(--rule); border-radius: 13px;
   padding: 1.4rem 1.5rem;
 }
 .alt .feature { background: #fff; }
 .feature h3 { font-family: var(--display); font-weight: 700; font-size: 1.25rem; letter-spacing: -.01em; margin-bottom: .1rem; }
-.feature .game { font-family: var(--mono); font-size: .74rem; color: var(--slate); margin-bottom: .7rem; }
-.feature p { font-size: .93rem; color: #2C3440; margin-bottom: .8rem; }
-.feature ul { list-style: none; font-size: .89rem; color: var(--slate); }
+.feature .game { font-family: var(--mono); font-size: .74rem; color: var(--soot); margin-bottom: .7rem; }
+.feature p { font-size: .93rem; color: #38332D; margin-bottom: .8rem; }
+.feature ul { list-style: none; font-size: .89rem; color: var(--soot); }
 .feature li { padding-left: 1rem; position: relative; margin-bottom: .28rem; }
 .feature li::before { content: ""; position: absolute; left: 0; top: .62em; width: 5px; height: 5px; border-radius: 1px; background: var(--dot, var(--ember)); transform: rotate(45deg); }
 
@@ -176,48 +199,48 @@ header.nav { position: sticky; top: 0; z-index: 50; background: var(--iron); col
   counter-increment: step; content: counter(step, decimal-leading-zero);
   position: absolute; top: 0; left: 0;
   font-family: var(--mono); font-size: .78rem; color: var(--ember); font-weight: 500;
-  border-bottom: 2px solid var(--ember); padding-bottom: .15rem;
+  border-bottom: 2px solid; border-image: var(--heat) 1; padding-bottom: .15rem;
 }
-.step b { display: block; font-family: var(--display); font-size: 1.05rem; margin-bottom: .25rem; }
-.step p { font-size: .89rem; color: var(--slate); margin: 0; }
+.step b { display: block; font-family: var(--display); font-size: 1.05rem; font-weight: 700; margin-bottom: .25rem; }
+.step p { font-size: .89rem; color: var(--soot); margin: 0; }
 
 /* quickstart split */
 .paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; }
 @media (max-width: 820px) { .paths { grid-template-columns: minmax(0, 1fr); } }
 .path {
-  border: 1px solid var(--rule); border-radius: 13px; background: var(--birch);
+  border: 1px solid var(--rule); border-radius: 13px; background: var(--tin);
   padding: 1.5rem 1.6rem; display: flex; flex-direction: column;
 }
 .path h3 { font-family: var(--display); font-weight: 700; font-size: 1.3rem; margin-bottom: .3rem; letter-spacing: -.01em; }
-.path p { font-size: .93rem; color: var(--slate); margin-bottom: 1rem; }
-.path ul { list-style: none; font-size: .89rem; color: #2C3440; margin-bottom: 1.2rem; }
+.path p { font-size: .93rem; color: var(--soot); margin-bottom: 1rem; }
+.path ul { list-style: none; font-size: .89rem; color: #38332D; margin-bottom: 1.2rem; }
 .path li { padding-left: 1.1rem; position: relative; margin-bottom: .35rem; }
 .path li::before { content: "→"; position: absolute; left: 0; color: var(--quench); font-family: var(--mono); font-size: .8rem; }
 .path .btn { align-self: flex-start; margin-top: auto; }
-.btn-ink { background: var(--iron); color: var(--frost); }
-.btn-ink:hover { background: var(--iron-2); }
+.btn-ink { background: var(--coal); color: var(--ash); }
+.btn-ink:hover { background: var(--coal-2); }
 
 /* code card */
-.code-card { border: 1px solid rgba(23,27,34,.22); border-radius: 11px; overflow: hidden; background: var(--iron); margin-top: 1.6rem; }
-.code-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .5rem .8rem .5rem 1rem; background: var(--iron-2); font-family: var(--mono); font-size: .73rem; color: rgba(238,241,245,.6); }
-.copy-btn { font-family: var(--body); font-weight: 600; font-size: .77rem; background: none; border: 1.5px solid rgba(238,241,245,.25); border-radius: 7px; color: var(--frost); padding: .22rem .7rem; cursor: pointer; flex: none; }
-.copy-btn:hover { border-color: var(--frost); background: rgba(238,241,245,.08); }
-.code-card pre { padding: 1rem 1.2rem; overflow-x: auto; font-family: var(--mono); font-size: .78rem; line-height: 1.7; color: #D6DCE4; }
-.code-card .c { color: rgba(214,220,228,.4); }
+.code-card { border: 1px solid rgba(29,25,22,.22); border-radius: 11px; overflow: hidden; background: var(--coal); margin-top: 1.6rem; }
+.code-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .5rem .8rem .5rem 1rem; background: var(--coal-2); font-family: var(--mono); font-size: .73rem; color: rgba(244,241,236,.6); }
+.copy-btn { font-family: var(--body); font-weight: 600; font-size: .77rem; background: none; border: 1.5px solid rgba(244,241,236,.25); border-radius: 7px; color: var(--ash); padding: .22rem .7rem; cursor: pointer; flex: none; }
+.copy-btn:hover { border-color: var(--ash); background: rgba(244,241,236,.08); }
+.code-card pre { padding: 1rem 1.2rem; overflow-x: auto; font-family: var(--mono); font-size: .78rem; line-height: 1.7; color: #E4DED6; }
+.code-card .c { color: rgba(228,222,214,.4); }
 .code-card .k { color: #8FD0C4; }
 .code-card .v { color: #F0A878; }
 
 /* docs strip */
 .doc-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 @media (max-width: 860px) { .doc-links { grid-template-columns: minmax(0, 1fr); } }
-.doc-link { display: block; border: 1px solid var(--rule); border-radius: 12px; padding: 1.1rem 1.2rem; background: var(--birch); text-decoration: none; transition: border-color .15s, transform .15s; }
+.doc-link { display: block; border: 1px solid var(--rule); border-radius: 12px; padding: 1.1rem 1.2rem; background: var(--tin); text-decoration: none; transition: border-color .15s, transform .15s; }
 .doc-link:hover { border-color: var(--ember); transform: translateY(-2px); }
-.doc-link b { display: block; font-family: var(--display); font-size: 1.05rem; color: var(--iron); }
-.doc-link span { font-size: .88rem; color: var(--slate); }
+.doc-link b { display: block; font-family: var(--display); font-size: 1.05rem; font-weight: 700; color: var(--coal); }
+.doc-link span { font-size: .88rem; color: var(--soot); }
 
-footer.site { background: var(--iron); color: rgba(238,241,245,.55); font-size: .86rem; padding: 2.2rem 0; }
+footer.site { background: var(--coal); color: rgba(244,241,236,.55); font-size: .86rem; padding: 2.2rem 0; }
 footer.site p { margin-bottom: .35rem; max-width: 60rem; }
-footer.site a { color: rgba(238,241,245,.82); }
+footer.site a { color: rgba(244,241,236,.82); }
 
 @media (prefers-reduced-motion: reduce) {
   .btn, .doc-link, .pager-card { transition: none; }
@@ -265,6 +288,7 @@ footer.site a { color: rgba(238,241,245,.82); }
     <figure class="forge">
       <figcaption class="forge-cap">The shape of the repository</figcaption>
       <div class="forge-spine">
+        <span class="mark sm" aria-hidden="true"><i></i></span>
         <b>core/</b>
         <span>api · agent kit · store · backups · scheduler · auth · anvil client</span>
       </div>
@@ -300,7 +324,7 @@ footer.site a { color: rgba(238,241,245,.82); }
 <section class="demo-strip">
   <div class="wrap demo-inner">
     <div>
-      <p class="section-label" style="color: rgba(238,241,245,.5); margin-bottom: .4rem">Try it first</p>
+      <p class="section-label" style="color: rgba(244,241,236,.5); margin-bottom: .4rem">Try it first</p>
       <h2 class="demo-h">The dashboard, running, with a sample world</h2>
       <p>An interactive build of palcon that answers every request from a bundled fixture. Real
       views, real data shapes, nothing to install and nothing to connect.</p>
