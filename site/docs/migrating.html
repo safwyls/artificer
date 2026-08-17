@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Migrate an existing server — Sampo docs</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
-<meta name="description" content="Bring a server you already run under a console — by adopting it, registering it, or re-raising it onto its existing world.">
+<meta name="description" content="Bring a server you already run under a console — from a bare-metal install, from another container setup, or from an older console.">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Migrate an existing server — Sampo docs">
-<meta property="og:description" content="Bring a server you already run under a console — by adopting it, registering it, or re-raising it onto its existing world.">
+<meta property="og:description" content="Bring a server you already run under a console — from a bare-metal install, from another container setup, or from an older console.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -91,142 +91,236 @@
   <main class="doc" id="content">
     <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> Getting started <span>/</span> Migrate an existing server</p>
     <h1>Migrate an existing server</h1>
-<p class="lead">You already have a server with a world people care about. Nothing here deletes that
-world, and every route can be rolled back — but take a snapshot first anyway, because the cheapest
-insurance is the one you didn't need.</p>
+<p class="lead">You already have a server with a world people care about. Most of them are running
+straight on a machine — a folder from SteamCMD, started by a script, a service or by hand — and
+that is the case this guide leads with. Nothing here deletes a world, and every route can be
+rolled back, but take a snapshot first anyway.</p>
 
 <h2 id="which">Which route is yours</h2>
 <table>
-  <thead><tr><th>What you have now</th><th>Route</th></tr></thead>
+  <thead><tr><th>How the server runs today</th><th>Route</th></tr></thead>
   <tbody>
-    <tr><td>It already runs one of our agent images (<code>palagent</code>, <code>wkagent</code>, <code>flameagent</code>)</td><td><a href="#adopt">1 — Adopt it</a></td></tr>
-    <tr><td>It runs some other way and you want the dashboard today, with the least disruption</td><td><a href="#byhand">2 — Register it by hand</a></td></tr>
-    <tr><td>You want the full thing: provisioning, file access, backups, supervised power</td><td><a href="#ilmari">3 — Re-raise it under Ilmari</a></td></tr>
-    <tr><td>You ran an older console with a provisioner-mode agent</td><td><a href="#legacy">4 — Retire the legacy provisioner</a></td></tr>
+    <tr><td><b>Directly on a machine</b> — a SteamCMD install you start yourself, or as a systemd unit or Windows service</td><td><a href="#baremetal">1 — From a bare-metal server</a></td></tr>
+    <tr><td>In a container running one of our agent images (<code>palagent</code>, <code>wkagent</code>, <code>flameagent</code>)</td><td><a href="#adopt">2 — Adopt it</a></td></tr>
+    <tr><td>In some other container or compose setup</td><td><a href="#container">3 — From another container setup</a></td></tr>
+    <tr><td>Under an older console with a provisioner-mode agent</td><td><a href="#legacy">4 — Retire the legacy provisioner</a></td></tr>
   </tbody>
 </table>
-<p>Routes 2 and 3 are not exclusive. Registering by hand takes five minutes and gets the server on
-the dashboard now; you can do the full move later without losing anything.</p>
 
 <h2 id="before">Before you start</h2>
-<p>Whichever route, collect these four facts. Every one of them comes up later, and two of them are
-the difference between a migration that works and one that silently doesn't.</p>
-<div class="code-card" data-copy>
-<div class="code-head"><span>shell — replace with your container's name</span><button class="copy-btn">Copy</button></div>
-<pre><span class="c"># 1. Where the world actually lives, and 2. as which user it runs</span>
-docker inspect &lt;container&gt; --format \
-  '{{.Config.User}}{{range .Mounts}}{{printf "\n%s %s -&gt; %s" .Type .Source .Destination}}{{end}}'
-
-<span class="c"># 3. Which ports it publishes — reuse these and nobody has to re-bookmark</span>
-docker port &lt;container&gt;
-
-<span class="c"># 4. The admin password, if it was set through the environment</span>
-docker inspect &lt;container&gt; --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -i password</pre>
-</div>
-<div class="callout warn"><p>Check whether the world is on a <b>bind</b> mount (a host path) or a
-docker <b>volume</b>. A bind survives deleting the app; a named volume may not. If it is a volume,
-copy the data out to a host directory before you remove anything.</p></div>
-<p>Then snapshot it. On TrueNAS a ZFS snapshot of the dataset is instant and free; anywhere else,
-<code>cp -a</code> the world directory somewhere off to one side.</p>
-
-<h2 id="adopt">Route 1 — Adopt it</h2>
-<p>The whole migration, if it applies. The console finds the container, recovers its token, admin
-password, server name and ports, and writes the row itself. Nothing to type and no downtime — the
-server keeps running throughout.</p>
-<p>Press <b>+</b> in the server rail. Containers the console can claim appear at the top of the
-dialog; click <b>Adopt</b>.</p>
-<p>Two conditions have to hold, and each fails with its own message:</p>
+<p>Collect four facts. Two of them decide whether the migration works at all.</p>
 <ul>
-  <li><b>The agent port must be published.</b> Adoption needs an address to reach the agent on. If
-    <code>docker port</code> showed no <code>8811</code>, republish it — or use route 2 now and
-    route 3 later.</li>
-  <li><b>Ilmari must know this console's environment namespace.</b> That console's entry in
-    <code>ILMARI_CLIENTS</code> needs its <code>envPrefix</code>, or Ilmari returns no environment
-    and there is no token to recover. See <a href="ilmari.html#register">Ilmari</a>.</li>
+  <li><b>Where the world is.</b> The directory holding the save files — see the
+    <a href="#worlds">per-game table</a> below.</li>
+  <li><b>Which ports it publishes.</b> Reuse them and nobody has to re-add your server.</li>
+  <li><b>The admin password</b>, from the game's own config file.</li>
+  <li><b>Which user owns the files</b>, if you are on Linux.</li>
 </ul>
-<p>A container that does not appear at all is usually neither owned nor image-matched — check it
-runs one of our agent images, or that its image falls under that console's allowlist.</p>
+<p>Then copy the world somewhere safe. <code>cp -a</code>, a ZFS snapshot, a zip — whatever is
+quick. Stop the server first so you are not copying a save mid-write.</p>
 
-<h2 id="byhand">Route 2 — Register it by hand</h2>
-<p>Works with any server the console can reach over the network, however it was deployed. Press
-<b>+</b> → <b>Add an existing server by hand</b> and fill in the address and credentials.</p>
+<h2 id="baremetal">Route 1 — From a bare-metal server</h2>
+<p>Your game server is a directory on a machine. There are two ways in, and the first does not
+disturb the running server at all — you can do it this afternoon and decide about the second
+later.</p>
+
+<h3 id="bare-a">1a. Leave the server where it is, point a console at it</h3>
+<p>The console runs alongside the game on the same machine and reads its files directly. No agent,
+no re-install, and the game keeps running the whole time.</p>
 <table>
   <thead><tr><th>You get</th><th>You don't</th></tr></thead>
   <tbody>
-    <tr><td>Live state, player list, metrics</td><td>Config editing</td></tr>
-    <tr><td>Moderation over the game's own protocol</td><td>Save-backed views (pals, storage, world)</td></tr>
-    <tr><td>Power control, if <code>DOCKER_HOST</code> is set</td><td>Backups</td></tr>
-    <tr><td>Scheduled restarts and alerts</td><td>SteamCMD updates from the UI</td></tr>
+    <tr><td>Moderation — kick, ban, unban, broadcast</td><td rowspan="4">Starting and stopping the process itself, until you either add a supervisor (below) or move to <a href="#bare-b">1b</a></td></tr>
+    <tr><td>Save reading — pals, guilds, inventories, storage, world metadata</td></tr>
+    <tr><td>The settings editor for the game's own config file</td></tr>
+    <tr><td>Scheduled backups, players, metrics, alerts, in-game shutdown with a countdown</td></tr>
   </tbody>
 </table>
-<p>The right-hand column is everything that needs file access. To get it without a full move, point
-the server's save path at a bind mount of the world directory, or deploy an agent alongside the
-game in companion mode — see <a href="agents.html#modes">Sidecar agents</a>.</p>
+<p>The console is distributed as a container image, so this assumes Docker on that machine. (If you
+would rather not run Docker at all, the console is a single Go binary and builds from source with
+<code>go build ./cmd/palcon</code> — the same environment variables apply.)</p>
+<div class="code-card" data-copy>
+<div class="code-head"><span>docker-compose.yml — console beside a bare-metal Palworld server</span><button class="copy-btn">Copy</button></div>
+<pre><span class="k">services</span>:
+  <span class="k">palcon</span>:
+    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/palcon:latest</span>
+    <span class="k">ports</span>: [<span class="v">"8080:8080"</span>]
+    <span class="k">environment</span>:
+      <span class="k">DATA_DIR</span>: <span class="v">/data</span>
+      <span class="k">JWT_SECRET</span>: <span class="v">&lt;openssl rand -hex 32&gt;</span>
+      <span class="k">ENCRYPTION_KEY</span>: <span class="v">&lt;openssl rand -hex 16&gt;</span>
+      <span class="k">ADMIN_USERNAME</span>: <span class="v">admin</span>
+      <span class="k">ADMIN_PASSWORD</span>: <span class="v">&lt;first-login password&gt;</span>
+    <span class="k">volumes</span>:
+      - <span class="v">./data:/data</span>
+      <span class="c"># Your existing install. The world is read-only — the console never</span>
+      <span class="c"># writes a save. The config directory is read-write, because the</span>
+      <span class="c"># settings editor edits the file in place.</span>
+      - <span class="v">/home/you/palworld/Pal/Saved/SaveGames/0/&lt;world-id&gt;:/saves/main:ro</span>
+      - <span class="v">/home/you/palworld/Pal/Saved/Config/LinuxServer:/config/main</span>
+    <span class="c"># Lets the container reach the game on the host as host.docker.internal.</span>
+    <span class="k">extra_hosts</span>:
+      - <span class="v">"host.docker.internal:host-gateway"</span>
+    <span class="k">restart</span>: <span class="v">unless-stopped</span></pre>
+</div>
+<p>Then add the server by hand — <b>+</b> → <b>Add an existing server by hand</b> — with:</p>
+<table>
+  <thead><tr><th>Field</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Host</td><td><code>host.docker.internal</code>, or the machine's LAN IP</td></tr>
+    <tr><td>REST / RCON ports</td><td>Whatever the game is configured for — <code>8212</code> and <code>25575</code> by default</td></tr>
+    <tr><td>Admin password</td><td>The one in your config file</td></tr>
+    <tr><td>Save path</td><td><code>/saves/main</code> — the path <em>inside</em> the console container</td></tr>
+    <tr><td>Config path</td><td><code>/config/main</code></td></tr>
+  </tbody>
+</table>
+<div class="callout warn"><p>Paths are what the console sees, not what your shell sees. If a
+save-backed view says the path is missing, it is nearly always the host side of that bind mount
+pointing somewhere slightly different.</p></div>
+<p>Palworld needs its management interfaces on for any of the command features to work. In
+<code>PalWorldSettings.ini</code>:</p>
+<div class="code-card" data-copy>
+<div class="code-head"><span>PalWorldSettings.ini</span><button class="copy-btn">Copy</button></div>
+<pre><span class="k">RESTAPIEnabled</span>=<span class="v">True</span>
+<span class="k">RESTAPIPort</span>=<span class="v">8212</span>
+<span class="k">RCONEnabled</span>=<span class="v">True</span>
+<span class="k">RCONPort</span>=<span class="v">25575</span>
+<span class="k">AdminPassword</span>=<span class="v">&lt;something&gt;</span></pre>
+</div>
+<p>Restart the game once for those to take effect. Without REST the console falls back to RCON
+automatically, but metrics and the in-game shutdown countdown stay unavailable, because RCON has no
+equivalent commands.</p>
 
-<h2 id="ilmari">Route 3 — Re-raise it under Ilmari</h2>
-<p>This ends with a supervised, Ilmari-managed server with every feature working, wrapped around
-the world you already have. It is a container replacement, not a world migration: the world never
-moves between machines, only into the directory the platform expects.</p>
-<div class="callout note"><p><b>Why re-raise instead of relabel?</b> Ilmari can only recreate or
-destroy containers it made. One deployed by hand — a TrueNAS app, your own compose file — has
-another orchestrator that would fight it. Letting Ilmari build the container is what makes it
-manageable.</p></div>
+<h4>Getting a working restart button without an agent</h4>
+<p>The console cannot start a process it does not supervise — but it can ask the game to shut
+itself down, and something else can bring it back. Run the game as a service that restarts on exit
+and the console's shutdown becomes a restart:</p>
+<div class="code-card" data-copy>
+<div class="code-head"><span>/etc/systemd/system/palworld.service</span><button class="copy-btn">Copy</button></div>
+<pre>[Unit]
+Description=Palworld dedicated server
+After=network-online.target
 
-<h3>The one rule that decides everything</h3>
-<p>Ilmari always places data at <code>&lt;that console's dataRoot&gt;/&lt;slug&gt;</code>, and the
-slug comes from the server name you type. So <b>pick a name whose slug matches the directory you
-are going to put the world in</b> — name it "Fluffy" and the directory is
-<code>&lt;dataRoot&gt;/fluffy</code>.</p>
+[Service]
+User=palworld
+WorkingDirectory=/home/palworld/palworld
+ExecStart=/home/palworld/palworld/PalServer.sh -useperfthreads -NoAsyncLoadingThread -UseMultithreadForDS
+Restart=always
+RestartSec=10
 
-<h3>Steps</h3>
+[Install]
+WantedBy=multi-user.target</pre>
+</div>
+<p>With <code>Restart=always</code>, an in-game shutdown from the console — including a scheduled
+restart with player warnings — comes back on its own about ten seconds later. On Windows the same
+trick works with a service wrapper such as NSSM set to restart on exit.</p>
+
+<h3 id="bare-b">1b. Hand the server to an agent</h3>
+<p>This gets the remaining piece — real start, stop and restart, plus SteamCMD updates from the UI
+— by putting a <a href="agents.html">sidecar agent</a> in charge of the game process. What happens
+next depends on which machine you are on.</p>
+
+<h4>On Linux: keep the install, change what runs it</h4>
+<p>The agent can adopt your existing install directory as-is. It runs the game as a child process
+inside its container while the files stay on your disk, so nothing is downloaded again.</p>
 <ol>
-  <li><b>Snapshot</b>, per the section above.</li>
-  <li><b>Stop and remove the old stack.</b> Its world is on a host path and survives; the container
-    is what has to go, so its ports are free and nothing else is writing the world. Removing a
-    TrueNAS app does not touch a host-path mount.</li>
-  <li><b>Move the world into place.</b> If the old server was run by <i>our</i> agent, the data
-    directory is already the full game install — move the whole thing:
+  <li><b>Stop the bare-metal server</b>, and disable the service if you made one — two things must
+    never run the same install at once.</li>
+  <li><b>Check ownership.</b> The container runs as a user you choose; that user must own the
+    install directory. <code>sudo chown -R 1000:1000 /home/you/palworld</code>, matching whatever
+    you set below.</li>
+  <li><b>Run the agent against that directory:</b>
     <div class="code-card" data-copy>
-    <div class="code-head"><span>shell</span><button class="copy-btn">Copy</button></div>
-    <pre>mv /old/path/fluffy /mnt/tank/apps/palcon-servers/fluffy</pre>
-    </div>
-    If it was someone else's image, its layout probably differs. Let the agent install the game
-    fresh in step 5, stop it, then copy just your world in — see the table below.</li>
-  <li><b>Fix ownership</b> to the user the new container will run as:
-    <div class="code-card" data-copy>
-    <div class="code-head"><span>shell</span><button class="copy-btn">Copy</button></div>
-    <pre>sudo chown -R 568:568 /mnt/tank/apps/palcon-servers/fluffy</pre>
+    <div class="code-head"><span>docker-compose.yml — agent over an existing install</span><button class="copy-btn">Copy</button></div>
+<pre><span class="k">services</span>:
+  <span class="k">palagent</span>:
+    <span class="k">image</span>: <span class="v">ghcr.io/safwyls/palagent:latest</span>
+    <span class="k">user</span>: <span class="v">"1000:1000"</span>
+    <span class="k">ports</span>:
+      - <span class="v">"8811:8811"</span>       <span class="c"># the console reaches the agent here</span>
+      - <span class="v">"8211:8211/udp"</span>   <span class="c"># the game, on the ports players already use</span>
+      - <span class="v">"8212:8212"</span>
+      - <span class="v">"25575:25575"</span>
+    <span class="k">environment</span>:
+      <span class="k">PALAGENT_MODE</span>: <span class="v">supervisor</span>
+      <span class="k">PALAGENT_TOKEN</span>: <span class="v">&lt;openssl rand -hex 24&gt;</span>
+      <span class="k">PALAGENT_ADMIN_PASSWORD</span>: <span class="v">&lt;your existing admin password&gt;</span>
+    <span class="k">volumes</span>:
+      <span class="c"># Your existing install, exactly where it already is.</span>
+      - <span class="v">/home/you/palworld:/palworld</span>
+    <span class="k">restart</span>: <span class="v">unless-stopped</span></pre>
     </div>
   </li>
-  <li><b>Raise it from the wizard.</b> Use the name whose slug matches the directory, the
-    <b>same published ports</b> as before, the <b>same admin password</b> (paste it under Advanced,
-    or players and admins get a new one), and a <b>Run as</b> matching step 4.</li>
-  <li><b>Watch the first boot.</b> The agent should find the install already present and start in
-    seconds.</li>
-  <li><b>Delete the old row</b> if you had registered the server by hand.</li>
+  <li><b>Register it in the console</b> with the agent URL <code>http://&lt;host&gt;:8811</code>
+    and that token — or let the console discover and adopt it, which recovers both for you.</li>
 </ol>
-<div class="callout danger"><p><b>If SteamCMD starts downloading several gigabytes, stop.</b> That
-means the agent did not find your install where the slug expects it — the directory name and the
-server's slug disagree, or the move landed somewhere else. Nothing is lost, but fix the path before
-letting it write.</p></div>
+<div class="callout note"><p>The agent should start the game within seconds. If SteamCMD begins
+downloading several gigabytes, it did not recognise the install — check the volume really points at
+the directory containing <code>PalServer.sh</code>, and that the container's user can write
+there.</p></div>
 
-<h3>Where each game keeps its world</h3>
-<p>Relative to the install directory, if you are copying a world into a fresh install rather than
-moving a whole one:</p>
+<h4>On Windows: move the world, not the install</h4>
+<p>A Windows install cannot be supervised by a Linux container — the agent would fetch the Linux
+build over the top of it. Bring the world across instead; save files are portable between the two,
+which is why this works at all.</p>
+<ol>
+  <li>Stop the Windows server and copy its world directory somewhere safe.</li>
+  <li>Raise a fresh server from the console's wizard, on the machine that will host it, reusing the
+    same published ports and admin password. Let it install and start once, so the directory
+    structure exists.</li>
+  <li>Stop that new server from the console.</li>
+  <li>Copy your world into the new install — see the <a href="#worlds">table below</a> for where —
+    replacing what the fresh install created, and match the ownership of the surrounding files.</li>
+  <li>Start it, and join to confirm your world is the one that loaded.</li>
+</ol>
+<p>Enshrouded is Windows-only as a server binary and the agent already runs it under Wine, so a
+Windows-hosted Enshrouded world moves the same way.</p>
+
+<h2 id="worlds">Where each game keeps its world</h2>
+<p>Relative to the install directory:</p>
 <table>
   <thead><tr><th>Game</th><th>World lives at</th></tr></thead>
   <tbody>
     <tr><td>Palworld</td><td><code>Pal/Saved/SaveGames/0/&lt;world-id&gt;/</code> — the folder holding <code>Level.sav</code></td></tr>
-    <tr><td>Dragonwilds</td><td><code>RSDragonwilds/Saved/SaveGames/</code> — <code>.sav</code> files</td></tr>
-    <tr><td>Enshrouded</td><td><code>savegame/</code> — extensionless blobs plus their <code>-index</code>/<code>-info</code> sidecars</td></tr>
+    <tr><td>Dragonwilds</td><td><code>RSDragonwilds/Saved/SaveGames/</code> — the <code>.sav</code> files</td></tr>
+    <tr><td>Enshrouded</td><td><code>savegame/</code> — extensionless blobs plus their <code>-index</code> and <code>-info</code> sidecars</td></tr>
   </tbody>
 </table>
-<p>Copy the whole directory, sidecars included, and match the ownership of everything around it.</p>
+<p>Copy whole directories, sidecars included. A world is more than its biggest file.</p>
 
-<h3>Keeping players' bookmarks</h3>
-<p>Reuse the same host and the same published game ports and nobody has to do anything — the server
-is at the address they already saved. Changing ports means everyone re-adds it, so it is worth
-some effort to keep them, even if the wizard proposes different ones.</p>
+<h2 id="adopt">Route 2 — Adopt it</h2>
+<p>If the server already runs one of our agent images, this is the entire migration. The console
+finds the container, recovers its token, admin password, server name and ports, and writes the row
+itself — no downtime and nothing typed.</p>
+<p>Press <b>+</b> in the server rail; claimable containers appear at the top. Two conditions have
+to hold, and each fails with its own message:</p>
+<ul>
+  <li><b>The agent port must be published</b>, or there is no address to reach it on.</li>
+  <li><b>Ilmari must know this console's <code>envPrefix</code></b>, or it returns no environment
+    and there is no token to recover — see <a href="ilmari.html#register">Ilmari</a>.</li>
+</ul>
+
+<h2 id="container">Route 3 — From another container setup</h2>
+<p>A community game-server image, or your own compose file. Two options, and the first is the same
+five-minute move as <a href="#bare-a">1a</a>: point a console at it, mounting the world and config
+directories from wherever that container keeps them, and set
+<code>DOCKER_HOST</code> at a socket proxy so power control works through Docker.</p>
+<p>For the full set of features, replace the container with a provisioned one wrapped around your
+existing world:</p>
+<ol>
+  <li>Snapshot, then stop and remove the old container. Its world is on a host path and survives;
+    confirm it is a <b>bind</b> mount and not a named volume before removing anything.</li>
+  <li>Move the world to <code>&lt;that console's dataRoot&gt;/&lt;slug&gt;</code>. Ilmari always
+    places data there and the slug comes from the server name you type, so <b>pick a name whose
+    slug matches the directory</b> — "Fluffy" means <code>&lt;dataRoot&gt;/fluffy</code>.</li>
+  <li><code>chown</code> it to the user the new container will run as.</li>
+  <li>Raise it from the wizard with the same ports and admin password, and a matching Run as.</li>
+</ol>
+<div class="callout danger"><p><b>If SteamCMD starts downloading, stop.</b> The install is not
+where the slug expects it. Nothing is lost yet — fix the path before letting it write.</p></div>
+<div class="callout note"><p><b>Why replace the container instead of relabelling it?</b> Ilmari can
+only recreate or destroy containers it made. One deployed by hand has another orchestrator that
+would fight it, so letting Ilmari build the container is what makes it manageable.</p></div>
 
 <h2 id="legacy">Route 4 — Retire a legacy provisioner</h2>
 <p>Older palcon deployments ran an agent in <i>provisioner</i> mode: one container that placed the
@@ -235,21 +329,25 @@ others. That role is Ilmari's now, and the console no longer reads
 <ol>
   <li>Stand up Ilmari — <a href="ilmari.html#run">Running it</a> — with a client entry for this
     console, including its <code>envPrefix</code> and a mounted data root.</li>
-  <li>Swap the console's environment: <code>ILMARI_URL</code> and <code>ILMARI_TOKEN</code> in,
-    <code>PROVISIONER_URL</code> and <code>PROVISIONER_TOKEN</code> out. Setting only the old pair
-    logs a warning and leaves the wizard absent — the two speak different protocols, so the old URL
-    cannot be reused.</li>
-  <li>Your existing game servers are untouched: their agent containers keep running with the same
-    environment. Bring them into the wizard with route 1.</li>
+  <li>Swap the console's environment: <code>ILMARI_URL</code> and <code>ILMARI_TOKEN</code> in, the
+    old pair out. Setting only the old pair logs a warning and leaves the wizard absent — the two
+    speak different protocols, so the old URL cannot be reused.</li>
+  <li>Existing game servers are untouched; bring them into the wizard with
+    <a href="#adopt">route 2</a>.</li>
   <li>Remove the old provisioner container. It is not a game server, and adopting it is refused for
     that reason.</li>
 </ol>
 
+<h2 id="ports">Keeping players' bookmarks</h2>
+<p>Reuse the same host and the same published game ports and nobody has to do anything — the server
+is at the address they already saved. Changing ports means everyone re-adds it, so it is worth some
+effort to keep them even when a wizard proposes different ones.</p>
+
 <h2 id="rollback">Rolling back</h2>
-<p>Until you have joined the migrated server and seen your world, keep the old stack <b>stopped
-rather than deleted</b>. Rolling back is then starting it again and pointing the console back at
-it. Once you are satisfied, delete the old stack so two things never contend for the same ports or
-the same directory.</p>
+<p>Until you have joined the migrated server and seen your world, keep the old setup <b>stopped
+rather than deleted</b> — the service disabled, the container stopped, the directory untouched.
+Rolling back is then starting it again. Once you are satisfied, remove the old one so two things
+never contend for the same ports or the same files.</p>
 <nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="first-server.html"><small>← Previous</small><b>Your first server</b></a><a class="pager-card next" href="architecture.html"><small>Next →</small><b>Architecture</b></a></nav>
   </main>
 </div>
