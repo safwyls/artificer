@@ -102,6 +102,33 @@ Provisioning (Ilmari)
       install never finished, and `docker logs palagent-<slug>` says
       why. Check `runAs` against the image: unlike wkagent, the palagent
       image has no baked-in unprivileged user.
+
+### The data-directory ownership trap (hit for real, 2026-08-17)
+
+**Ilmari's data root must be mounted into the Ilmari container**, at the
+same path it is registered as `dataRoot` for this console. Without that
+mount, provisioning produces a server that can never install, and every
+signal along the way looks healthy:
+
+1. Ilmari creates `<dataRoot>/<slug>` and chowns it to `runAs` — inside
+   its *own* filesystem, because the real path isn't mounted.
+2. Docker then creates the actual bind source itself, owned by **root**.
+3. The game container runs as `568:568` and cannot write `/palworld`.
+4. SteamCMD **exits 0** having installed nothing, so the agent records
+   the job as `done`.
+5. The only symptom is Start answering `game is not installed — run an
+   update first`, forever, with an install job that "succeeded" in ~75s
+   and re-runs in ~11s.
+
+Ilmari cannot detect this — it can only see its own filesystem, where
+the directory looks correctly owned (a guard placed there was written,
+found useless for exactly this reason, and reverted; see the comment in
+`place()`). The agent settles it from inside the container instead:
+health's `installDirOk` means *exists and writable*, and an install that
+reports success without producing the game now says so.
+
+Recovery for an already-broken server:
+`chown -R <runAs> <dataRoot>/<slug>`, then Update.
 - [ ] Raise a throwaway server end to end: ini seeded from the game's
       defaults with ServerName/ServerDescription applied once,
       AdminPassword + RCONEnabled + RESTAPIEnabled enforced, REST and
