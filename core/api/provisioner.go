@@ -49,6 +49,21 @@ func NewIlmariProvisioner(c *ilmariclient.Client, p *ProvisionProfile) *IlmariPr
 
 func (p *IlmariProvisioner) BaseURL() string { return p.c.BaseURL() }
 
+// ours reports whether a container belongs to this console's agent
+// family: named by the wizard's convention, or running this console's
+// agent image under any tag. The image check is what keeps hand-deployed
+// stacks adoptable — their names were chosen by a compose file or a
+// TrueNAS app, not the wizard, and the legacy consoles discovered by
+// image for exactly that reason. Cross-console isolation holds either
+// way: another console's agent runs a different image family.
+func (p *IlmariProvisioner) ours(name, image string) bool {
+	if strings.HasPrefix(name, p.p.AgentName+"-") {
+		return true
+	}
+	repo := p.p.ImageRepo
+	return image == repo || strings.HasPrefix(image, repo+":") || strings.HasPrefix(image, repo+"@")
+}
+
 // agentContainerPort is the one container-side port fact that is the
 // protocol's, not a game's: every sidecar agent serves its API on 8811.
 const agentContainerPort = 8811
@@ -168,7 +183,7 @@ func (p *IlmariProvisioner) Discover(ctx context.Context) ([]agentctl.Discovered
 		// this console's agent family belongs in its discovery list, or
 		// wildskeeper offers to adopt flametender's servers (and a
 		// mistaken adopt is a row whose game client can only fail).
-		if !strings.HasPrefix(f.Name, p.p.AgentName+"-") {
+		if !p.ours(f.Name, f.Image) {
 			continue
 		}
 		d := agentctl.DiscoveredServer{
@@ -197,8 +212,8 @@ func (p *IlmariProvisioner) Adopt(ctx context.Context, container string) (*agent
 	if err != nil {
 		return nil, err
 	}
-	if !strings.HasPrefix(a.Name, p.p.AgentName+"-") {
-		return nil, fmt.Errorf("%s is another console's server (this console adopts %s-* containers)", container, p.p.AgentName)
+	if !p.ours(a.Name, a.Image) {
+		return nil, fmt.Errorf("%s is another console's server (this console adopts %s-* containers, or anything running the %s image)", container, p.p.AgentName, p.p.ImageRepo)
 	}
 	mode := a.Env[p.p.EnvPrefix+"_MODE"]
 	if mode == "" {

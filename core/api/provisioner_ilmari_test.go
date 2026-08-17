@@ -64,15 +64,34 @@ func newFakeIlmari(t *testing.T) (*fakeIlmari, *IlmariProvisioner) {
 					{"host": 15637, "container": 15637, "proto": "udp"},
 					{"host": 8812, "container": 8811, "proto": "tcp"},
 				},
+			}, {
+				// A hand-deployed stack: the agent image under a name a
+				// compose file chose, not the wizard's convention.
+				"name": "ix-palhalla-agent-1", "image": "ghcr.io/example/gtagent:v2", "running": false, "managed": false,
+				"ports": []map[string]any{
+					{"host": 25600, "container": 25600, "proto": "udp"},
+					{"host": 8811, "container": 8811, "proto": "tcp"},
+				},
+			}, {
+				// An image whose repo merely shares the prefix string —
+				// must not be claimed by the family check.
+				"name": "lookalike", "image": "ghcr.io/example/gtagentx:latest", "running": true, "managed": false,
+				"ports": []map[string]any{},
 			}}})
 		case "/v1/adopt":
-			// Echo the requested name, as the real Ilmari does.
+			// Echo the requested name, as the real Ilmari does — with the
+			// image that container would really carry, since the adapter's
+			// family check reads it.
 			var req struct {
 				Container string `json:"container"`
 			}
 			json.NewDecoder(r.Body).Decode(&req)
+			image := "ghcr.io/example/gtagent:latest"
+			if strings.HasPrefix(req.Container, "otheragent") {
+				image = "ghcr.io/example/otheragent:latest"
+			}
 			json.NewEncoder(w).Encode(map[string]any{
-				"name": req.Container, "image": "ghcr.io/example/gtagent:latest", "running": true,
+				"name": req.Container, "image": image, "running": true,
 				"ports": []map[string]any{
 					{"host": 9777, "container": 25600, "proto": "udp"},
 					{"host": 9811, "container": 8811, "proto": "tcp"},
@@ -176,13 +195,22 @@ func TestIlmariDiscoverAndAdoptMapPorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Exactly one: the foreign otheragent-* container never appears in
-	// this console's list — a shared Ilmari host serves every console.
-	if len(found) != 1 || found[0].Name != "gtagent-ashenfall" || found[0].GamePort != 9777 || found[0].AgentPort != 9811 {
-		t.Errorf("discover = %+v, want only this console's agent family", found)
+	// Exactly two: the wizard-named container and the hand-deployed stack
+	// running this console's agent image. The foreign otheragent-* row and
+	// the prefix lookalike never appear — a shared Ilmari host serves
+	// every console, and the adapter keeps only its own family.
+	names := map[string]bool{}
+	for _, d := range found {
+		names[d.Name] = true
+	}
+	if len(found) != 2 || !names["gtagent-ashenfall"] || !names["ix-palhalla-agent-1"] {
+		t.Errorf("discover = %+v, want the wizard-named and hand-deployed stacks only", found)
+	}
+	if found[0].Name != "gtagent-ashenfall" || found[0].GamePort != 9777 || found[0].AgentPort != 9811 {
+		t.Errorf("discover[0] = %+v", found[0])
 	}
 
-	// And adopting one by name anyway is refused with the reason.
+	// And adopting a foreign one by name anyway is refused with the reason.
 	if _, err := p.Adopt(context.Background(), "otheragent-keep"); err == nil || !strings.Contains(err.Error(), "another console") {
 		t.Errorf("foreign adopt err = %v, want a refusal naming the family", err)
 	}
@@ -194,6 +222,12 @@ func TestIlmariDiscoverAndAdoptMapPorts(t *testing.T) {
 	if adopted.Token != "recovered-token" || adopted.AdminPassword != "recovered-pw" ||
 		adopted.Mode != "supervisor" || adopted.GamePort != 9777 || adopted.AgentPort != 9811 {
 		t.Errorf("adopted = %+v", adopted)
+	}
+
+	// The hand-deployed stack adopts by image family despite its name —
+	// losing this orphans every pre-wizard deployment.
+	if _, err := p.Adopt(context.Background(), "ix-palhalla-agent-1"); err != nil {
+		t.Errorf("adopting a hand-deployed stack with our agent image: %v", err)
 	}
 }
 
