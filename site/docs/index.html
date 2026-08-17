@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation — Sampo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='4' transform='rotate(45 16 16)' fill='%23D6431B'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23171B22'/%3E%3C/svg%3E">
+<meta name="description" content="Deploy and run self-hosted consoles for Palworld, Dragonwilds and Enshrouded servers.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Documentation — Sampo">
+<meta property="og:description" content="Deploy and run self-hosted consoles for Palworld, Dragonwilds and Enshrouded servers.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html" aria-label="Sampo home">
+      <span class="mark" aria-hidden="true"><i></i></span>
+      <span class="wordmark">sampo</span>
+      <span class="crumb-docs">docs</span>
+    </a>
+    <nav class="nav-links" aria-label="Site">
+      <a class="hide-sm" href="../index.html#consoles">Consoles</a>
+      <a class="hide-sm" href="../index.html#deploy">Deploy</a>
+      <a class="nav-gh" href="https://github.com/safwyls/sampo"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
+    </nav>
+  </div>
+</header>
+<main class="docs-home" id="content">
+  <div class="docs-home-head">
+    <h1>Documentation</h1>
+    <p>Everything needed to deploy the consoles, provision game servers and keep them running. New
+    here? Start with the <a href="introduction.html">introduction</a>, then pick the walkthrough
+    matching your host.</p>
+  </div>
+  <div class="cat-grid">
+  <section class="cat-card" style="--cat-color: var(--ember)">
+    <div class="side-label"><span class="mark sm" style="--mark-fill: var(--ember)" aria-hidden="true"><i></i></span>Getting started</div>
+    <ul>
+      <li><a href="introduction.html"><b>Introduction</b><span>What Sampo is and which console you want.</span></a></li>
+      <li><a href="deploy-truenas.html"><b>Deploy on TrueNAS Scale</b><span>Datasets, Custom Apps and the ownership rules.</span></a></li>
+      <li><a href="deploy-docker.html"><b>Deploy with Docker</b><span>One compose file on any host, with TLS.</span></a></li>
+      <li><a href="first-server.html"><b>Your first server</b><span>Every wizard field, and what happens after.</span></a></li>
+    </ul>
+  </section>
+  <section class="cat-card" style="--cat-color: var(--quench)">
+    <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
+    <ul>
+      <li><a href="architecture.html"><b>Architecture</b><span>Core, games, agents and the dependency rules.</span></a></li>
+      <li><a href="ilmari.html"><b>Ilmari, the host service</b><span>Registrations, allowlists and data roots.</span></a></li>
+      <li><a href="agents.html"><b>Sidecar agents</b><span>Installing, supervising and serving each server.</span></a></li>
+    </ul>
+  </section>
+  <section class="cat-card" style="--cat-color: var(--c-wild)">
+    <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-wild)" aria-hidden="true"><i></i></span>Reference</div>
+    <ul>
+      <li><a href="environment.html"><b>Environment variables</b><span>Every variable, for consoles, agents and Ilmari.</span></a></li>
+    </ul>
+  </section>
+  <section class="cat-card" style="--cat-color: var(--c-flame-ink)">
+    <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-flame-ink)" aria-hidden="true"><i></i></span>Help</div>
+    <ul>
+      <li><a href="troubleshooting.html"><b>Troubleshooting</b><span>The failures worth recognising on sight.</span></a></li>
+    </ul>
+  </section>
+  </div>
+</main>
+<footer class="doc-footer">
+  <div class="wrap-doc">
+    <p>Sampo is an unofficial fan project. Palworld is &copy; Pocketpair, Inc. RuneScape Dragonwilds is
+    &copy; Jagex Ltd. Enshrouded is &copy; Keen Games GmbH. No affiliation or endorsement is implied.</p>
+    <p><a href="https://github.com/safwyls/sampo">GitHub</a> &middot;
+       <a href="https://github.com/safwyls/sampo/issues">Issues</a> &middot;
+       <a href="../index.html">Homepage</a></p>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,58 @@
+name: Pages
+
+# Publishes the public site to GitHub Pages: site/ (homepage + docs, static
+# files) plus the interactive demo — the real palcon frontend built with
+# VITE_DEMO=1, which answers every API call from a bundled fixture instead of
+# a server. Only palcon ships demo fixtures today; when another console grows
+# a src/demo, add it here the same way.
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "web/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/palcon/package-lock.json
+
+      - name: Build the palcon demo
+        working-directory: web/palcon
+        run: |
+          npm ci
+          VITE_DEMO=1 npx vite build --base=/sampo/demo/palcon/ --outDir dist-demo
+
+      - name: Assemble site + demo
+        run: |
+          mkdir _pages
+          cp -r site/* _pages/
+          mkdir -p _pages/demo
+          cp -r web/palcon/dist-demo _pages/demo/palcon
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _pages
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
