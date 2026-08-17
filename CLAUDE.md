@@ -33,9 +33,21 @@ health/launch extras, core's wizard grew port-run arity and required
 owner ids (seam 4's pair form, asserted in provision_pair tests),
 `cmd/wildskeeper` + `cmd/wkagent`, `web/wildskeeper`, `tools/`
 (dwbridge + kit + shim), and image publishing on the :main channel.
-Gate: docs/wildskeeper-port-verification.md — note the one behavior
-change: legacy provisioner-mode agents are retired; provisioning is
-Ilmari-only.
+**Phase 4 is complete** (gate passed 2026-08-16 against the live
+Dragonwilds server; legacy tree deleted; :latest publishes from the
+monorepo). **Phase 5 (palcon on core) is code-complete**:
+`games/palworld/` (REST+RCON client, palconfig codec, palsave reader,
+palapi contributed routes — the deep-game surface: pals, guilds,
+inventory, storage, achievements — the save-derived Roster, the
+advisor prompt, palagent's agent.Game spec), core's wizard grew named
+TCP admin transports (seam 4's REST/RCON trio form, asserted in
+provision_trio tests) and the runtime identity gained ServerDesc,
+`cmd/palcon` (embedding the advisor docs) + `cmd/palagent`,
+`web/palcon` (Cloudflare Access SSO ported in), and image publishing
+on the :main channel. Gate: docs/palcon-port-verification.md — note
+the one behavior change: the legacy provisioner-mode agent is retired;
+provisioning is Ilmari-only (`PROVISIONER_URL` → `ILMARI_URL`; the doc
+has the migration).
 
 Rules already in force (see the plan's "Structural rules"):
 

@@ -1,0 +1,33 @@
+# palagent — the per-server sidecar agent (docs/sidecar-agent.md).
+# Deployed in each game server's compose stack, sharing its /palworld
+# volume; palcon drives it over HTTP with a bearer token.
+
+# ---- build ----
+FROM docker.io/library/golang:1.26-alpine AS build
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /out/palagent ./cmd/palagent
+
+# ---- runtime ----
+# steamcmd needs 32-bit glibc, so the runtime base is the maintained
+# steamcmd image (Debian) rather than alpine like palcon's.
+#
+# Unlike wkagent this container stays root: PalServer runs fine that way,
+# every existing deployment's /palworld volume is owned accordingly, and
+# switching the image to an unprivileged user would strand those installs
+# behind permission errors.
+FROM docker.io/steamcmd/steamcmd:debian-12
+COPY --from=build /out/palagent /usr/local/bin/palagent
+ENV PALAGENT_INSTALL_DIR=/palworld \
+    PALAGENT_STEAMCMD=steamcmd \
+    PALAGENT_ADDR=:8811
+# 8811 is the agent API; in supervisor mode the game itself binds 8211/udp
+# plus the REST (8212) and RCON (25575) admin ports in this container.
+EXPOSE 8811 8211/udp 8212 25575
+# The steamcmd base ships neither wget nor curl; the agent binary probes
+# its own /healthz instead.
+HEALTHCHECK --interval=30s --timeout=5s \
+    CMD ["/usr/local/bin/palagent", "-healthz"]
+ENTRYPOINT ["/usr/local/bin/palagent"]

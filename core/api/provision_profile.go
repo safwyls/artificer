@@ -7,8 +7,9 @@ package api
 // knowledge that used to live in each console's agent provisioner mode
 // now concentrates — Ilmari itself knows none of it, by contract.
 //
-// Known extension point (drift ledger, seam 4): Palworld's named
-// RCON/REST port trio arrives with its port phase.
+// Every seam-4 variance is now expressed here: port-run arity
+// (Dragonwilds' pair), required owner identity, and named TCP admin
+// transports (Palworld's REST/RCON trio).
 type ProvisionProfile struct {
 	// AgentName brands the stack's service and the container
 	// (<AgentName>-<slug>) — "flameagent", "wkagent", "palagent".
@@ -41,6 +42,34 @@ type ProvisionProfile struct {
 	// finishes the refusal ("in-game: Settings, …").
 	OwnerIDRequired bool
 	OwnerIDHelp     string
+	// AdminPorts are named TCP admin transports the game exposes beside
+	// the game port (Palworld's REST + RCON). Each becomes a wizard
+	// field (<key>Port), a stack and Ilmari mapping, a port-proposal
+	// entry, and — for the well-known keys "rest" and "rcon" — the
+	// server row's transport wiring.
+	AdminPorts []AdminPort
+}
+
+// AdminPort is one named TCP admin transport.
+type AdminPort struct {
+	// Key is the stable id ("rest", "rcon") — the wizard request field
+	// is <key>Port and the proposal entry uses the key.
+	Key string
+	// Container is the container-side port the game binds (8212, 25575).
+	Container int
+	// Default is the default published host port.
+	Default int
+	// Comment annotates the stack mapping line.
+	Comment string
+}
+
+func (p *ProvisionProfile) adminPort(key string) *AdminPort {
+	for i := range p.AdminPorts {
+		if p.AdminPorts[i].Key == key {
+			return &p.AdminPorts[i]
+		}
+	}
+	return nil
 }
 
 func (p *ProvisionProfile) portCount() int {

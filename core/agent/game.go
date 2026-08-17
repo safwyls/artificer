@@ -93,6 +93,9 @@ type RuntimeIdentity struct {
 	JoinPassword  string
 	OwnerID       string
 	WorldName     string
+	// ServerDesc is the server-browser description/MOTD, for games that
+	// have one.
+	ServerDesc string
 }
 
 // RuntimeEnv is everything PrepareRuntime sees: where the install and

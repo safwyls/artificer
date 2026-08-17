@@ -59,6 +59,7 @@ type supervisor struct {
 	serverName    string
 	ownerID       string
 	worldName     string
+	serverDesc    string
 	grace         time.Duration
 	// backoffFloor is the first crash-restart delay (doubles per failure);
 	// tests shrink it.
@@ -113,6 +114,7 @@ func newSupervisor(cfg Config, jobsBusy func() bool) *supervisor {
 		serverName:    cfg.ServerName,
 		ownerID:       cfg.OwnerID,
 		worldName:     cfg.WorldName,
+		serverDesc:    cfg.ServerDesc,
 		grace:         grace,
 		backoffFloor:  backoff,
 		logger:        cfg.Logger,
@@ -520,6 +522,7 @@ func (s *supervisor) prepareRuntime() {
 			JoinPassword:  s.joinPassword,
 			OwnerID:       s.ownerID,
 			WorldName:     s.worldName,
+			ServerDesc:    s.serverDesc,
 		},
 	})
 }

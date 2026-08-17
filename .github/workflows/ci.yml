@@ -35,6 +35,7 @@ jobs:
           cache-dependency-path: |
             web/flametender/package-lock.json
             web/wildskeeper/package-lock.json
+            web/palcon/package-lock.json
       - name: Flametender frontend build & tests
         working-directory: web/flametender
         run: |
@@ -47,6 +48,14 @@ jobs:
           npm ci
           npm run build
           npm test
+      - name: Palcon frontend build & tests
+        working-directory: web/palcon
+        run: |
+          npm ci
+          npm run build
+          npm test
+      - name: Save-extractor dependencies (palsave-backed API tests)
+        run: pip install palworld-save-tools==0.24.0 pyooz==0.0.8
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26"

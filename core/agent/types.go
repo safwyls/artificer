@@ -236,8 +236,15 @@ type ProvisionRequest struct {
 	RunAs string `json:"runAs"`
 	// GamePort is the first published game port; how many contiguous
 	// ports the game claims from it is a game fact.
-	GamePort  int `json:"gamePort"`
-	AgentPort int `json:"agentPort"`
+	GamePort int `json:"gamePort"`
+	// RESTPort/RCONPort are the named admin transports, for games whose
+	// profile declares them.
+	RESTPort int `json:"restPort,omitempty"`
+	RCONPort int `json:"rconPort,omitempty"`
+	// ServerDesc is the server-browser description, where the game has
+	// one.
+	ServerDesc string `json:"serverDesc,omitempty"`
+	AgentPort  int    `json:"agentPort"`
 }
 
 // ProvisionDefaults is what the wizard can infer instead of asking: the
@@ -261,8 +268,11 @@ type DiscoveredServer struct {
 	Image   string `json:"image"`
 	Mode    string `json:"mode"` // supervisor | companion | "" (unknown)
 	Running bool   `json:"running"`
-	// Published host ports for the well-known container ports.
+	// Published host ports for the well-known container ports. REST and
+	// RCON exist only for games with those admin transports (Palworld).
 	GamePort  int `json:"gamePort,omitempty"`
+	RESTPort  int `json:"restPort,omitempty"`
+	RCONPort  int `json:"rconPort,omitempty"`
 	AgentPort int `json:"agentPort,omitempty"`
 }
 
@@ -279,6 +289,8 @@ type AdoptResult struct {
 	Token         string `json:"token"`
 	AdminPassword string `json:"adminPassword"`
 	GamePort      int    `json:"gamePort,omitempty"`
+	RESTPort      int    `json:"restPort,omitempty"`
+	RCONPort      int    `json:"rconPort,omitempty"`
 	AgentPort     int    `json:"agentPort,omitempty"`
 }
 

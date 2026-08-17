@@ -21,9 +21,16 @@
 > (seam 5's first user), esagent's agent.Game spec, and the returned
 > test suites (moderation, ban queue end-to-end on the real kit+spec,
 > enshrouded api, esquery, the enforcement suite, the app-id agreement
-> test). **Gate passed 2026-08-16** against the live Enshrouded server; the legacy flametender tree is deleted and :latest publishes from the monorepo. Open: the §F
-> guards not yet checked off (palworld/dragonwilds rows land with their
-> ports; Ilmari parity checks with Phase 6 wiring).
+> test). **Gate passed 2026-08-16** against the live Enshrouded server; the legacy flametender tree is deleted and :latest publishes from the monorepo.
+> **Phase 4 (wildskeeper) gate passed 2026-08-16** against the live
+> Dragonwilds server: seam 4's pair form and the launch chooser landed,
+> the legacy wildskeeper tree is deleted, :latest publishes from the
+> monorepo. **Phase 5 (palcon) is code-complete**: games/palworld carries
+> the client, codec, palsave, palapi (seam 5), Roster (seam 6), advisor
+> prompt, and palagent's spec; seam 4 gained the REST/RCON trio form
+> (provision_trio tests) and ServerDesc; every palworld §F guard below is
+> ticked. Open: the Ilmari parity §F guards (Phase 6 wiring), and the
+> Phase 5 real-server gate (docs/palcon-port-verification.md).
 
 Per-file reconciliation decisions for Phase 2 (core extraction), per
 `docs/unification-plan.md`. This is the working checklist: Phase 2
@@ -263,10 +270,16 @@ first mover.
 
 Checked off only when the protection exists in the monorepo:
 
-- [ ] Palworld magic-bytes save verification (mid-write guard) — seam 1.
-- [ ] Palworld `.sav`-only archive membership (`stray.txt` exclusion test).
-- [ ] P's three visibility tests (admin bypass, per-switch, all-off).
-- [ ] P's working palsave roster (seam 6 — F's stub must not win).
+- [x] Palworld magic-bytes save verification (mid-write guard) — seam 1
+      (games/palworld save_test: the magic suite plus torn-Level.sav
+      refusal through the core runner, Phase 5).
+- [x] Palworld `.sav`-only archive membership (`stray.txt` exclusion test)
+      (games/palworld TestBackupArchivesSavFilesOnly, Phase 5).
+- [x] P's three visibility tests (admin bypass, per-switch, all-off)
+      (core's game-blind halves + games/palworld visibility_api_test and
+      the save-backed switch test, Phase 5).
+- [x] P's working palsave roster (seam 6 — F's stub must not win)
+      (games/palworld Roster, wired in cmd/palcon and the harness, Phase 5).
 - [x] W's port-pair provisioning logic + "pair swallows agent port" case (core provision_pair tests, Phase 4).
 - [ ] `TestMissingIsDistinctFromRefused` invariant re-asserted vs Ilmari client.
 - [ ] `TestContainerRemoveKeepsTheVolume` promise moved to an Ilmari destroy test. (Live-verified at the Phase 3 gate — destroy left the world dir — but the test guard is still owed.)
@@ -274,5 +287,8 @@ Checked off only when the protection exists in the monorepo:
 - [x] Advisor restored (P source) + F's dead migrations get a live reader (2b).
 - [ ] Ilmari client gains `Containers()`/`Ports()` + APIVersion assertion.
 - [x] `lastFailure` consumed by the UI — live-verified at the Phase 3 gate.
-- [ ] Palcon env migration documented at its port: `PROVISIONER_URL/TOKEN` →
-      `ILMARI_URL/TOKEN` (frozen-API concern; accept both for one release).
+- [x] Palcon env migration documented at its port: `PROVISIONER_URL/TOKEN` →
+      `ILMARI_URL/TOKEN` (docs/palcon-port-verification.md; cmd/palcon logs
+      a pointed warning when only the legacy pair is set — the URL is not
+      silently reused, because the legacy provisioner-mode agent spoke a
+      different protocol than Ilmari, Phase 5).
