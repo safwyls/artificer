@@ -1,13 +1,21 @@
-name: Docker (palcon)
+name: Docker (anvil)
 
-# Publishes the monorepo-built palcon + palagent under the SAME ghcr
-# names the old repo used. :latest publishes here since the Phase 5
-# real-server gate passed (2026-08-17) — this is the only builder of
-# those names now.
+# Publishes the host provisioning service. Anvil is a separate Go module
+# with its own Dockerfile, so the build context is anvil/ rather than the
+# repo root — nothing above it is copied in, matching the dependency rule.
+#
+# Two names are published from one build. `anvil` is the name going
+# forward; `ilmari` is a migration channel for deployments that were
+# pinned to the old name before the rename, so they keep receiving
+# updates instead of silently freezing at the last build from the old
+# repo. Drop the ilmari half once the running hosts are repointed.
 on:
   push:
     branches: [main]
     tags: ["v*.*.*"]
+    paths:
+      - "anvil/**"
+      - ".github/workflows/docker-anvil.yml"
   workflow_dispatch:
 
 concurrency:
@@ -23,13 +31,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    strategy:
-      matrix:
-        include:
-          - image: palcon
-            dockerfile: deploy/palcon/Dockerfile
-          - image: palagent
-            dockerfile: deploy/palcon/Dockerfile.palagent
     steps:
       - uses: actions/checkout@v5
 
@@ -44,23 +45,25 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/anvil
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ilmari
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
-            # Enabled since the Phase 5 gate passed (2026-08-17, live
-            # Palworld server) — the old repo's channel is replaced.
             type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v7
         with:
-          context: .
-          file: ${{ matrix.dockerfile }}
+          context: anvil
+          file: anvil/Dockerfile
           platforms: linux/amd64
           push: true
+          build-args: |
+            VERSION=${{ github.ref_name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=artificer-${{ matrix.image }}
-          cache-to: type=gha,mode=min,scope=artificer-${{ matrix.image }}
+          cache-from: type=gha,scope=artificer-anvil
+          cache-to: type=gha,mode=min,scope=artificer-anvil

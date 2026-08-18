@@ -52,6 +52,11 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// Settings that are set but no longer read. Silence here reads as a
+	// feature that vanished for no reason — most often provisioning.
+	for _, msg := range config.RetiredSettings() {
+		logger.Warn(msg)
+	}
 
 	sqlDB, err := db.Open(cfg.DBPath())
 	if err != nil {

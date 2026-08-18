@@ -54,6 +54,11 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// Settings that are set but no longer read. Silence here reads as a
+	// feature that vanished for no reason — most often provisioning.
+	for _, msg := range config.RetiredSettings() {
+		logger.Warn(msg)
+	}
 
 	sqlDB, err := db.Open(cfg.DBPath())
 	if err != nil {
@@ -185,7 +190,8 @@ func run(logger *slog.Logger) error {
 	// (the anvil module's README is the contract). Without ANVIL_URL the
 	// Raise-a-server wizard is simply absent and servers are registered by
 	// hand. The old PROVISIONER_URL agent mode is retired; see
-	// docs/palcon-port-verification.md for the migration.
+	// docs/palcon-port-verification.md for the migration. A deployment
+	// still carrying the retired names is told so at boot, above.
 	if cfg.AnvilURL != "" {
 		client, err := anvil.New(cfg.AnvilURL, cfg.AnvilToken)
 		if err != nil {
@@ -193,10 +199,6 @@ func run(logger *slog.Logger) error {
 		}
 		apiServer.Provisioner = api.NewAnvilProvisioner(client, apiServer.Provision)
 		logger.Info("provisioner enabled", "endpoint", cfg.AnvilURL, "via", "anvil")
-	} else if cfg.ProvisionerURL != "" {
-		// The pre-monorepo deployments set this; going quiet about it
-		// would read as the wizard vanishing for no reason.
-		logger.Warn("PROVISIONER_URL is no longer supported — provisioning goes through Anvil now; set ANVIL_URL/ANVIL_TOKEN (see docs/palcon-port-verification.md)")
 	}
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
