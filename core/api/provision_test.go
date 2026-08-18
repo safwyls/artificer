@@ -50,9 +50,15 @@ type fakeProvisioner struct {
 	destroyRes   *agentctl.DestroyResult
 	destroyErr   error
 	destroyCalls int
+	hostPorts    []int
+	hostPortsErr error
 }
 
 func (f *fakeProvisioner) BaseURL() string { return "http://anvil:8410" }
+
+func (f *fakeProvisioner) HostPorts(ctx context.Context) ([]int, error) {
+	return f.hostPorts, f.hostPortsErr
+}
 
 func (f *fakeProvisioner) Health(ctx context.Context) (*agentctl.Health, error) {
 	if f.healthErr != nil {

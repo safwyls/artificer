@@ -28,14 +28,18 @@ const testToken = wkToken
 
 // fakeDocker stands in for the daemon and records what it was asked to do.
 type fakeDocker struct {
-	created    map[string]any
-	calls      []string
+	created map[string]any
+	calls   []string
+	// requests keeps the query string too, which is where the promises
+	// about what a remove does and does not take live (v=0, force=0).
+	requests   []string
 	containers string
 }
 
 func (f *fakeDocker) handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.calls = append(f.calls, r.Method+" "+r.URL.Path)
+		f.requests = append(f.requests, r.Method+" "+r.URL.Path+"?"+r.URL.RawQuery)
 		switch {
 		case r.URL.Path == "/images/create":
 			w.Write([]byte(`{"status":"done"}` + "\n"))
@@ -47,10 +51,22 @@ func (f *fakeDocker) handler() http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(f.containers))
 		case strings.HasPrefix(r.URL.Path, "/containers/") && strings.HasSuffix(r.URL.Path, "/json"):
-			// Inspect: env for adopt tests. Mixed namespaces on purpose, so
-			// the scoping has something to scope away.
+			// Inspect serves two callers: adopt reads the env (mixed
+			// namespaces on purpose, so the scoping has something to scope
+			// away), and recreate reads everything a rebuild must carry
+			// over — binds, ports, labels, restart policy, networks.
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"Config":{"Env":["WKAGENT_MODE=supervisor","WKAGENT_TOKEN=wk-secret","PALAGENT_TOKEN=pal-secret","HOME=/tmp"]}}`))
+			w.Write([]byte(`{
+			  "Name":"/wkagent-ashenfall",
+			  "Config":{
+			    "Image":"ghcr.io/safwyls/wkagent:latest","User":"568:568",
+			    "Env":["WKAGENT_MODE=supervisor","WKAGENT_TOKEN=wk-secret","PALAGENT_TOKEN=pal-secret","HOME=/tmp"],
+			    "Labels":{"anvil.managed":"true","anvil.owner":"wildskeeper","anvil.slug":"ashenfall"}},
+			  "HostConfig":{
+			    "Binds":["/mnt/tank/dw/ashenfall:/dragonwilds"],
+			    "RestartPolicy":{"Name":"unless-stopped"},
+			    "PortBindings":{"7777/udp":[{"HostPort":"7777"}],"7778/udp":[{"HostPort":"7778"}],"8811/tcp":[{"HostPort":"8811"}]}},
+			  "NetworkSettings":{"Networks":{"bridge":{},"wildskeeper-net":{}}}}`))
 		default:
 			w.WriteHeader(http.StatusNoContent)
 		}
@@ -464,5 +480,201 @@ func TestAdoptRefusesForeignContainers(t *testing.T) {
 	resp, _ = doAs(t, srv, wkToken, "POST", "/v1/adopt", map[string]any{"container": "nginx"})
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("adopting an unrelated container: status = %d, want 400", resp.StatusCode)
+	}
+}
+
+// The service half of the missing-versus-refused invariant. Its client
+// half is core/anvilclient's TestMissingIsDistinctFromRefused; a console
+// deletes the server row on one of these answers and must not on the
+// other, so the two statuses have to stay different at both ends.
+func TestDestroyingAMissingContainerIsNotFound(t *testing.T) {
+	srv, fake, _ := newService(t)
+	fake.containers = twoConsoles
+
+	resp, m := do(t, srv, "POST", "/v1/provision/destroy", map[string]any{"container": "no-such-container"})
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("destroying a container that isn't here: %d, want 404: %v", resp.StatusCode, m)
+	}
+	// The refusals are the other answers, and none of them may be reused
+	// for "it isn't here": a console reads 403 as "leave everything alone"
+	// and 404 as "the job is done".
+	resp, _ = do(t, srv, "POST", "/v1/provision/destroy", map[string]any{"container": "palagent-palhalla"})
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("another console's container = %d, want 403", resp.StatusCode)
+	}
+	resp, _ = do(t, srv, "POST", "/v1/provision/destroy", map[string]any{"container": "nginx"})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("an unmanaged container = %d, want 400", resp.StatusCode)
+	}
+}
+
+// Unmaking a container is not consent to delete what it was holding. This
+// is the promise the whole destroy path exists to keep — a world save
+// lives in the data directory, and the console offers this button next to
+// "delete server".
+//
+// Guarded at both levels on purpose: dockerctl's
+// TestContainerRemoveKeepsTheVolume asserts the v=0 on the wire, and this
+// asserts the endpoint an operator actually reaches leaves the files
+// where they are and says where they still live.
+func TestDestroyKeepsTheDataDirectory(t *testing.T) {
+	srv, fake, dataRoot := newService(t)
+
+	resp, m := do(t, srv, "POST", "/v1/provision", map[string]any{
+		"name": "wkagent-ashenfall", "slug": "ashenfall",
+		"image": "ghcr.io/safwyls/wkagent:latest", "dataMount": "/dragonwilds",
+	})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("provision: %d %v", resp.StatusCode, m)
+	}
+	dataDir := filepath.Join(dataRoot, "ashenfall")
+	world := filepath.Join(dataDir, "world.sav")
+	if err := os.WriteFile(world, []byte("a world someone played in"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	fake.containers = `[{"Id":"c1","Names":["/wkagent-ashenfall"],"Image":"ghcr.io/safwyls/wkagent:latest","State":"running",
+	  "Labels":{"anvil.managed":"true","anvil.owner":"wildskeeper","anvil.slug":"ashenfall"}}]`
+	resp, m = do(t, srv, "POST", "/v1/provision/destroy", map[string]any{"container": "wkagent-ashenfall"})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("destroy: %d %v", resp.StatusCode, m)
+	}
+
+	// The answer has to name the directory, or an operator cannot tell
+	// what survived without going to look.
+	if m["dataDir"] != dataDir {
+		t.Errorf("dataDir = %v, want %s", m["dataDir"], dataDir)
+	}
+	data, err := os.ReadFile(world)
+	if err != nil {
+		t.Fatalf("the world was deleted along with the container: %v", err)
+	}
+	if string(data) != "a world someone played in" {
+		t.Errorf("world contents changed: %q", data)
+	}
+	// And on the wire: no volume removal, no SIGKILL that would skip the
+	// game's chance to flush.
+	removed := ""
+	for _, req := range fake.requests {
+		if strings.HasPrefix(req, "DELETE /containers/") {
+			removed = req
+		}
+	}
+	if removed == "" {
+		t.Fatalf("no container removal was sent: %v", fake.requests)
+	}
+	if !strings.Contains(removed, "v=0") || !strings.Contains(removed, "force=0") {
+		t.Errorf("remove request = %q, want v=0 and force=0", removed)
+	}
+	// The stop comes first, so whatever is inside gets its grace period.
+	stopped := false
+	for _, req := range fake.requests {
+		if strings.Contains(req, "/stop") {
+			stopped = true
+		}
+		if strings.HasPrefix(req, "DELETE /containers/") && !stopped {
+			t.Error("the container was removed before it was stopped")
+		}
+	}
+}
+
+// Swapping an image must change the image and nothing else. Every field
+// the rebuild forgets is a live server that comes back subtly wrong:
+// without its data mount it starts a fresh world, without its ports it is
+// unreachable, without its network it cannot resolve what it talks to,
+// without its ownership labels it is orphaned from this service entirely.
+func TestRecreateKeepsEverythingButTheImage(t *testing.T) {
+	srv, fake, _ := newService(t)
+	fake.containers = twoConsoles
+
+	resp, m := do(t, srv, "POST", "/v1/provision/recreate", map[string]any{
+		"container": "wkagent-ashenfall", "image": "ghcr.io/safwyls/wkagent:beta",
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("recreate: %d %v", resp.StatusCode, m)
+	}
+	if m["image"] != "ghcr.io/safwyls/wkagent:beta" || m["previousImage"] != "ghcr.io/safwyls/wkagent:latest" {
+		t.Errorf("result = %v", m)
+	}
+
+	created := fake.created
+	if created == nil {
+		t.Fatal("nothing was created")
+	}
+	if created["Image"] != "ghcr.io/safwyls/wkagent:beta" {
+		t.Errorf("image = %v", created["Image"])
+	}
+	if created["User"] != "568:568" {
+		t.Errorf("run-as user lost: %v", created["User"])
+	}
+	if env := fmt.Sprint(created["Env"]); !strings.Contains(env, "WKAGENT_TOKEN=wk-secret") {
+		t.Errorf("agent token lost — the console could not authenticate to the rebuilt agent: %v", env)
+	}
+	labels, _ := created["Labels"].(map[string]any)
+	if labels[host.LabelOwner] != "wildskeeper" || labels[host.LabelSlug] != "ashenfall" {
+		t.Errorf("ownership labels lost: %v — the container would be unmanageable after the rebuild", labels)
+	}
+	hc, _ := created["HostConfig"].(map[string]any)
+	if !strings.Contains(fmt.Sprint(hc["Binds"]), "/dragonwilds") {
+		t.Errorf("data mount lost: %v — the rebuilt server would start an empty world", hc["Binds"])
+	}
+	if hc["RestartPolicy"].(map[string]any)["Name"] != "unless-stopped" {
+		t.Errorf("restart policy lost: %v", hc["RestartPolicy"])
+	}
+	bindings, _ := hc["PortBindings"].(map[string]any)
+	for _, want := range []string{"7777/udp", "7778/udp", "8811/tcp"} {
+		if bindings[want] == nil {
+			t.Errorf("port %s lost: %v", want, bindings)
+		}
+	}
+	networking, _ := created["NetworkingConfig"].(map[string]any)
+	if networking == nil {
+		t.Fatalf("no NetworkingConfig: the rebuilt container is off wildskeeper-net: %v", created)
+	}
+	endpoints, _ := networking["EndpointsConfig"].(map[string]any)
+	if _, ok := endpoints["wildskeeper-net"]; !ok {
+		t.Errorf("user-defined network lost: %v", endpoints)
+	}
+	if _, ok := endpoints["bridge"]; ok {
+		t.Error("bridge re-declared explicitly; docker rejects that")
+	}
+
+	// Order matters as much as content: the image has to be on the host
+	// before the running container is removed, or a bad tag leaves the
+	// server destroyed with nothing to put back.
+	pulled, removed := -1, -1
+	for i, call := range fake.calls {
+		switch {
+		case strings.Contains(call, "/images/create"):
+			pulled = i
+		case strings.HasPrefix(call, "DELETE /containers/"):
+			removed = i
+		}
+	}
+	if pulled == -1 || removed == -1 || pulled > removed {
+		t.Errorf("pull/remove order = %v", fake.calls)
+	}
+}
+
+// Recreating onto the image it already runs is a no-op, not a rebuild.
+// Tearing a live server down to put back exactly what was there is pure
+// downtime for nothing.
+func TestRecreateOntoTheSameImageChangesNothing(t *testing.T) {
+	srv, fake, _ := newService(t)
+	fake.containers = twoConsoles
+
+	resp, m := do(t, srv, "POST", "/v1/provision/recreate", map[string]any{
+		"container": "wkagent-ashenfall", "image": "ghcr.io/safwyls/wkagent:latest",
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("recreate: %d %v", resp.StatusCode, m)
+	}
+	if fake.created != nil {
+		t.Error("the container was rebuilt onto the image it was already running")
+	}
+	for _, call := range fake.calls {
+		if strings.HasPrefix(call, "DELETE /containers/") {
+			t.Errorf("a no-op recreate removed the container: %v", fake.calls)
+		}
 	}
 }

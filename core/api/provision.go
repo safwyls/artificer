@@ -15,6 +15,7 @@ import (
 
 	"github.com/safwyls/artificer/core/agent"
 	"github.com/safwyls/artificer/core/agentctl"
+	"github.com/safwyls/artificer/core/anvilclient"
 	"github.com/safwyls/artificer/core/store"
 )
 
@@ -319,10 +320,20 @@ func (s *Server) handleProvisionServer(w http.ResponseWriter, r *http.Request) {
 			deployed = true
 			dataDir = result.DataDir
 			container = result.Container
-		// The only conflict /v1/provision reports is the container name.
+		// Anvil reports two kinds of conflict and the useful advice
+		// differs: a taken name has adoption as a way out, a held port
+		// does not. It says which in the error, so this doesn't have to
+		// guess — and when it doesn't (an older Anvil), its own sentence
+		// is passed through rather than replaced with the wrong one.
 		case errors.Is(err, agentctl.ErrBusy):
-			s.logger.Warn("provisioner refused deploy: name in use", "server", req.Name, "slug", slug)
-			writeError(w, http.StatusConflict, conflictMessage(p, slug))
+			switch anvilclient.ConflictReason(err) {
+			case anvilclient.ReasonNameTaken:
+				s.logger.Warn("provisioner refused deploy: name in use", "server", req.Name, "slug", slug)
+				writeError(w, http.StatusConflict, conflictMessage(p, slug))
+			default:
+				s.logger.Warn("provisioner refused deploy: conflict on the host", "server", req.Name, "error", err)
+				writeError(w, http.StatusConflict, err.Error())
+			}
 			return
 		case errors.Is(err, agentctl.ErrRejected):
 			s.logger.Warn("provisioner refused deploy", "server", req.Name, "error", err)
@@ -418,6 +429,20 @@ func (s *Server) handleProvisionDefaults(w http.ResponseWriter, r *http.Request)
 		for _, f := range found {
 			containerPorts = append(containerPorts, f.GamePort, f.RESTPort, f.RCONPort, f.AgentPort)
 		}
+	}
+	// And everything else on the machine. Discover is scoped to this
+	// console's own agent family by design, so on its own it leaves the
+	// proposal blind to exactly the containers that caused the collision
+	// Anvil was built to end: another console's server, or anything the
+	// operator deployed by hand. Anvil can see the whole host, and a
+	// proposal that ignores that is one Anvil will refuse with a 409.
+	//
+	// A failure here is not fatal. The proposal is a suggestion either
+	// way, and offering slightly worse ports beats an empty wizard.
+	if taken, err := s.Provisioner.HostPorts(r.Context()); err == nil {
+		containerPorts = append(containerPorts, taken...)
+	} else {
+		s.logger.Warn("could not read the host's published ports; proposing from this console's view alone", "error", err)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

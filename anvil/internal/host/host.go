@@ -249,3 +249,19 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
+
+// Conflict reasons. A 409 from /v1/provision has two causes and the right
+// thing to tell an operator differs between them — "pick another name, or
+// adopt the container that's already there" is useless advice for a port
+// collision. The prose says which, but a console should not have to parse
+// prose to route a message, so the reason is a field. Additive on purpose:
+// a client that doesn't know these still gets the same status and the same
+// sentence.
+const (
+	ReasonNameTaken  = "name-taken"
+	ReasonPortsInUse = "ports-in-use"
+)
+
+func writeConflict(w http.ResponseWriter, reason, msg string) {
+	writeJSON(w, http.StatusConflict, map[string]string{"error": msg, "reason": reason})
+}
