@@ -157,7 +157,10 @@ Continuity
 ## After the gate
 
 1. [x] Flip `:latest` on in `.github/workflows/docker-palcon.yml`.
-2. [ ] Archive `safwyls/palcon` with a pointer commit.
+2. [x] Archive `safwyls/palcon` with a pointer commit — safwyls/palcon#18
+   (README notice plus a banner on every published doc page, since
+   inbound search links land on individual pages). Archive the repo once
+   it merges.
 3. [x] Delete the imported `palcon/` tree, its CI job, checkbounds
    legacy rule, and go.work entry.
 4. [x] §F guards — every palworld row was already ticked when the port
