@@ -515,6 +515,7 @@ async function route_(route: string, method: string, q: URLSearchParams, body: a
   if (route === "/servers" && method === "GET") return [SERVER];
   if (route === "/servers" && method === "POST") throw new ApiError(403, "the demo has a fixed server list");
   if (route === "/servers/provision/defaults") return { available: false };
+  if (route === "/host") return { available: false, reason: "the demo runs without an Anvil host service" };
   if (route === "/servers/provision/discover") return { available: false, servers: [] };
   if (route === "/servers/provision" && method === "POST") throw new ApiError(403, "provisioning is disabled in the demo");
   if (route === "/servers/1" && method === "GET") return SERVER;

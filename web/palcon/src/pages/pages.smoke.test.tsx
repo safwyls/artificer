@@ -46,6 +46,7 @@ const overrides: Record<string, unknown> = {
   listBackups: { snapshots: [], intervalHours: 0, keep: 3, running: false },
   provisionDefaults: { available: false },
   provisionDiscover: { available: false, servers: [] },
+  hostOverview: { available: false, reason: "no anvil in the smoke tests" },
   // Shaped to the real DTOs, not to whatever a page happens to read. A stub
   // missing a field the API contract guarantees makes the page look broken
   // when it is the stub that lied — and worse, an over-narrow stub would
@@ -108,6 +109,7 @@ import { ServerMap } from "./ServerMap";
 import { ServerPaldex } from "./ServerPaldex";
 import { ServerPlayers } from "./ServerPlayers";
 import { ServerStorage } from "./ServerStorage";
+import { Host } from "./Host";
 import { Users } from "./Users";
 
 /** Renders a page at a route that supplies the params it reads, returning
@@ -139,6 +141,7 @@ const pages: [string, ReactElement, string, string][] = [
   ["Login", <Login />, "/login", "/login"],
   ["PublicStatus", <PublicStatus />, "/status/:token", "/status/abc"],
   ["Users", <Users />, "/users", "/users"],
+  ["Host", <Host />, "/host", "/host"],
   ["ServerDashboard", <ServerDashboard />, SERVER_ROUTE, SERVER_PATH],
   ["ServerActivity", <ServerActivity />, SERVER_ROUTE, SERVER_PATH],
   ["ServerAutomation", <ServerAutomation />, SERVER_ROUTE, SERVER_PATH],

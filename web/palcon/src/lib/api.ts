@@ -811,6 +811,82 @@ export interface StorageResult {
   saveModTime: string;
 }
 
+// --- Host dashboard (GET /api/host) ---
+// The read-only window onto the machine Anvil manages for this console:
+// every container on the host (this console's and everyone else's), every
+// published port, every image spending its disk. Admin-only server-side.
+
+export interface HostPortMap {
+  host: number;
+  container: number;
+  proto?: string;
+}
+
+export interface HostContainer {
+  name: string;
+  image: string;
+  running: boolean;
+  /** Docker's lifecycle word (created, running, paused, exited); empty on
+   * an Anvil from before the field existed — `running` is the fallback. */
+  state?: string;
+  /** Docker's human sentence ("Up 3 hours", "Exited (137) 2 days ago") —
+   * the only place the exit code and the age appear. */
+  status?: string;
+  created?: number;
+  /** Managed: Anvil placed it. Mine: this console may act on it. Foreign
+   * and unmanaged rows are context — they hold ports and disk. */
+  managed: boolean;
+  mine: boolean;
+  slug?: string;
+  owner?: string;
+  ports?: HostPortMap[];
+  dataDir?: string;
+  /** Set when a `mine` row matches a registered server, so the dashboard
+   * can link to it. A mine row without one is an orphan: placed by this
+   * console, registered nowhere (the adopt flow's job). */
+  serverId?: number;
+  serverName?: string;
+}
+
+export interface HostTakenPort {
+  port: number;
+  proto: string;
+  container: string;
+}
+
+export interface HostImage {
+  id: string;
+  /** Empty = dangling: a newer pull of the same tag orphaned it. */
+  tags: string[];
+  size: number;
+  created: number;
+  containers: string[];
+}
+
+export interface HostHealth {
+  service: string;
+  version: string;
+  client: string;
+  dataRoot: string;
+  publicHost?: string;
+  allowedImagePrefixes?: string[];
+  dockerOk: boolean;
+}
+
+export interface HostOverview {
+  available: boolean;
+  /** Why the dashboard is unavailable (no Anvil wired), when it is. */
+  reason?: string;
+  anvilURL?: string;
+  health?: HostHealth;
+  healthError?: string;
+  containers?: HostContainer[];
+  ports?: HostTakenPort[];
+  fleetError?: string;
+  images?: HostImage[];
+  imagesError?: string;
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<{ username: string }>("/login", { method: "POST", body: JSON.stringify({ username, password }) }),
@@ -828,6 +904,9 @@ export const api = {
   updateUser: (id: number, input: UserWriteInput) =>
     request<AppUser>(`/users/${id}`, { method: "PUT", body: JSON.stringify(input) }),
   deleteUser: (id: number) => request<void>(`/users/${id}`, { method: "DELETE" }),
+
+  // The host dashboard — admin-only, like the wizard endpoints beside it.
+  hostOverview: () => request<HostOverview>("/host"),
 
   containerStatus: (id: number) => request<ContainerState>(`/servers/${id}/container`),
   containerAction: (id: number, action: "start" | "stop" | "restart") =>

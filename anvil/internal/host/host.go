@@ -170,6 +170,7 @@ func (s *Service) Handler() http.Handler {
 		// stop colliding with the first.
 		r.Get("/containers", s.handleListContainers)
 		r.Get("/ports", s.handlePorts)
+		r.Get("/images", s.handleListImages)
 	})
 	return r
 }

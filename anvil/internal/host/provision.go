@@ -348,6 +348,14 @@ type ManagedContainer struct {
 	Name    string `json:"name"`
 	Image   string `json:"image"`
 	Running bool   `json:"running"`
+	// State is docker's word for where the container is in its lifecycle
+	// (created, running, paused, exited, ...); Status is docker's human
+	// sentence for it ("Up 3 hours", "Exited (137) 2 days ago"), which is
+	// the only place the exit code and the age appear. Running stays for
+	// clients from before these fields existed.
+	State   string `json:"state,omitempty"`
+	Status  string `json:"status,omitempty"`
+	Created int64  `json:"created,omitempty"` // unix seconds
 	// Managed reports whether Anvil made it; Mine whether the calling
 	// console may act on it. Unmanaged and foreign containers are still
 	// listed — they hold ports and disk, and leaving them out is how a
@@ -382,6 +390,7 @@ func (s *Service) handleListContainers(w http.ResponseWriter, r *http.Request) {
 		owner, slug, ok := ownerOf(c.Labels)
 		row := ManagedContainer{
 			Name: c.Name, Image: c.Image, Running: c.State == "running",
+			State: c.State, Status: c.Status, Created: c.Created,
 			Managed: ok, Owner: owner,
 			// Mine marks the rows this console may act on; everything else
 			// is context for port and name decisions, nothing more.
@@ -436,6 +445,74 @@ func (s *Service) handlePorts(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Port < out[j].Port })
 	writeJSON(w, http.StatusOK, map[string]any{"ports": out})
+}
+
+// HostImage is one image on the host's disk, and what is using it.
+type HostImage struct {
+	ID string `json:"id"`
+	// Tags are the image's repo:tag names. Empty means dangling: a newer
+	// pull of the same tag orphaned this one, and only its containers (if
+	// any) keep it interesting.
+	Tags    []string `json:"tags"`
+	Size    int64    `json:"size"`    // bytes
+	Created int64    `json:"created"` // unix seconds
+	// Containers names every container created from this image, running or
+	// not — visibly nothing for an image only disk space still holds.
+	Containers []string `json:"containers"`
+}
+
+// handleListImages reports every image on the host and which containers use
+// it. Same visibility rule as the container list: everything, whoever pulled
+// it, because disk is as shared as ports — one console cannot see why the
+// host is full if it can only see its own images. Names and sizes only;
+// there is nothing secret in an image reference.
+func (s *Service) handleListImages(w http.ResponseWriter, r *http.Request) {
+	images, err := s.docker.ImageList(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	containers, err := s.docker.ContainerList(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	out := make([]HostImage, 0, len(images))
+	for _, img := range images {
+		row := HostImage{
+			ID: img.ID, Tags: img.Tags, Size: img.Size, Created: img.Created,
+			Containers: []string{},
+		}
+		for _, c := range containers {
+			// Match by image ID first — it survives the tag moving on — and
+			// fall back to the name for daemons that omit ImageID.
+			if (c.ImageID != "" && c.ImageID == img.ID) || matchesTag(img.Tags, c.Image) {
+				row.Containers = append(row.Containers, c.Name)
+			}
+		}
+		sort.Strings(row.Containers)
+		out = append(out, row)
+	}
+	// Biggest first: the question this list answers is "what is the disk
+	// spent on", and the answer should lead.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Size != out[j].Size {
+			return out[i].Size > out[j].Size
+		}
+		return out[i].ID < out[j].ID
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"images": out})
+}
+
+// matchesTag reports whether a container's image reference names one of an
+// image's tags, allowing the bare-name-means-latest shorthand.
+func matchesTag(tags []string, ref string) bool {
+	for _, t := range tags {
+		if t == ref || t == ref+":latest" {
+			return true
+		}
+	}
+	return false
 }
 
 // splitPortSpec parses docker's "7777/udp" container-side port notation.

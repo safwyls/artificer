@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LogOut, Plus, Users as UsersIcon } from "lucide-react";
+import { HardDrive, LogOut, Plus, Users as UsersIcon } from "lucide-react";
 import { type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
@@ -50,6 +50,25 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
       )}
 
       <div className="flex-1" />
+
+      {isAdmin && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => navigate("/host")}
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-full transition",
+                location.pathname === "/host"
+                  ? "bg-white/10 text-paper"
+                  : "text-paper/40 hover:bg-white/10 hover:text-paper",
+              )}
+            >
+              <HardDrive className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Host</TooltipContent>
+        </Tooltip>
+      )}
 
       {isAdmin && (
         <Tooltip>

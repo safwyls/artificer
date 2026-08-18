@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { Login } from "./pages/Login";
 import { EmptyState } from "./pages/EmptyState";
+import { Host } from "./pages/Host";
 import { Users } from "./pages/Users";
 import { ServerAutomation } from "./pages/ServerAutomation";
 import { ServerActivity } from "./pages/ServerActivity";
@@ -52,6 +53,14 @@ export function App() {
             element={
               <RequireAdmin>
                 <Users />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/host"
+            element={
+              <RequireAdmin>
+                <Host />
               </RequireAdmin>
             }
           />

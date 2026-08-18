@@ -154,6 +154,10 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 
 			// Registered flat rather than via r.Route: a subrouter's "/"
 			// only matches /users/, so POST /api/users 404s.
+			// The host dashboard: what Anvil holds on this machine —
+			// containers, ports, images. Read-only; see host.go.
+			r.With(s.requireAdmin).Get("/host", s.handleHostOverview)
+
 			r.With(s.requireAdmin).Get("/users", s.handleListUsers)
 			r.With(s.requireAdmin).Post("/users", s.handleCreateUser)
 			r.With(s.requireAdmin).Put("/users/{userID}", s.handleUpdateUser)

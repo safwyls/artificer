@@ -27,7 +27,11 @@ for the monorepo restated as a table of contents.
    not change. Prerequisite for genuinely cross-host deployments.
 4. **Resource telemetry.** Container memory and CPU surfaced per server,
    via Anvil's fleet view or agent-side sampling, so "this server is
-   getting heavy" is visible before the OOM.
+   getting heavy" is visible before the OOM. The surface to hang it on
+   landed 2026-08-18: every console's Host dashboard already renders
+   Anvil's fleet view (containers with lifecycle state, published ports,
+   images with their disk cost); a per-row memory/CPU column is the
+   missing half.
 5. **Auth beyond bootstrap admin.** Users, roles and Cloudflare Access SSO
    all exist; OIDC or proxy-auth would let a household SSO into it without
    Cloudflare.

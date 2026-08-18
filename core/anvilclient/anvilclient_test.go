@@ -220,3 +220,52 @@ func TestPortsAndContainersReadTheWholeHost(t *testing.T) {
 		t.Errorf("foreign row lost its ports: %+v", found[1])
 	}
 }
+
+func TestContainersCarryLifecycleState(t *testing.T) {
+	c := fakeAnvil(t, map[string]route{
+		"/v1/containers": {http.StatusOK, `{"containers":[
+			{"name":"palagent-palhalla","image":"ghcr.io/safwyls/palagent:latest","running":false,
+			 "state":"exited","status":"Exited (137) 2 days ago","created":1755300000,
+			 "managed":true,"mine":true,"slug":"palhalla"}]}`},
+	})
+	found, err := c.Containers(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := found[0]
+	if row.State != "exited" || row.Status != "Exited (137) 2 days ago" || row.Created != 1755300000 {
+		t.Errorf("lifecycle fields lost in transit: %+v", row)
+	}
+}
+
+func TestImagesListsTheHostsDisk(t *testing.T) {
+	c := fakeAnvil(t, map[string]route{
+		"/v1/images": {http.StatusOK, `{"images":[
+			{"id":"sha256:wk1","tags":["ghcr.io/safwyls/wkagent:latest"],"size":900000000,"created":1755000000,
+			 "containers":["wkagent-ashenfall"]},
+			{"id":"sha256:old1","tags":[],"size":870000000,"created":1754000000,"containers":[]}]}`},
+	})
+	images, err := c.Images(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(images) != 2 || images[0].Size != 900000000 || images[0].Containers[0] != "wkagent-ashenfall" {
+		t.Errorf("images = %+v", images)
+	}
+	// The dangling image arrives with no tags and no users — its size is
+	// the whole story.
+	if len(images[1].Tags) != 0 || len(images[1].Containers) != 0 {
+		t.Errorf("dangling image = %+v", images[1])
+	}
+}
+
+// An Anvil from before /v1/images answers 404; the client must surface
+// that as ErrNotFound so the console can say "upgrade Anvil to see images"
+// instead of showing an empty host.
+func TestImagesOnAnOlderAnvilIsNotFound(t *testing.T) {
+	c := fakeAnvil(t, map[string]route{})
+	_, err := c.Images(context.Background())
+	if !errors.Is(err, anvilclient.ErrNotFound) {
+		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+}

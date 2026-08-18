@@ -71,6 +71,7 @@ const overrides: Record<string, unknown> = {
   },
   provisionDefaults: { available: false },
   provisionDiscover: { available: false, servers: [] },
+  hostOverview: { available: false, reason: "no anvil in the smoke tests" },
   // Shaped to the real DTOs, not to whatever a page happens to read. A stub
   // missing a field the API contract guarantees makes the page look broken
   // when it is the stub that lied — and worse, an over-narrow stub would
@@ -134,6 +135,7 @@ import { Login } from "./Login";
 import { PublicStatus } from "./PublicStatus";
 import { ServerActivity } from "./ServerActivity";
 import { ServerAutomation } from "./ServerAutomation";
+import { Host } from "./Host";
 import { Users } from "./Users";
 import { FtOverview } from "./flametender/FtOverview";
 import { FtFlameborn } from "./flametender/FtFlameborn";
@@ -170,6 +172,7 @@ const pages: [string, ReactElement, string, string][] = [
   ["Login", <Login />, "/login", "/login"],
   ["PublicStatus", <PublicStatus />, "/status/:token", "/status/abc"],
   ["Users", <Users />, "/users", "/users"],
+  ["Host", <Host />, "/host", "/host"],
   ["ServerActivity", <ServerActivity />, SERVER_ROUTE, SERVER_PATH],
   ["ServerAutomation", <ServerAutomation />, SERVER_ROUTE, SERVER_PATH],
   ["FtOverview", <FtOverview />, SERVER_ROUTE, SERVER_PATH],

@@ -184,11 +184,19 @@ func (c *Client) ContainerRemove(ctx context.Context, id string) error {
 
 // ContainerSummary is the discovery-relevant subset of a container.
 type ContainerSummary struct {
-	ID     string
-	Name   string
-	Image  string
-	State  string // running, exited, ...
-	Labels map[string]string
+	ID    string
+	Name  string
+	Image string
+	// ImageID ties the container to a row in ImageList even when the tag it
+	// was created from has since moved to a newer image.
+	ImageID string
+	State   string // running, exited, ...
+	// Status is docker's human sentence for the state ("Up 3 hours",
+	// "Exited (137) 2 days ago") — the exit code and the age live nowhere
+	// else in the list response.
+	Status  string
+	Created int64 // unix seconds
+	Labels  map[string]string
 	// Ports maps "containerPort/proto" -> published host port (absent when
 	// unpublished).
 	Ports map[string]int
@@ -204,12 +212,15 @@ func (c *Client) ContainerList(ctx context.Context) ([]ContainerSummary, error) 
 		return nil, dockerError("container list", status, body)
 	}
 	var raw []struct {
-		ID     string            `json:"Id"`
-		Names  []string          `json:"Names"`
-		Image  string            `json:"Image"`
-		State  string            `json:"State"`
-		Labels map[string]string `json:"Labels"`
-		Ports  []struct {
+		ID      string            `json:"Id"`
+		Names   []string          `json:"Names"`
+		Image   string            `json:"Image"`
+		ImageID string            `json:"ImageID"`
+		State   string            `json:"State"`
+		Status  string            `json:"Status"`
+		Created int64             `json:"Created"`
+		Labels  map[string]string `json:"Labels"`
+		Ports   []struct {
 			PrivatePort int    `json:"PrivatePort"`
 			PublicPort  int    `json:"PublicPort"`
 			Type        string `json:"Type"`
@@ -230,7 +241,57 @@ func (c *Client) ContainerList(ctx context.Context) ([]ContainerSummary, error) 
 				ports[fmt.Sprintf("%d/%s", p.PrivatePort, p.Type)] = p.PublicPort
 			}
 		}
-		out = append(out, ContainerSummary{ID: r.ID, Name: name, Image: r.Image, State: r.State, Labels: r.Labels, Ports: ports})
+		out = append(out, ContainerSummary{
+			ID: r.ID, Name: name, Image: r.Image, ImageID: r.ImageID,
+			State: r.State, Status: r.Status, Created: r.Created,
+			Labels: r.Labels, Ports: ports,
+		})
+	}
+	return out, nil
+}
+
+// ImageSummary is one image held on the host's disk.
+type ImageSummary struct {
+	ID string
+	// Tags are the image's repo:tag names; empty for a dangling image (one
+	// a newer pull of the same tag has orphaned).
+	Tags    []string
+	Size    int64 // bytes
+	Created int64 // unix seconds
+}
+
+// ImageList returns every image on the host. The fleet view is the caller:
+// images are what a host's disk is mostly spent on, and a dangling one —
+// left behind each time a :latest moves — is invisible from any container
+// row.
+func (c *Client) ImageList(ctx context.Context) ([]ImageSummary, error) {
+	body, status, err := c.do(ctx, http.MethodGet, "/images/json?all=0", 20*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, dockerError("image list", status, body)
+	}
+	var raw []struct {
+		ID       string   `json:"Id"`
+		RepoTags []string `json:"RepoTags"`
+		Size     int64    `json:"Size"`
+		Created  int64    `json:"Created"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("parsing image list: %w", err)
+	}
+	out := make([]ImageSummary, 0, len(raw))
+	for _, r := range raw {
+		tags := make([]string, 0, len(r.RepoTags))
+		for _, t := range r.RepoTags {
+			// Older daemons report a dangling image as "<none>:<none>"
+			// rather than an empty list; either way it has no usable name.
+			if t != "<none>:<none>" {
+				tags = append(tags, t)
+			}
+		}
+		out = append(out, ImageSummary{ID: r.ID, Tags: tags, Size: r.Size, Created: r.Created})
 	}
 	return out, nil
 }
