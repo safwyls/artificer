@@ -438,6 +438,12 @@ func TestImagesAreScopedToWhatAnvilRecognizes(t *testing.T) {
 	if len(rows) != 3 {
 		t.Fatalf("got %d images, want the 2 allowlisted + 1 pinned untagged: %v", len(rows), rows)
 	}
+	// The response says it scoped itself — the flag a console reads to know
+	// it need not (coarsely) re-scope the answer as it must for the first
+	// /v1/images Anvil, which reported the whole host.
+	if m["scoped"] != true {
+		t.Errorf("a scoped answer must say so: %v", m)
+	}
 	// Sorted biggest first — the list answers "what is the disk spent on".
 	first, _ := rows[0].(map[string]any)
 	if first["id"] != "sha256:wk1" {

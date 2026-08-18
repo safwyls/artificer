@@ -35,7 +35,12 @@ the page). Deliberately scoped to Anvil's stack: on a shared box the
 unrelated apps and their images stay out of the browser entirely
 (`?managed=1` on `/v1/containers`, allowlist-scoped `/v1/images`), while
 the wizard keeps its host-wide port view internally so proposals still
-cannot collide. Containers Anvil labels as this console's but that match
+cannot collide. Both scopings hold against an older deployed Anvil too:
+the console re-filters containers by their `managed` flag, and re-scopes
+an images answer that lacks the newer `scoped: true` declaration — hit
+for real on 2026-08-18, when updated consoles ran against the
+pre-scoping Anvil still deployed on the host and every image on the
+machine reached the page. Containers Anvil labels as this console's but that match
 no server row are flagged as adoptable orphans; both lists filter and
 sort. Read-only by design: every mutation stays with the flow that owns
 it.

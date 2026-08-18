@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/safwyls/artificer/core/anvilclient"
 )
@@ -28,7 +29,7 @@ import (
 type fleetSource interface {
 	FleetHealth(ctx context.Context) (*anvilclient.Health, error)
 	FleetContainers(ctx context.Context) ([]anvilclient.ManagedContainer, error)
-	FleetImages(ctx context.Context) ([]anvilclient.HostImage, error)
+	FleetImages(ctx context.Context) (*anvilclient.HostImages, error)
 }
 
 // hostContainerView is one fleet row, joined against this console's own
@@ -133,9 +134,56 @@ func (s *Server) handleHostOverview(w http.ResponseWriter, r *http.Request) {
 		out.ImagesError = "this Anvil does not report images yet — upgrade it to ghcr.io/safwyls/anvil:latest to see the host's disk"
 	case err != nil:
 		out.ImagesError = err.Error()
+	case images.Scoped:
+		out.Images = images.Images
 	default:
-		out.Images = images
+		// The first Anvil to serve /v1/images reported every image on the
+		// host, and only a newer one says it scoped the list itself (the
+		// containers list has no such gap — Managed rides on every row, so
+		// its defensive filter above works against any Anvil). Re-scope
+		// here with what this console knows: its own allowlist standing in
+		// for the union of every console's, and its managed container list
+		// for "pinned by any managed container". Coarser — another
+		// console's freshly pulled, not-yet-used image under a custom
+		// allowlist gets dropped — but the failure mode is a missing row
+		// against an outdated Anvil, not a shared host's unrelated apps
+		// reaching a browser.
+		managedNames := make(map[string]bool, len(out.Containers))
+		for _, c := range out.Containers {
+			managedNames[c.Name] = true
+		}
+		var ownPrefixes []string
+		if out.Health != nil {
+			ownPrefixes = out.Health.AllowedImagePrefixes
+		}
+		kept := make([]anvilclient.HostImage, 0, len(images.Images))
+		for _, img := range images.Images {
+			if imageRecognized(img, ownPrefixes, managedNames) {
+				kept = append(kept, img)
+			}
+		}
+		out.Images = kept
 	}
 
 	writeJSON(w, http.StatusOK, out)
+}
+
+// imageRecognized approximates Anvil's own image scoping from the console
+// side: a tag under this console's allowlist, or use by a container Anvil
+// manages. The empty-prefix guard matters — a blank allowlist entry would
+// otherwise recognize everything and undo the scoping.
+func imageRecognized(img anvilclient.HostImage, ownPrefixes []string, managedNames map[string]bool) bool {
+	for _, t := range img.Tags {
+		for _, p := range ownPrefixes {
+			if p != "" && strings.HasPrefix(t, p) {
+				return true
+			}
+		}
+	}
+	for _, name := range img.Containers {
+		if managedNames[name] {
+			return true
+		}
+	}
+	return false
 }

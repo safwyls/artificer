@@ -534,7 +534,13 @@ func (s *Service) handleListImages(w http.ResponseWriter, r *http.Request) {
 		}
 		return out[i].ID < out[j].ID
 	})
-	writeJSON(w, http.StatusOK, map[string]any{"images": out})
+	// scoped declares that this service filtered the list itself. The first
+	// Anvil to serve /v1/images did not — it reported every image on the
+	// host — and nothing else about the response tells the two apart, so
+	// without this a console cannot know whether it must re-scope the
+	// answer or can trust it (its own approximation is coarser: it knows
+	// its own allowlist, not the union of every console's).
+	writeJSON(w, http.StatusOK, map[string]any{"images": out, "scoped": true})
 }
 
 // matchesTag reports whether a container's image reference names one of an
