@@ -70,3 +70,13 @@ anvil module has its own suite. Save-backed palworld tests need
 Workflow: when a branch is pushed and ready for review, open the PR
 without asking — the maintainer has standing-approved PR creation
 ("always open the pr when appropriate", 2026-08-15).
+
+Before pushing to a branch that already has a PR, **fetch and check
+whether that PR has merged** (the maintainer merges quickly). A merged PR
+is finished: it must not receive new commits and its description must not
+be edited to describe later work. Restart the branch from origin/main,
+rebase any unmerged commits onto it, and open a **new** PR for them. The
+red flag to watch for: a push that answers `[new branch]` for a branch
+you pushed before means its PR merged and the branch was auto-deleted —
+stop and re-check before doing anything else (learned the hard way on
+PR #25, 2026-08-18).
