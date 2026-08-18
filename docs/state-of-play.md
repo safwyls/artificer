@@ -27,13 +27,18 @@ two of which turned out to be live defects, not just missing tests. See the
 ledger's §F rows.
 
 The host dashboard landed 2026-08-18: every console has an admin-only
-Host page (`GET /api/host`) rendering Anvil's fleet view — every container
-on the machine with its lifecycle state, every published port, and the
-images spending the host's disk (Anvil's new `/v1/images`, additive to API
-v1; a console against an older Anvil says "upgrade to see images" rather
-than failing the page). Containers Anvil labels as this console's but that
-match no server row are flagged as adoptable orphans. Read-only by design:
-every mutation stays with the flow that owns it.
+Host page (`GET /api/host`) rendering what Anvil manages on the machine —
+its containers (every console's) with lifecycle state, and the images
+behind them (Anvil's new `/v1/images`, additive to API v1; a console
+against an older Anvil says "upgrade to see images" rather than failing
+the page). Deliberately scoped to Anvil's stack: on a shared box the
+unrelated apps and their images stay out of the browser entirely
+(`?managed=1` on `/v1/containers`, allowlist-scoped `/v1/images`), while
+the wizard keeps its host-wide port view internally so proposals still
+cannot collide. Containers Anvil labels as this console's but that match
+no server row are flagged as adoptable orphans; both lists filter and
+sort. Read-only by design: every mutation stays with the flow that owns
+it.
 
 ## What is verified, and what is not
 

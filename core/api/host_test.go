@@ -19,8 +19,6 @@ type fakeFleet struct {
 	fleetHealthE  error
 	containers    []anvilclient.ManagedContainer
 	containersErr error
-	ports         []anvilclient.TakenPort
-	portsErr      error
 	images        []anvilclient.HostImage
 	imagesErr     error
 }
@@ -31,10 +29,6 @@ func (f *fakeFleet) FleetHealth(ctx context.Context) (*anvilclient.Health, error
 
 func (f *fakeFleet) FleetContainers(ctx context.Context) ([]anvilclient.ManagedContainer, error) {
 	return f.containers, f.containersErr
-}
-
-func (f *fakeFleet) FleetPorts(ctx context.Context) ([]anvilclient.TakenPort, error) {
-	return f.ports, f.portsErr
 }
 
 func (f *fakeFleet) FleetImages(ctx context.Context) ([]anvilclient.HostImage, error) {
@@ -98,8 +92,11 @@ func TestHostOverviewJoinsContainersToServerRows(t *testing.T) {
 			// Foreign: listed, never joined.
 			{Name: "palagent-palhalla", Image: "ghcr.io/safwyls/palagent:latest", Running: true,
 				State: "running", Managed: true, Mine: false, Owner: "palcon"},
+			// Unmanaged: what an old Anvil (no ?managed=1) sends anyway.
+			// The endpoint must drop it — a shared box's unrelated apps are
+			// not this console's to relay.
+			{Name: "nginx", Image: "nginx:latest", Running: true, State: "running", Managed: false},
 		},
-		ports:  []anvilclient.TakenPort{{Port: 25600, Proto: "udp", Container: "gtagent-ashenfall"}},
 		images: []anvilclient.HostImage{{ID: "sha256:gt1", Tags: []string{"ghcr.io/example/gtagent:latest"}, Size: 900, Containers: []string{"gtagent-ashenfall", "gtagent-lost"}}},
 	}
 
@@ -117,12 +114,15 @@ func TestHostOverviewJoinsContainersToServerRows(t *testing.T) {
 	}
 	rows, _ := m["containers"].([]any)
 	if len(rows) != 3 {
-		t.Fatalf("containers = %v", m["containers"])
+		t.Fatalf("containers = %v (unmanaged rows must be dropped, managed ones kept)", m["containers"])
 	}
 	byName := map[string]map[string]any{}
 	for _, r := range rows {
 		row, _ := r.(map[string]any)
 		byName[fmt.Sprint(row["name"])] = row
+	}
+	if _, leaked := byName["nginx"]; leaked {
+		t.Errorf("an unmanaged container leaked to the browser: %v", rows)
 	}
 	joined := byName["gtagent-ashenfall"]
 	if joined["serverId"] != float64(id) || joined["serverName"] != "Ashenfall" {
@@ -137,10 +137,6 @@ func TestHostOverviewJoinsContainersToServerRows(t *testing.T) {
 	}
 	if _, has := byName["palagent-palhalla"]["serverId"]; has {
 		t.Errorf("a foreign container must not join: %v", byName["palagent-palhalla"])
-	}
-	ports, _ := m["ports"].([]any)
-	if len(ports) != 1 {
-		t.Errorf("ports = %v", m["ports"])
 	}
 	images, _ := m["images"].([]any)
 	if len(images) != 1 {

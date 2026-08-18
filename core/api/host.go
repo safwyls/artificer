@@ -8,13 +8,18 @@ import (
 	"github.com/safwyls/artificer/core/anvilclient"
 )
 
-// The host dashboard: everything Anvil holds on this console's behalf —
-// containers (this console's and everyone else's), published ports, and
-// the images spending the host's disk. The consoles deliberately cannot
+// The host dashboard: what Anvil manages on the machine this console
+// deploys to — every Anvil-placed container (this console's and the other
+// consoles'), and the images behind them. The consoles deliberately cannot
 // see the Docker host themselves, which keeps the placement rights in one
 // place but makes the machine invisible to the operator; this endpoint is
-// the read-only window back in, through the same fleet view the wizard's
-// port proposal already uses.
+// the read-only window back in.
+//
+// Deliberately scoped to Anvil's own stack. The host-wide view exists —
+// the wizard reads every published port so its proposals cannot collide —
+// but it exists for port and name decisions inside the console, not for
+// display: on a shared box (a NAS running dozens of unrelated apps) a
+// game console has no business relaying the whole machine to a browser.
 
 // fleetSource is what the dashboard needs from the placement service,
 // beyond the wizard's Provisioner verbs: Anvil's own wire shapes,
@@ -23,7 +28,6 @@ import (
 type fleetSource interface {
 	FleetHealth(ctx context.Context) (*anvilclient.Health, error)
 	FleetContainers(ctx context.Context) ([]anvilclient.ManagedContainer, error)
-	FleetPorts(ctx context.Context) ([]anvilclient.TakenPort, error)
 	FleetImages(ctx context.Context) ([]anvilclient.HostImage, error)
 }
 
@@ -50,7 +54,6 @@ type hostOverview struct {
 	Health      *anvilclient.Health     `json:"health,omitempty"`
 	HealthError string                  `json:"healthError,omitempty"`
 	Containers  []hostContainerView     `json:"containers,omitempty"`
-	Ports       []anvilclient.TakenPort `json:"ports,omitempty"`
 	FleetError  string                  `json:"fleetError,omitempty"`
 	Images      []anvilclient.HostImage `json:"images,omitempty"`
 	ImagesError string                  `json:"imagesError,omitempty"`
@@ -108,17 +111,17 @@ func (s *Server) handleHostOverview(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Containers = make([]hostContainerView, 0, len(containers))
 		for _, c := range containers {
+			// An Anvil from before the ?managed=1 filter answers with every
+			// container on the box; the scoping must hold here regardless.
+			if !c.Managed {
+				continue
+			}
 			row := hostContainerView{ManagedContainer: c}
 			if reg, found := byContainer[c.Name]; found {
 				row.ServerID = reg.id
 				row.ServerName = reg.name
 			}
 			out.Containers = append(out.Containers, row)
-		}
-		if ports, err := fleet.FleetPorts(ctx); err != nil {
-			out.FleetError = err.Error()
-		} else {
-			out.Ports = ports
 		}
 	}
 

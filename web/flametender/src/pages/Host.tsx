@@ -1,16 +1,17 @@
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { AlertTriangle, HardDrive } from "lucide-react";
+import { AlertTriangle, HardDrive, Search } from "lucide-react";
 import { api, errorDetail, type HostContainer, type HostImage, type HostOverview } from "../lib/api";
 import { cn } from "../lib/utils";
 
-/** The host dashboard: what Anvil holds on the machine this console deploys
- * to. Containers Flametender cannot see any other way — other consoles'
- * servers, hand-run stacks, orphans of its own — plus every published port
- * and the images spending the host's disk. Read-only on purpose: every
- * mutation goes through the flow that owns it (the wizard, a server page's
- * power and delete verbs), so this page can show everything without being
- * able to break anything. */
+/** The host dashboard: the containers Anvil manages on the machine this
+ * console deploys to — this console's and the other consoles' — and the
+ * images behind them. Scoped to Anvil's own stack on purpose: on a shared
+ * box (a NAS running dozens of unrelated apps) the rest of the machine is
+ * not this console's to show. Read-only on purpose too: every mutation
+ * goes through the flow that owns it (the wizard, a server page's power
+ * and delete verbs), so this page can see without being able to break. */
 
 export function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0 B";
@@ -25,11 +26,52 @@ export function formatBytes(n: number): string {
 }
 
 /** What one container row is to this console, as a label: a linked server,
- * an orphan of ours, another console's server, or unmanaged. */
+ * an orphan of ours, or another console's server. ("unmanaged" survives as
+ * a defensive label — the API scopes those rows out.) */
 export function containerKind(c: HostContainer): "registered" | "orphan" | "foreign" | "unmanaged" {
   if (!c.managed) return "unmanaged";
   if (!c.mine) return "foreign";
   return c.serverId ? "registered" : "orphan";
+}
+
+type SortDir = 1 | -1;
+
+function SortHeader({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onClick: () => void;
+}) {
+  return (
+    <th className="px-4 py-2.5 font-semibold">
+      <button
+        onClick={onClick}
+        className={cn("uppercase tracking-wide hover:text-ft-bone", active && "text-ft-bone")}
+      >
+        {label}
+        {active && <span aria-hidden> {dir === 1 ? "▲" : "▼"}</span>}
+      </button>
+    </th>
+  );
+}
+
+function FilterInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  return (
+    <label className="flex items-center gap-2 rounded-full border border-ft-edge bg-ft-panel px-3 py-1.5">
+      <Search className="h-3.5 w-3.5 text-ft-bone/40" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-40 bg-transparent text-xs text-ft-bone outline-none placeholder:text-ft-bone/40"
+      />
+    </label>
+  );
 }
 
 function StateBadge({ c }: { c: HostContainer }) {
@@ -38,7 +80,7 @@ function StateBadge({ c }: { c: HostContainer }) {
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold",
-        c.running ? "bg-ft-ok/10 text-ft-ok" : "bg-ft-fog text-ft-lichen",
+        c.running ? "bg-ft-ok/10 text-ft-ok" : "bg-ft-fog text-ft-bone/60",
       )}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", c.running ? "bg-ft-ok" : "bg-ft-lichen/50")} />
@@ -102,24 +144,53 @@ function imageName(img: HostImage): string {
   return `${img.id.replace(/^sha256:/, "").slice(0, 12)} (untagged)`;
 }
 
+type ContainerSortKey = "name" | "state" | "image";
+
 function Containers({ overview }: { overview: HostOverview }) {
-  const rows = overview.containers ?? [];
+  const [filter, setFilter] = useState("");
+  const [sortKey, setSortKey] = useState<ContainerSortKey>("name");
+  const [dir, setDir] = useState<SortDir>(1);
+
+  const sortBy = (key: ContainerSortKey) => {
+    setDir(key === sortKey ? ((-dir) as SortDir) : 1);
+    setSortKey(key);
+  };
+
+  const all = overview.containers ?? [];
+  const rows = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    const kept = all.filter(
+      (c) =>
+        !q ||
+        [c.name, c.image, c.serverName, c.owner, c.slug].some((f) => f?.toLowerCase().includes(q)),
+    );
+    const val = (c: HostContainer) =>
+      sortKey === "name" ? c.name : sortKey === "image" ? c.image : c.running ? `0${c.name}` : `1${c.name}`;
+    return [...kept].sort((a, b) => dir * val(a).localeCompare(val(b)));
+  }, [all, filter, sortKey, dir]);
+
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ft-bone/60">Containers</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-ft-bone/60">Containers</h2>
+        {all.length > 0 && <FilterInput value={filter} onChange={setFilter} placeholder="Filter containers…" />}
+      </div>
       {overview.fleetError && <SectionError message={overview.fleetError} />}
-      {!overview.fleetError && rows.length === 0 && (
-        <p className="text-sm text-ft-bone/50">Nothing is running on this host.</p>
+      {!overview.fleetError && all.length === 0 && (
+        <p className="text-sm text-ft-bone/50">Anvil manages nothing on this host yet.</p>
+      )}
+      {all.length > 0 && rows.length === 0 && (
+        <p className="text-sm text-ft-bone/50">Nothing matches "{filter}".</p>
       )}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-2xl border border-ft-edge bg-ft-panel">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-ft-edge text-xs uppercase tracking-wide text-ft-bone/45">
-                <th className="px-4 py-2.5 font-semibold">Container</th>
-                <th className="px-4 py-2.5 font-semibold">State</th>
+                <SortHeader label="Container" active={sortKey === "name"} dir={dir} onClick={() => sortBy("name")} />
+                <SortHeader label="State" active={sortKey === "state"} dir={dir} onClick={() => sortBy("state")} />
                 <th className="px-4 py-2.5 font-semibold">Server</th>
-                <th className="px-4 py-2.5 font-semibold">Image</th>
+                <SortHeader label="Image" active={sortKey === "image"} dir={dir} onClick={() => sortBy("image")} />
                 <th className="px-4 py-2.5 font-semibold">Host ports</th>
               </tr>
             </thead>
@@ -149,23 +220,58 @@ function Containers({ overview }: { overview: HostOverview }) {
   );
 }
 
+type ImageSortKey = "name" | "size" | "used";
+
 function Images({ overview }: { overview: HostOverview }) {
-  const rows = overview.images ?? [];
+  const [filter, setFilter] = useState("");
+  const [sortKey, setSortKey] = useState<ImageSortKey>("size");
+  const [dir, setDir] = useState<SortDir>(1);
+
+  const sortBy = (key: ImageSortKey) => {
+    setDir(key === sortKey ? ((-dir) as SortDir) : 1);
+    setSortKey(key);
+  };
+
+  const all = overview.images ?? [];
+  const rows = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    const kept = all.filter(
+      (img) =>
+        !q ||
+        img.tags.some((t) => t.toLowerCase().includes(q)) ||
+        img.containers.some((c) => c.toLowerCase().includes(q)) ||
+        img.id.toLowerCase().includes(q),
+    );
+    return [...kept].sort((a, b) => {
+      // Size and use count sort biggest-first on the first click — that is
+      // the question those columns answer; names sort a-to-z.
+      if (sortKey === "size") return dir * (b.size - a.size);
+      if (sortKey === "used") return dir * (b.containers.length - a.containers.length);
+      return dir * imageName(a).localeCompare(imageName(b));
+    });
+  }, [all, filter, sortKey, dir]);
+
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ft-bone/60">Images</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-ft-bone/60">Images</h2>
+        {all.length > 0 && <FilterInput value={filter} onChange={setFilter} placeholder="Filter images…" />}
+      </div>
       {overview.imagesError && <SectionError message={overview.imagesError} />}
-      {!overview.imagesError && rows.length === 0 && (
-        <p className="text-sm text-ft-bone/50">No images on this host.</p>
+      {!overview.imagesError && all.length === 0 && (
+        <p className="text-sm text-ft-bone/50">No Anvil images on this host.</p>
+      )}
+      {all.length > 0 && rows.length === 0 && (
+        <p className="text-sm text-ft-bone/50">Nothing matches "{filter}".</p>
       )}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-2xl border border-ft-edge bg-ft-panel">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-ft-edge text-xs uppercase tracking-wide text-ft-bone/45">
-                <th className="px-4 py-2.5 font-semibold">Image</th>
-                <th className="px-4 py-2.5 font-semibold">Size</th>
-                <th className="px-4 py-2.5 font-semibold">Used by</th>
+                <SortHeader label="Image" active={sortKey === "name"} dir={dir} onClick={() => sortBy("name")} />
+                <SortHeader label="Size" active={sortKey === "size"} dir={dir} onClick={() => sortBy("size")} />
+                <SortHeader label="Used by" active={sortKey === "used"} dir={dir} onClick={() => sortBy("used")} />
               </tr>
             </thead>
             <tbody>
@@ -175,7 +281,7 @@ function Images({ overview }: { overview: HostOverview }) {
                     {imageName(img)}
                     {img.tags.length === 0 && (
                       <span className="ml-2 rounded-full bg-ft-fog px-2 py-0.5 font-sans text-[11px] font-semibold text-ft-bone/50">
-                        dangling
+                        untagged
                       </span>
                     )}
                   </td>
@@ -193,27 +299,6 @@ function Images({ overview }: { overview: HostOverview }) {
   );
 }
 
-function Ports({ overview }: { overview: HostOverview }) {
-  const rows = overview.ports ?? [];
-  if (overview.fleetError || rows.length === 0) return null;
-  return (
-    <section className="space-y-3">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-ft-bone/60">Published ports</h2>
-      <div className="flex flex-wrap gap-2">
-        {rows.map((p) => (
-          <span
-            key={`${p.port}/${p.proto}/${p.container}`}
-            className="rounded-full border border-ft-edge bg-ft-panel px-3 py-1 font-mono text-xs text-ft-bone/70"
-            title={p.container}
-          >
-            {p.port}/{p.proto} <span className="text-ft-bone/40">→ {p.container}</span>
-          </span>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export function Host() {
   const overviewQuery = useQuery({
     queryKey: ["host"],
@@ -226,7 +311,6 @@ export function Host() {
   const runningCount = containers.filter((c) => c.running).length;
   const images = overview?.images ?? [];
   const imagesBytes = images.reduce((sum, i) => sum + i.size, 0);
-  const danglingCount = images.filter((i) => i.tags.length === 0).length;
 
   return (
     <div className="min-h-full">
@@ -234,7 +318,7 @@ export function Host() {
         <div>
           <h1 className="font-display text-xl font-extrabold lg:text-2xl">Host</h1>
           <p className="mt-0.5 text-sm text-ft-bone/50">
-            What Anvil holds on this machine — every console's containers, the ports they publish, the images on disk
+            The containers Anvil manages on this machine — every console's — and the images behind them
           </p>
         </div>
         <HardDrive className="h-6 w-6 text-ft-bone/30" />
@@ -267,24 +351,19 @@ export function Host() {
                 detail={overview.health?.dataRoot && `data root ${overview.health.dataRoot}`}
               />
               <SummaryTile
-                label="Containers"
+                label="Managed containers"
                 value={overview.fleetError ? "—" : `${runningCount} / ${containers.length}`}
-                detail={overview.fleetError ? undefined : "running / total on the host"}
+                detail={overview.fleetError ? undefined : "running / total under Anvil"}
               />
               <SummaryTile
-                label="Images on disk"
+                label="Anvil images on disk"
                 value={overview.imagesError ? "—" : formatBytes(imagesBytes)}
-                detail={
-                  overview.imagesError
-                    ? undefined
-                    : `${images.length} image${images.length === 1 ? "" : "s"}${danglingCount ? `, ${danglingCount} dangling` : ""}`
-                }
+                detail={overview.imagesError ? undefined : `${images.length} image${images.length === 1 ? "" : "s"}`}
               />
             </section>
             {overview.healthError && <SectionError message={overview.healthError} />}
 
             <Containers overview={overview} />
-            <Ports overview={overview} />
             <Images overview={overview} />
           </>
         )}

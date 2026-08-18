@@ -221,6 +221,28 @@ func TestPortsAndContainersReadTheWholeHost(t *testing.T) {
 	}
 }
 
+func TestManagedContainersAsksForTheNarrowedView(t *testing.T) {
+	// fakeAnvil routes on the path alone, so a query-sensitive fixture
+	// needs its own server: assert the ?managed=1 actually goes out.
+	sawManaged := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawManaged = r.URL.Path == "/v1/containers" && r.URL.Query().Get("managed") == "1"
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"containers":[]}`))
+	}))
+	defer srv.Close()
+	c, err := anvilclient.New(srv.URL, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ManagedContainers(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !sawManaged {
+		t.Error("ManagedContainers must request the managed=1 view")
+	}
+}
+
 func TestContainersCarryLifecycleState(t *testing.T) {
 	c := fakeAnvil(t, map[string]route{
 		"/v1/containers": {http.StatusOK, `{"containers":[

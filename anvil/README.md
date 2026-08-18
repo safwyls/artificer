@@ -96,16 +96,22 @@ All routes need `Authorization: Bearer <that console's token>`.
 | POST | `/v1/provision/destroy` | remove one, keeping its data directory |
 | GET | `/v1/discover` | containers this console could adopt: its own, plus unlabelled ones under its image allowlist |
 | POST | `/v1/adopt` | recover one for re-registration, env filtered to the caller's `envPrefix` |
-| GET | `/v1/containers` | every container on the host, ours flagged, with lifecycle state |
+| GET | `/v1/containers` | every container on the host, ours flagged, with lifecycle state; `?managed=1` narrows to Anvil's own |
 | GET | `/v1/ports` | every published host port and what holds it |
-| GET | `/v1/images` | every image on disk, biggest first, with the containers using it |
+| GET | `/v1/images` | the images Anvil recognizes, biggest first, with the containers using them |
 
-`/v1/containers`, `/v1/ports` and `/v1/images` deliberately report
-**everything on the host**, not just Anvil's. A view that only showed its
-own would reproduce exactly the blindness this service replaces. Disk is
-as shared as ports, so images follow the same rule — including dangling
-ones, which no container row can explain. These three back each console's
-Host dashboard page.
+`/v1/containers` and `/v1/ports` deliberately report **everything on the
+host** by default, not just Anvil's: a port proposal that cannot see the
+whole machine is a proposal that can collide, which is exactly the
+blindness this service replaces. Display is the opposite case — on a
+shared box (a NAS running dozens of unrelated apps) the rest of the
+machine is nobody's business here — so the console Host dashboards read
+`?managed=1`, and `/v1/images` scopes itself to Anvil's stack: tags under
+some registered console's allowlist, plus untagged images a managed
+container still pins. The one thing that scoping gives up is a fully
+dangling image of ours (untagged, used by nothing): Docker keeps no
+record of what an untagged image used to be called, so it is
+indistinguishable from any other app's leftovers.
 
 ### Provisioning spec
 

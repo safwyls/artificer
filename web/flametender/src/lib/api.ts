@@ -922,9 +922,10 @@ export interface StorageResult {
 }
 
 // --- Host dashboard (GET /api/host) ---
-// The read-only window onto the machine Anvil manages for this console:
-// every container on the host (this console's and everyone else's), every
-// published port, every image spending its disk. Admin-only server-side.
+// The read-only window onto what Anvil manages for this machine: its
+// containers (this console's and the other consoles') and the images
+// behind them. Scoped to Anvil's own stack — the rest of a shared box is
+// not this console's to show. Admin-only server-side.
 
 export interface HostPortMap {
   host: number;
@@ -943,8 +944,8 @@ export interface HostContainer {
    * the only place the exit code and the age appear. */
   status?: string;
   created?: number;
-  /** Managed: Anvil placed it. Mine: this console may act on it. Foreign
-   * and unmanaged rows are context — they hold ports and disk. */
+  /** Managed: Anvil placed it (always true from the API — unmanaged rows
+   * are scoped out server-side). Mine: this console may act on it. */
   managed: boolean;
   mine: boolean;
   slug?: string;
@@ -958,15 +959,10 @@ export interface HostContainer {
   serverName?: string;
 }
 
-export interface HostTakenPort {
-  port: number;
-  proto: string;
-  container: string;
-}
-
 export interface HostImage {
   id: string;
-  /** Empty = dangling: a newer pull of the same tag orphaned it. */
+  /** Empty = untagged: a newer pull of the same tag orphaned it, and only
+   * a managed container created from it keeps it in this list. */
   tags: string[];
   size: number;
   created: number;
@@ -991,7 +987,6 @@ export interface HostOverview {
   health?: HostHealth;
   healthError?: string;
   containers?: HostContainer[];
-  ports?: HostTakenPort[];
   fleetError?: string;
   images?: HostImage[];
   imagesError?: string;

@@ -340,6 +340,20 @@ func (c *Client) Containers(ctx context.Context) ([]ManagedContainer, error) {
 	return res.Containers, nil
 }
 
+// ManagedContainers is the dashboard's view: only what Anvil manages,
+// whichever console owns it. An Anvil from before the ?managed=1 filter
+// ignores the parameter and answers with everything, so the caller must
+// still drop unmanaged rows itself rather than trusting the narrowing.
+func (c *Client) ManagedContainers(ctx context.Context) ([]ManagedContainer, error) {
+	var res struct {
+		Containers []ManagedContainer `json:"containers"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/v1/containers?managed=1", nil, &res, 30*time.Second); err != nil {
+		return nil, err
+	}
+	return res.Containers, nil
+}
+
 // HostImage is one image on the host's disk: its names, its size, and every
 // container created from it. Shared visibility like ports — disk is spent
 // host-wide, and a dangling image (no tags, no containers) is pure cost no
