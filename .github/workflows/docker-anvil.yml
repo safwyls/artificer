@@ -4,11 +4,13 @@ name: Docker (anvil)
 # with its own Dockerfile, so the build context is anvil/ rather than the
 # repo root — nothing above it is copied in, matching the dependency rule.
 #
-# Two names are published from one build. `anvil` is the name going
-# forward; `ilmari` is a migration channel for deployments that were
-# pinned to the old name before the rename, so they keep receiving
-# updates instead of silently freezing at the last build from the old
-# repo. Drop the ilmari half once the running hosts are repointed.
+# This once also published `ghcr.io/safwyls/ilmari` as a migration channel
+# for hosts pinned to the old name. That was a mistake worth remembering:
+# the service reads only ANVIL_* variables, so the "update" delivered under
+# the old name was a binary that exits 1 on the old config. An alias
+# preserves an image name, not a configuration contract, and for anything
+# that reads its own environment the second is what actually matters.
+# Dropped 2026-08-18, once the running host was repointed.
 on:
   push:
     branches: [main]
@@ -45,9 +47,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/anvil
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ilmari
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/anvil
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}

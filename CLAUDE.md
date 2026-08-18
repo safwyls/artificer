@@ -34,7 +34,9 @@ What each game module carries:
 
 Provisioning is Anvil-only across all three; the legacy
 provisioner-mode agent is retired (`PROVISIONER_URL` → `ANVIL_URL` —
-`docs/palcon-port-verification.md` has the migration).
+`docs/palcon-port-verification.md` has the migration). The live host and
+all three consoles were migrated to `anvil` and `:latest` on 2026-08-18;
+the `ilmari` image name is no longer published.
 
 **Phase 6 is done** (2026-08-18). The four §F guards closed — two were
 live defects, not just missing tests: `anvilclient` had no error taxonomy,
