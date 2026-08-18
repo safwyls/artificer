@@ -366,18 +366,30 @@ type HostImage struct {
 	Containers []string `json:"containers"`
 }
 
-// Images lists every image on the host, biggest first. An Anvil from before
-// the endpoint existed answers 404, which arrives as ErrNotFound — callers
-// should treat that as "this Anvil doesn't report images", not as an empty
-// host.
-func (c *Client) Images(ctx context.Context) ([]HostImage, error) {
-	var res struct {
-		Images []HostImage `json:"images"`
-	}
+// HostImages is Anvil's image listing. Scoped reports whether the Anvil
+// filtered the list to what it recognizes itself: the first Anvil to serve
+// /v1/images reported every image on the host and does not send the field,
+// so false means "this is the whole machine — re-scope it before showing
+// anyone". Kept as a flag rather than assumed, because the caller's own
+// approximation (its own allowlist plus its managed containers) is coarser
+// than the service's union-of-allowlists and should only be used when the
+// service's answer cannot be trusted.
+type HostImages struct {
+	Images []HostImage `json:"images"`
+	Scoped bool        `json:"scoped"`
+}
+
+// Images lists the images Anvil recognizes, biggest first (or, from an
+// older Anvil, every image on the host — see HostImages.Scoped). An Anvil
+// from before the endpoint existed answers 404, which arrives as
+// ErrNotFound — callers should treat that as "this Anvil doesn't report
+// images", not as an empty host.
+func (c *Client) Images(ctx context.Context) (*HostImages, error) {
+	var res HostImages
 	if err := c.do(ctx, http.MethodGet, "/v1/images", nil, &res, 30*time.Second); err != nil {
 		return nil, err
 	}
-	return res.Images, nil
+	return &res, nil
 }
 
 // TakenPort is one published host port and what holds it.

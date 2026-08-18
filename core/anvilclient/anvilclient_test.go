@@ -265,19 +265,40 @@ func TestImagesListsTheHostsDisk(t *testing.T) {
 		"/v1/images": {http.StatusOK, `{"images":[
 			{"id":"sha256:wk1","tags":["ghcr.io/safwyls/wkagent:latest"],"size":900000000,"created":1755000000,
 			 "containers":["wkagent-ashenfall"]},
-			{"id":"sha256:old1","tags":[],"size":870000000,"created":1754000000,"containers":[]}]}`},
+			{"id":"sha256:old1","tags":[],"size":870000000,"created":1754000000,"containers":[]}],
+			"scoped":true}`},
 	})
-	images, err := c.Images(context.Background())
+	res, err := c.Images(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
+	images := res.Images
 	if len(images) != 2 || images[0].Size != 900000000 || images[0].Containers[0] != "wkagent-ashenfall" {
 		t.Errorf("images = %+v", images)
 	}
-	// The dangling image arrives with no tags and no users — its size is
-	// the whole story.
+	// The untagged image arrives with no tags — its size and its pinning
+	// container are the whole story.
 	if len(images[1].Tags) != 0 || len(images[1].Containers) != 0 {
-		t.Errorf("dangling image = %+v", images[1])
+		t.Errorf("untagged image = %+v", images[1])
+	}
+	if !res.Scoped {
+		t.Errorf("a scoping Anvil's answer must carry the flag: %+v", res)
+	}
+}
+
+// The first Anvil to serve /v1/images sent no scoped field: the zero value
+// must come through false, so a caller knows it holds the whole host's
+// image list and re-scopes it before showing anyone.
+func TestImagesFromAPreScopingAnvilSayUnscoped(t *testing.T) {
+	c := fakeAnvil(t, map[string]route{
+		"/v1/images": {http.StatusOK, `{"images":[{"id":"sha256:ng1","tags":["nginx:latest"],"size":1,"created":1,"containers":["nginx"]}]}`},
+	})
+	res, err := c.Images(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Scoped {
+		t.Errorf("an answer without the flag must read as unscoped: %+v", res)
 	}
 }
 

@@ -338,7 +338,7 @@ func (p *AnvilProvisioner) FleetContainers(ctx context.Context) ([]anvilclient.M
 	return p.c.ManagedContainers(ctx)
 }
 
-func (p *AnvilProvisioner) FleetImages(ctx context.Context) ([]anvilclient.HostImage, error) {
+func (p *AnvilProvisioner) FleetImages(ctx context.Context) (*anvilclient.HostImages, error) {
 	return p.c.Images(ctx)
 }
 

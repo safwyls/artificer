@@ -19,7 +19,7 @@ type fakeFleet struct {
 	fleetHealthE  error
 	containers    []anvilclient.ManagedContainer
 	containersErr error
-	images        []anvilclient.HostImage
+	images        *anvilclient.HostImages
 	imagesErr     error
 }
 
@@ -31,7 +31,7 @@ func (f *fakeFleet) FleetContainers(ctx context.Context) ([]anvilclient.ManagedC
 	return f.containers, f.containersErr
 }
 
-func (f *fakeFleet) FleetImages(ctx context.Context) ([]anvilclient.HostImage, error) {
+func (f *fakeFleet) FleetImages(ctx context.Context) (*anvilclient.HostImages, error) {
 	return f.images, f.imagesErr
 }
 
@@ -97,7 +97,10 @@ func TestHostOverviewJoinsContainersToServerRows(t *testing.T) {
 			// not this console's to relay.
 			{Name: "nginx", Image: "nginx:latest", Running: true, State: "running", Managed: false},
 		},
-		images: []anvilclient.HostImage{{ID: "sha256:gt1", Tags: []string{"ghcr.io/example/gtagent:latest"}, Size: 900, Containers: []string{"gtagent-ashenfall", "gtagent-lost"}}},
+		images: &anvilclient.HostImages{
+			Images: []anvilclient.HostImage{{ID: "sha256:gt1", Tags: []string{"ghcr.io/example/gtagent:latest"}, Size: 900, Containers: []string{"gtagent-ashenfall", "gtagent-lost"}}},
+			Scoped: true,
+		},
 	}
 
 	rec := app.do(t, "GET", "/api/host", nil, admin)
@@ -141,6 +144,63 @@ func TestHostOverviewJoinsContainersToServerRows(t *testing.T) {
 	images, _ := m["images"].([]any)
 	if len(images) != 1 {
 		t.Errorf("images = %v", m["images"])
+	}
+}
+
+// The Anvil deployed on the host can be older than the console asking it —
+// the exact skew that shipped: consoles from after the scoping change,
+// Anvil from before it, whose /v1/images reports every image on the
+// machine and whose /v1/containers ignores ?managed=1. Both defensive
+// filters must hold at the console, or a shared host's unrelated apps and
+// images reach the browser anyway.
+func TestHostOverviewRescopesAPreScopingAnvilsAnswer(t *testing.T) {
+	app, admin := newTestAppWithAdmin(t)
+	app.api.Provisioner = &fakeFleet{
+		fleetHealth: &anvilclient.Health{
+			Service: "anvil", DockerOk: true,
+			// The console's own registration allowlist — all it knows.
+			AllowedImagePrefixes: []string{"ghcr.io/example/"},
+		},
+		containers: []anvilclient.ManagedContainer{
+			{Name: "gtagent-ashenfall", Image: "ghcr.io/example/gtagent:latest", Running: true, Managed: true, Mine: true},
+			{Name: "nginx", Image: "nginx:latest", Running: true, Managed: false},
+		},
+		// No Scoped flag: the whole host's images, the old Anvil's answer.
+		images: &anvilclient.HostImages{Images: []anvilclient.HostImage{
+			// Recognized by the console's own allowlist.
+			{ID: "sha256:gt1", Tags: []string{"ghcr.io/example/gtagent:latest"}, Size: 900, Containers: []string{"gtagent-ashenfall"}},
+			// Untagged, but pinned by a managed container — stays.
+			{ID: "sha256:old1", Tags: []string{}, Size: 870, Containers: []string{"gtagent-ashenfall"}},
+			// The shared box's other apps — must not reach the browser.
+			{ID: "sha256:ng1", Tags: []string{"nginx:latest"}, Size: 100, Containers: []string{"nginx"}},
+			{ID: "sha256:pg1", Tags: []string{"postgres:16"}, Size: 400, Containers: []string{}},
+		}},
+	}
+
+	rec := app.do(t, "GET", "/api/host", nil, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d (body %s)", rec.Code, rec.Body)
+	}
+	m := decodeMap(t, rec)
+	images, _ := m["images"].([]any)
+	if len(images) != 2 {
+		t.Fatalf("images = %v, want only the allowlisted and the pinned untagged", m["images"])
+	}
+	for _, r := range images {
+		row, _ := r.(map[string]any)
+		if id := fmt.Sprint(row["id"]); id == "sha256:ng1" || id == "sha256:pg1" {
+			t.Errorf("an unrelated app's image leaked through the old-Anvil path: %v", row)
+		}
+	}
+	// And a scoping Anvil's answer passes through untouched — the
+	// console's coarser approximation must not double-filter it.
+	fleet := app.api.Provisioner.(*fakeFleet)
+	fleet.images.Scoped = true
+	fleet.fleetHealth.AllowedImagePrefixes = nil // even knowing nothing, trust the flag
+	rec = app.do(t, "GET", "/api/host", nil, admin)
+	m = decodeMap(t, rec)
+	if images, _ := m["images"].([]any); len(images) != 4 {
+		t.Errorf("a scoped answer was re-filtered: %v", m["images"])
 	}
 }
 

@@ -113,6 +113,12 @@ dangling image of ours (untagged, used by nothing): Docker keeps no
 record of what an untagged image used to be called, so it is
 indistinguishable from any other app's leftovers.
 
+The images response carries `scoped: true` — a declaration that this
+service filtered the list itself. The first Anvil to serve `/v1/images`
+reported the whole host and sent no such field, and nothing else in the
+response tells the two builds apart; consoles treat its absence as "the
+whole machine" and re-scope the answer before showing anyone.
+
 ### Provisioning spec
 
 ```json
