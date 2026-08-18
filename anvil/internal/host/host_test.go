@@ -414,12 +414,15 @@ func TestFleetRowsCarryLifecycleState(t *testing.T) {
 	}
 }
 
-// Images are as shared as ports: every console sees all of them, joined to
-// the containers using them, with dangling ones visible because they are
-// pure disk cost.
-func TestImagesReportUseAndDangling(t *testing.T) {
+// The image list is scoped to what Anvil recognizes: tags under some
+// registered console's allowlist, plus untagged images a managed container
+// still pins. On a shared box the rest of the daemon's store — every
+// unrelated app's images — is not this service's to relay.
+func TestImagesAreScopedToWhatAnvilRecognizes(t *testing.T) {
 	srv, fake, _ := newService(t)
-	fake.containers = twoConsoles
+	// palhalla's image ID points at the untagged old1: its :latest tag
+	// moved on to pal1, but the running container still pins the old one.
+	fake.containers = strings.Replace(twoConsoles, `"ImageID":"sha256:pal1"`, `"ImageID":"sha256:old1"`, 1)
 	fake.images = `[
 	  {"Id":"sha256:wk1","RepoTags":["ghcr.io/safwyls/wkagent:latest"],"Size":900000000,"Created":1755000000},
 	  {"Id":"sha256:pal1","RepoTags":["ghcr.io/safwyls/palagent:latest"],"Size":400000000,"Created":1755100000},
@@ -432,8 +435,8 @@ func TestImagesReportUseAndDangling(t *testing.T) {
 		t.Fatalf("images: %d %v", resp.StatusCode, m)
 	}
 	rows, _ := m["images"].([]any)
-	if len(rows) != 4 {
-		t.Fatalf("got %d images, want all 4: %v", len(rows), rows)
+	if len(rows) != 3 {
+		t.Fatalf("got %d images, want the 2 allowlisted + 1 pinned untagged: %v", len(rows), rows)
 	}
 	// Sorted biggest first — the list answers "what is the disk spent on".
 	first, _ := rows[0].(map[string]any)
@@ -445,19 +448,45 @@ func TestImagesReportUseAndDangling(t *testing.T) {
 		row, _ := r.(map[string]any)
 		byID[fmt.Sprint(row["id"])] = row
 	}
+	// nginx's image is another app's business entirely.
+	if _, leaked := byID["sha256:ng1"]; leaked {
+		t.Errorf("an unrelated app's image leaked into the list: %v", rows)
+	}
 	if got := fmt.Sprint(byID["sha256:wk1"]["containers"]); got != "[wkagent-ashenfall]" {
 		t.Errorf("wkagent image should name its container: %v", got)
 	}
-	// The exited container still pins its image — created-from, not running-on.
-	if got := fmt.Sprint(byID["sha256:pal1"]["containers"]); got != "[palagent-palhalla]" {
-		t.Errorf("an exited container still uses its image: %v", got)
+	// The untagged image stays because a managed container (exited, even)
+	// was created from it — created-from, not running-on.
+	pinned := byID["sha256:old1"]
+	if pinned == nil {
+		t.Fatalf("the untagged image a managed container pins should be listed: %v", rows)
 	}
-	dangling := byID["sha256:old1"]
-	if tags, _ := dangling["tags"].([]any); len(tags) != 0 {
-		t.Errorf("a dangling image should carry no tags: %v", dangling)
+	if got := fmt.Sprint(pinned["containers"]); got != "[palagent-palhalla]" {
+		t.Errorf("the pinned untagged image should name its container: %v", got)
 	}
-	if got := fmt.Sprint(dangling["containers"]); got != "[]" {
-		t.Errorf("nothing uses the dangling image: %v", got)
+	// The freshly-pulled palagent image is recognized by prefix even though
+	// nothing was created from it yet.
+	if got := fmt.Sprint(byID["sha256:pal1"]["containers"]); got != "[]" {
+		t.Errorf("the new tag has no containers yet: %v", got)
+	}
+}
+
+// ?managed=1 is the dashboard's view: only what Anvil manages, whichever
+// console owns it. The unrelated apps sharing the box stay out of it.
+func TestContainersManagedFilter(t *testing.T) {
+	srv, fake, _ := newService(t)
+	fake.containers = twoConsoles
+
+	_, m := do(t, srv, "GET", "/v1/containers?managed=1", nil)
+	rows, _ := m["containers"].([]any)
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want only the 2 managed: %v", len(rows), rows)
+	}
+	for _, r := range rows {
+		row, _ := r.(map[string]any)
+		if row["name"] == "nginx" {
+			t.Errorf("an unmanaged container leaked through the filter: %v", row)
+		}
 	}
 }
 

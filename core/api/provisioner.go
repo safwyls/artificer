@@ -335,11 +335,7 @@ func (p *AnvilProvisioner) FleetHealth(ctx context.Context) (*anvilclient.Health
 }
 
 func (p *AnvilProvisioner) FleetContainers(ctx context.Context) ([]anvilclient.ManagedContainer, error) {
-	return p.c.Containers(ctx)
-}
-
-func (p *AnvilProvisioner) FleetPorts(ctx context.Context) ([]anvilclient.TakenPort, error) {
-	return p.c.Ports(ctx)
+	return p.c.ManagedContainers(ctx)
 }
 
 func (p *AnvilProvisioner) FleetImages(ctx context.Context) ([]anvilclient.HostImage, error) {

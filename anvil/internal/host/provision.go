@@ -371,23 +371,32 @@ type ManagedContainer struct {
 
 // handleListContainers reports every container on the host, ours or not.
 //
-// Deliberately everything: the reason this service exists is that two
-// consoles could not see past their own containers, and a view that only
-// showed Anvil's would reproduce exactly that blindness one level up.
-// Nothing about a container's configuration is included — env carries
-// tokens and passwords, and a fleet view is not worth leaking them for.
-// (Adopt is the one deliberate exception, scoped to the caller's own env
-// namespace; its justification lives on AdoptResult.)
+// Deliberately everything by default: the reason this service exists is
+// that two consoles could not see past their own containers, and a view
+// that only showed Anvil's would reproduce exactly that blindness one
+// level up. Nothing about a container's configuration is included — env
+// carries tokens and passwords, and a fleet view is not worth leaking
+// them for. (Adopt is the one deliberate exception, scoped to the
+// caller's own env namespace; its justification lives on AdoptResult.)
+//
+// ?managed=1 narrows the answer to containers Anvil manages, whichever
+// console owns them. That is the host-dashboard view: on a shared box a
+// game console has no business relaying every unrelated app to a browser,
+// and the full list exists for port and name decisions, not for display.
 func (s *Service) handleListContainers(w http.ResponseWriter, r *http.Request) {
 	containers, err := s.docker.ContainerList(r.Context())
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	managedOnly := r.URL.Query().Get("managed") == "1"
 	me := caller(r)
 	out := make([]ManagedContainer, 0, len(containers))
 	for _, c := range containers {
 		owner, slug, ok := ownerOf(c.Labels)
+		if managedOnly && !ok {
+			continue
+		}
 		row := ManagedContainer{
 			Name: c.Name, Image: c.Image, Running: c.State == "running",
 			State: c.State, Status: c.Status, Created: c.Created,
@@ -461,11 +470,22 @@ type HostImage struct {
 	Containers []string `json:"containers"`
 }
 
-// handleListImages reports every image on the host and which containers use
-// it. Same visibility rule as the container list: everything, whoever pulled
-// it, because disk is as shared as ports — one console cannot see why the
-// host is full if it can only see its own images. Names and sizes only;
-// there is nothing secret in an image reference.
+// handleListImages reports the images Anvil recognizes and which
+// containers use them.
+//
+// Recognized, not everything: an image is listed when a tag falls under
+// some registered console's allowlist — anything Anvil could have pulled —
+// or when a container Anvil manages was created from it, which is what
+// keeps an untagged image visible after a newer pull of the same tag
+// orphans it under a still-running server. On a shared box (a NAS full of
+// unrelated apps) the rest of the daemon's image store is someone else's
+// business: relaying it to a console's browser is clutter at best and a
+// map of the whole machine at worst. Names and sizes only either way.
+//
+// The one thing this scoping gives up: a fully dangling image of ours —
+// untagged and used by nothing. Docker keeps no record of what a
+// dangling image's tag used to be, so it is indistinguishable from any
+// other app's leftovers, and staying quiet beats guessing.
 func (s *Service) handleListImages(w http.ResponseWriter, r *http.Request) {
 	images, err := s.docker.ImageList(r.Context())
 	if err != nil {
@@ -477,18 +497,31 @@ func (s *Service) handleListImages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	prefixes := s.recognizedPrefixes()
 	out := make([]HostImage, 0, len(images))
 	for _, img := range images {
 		row := HostImage{
 			ID: img.ID, Tags: img.Tags, Size: img.Size, Created: img.Created,
 			Containers: []string{},
 		}
+		usedByManaged := false
 		for _, c := range containers {
-			// Match by image ID first — it survives the tag moving on — and
-			// fall back to the name for daemons that omit ImageID.
-			if (c.ImageID != "" && c.ImageID == img.ID) || matchesTag(img.Tags, c.Image) {
-				row.Containers = append(row.Containers, c.Name)
+			// Match by image ID — it stays true after the tag moves on to a
+			// newer image — falling back to the name only for daemons that
+			// omit ImageID (where the name is all there is).
+			match := c.ImageID == img.ID
+			if c.ImageID == "" {
+				match = matchesTag(img.Tags, c.Image)
 			}
+			if match {
+				row.Containers = append(row.Containers, c.Name)
+				if _, _, ok := ownerOf(c.Labels); ok {
+					usedByManaged = true
+				}
+			}
+		}
+		if !hasAnyPrefix(img.Tags, prefixes) && !usedByManaged {
+			continue
 		}
 		sort.Strings(row.Containers)
 		out = append(out, row)
@@ -510,6 +543,28 @@ func matchesTag(tags []string, ref string) bool {
 	for _, t := range tags {
 		if t == ref || t == ref+":latest" {
 			return true
+		}
+	}
+	return false
+}
+
+// recognizedPrefixes is the union of every registered console's image
+// allowlist — everything this service could ever have been asked to pull.
+func (s *Service) recognizedPrefixes() []string {
+	var out []string
+	for i := range s.clients {
+		out = append(out, s.allowlistFor(&s.clients[i])...)
+	}
+	return out
+}
+
+// hasAnyPrefix reports whether any tag falls under any allowlist prefix.
+func hasAnyPrefix(tags, prefixes []string) bool {
+	for _, t := range tags {
+		for _, p := range prefixes {
+			if strings.HasPrefix(t, p) {
+				return true
+			}
 		}
 	}
 	return false
