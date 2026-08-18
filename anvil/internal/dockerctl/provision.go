@@ -14,11 +14,15 @@ import (
 	"time"
 )
 
-// This file exists for the wkagent provisioner, not for anvil: anvil's
-// proxy deliberately can't create containers (see the package comment).
-// The provisioner is the one component allowed to hold create rights, and
-// even it only ever instantiates the locked Palworld template
-// (internal/wkagent/provisioner.go).
+// Container creation lives here, and only here. Anvil is the one component
+// on the host allowed to hold create rights (see the host package comment
+// for why the consoles deliberately hold none), and even it only ever
+// instantiates a spec a console handed it — no arbitrary host path, no
+// image outside the allowlist, no forged ownership label.
+//
+// This file used to carry the opposite comment, from when it lived inside
+// a console's sidecar agent and anvil was the read-only socket proxy next
+// to it. Those roles swapped when the provisioner was extracted.
 
 // pullTimeout bounds an image pull; the wkagent image is a few hundred
 // MB and cached after the first provision.

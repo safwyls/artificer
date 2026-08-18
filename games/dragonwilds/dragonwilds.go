@@ -10,7 +10,7 @@
 // command methods return game.UnsupportedError and the UI says why instead
 // of offering buttons that 502.
 //
-// docs/dragonwilds-recon.md is the source for every external fact used
+// games/dragonwilds/docs/recon.md is the source for every external fact used
 // here, and marks which of them are still unverified.
 package dragonwilds
 

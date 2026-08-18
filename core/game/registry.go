@@ -31,8 +31,10 @@ type Definition struct {
 	Name string
 
 	// DefaultGamePort repairs a row created or edited without a game port —
-	// see store's normalizeGamePort. (The provisioning wizard doesn't read
-	// it: provisioning is Palworld-only and says so in its own numbers.)
+	// see store's normalizeGamePort. The provisioning wizard reads its own
+	// copy from api.ProvisionProfile instead: the two answer different
+	// questions (what an existing row should fall back to, versus what to
+	// publish on the host) and a game can want different numbers for them.
 	DefaultGamePort int
 
 	// NewClient builds an admin client for a server of this game.

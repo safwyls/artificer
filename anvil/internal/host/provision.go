@@ -149,12 +149,13 @@ func (s *Service) handleProvision(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, c := range containers {
 		if c.Name == req.Name {
-			writeError(w, http.StatusConflict, "a container named "+req.Name+" already exists on this host")
+			writeConflict(w, ReasonNameTaken, "a container named "+req.Name+" already exists on this host")
 			return
 		}
 	}
 	if taken := conflictingPorts(containers, req.Ports); len(taken) > 0 {
-		writeError(w, http.StatusConflict, "host "+plural(len(taken), "port", "ports")+" already in use: "+strings.Join(taken, ", "))
+		writeConflict(w, ReasonPortsInUse,
+			"host "+plural(len(taken), "port", "ports")+" already in use: "+strings.Join(taken, ", "))
 		return
 	}
 

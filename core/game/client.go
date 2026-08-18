@@ -8,7 +8,7 @@
 //
 // The save-reading views are not there yet — internal/api still imports
 // games/palworld's save and config readers directly, and cmd/flametender wires
-// the Palworld save reader concretely. docs/porting-to-another-game.md
+// the Palworld save reader concretely. docs/adding-a-game.md
 // tracks what remains Palworld-shaped; this comment should not be read as
 // claiming more than that document does.
 //

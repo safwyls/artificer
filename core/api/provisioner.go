@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -22,6 +23,10 @@ type Provisioner interface {
 	Adopt(ctx context.Context, container string) (*agentctl.AdoptResult, error)
 	RecreateAgent(ctx context.Context, container, imageTag string) (*agent.RecreateResult, error)
 	Destroy(ctx context.Context, container string) (*agentctl.DestroyResult, error)
+	// HostPorts reports every published port on the host, whoever holds
+	// it. Separate from Discover because Discover is deliberately scoped
+	// to this console's own servers, and a port proposal must not be.
+	HostPorts(ctx context.Context) ([]int, error)
 }
 
 // Interface satisfaction is a compile-time fact, not a hope.
@@ -48,6 +53,48 @@ func NewAnvilProvisioner(c *anvilclient.Client, p *ProvisionProfile) *AnvilProvi
 }
 
 func (p *AnvilProvisioner) BaseURL() string { return p.c.BaseURL() }
+
+// translate maps Anvil's error vocabulary onto agentctl's, which is what
+// the API layer branches on.
+//
+// This is the whole reason the adapter exists in error terms. The console
+// asks "is this already gone?" (delete the row and move on) or "was I
+// refused?" (change nothing, say why) using agentctl's sentinels, because
+// those questions predate Anvil and are asked identically of a sidecar
+// agent. Without the translation every Anvil failure arrived as an
+// untyped error: a destroy of a container someone had already removed by
+// hand trapped the operator in a retry that could never succeed, and a
+// refused deploy — name taken, port held, image not allowed — was treated
+// as a soft failure that left a server row behind for a server that was
+// never created.
+func translate(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, anvilclient.ErrNotFound):
+		return &translated{agentctl.ErrNotFound, err}
+	case errors.Is(err, anvilclient.ErrRejected):
+		return &translated{agentctl.ErrRejected, err}
+	case errors.Is(err, anvilclient.ErrConflict):
+		// ErrBusy is the API layer's "the host already holds this" branch.
+		return &translated{agentctl.ErrBusy, err}
+	}
+	return err
+}
+
+// translated answers to two vocabularies at once: the API layer's
+// sentinel and Anvil's own error, which still carries the conflict reason
+// and the sentence worth showing an operator. Wrapping with fmt.Errorf
+// could only keep one of them — an earlier cut wrapped the sentinel and
+// silently dropped the reason, so a port collision was reported with the
+// advice for a name collision.
+type translated struct {
+	sentinel error
+	inner    error
+}
+
+func (t *translated) Error() string   { return t.inner.Error() }
+func (t *translated) Unwrap() []error { return []error{t.sentinel, t.inner} }
 
 // ours reports whether a container belongs to this console's agent
 // family: named by the wizard's convention, or running this console's
@@ -104,7 +151,7 @@ func gamePortMaps(p *ProvisionProfile, gamePort int) []anvilclient.PortMap {
 func (p *AnvilProvisioner) Health(ctx context.Context) (*agentctl.Health, error) {
 	h, err := p.c.Health(ctx)
 	if err != nil {
-		return nil, err
+		return nil, translate(err)
 	}
 	return &agentctl.Health{
 		Agent:      "anvil",
@@ -160,7 +207,7 @@ func (p *AnvilProvisioner) Provision(ctx context.Context, req agent.ProvisionReq
 		DataMount: p.p.MountPath,
 	})
 	if err != nil {
-		return nil, err
+		return nil, translate(err)
 	}
 	return &agentctl.ProvisionResult{Container: res.Container, DataDir: res.DataDir}, nil
 }
@@ -174,7 +221,7 @@ func (p *AnvilProvisioner) Provision(ctx context.Context, req agent.ProvisionReq
 func (p *AnvilProvisioner) Discover(ctx context.Context) ([]agentctl.DiscoveredServer, error) {
 	found, err := p.c.Discover(ctx)
 	if err != nil {
-		return nil, err
+		return nil, translate(err)
 	}
 	out := make([]agentctl.DiscoveredServer, 0, len(found))
 	for _, f := range found {
@@ -210,7 +257,7 @@ func (p *AnvilProvisioner) Discover(ctx context.Context) ([]agentctl.DiscoveredS
 func (p *AnvilProvisioner) Adopt(ctx context.Context, container string) (*agentctl.AdoptResult, error) {
 	a, err := p.c.Adopt(ctx, container)
 	if err != nil {
-		return nil, err
+		return nil, translate(err)
 	}
 	if !p.ours(a.Name, a.Image) {
 		return nil, fmt.Errorf("%s is another console's server (this console adopts %s-* containers, or anything running the %s image)", container, p.p.AgentName, p.p.ImageRepo)
@@ -247,7 +294,7 @@ func (p *AnvilProvisioner) Adopt(ctx context.Context, container string) (*agentc
 func (p *AnvilProvisioner) RecreateAgent(ctx context.Context, container, imageTag string) (*agent.RecreateResult, error) {
 	res, err := p.c.Recreate(ctx, container, p.p.ImageRepo+":"+imageTag)
 	if err != nil {
-		return nil, err
+		return nil, translate(err)
 	}
 	return &agent.RecreateResult{Container: res.Container, Image: res.Image, Previous: res.Previous}, nil
 }
@@ -255,9 +302,26 @@ func (p *AnvilProvisioner) RecreateAgent(ctx context.Context, container, imageTa
 func (p *AnvilProvisioner) Destroy(ctx context.Context, container string) (*agentctl.DestroyResult, error) {
 	res, err := p.c.Destroy(ctx, container)
 	if err != nil {
-		return nil, err
+		return nil, translate(err)
 	}
 	return &agentctl.DestroyResult{Container: res.Container, DataDir: res.DataDir}, nil
+}
+
+// HostPorts asks Anvil what the machine already publishes. Every port,
+// not just this console's: the wizard proposes a port run for a container
+// that has to coexist with everything else on the box, and the collision
+// this service exists to prevent is precisely one console proposing a port
+// another console holds.
+func (p *AnvilProvisioner) HostPorts(ctx context.Context) ([]int, error) {
+	taken, err := p.c.Ports(ctx)
+	if err != nil {
+		return nil, translate(err)
+	}
+	out := make([]int, 0, len(taken))
+	for _, t := range taken {
+		out = append(out, t.Port)
+	}
+	return out, nil
 }
 
 // hostPortFor finds the published host port for a container-side port, the

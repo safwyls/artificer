@@ -28,7 +28,7 @@ The plugin seam the monorepo needs already exists and is proven:
 `internal/game.Definition` + `Client`/`ExtendedClient`/`CommandProber`,
 game code isolated under `internal/games/<game>/`, and `gametest`
 proving the shared layer runs with no real game at all.
-`docs/porting-to-another-game.md` (this repo) already states the
+`docs/adding-a-game.md` (this repo) already states the
 dependency rule; the monorepo turns that convention into structure.
 
 ## Reference implementations (who wins what)
@@ -214,16 +214,26 @@ and its web app onto `web/core` + theme tokens.
 - **Gate:** real Palworld server — save reading, RCON/REST paths,
   provisioning, the full pals surface.
 
-### Phase 6 — Decommission and consolidate
+### Phase 6 — Decommission and consolidate — **done 2026-08-18**
 
-- Archive the four old repos (each with a pointer commit).
-- Merge the doc culture: one root CLAUDE.md (framework rules +
+- [x] Archive the four old repos (each with a pointer commit).
+- [x] Merge the doc culture: one root CLAUDE.md (framework rules +
   dependency rules), per-module docs keep their homes
   (`games/dragonwilds/docs/recon.md` etc.), one `docs/state-of-play.md`
   for the whole system, roadmaps merged with per-game sections.
-- Retire `porting-to-another-game.md` into `docs/adding-a-game.md` —
+- [x] Retire `porting-to-another-game.md` into `docs/adding-a-game.md` —
   in the monorepo it stops being a porting guide and becomes the
   fourth-game checklist, which is the entire point.
+
+The port phases left roughly forty comments pointing at documents that
+never travelled with the code — `games/dragonwilds/docs/recon.md` from six
+files, `docs/sidecar-agent.md` from seven — and those documents only
+existed in repos about to be archived. `scripts/checkdocs.sh` now fails
+CI on a dangling pointer, so the class cannot come back quietly. Two
+documents were rewritten rather than copied: `sidecar-agent.md` described
+provisioner-mode agents that no longer exist, and `adding-a-game.md` was
+a guide to lifting packages into a sibling project, which is exactly the
+problem the monorepo removed.
 
 ## Risks, and the rules that contain them
 

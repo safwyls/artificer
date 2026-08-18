@@ -11,7 +11,7 @@ import (
 // `bannedAccounts` is where the in-game kick/ban UI persists its bans, and
 // the only ban surface this console can reach at all — Enshrouded has no
 // RCON and no admin API, so every moderation command here 501s and points
-// at the game's own player list (docs/enshrouded-recon.md). What the file
+// at the game's own player list (games/enshrouded/docs/recon.md). What the file
 // gives us is the durable half: the list survives restarts, and it is
 // editable.
 //

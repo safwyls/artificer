@@ -1,7 +1,7 @@
 // Package dwsave reads the world metadata out of a Dragonwilds save file.
 //
 // The save is the SPUD plugin's chunked container, not GVAS — see the
-// "Empirical findings" section of docs/dragonwilds-recon.md. The layout this
+// "Empirical findings" section of games/dragonwilds/docs/recon.md. The layout this
 // parser understands was mapped byte-by-byte from a real capture
 // (testdata/world-empty.sav, one directory up) and cross-checked against the
 // server's own output: the GUID this package renders from the header is the

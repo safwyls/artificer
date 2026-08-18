@@ -23,6 +23,67 @@ import (
 	"time"
 )
 
+// The error taxonomy. Anvil answers a destroy with 404 when the container
+// is already gone and 403 when it exists but belongs to another console,
+// and those two want opposite handling: the first is the end state the
+// caller asked for and the server row should go, the second must leave
+// everything exactly where it is. Folding both into one flat error — which
+// is what this package did before — makes a console unable to tell a
+// finished job from a forbidden one, and the "already gone, delete the
+// row" path in api/servers.go silently stopped working when provisioning
+// moved to Anvil.
+//
+// These mirror agentctl's sentinels rather than reusing them: this package
+// speaks to Anvil, not to a sidecar agent, and the adapter in core/api
+// translates. That keeps the two protocols' error vocabularies from
+// drifting into each other.
+var (
+	// ErrNotFound is Anvil's 404 — no container by that name.
+	ErrNotFound = errors.New("not found on the host")
+	// ErrRejected is a refusal Anvil is sure about: a bad request, a
+	// rejected token, or a container owned by a different console.
+	// Retrying it unchanged cannot help.
+	ErrRejected = errors.New("anvil refused the request")
+	// ErrConflict is Anvil's 409: the host already holds the name or the
+	// ports. Nothing was created — see Reason for which.
+	ErrConflict = errors.New("conflict on the host")
+)
+
+// APIVersion is the Anvil protocol this client speaks. Anvil reports its
+// own in /v1/health, and a mismatch is worth saying out loud at the point
+// of contact rather than discovering later as a shape that won't parse.
+const APIVersion = 1
+
+// ErrAPIVersion reports an Anvil speaking a protocol this client does not.
+var ErrAPIVersion = errors.New("anvil speaks a different protocol version")
+
+// Conflict reasons, mirroring host.Reason* on the service. Absent from an
+// older Anvil, in which case the reason is "".
+const (
+	ReasonNameTaken  = "name-taken"
+	ReasonPortsInUse = "ports-in-use"
+)
+
+// ConflictError carries which kind of 409 this was, so a caller routes on
+// a field instead of on the wording of a sentence.
+type ConflictError struct {
+	Reason string
+	Msg    string
+}
+
+func (e *ConflictError) Error() string { return e.Msg }
+func (e *ConflictError) Unwrap() error { return ErrConflict }
+
+// ConflictReason reports the reason on a conflict error, or "" if err is
+// not one (or came from an Anvil too old to say).
+func ConflictReason(err error) string {
+	var ce *ConflictError
+	if errors.As(err, &ce) {
+		return ce.Reason
+	}
+	return ""
+}
+
 type Client struct {
 	base  string
 	token string
@@ -72,12 +133,28 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any, timeo
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		var e struct {
-			Error string `json:"error"`
+			Error  string `json:"error"`
+			Reason string `json:"reason"`
 		}
-		if json.Unmarshal(data, &e) == nil && e.Error != "" {
-			return fmt.Errorf("anvil: %s", e.Error)
+		_ = json.Unmarshal(data, &e)
+		msg := e.Error
+		if msg == "" {
+			msg = resp.Status
 		}
-		return fmt.Errorf("anvil: %s", resp.Status)
+		switch resp.StatusCode {
+		case http.StatusNotFound:
+			return fmt.Errorf("%w: %s", ErrNotFound, msg)
+		case http.StatusUnauthorized:
+			return fmt.Errorf("%w: anvil rejected the token — re-check it on both sides", ErrRejected)
+		case http.StatusForbidden, http.StatusBadRequest:
+			return fmt.Errorf("%w: %s", ErrRejected, msg)
+		case http.StatusConflict:
+			return &ConflictError{Reason: e.Reason, Msg: ErrConflict.Error() + ": " + msg}
+		}
+		// 5xx and anything unexpected stay untyped: they are neither a
+		// refusal nor an already-done, and a caller should treat them as
+		// "unknown, try again later" rather than as either.
+		return fmt.Errorf("anvil: %s", msg)
 	}
 	if out != nil {
 		return json.Unmarshal(data, out)
@@ -103,6 +180,15 @@ func (c *Client) Health(ctx context.Context) (*Health, error) {
 	var h Health
 	if err := c.do(ctx, http.MethodGet, "/v1/health", nil, &h, 10*time.Second); err != nil {
 		return nil, err
+	}
+	// A newer Anvil may add fields this client ignores, which is fine; a
+	// different major is not, and provisioning against one would fail in
+	// some more confusing way further in. Zero means an Anvil old enough
+	// not to report it at all — from before the field existed — and is
+	// accepted rather than guessed about.
+	if h.APIVersion != 0 && h.APIVersion != APIVersion {
+		return nil, fmt.Errorf("%w: anvil speaks v%d, this console speaks v%d — upgrade whichever is older",
+			ErrAPIVersion, h.APIVersion, APIVersion)
 	}
 	return &h, nil
 }
@@ -213,4 +299,57 @@ func (c *Client) Adopt(ctx context.Context, container string) (*Adopted, error) 
 		return nil, err
 	}
 	return &res, nil
+}
+
+// ManagedContainer is one row of Anvil's fleet view: every container on the
+// host, this console's or not.
+//
+// The foreign rows are the point. A console can only see its own servers,
+// which is exactly the blindness that made two consoles collide on a host
+// port — one proposed 8211, the other already had it, the create succeeded
+// and the start failed. Anvil can see all of them, so it says so: name,
+// image, ports, and for the caller's own rows a slug and data directory.
+// Nothing else — a container's environment carries tokens and passwords,
+// and a fleet view is not worth leaking them for.
+type ManagedContainer struct {
+	Name    string    `json:"name"`
+	Image   string    `json:"image"`
+	Running bool      `json:"running"`
+	Managed bool      `json:"managed"`
+	Mine    bool      `json:"mine"`
+	Slug    string    `json:"slug,omitempty"`
+	Owner   string    `json:"owner,omitempty"`
+	Ports   []PortMap `json:"ports,omitempty"`
+	DataDir string    `json:"dataDir,omitempty"`
+}
+
+func (c *Client) Containers(ctx context.Context) ([]ManagedContainer, error) {
+	var res struct {
+		Containers []ManagedContainer `json:"containers"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/v1/containers", nil, &res, 30*time.Second); err != nil {
+		return nil, err
+	}
+	return res.Containers, nil
+}
+
+// TakenPort is one published host port and what holds it.
+type TakenPort struct {
+	Port      int    `json:"port"`
+	Proto     string `json:"proto"`
+	Container string `json:"container"`
+}
+
+// Ports reports every published host port on the machine — including ones
+// held by other consoles and by containers nothing here manages. A port
+// proposal built only from what this console tracks is a proposal that can
+// collide, so this is what the wizard should count as taken.
+func (c *Client) Ports(ctx context.Context) ([]TakenPort, error) {
+	var res struct {
+		Ports []TakenPort `json:"ports"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/v1/ports", nil, &res, 30*time.Second); err != nil {
+		return nil, err
+	}
+	return res.Ports, nil
 }

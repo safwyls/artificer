@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/safwyls/artificer/core/agent"
+	"github.com/safwyls/artificer/core/agentctl"
 	"github.com/safwyls/artificer/core/anvilclient"
 )
 
@@ -241,5 +243,161 @@ func TestAnvilAdoptRefusesAProvisionerContainer(t *testing.T) {
 	_, err := p.Adopt(context.Background(), "wkprovisioner")
 	if err == nil || !strings.Contains(err.Error(), "provisioner") {
 		t.Errorf("adopting the old provisioner: err = %v, want a refusal naming what it is", err)
+	}
+}
+
+// anvilSaying builds an adapter over an Anvil that answers every request
+// with one status and body — enough to assert what the translation makes
+// of each one.
+func anvilSaying(t *testing.T, status int, body string) *AnvilProvisioner {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	client, err := anvilclient.New(srv.URL, "test-token-0123456789abcdef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return NewAnvilProvisioner(client, anvilTestProfile)
+}
+
+// The API layer asks its questions in agentctl's vocabulary — those
+// questions predate Anvil and are asked identically of a sidecar agent —
+// so the adapter has to answer in it. Until it did, every Anvil failure
+// arrived untyped: a destroy of an already-removed container never took
+// the "already gone, delete the row" branch, and a refused deploy was
+// treated as a soft failure that left a row behind.
+func TestAnvilErrorsSpeakTheAPILayersVocabulary(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name       string
+		status     int
+		body       string
+		want       error
+		mustNotBe  []error
+		wantSubstr string
+	}{
+		{
+			name: "already gone", status: http.StatusNotFound,
+			body: `{"error":"no container with that name"}`,
+			want: agentctl.ErrNotFound, mustNotBe: []error{agentctl.ErrRejected, agentctl.ErrBusy},
+			wantSubstr: "no container with that name",
+		},
+		{
+			name: "another console's", status: http.StatusForbidden,
+			body: `{"error":"that container belongs to a different console"}`,
+			want: agentctl.ErrRejected, mustNotBe: []error{agentctl.ErrNotFound},
+			wantSubstr: "different console",
+		},
+		{
+			name: "not anvil's to manage", status: http.StatusBadRequest,
+			body: `{"error":"that container was not created by Anvil — manage it wherever it was deployed"}`,
+			want: agentctl.ErrRejected, mustNotBe: []error{agentctl.ErrNotFound},
+			wantSubstr: "wherever it was deployed",
+		},
+		{
+			name: "host holds the name", status: http.StatusConflict,
+			body: `{"error":"a container named gtagent-x already exists on this host","reason":"name-taken"}`,
+			want: agentctl.ErrBusy, mustNotBe: []error{agentctl.ErrNotFound},
+			wantSubstr: "already exists",
+		},
+		{
+			name: "token refused", status: http.StatusUnauthorized,
+			body: `{"error":"unauthorized"}`,
+			want: agentctl.ErrRejected, mustNotBe: []error{agentctl.ErrNotFound},
+			wantSubstr: "re-check it on both sides",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := anvilSaying(t, tc.status, tc.body)
+			_, err := p.Destroy(ctx, "gtagent-x")
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("Destroy: %v, want %v", err, tc.want)
+			}
+			for _, not := range tc.mustNotBe {
+				if errors.Is(err, not) {
+					t.Errorf("Destroy error also reads as %v: %v", not, err)
+				}
+			}
+			if !strings.Contains(err.Error(), tc.wantSubstr) {
+				t.Errorf("error lost anvil's explanation (%q): %v", tc.wantSubstr, err)
+			}
+			// Every verb goes through the same translation; a taxonomy
+			// that only holds on one of them is one refactor from being
+			// wrong on the others.
+			if _, err := p.Provision(ctx, agent.ProvisionRequest{Slug: "x"}); !errors.Is(err, tc.want) {
+				t.Errorf("Provision: %v, want %v", err, tc.want)
+			}
+			if _, err := p.Adopt(ctx, "gtagent-x"); !errors.Is(err, tc.want) {
+				t.Errorf("Adopt: %v, want %v", err, tc.want)
+			}
+			if _, err := p.RecreateAgent(ctx, "gtagent-x", "latest"); !errors.Is(err, tc.want) {
+				t.Errorf("RecreateAgent: %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
+// A broken Anvil is neither a refusal nor an already-done. Reading a 502
+// as "already gone" would delete the row for a server that is still up.
+func TestAnvilOutageIsNotMistakenForAnAnswer(t *testing.T) {
+	p := anvilSaying(t, http.StatusBadGateway, `{"error":"docker endpoint unreachable"}`)
+	_, err := p.Destroy(context.Background(), "gtagent-x")
+	if err == nil {
+		t.Fatal("a 502 reported success")
+	}
+	for _, sentinel := range []error{agentctl.ErrNotFound, agentctl.ErrRejected, agentctl.ErrBusy} {
+		if errors.Is(err, sentinel) {
+			t.Errorf("a 502 reads as %v: %v", sentinel, err)
+		}
+	}
+}
+
+// The conflict reason survives the translation, because the advice
+// differs: a taken name can be adopted, a held port cannot.
+func TestAnvilConflictReasonSurvivesTranslation(t *testing.T) {
+	p := anvilSaying(t, http.StatusConflict,
+		`{"error":"host port already in use: 25600 (otheragent-keep)","reason":"ports-in-use"}`)
+	_, err := p.Provision(context.Background(), agent.ProvisionRequest{Slug: "x"})
+	if !errors.Is(err, agentctl.ErrBusy) {
+		t.Fatalf("Provision: %v, want ErrBusy", err)
+	}
+	if got := anvilclient.ConflictReason(err); got != anvilclient.ReasonPortsInUse {
+		t.Errorf("reason after translation = %q, want %q", got, anvilclient.ReasonPortsInUse)
+	}
+}
+
+// HostPorts is the whole machine, not this console's corner of it —
+// including a port held by another console's server, which is the exact
+// collision Anvil exists to prevent and the one Discover cannot see.
+func TestAnvilHostPortsReportsForeignPortsToo(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ports":[
+			{"port":25600,"proto":"udp","container":"gtagent-ashenfall"},
+			{"port":15637,"proto":"udp","container":"otheragent-keep"},
+			{"port":9080,"proto":"tcp","container":"nginx"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	client, err := anvilclient.New(srv.URL, "test-token-0123456789abcdef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ports, err := NewAnvilProvisioner(client, anvilTestProfile).HostPorts(context.Background())
+	if err != nil {
+		t.Fatalf("HostPorts: %v", err)
+	}
+	want := map[int]bool{25600: true, 15637: true, 9080: true}
+	if len(ports) != len(want) {
+		t.Fatalf("ports = %v, want all three", ports)
+	}
+	for _, p := range ports {
+		if !want[p] {
+			t.Errorf("unexpected port %d in %v", p, ports)
+		}
 	}
 }

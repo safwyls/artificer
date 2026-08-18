@@ -53,5 +53,5 @@ img.thumbnail((64, 64), Image.LANCZOS)
 img.save(dest, "WEBP", quality=82, method=6)
 ```
 
-See `docs/vendored-game-data.md` for the refresh cadence and the other
+See `games/palworld/docs/vendored-game-data.md` for the refresh cadence and the other
 catalogs that drift with the same game patches.

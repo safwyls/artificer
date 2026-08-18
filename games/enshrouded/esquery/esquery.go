@@ -9,7 +9,7 @@
 // know the configured slot count, because the log doesn't carry it.
 //
 // The one thing the game does answer is the Steam query on its single UDP
-// port (docs/enshrouded-recon.md, "Ports & protocols"): `queryPort`
+// port (games/enshrouded/docs/recon.md, "Ports & protocols"): `queryPort`
 // carries game traffic and A2S both. That gives three facts nothing else
 // can: who is present *right now* rather than who was seen to arrive, the
 // real `slotCount` behind the server, and the build the game is actually

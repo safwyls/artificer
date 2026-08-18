@@ -8,7 +8,7 @@
 // defaults (open, password-less), which is worse than not booting.
 //
 // The schema knowledge here is deliberately shallow. The full gameSettings
-// table lives in docs/enshrouded-recon.md and changes with game updates;
+// table lives in games/enshrouded/docs/recon.md and changes with game updates;
 // this package only understands the handful of keys the agent enforces
 // (name, queryPort, the role-group passwords) and passes everything else
 // through untouched, so a game update that adds keys costs no code here.

@@ -111,7 +111,7 @@ func (c *Client) queryInfo(ctx context.Context) *agentctl.QueryInfo {
 // implements game.Client with the honest subset: Info, Players and
 // Metrics work; every command returns game.UnsupportedError, because the
 // game offers no channel to carry one (no RCON, no API, no console — see
-// docs/enshrouded-recon.md, "Query/admin surface").
+// games/enshrouded/docs/recon.md, "Query/admin surface").
 type Client struct {
 	agent    *agentctl.Client
 	agentErr error

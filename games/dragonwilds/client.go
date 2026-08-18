@@ -183,7 +183,7 @@ func (c *Client) enrichFromBridge(ctx context.Context, players *[]game.Player) {
 
 // The command tier. Dragonwilds has no native command protocol, so these
 // route through the dwbridge UE4SS mod when it is present and running
-// (docs/dragonwilds-recon.md, "Command surface"). Without a live mod each
+// (games/dragonwilds/docs/recon.md, "Command surface"). Without a live mod each
 // returns a *game.UnsupportedError, which the API maps to 501 — capability
 // truth ("this server has no bridge"), not a fault. A bridge that is present
 // but unreachable, or a command the mod refuses, returns a plain error (502)
@@ -260,7 +260,7 @@ func (c *Client) Supports(ctx context.Context, op string) (bool, string) {
 }
 
 const (
-	reasonNoBridge   = "commands need the dwbridge UE4SS mod; this server has none running (see docs/dragonwilds-recon.md)"
+	reasonNoBridge   = "commands need the dwbridge UE4SS mod; this server has none running (see games/dragonwilds/docs/recon.md)"
 	reasonModerate   = "kicking and banning need the dwbridge UE4SS mod running on the server"
 	reasonNoSave     = "an on-demand save needs the dwbridge mod; without it, autosave covers running servers and backups snapshot the save directory"
 	reasonNoShutdown = "no in-game shutdown exists; stop the server through the agent power controls, which allow a grace period"

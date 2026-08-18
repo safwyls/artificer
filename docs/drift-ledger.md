@@ -29,8 +29,10 @@
 > the client, codec, palsave, palapi (seam 5), Roster (seam 6), advisor
 > prompt, and palagent's spec; seam 4 gained the REST/RCON trio form
 > (provision_trio tests) and ServerDesc; every palworld §F guard below is
-> ticked. Open: the Anvil parity §F guards (Phase 6 wiring), and the
-> Phase 5 real-server gate (docs/palcon-port-verification.md).
+> ticked. **Phase 5's gate passed 2026-08-17** against the live Palworld
+> server. **Phase 6 closed the four Anvil-parity §F guards (2026-08-18)**,
+> two of which turned out to be live defects rather than missing tests —
+> see the rows in §F.
 
 Per-file reconciliation decisions for Phase 2 (core extraction), per
 `docs/unification-plan.md`. This is the working checklist: Phase 2
@@ -281,11 +283,39 @@ Checked off only when the protection exists in the monorepo:
 - [x] P's working palsave roster (seam 6 — F's stub must not win)
       (games/palworld Roster, wired in cmd/palcon and the harness, Phase 5).
 - [x] W's port-pair provisioning logic + "pair swallows agent port" case (core provision_pair tests, Phase 4).
-- [ ] `TestMissingIsDistinctFromRefused` invariant re-asserted vs Anvil client.
-- [ ] `TestContainerRemoveKeepsTheVolume` promise moved to an Anvil destroy test. (Live-verified at the Phase 3 gate — destroy left the world dir — but the test guard is still owed.)
-- [ ] W's `InspectSpec` network/port edge cases verified in Anvil recreate.
+- [x] `TestMissingIsDistinctFromRefused` invariant re-asserted vs Anvil
+      client (Phase 6). **The invariant was not merely untested — it was
+      broken.** `anvilclient` returned every non-2xx as one flat error, so
+      `api/servers.go`'s `errors.Is(err, agentctl.ErrNotFound)` branch never
+      fired: destroying a container someone had already removed by hand
+      trapped the operator in a retry that could not succeed. The same loss
+      turned every provisioning *refusal* into a soft failure, registering a
+      row for a server that was never created. Fixed with an error taxonomy
+      in `anvilclient` and a `translate` step in the adapter; guarded at
+      three levels — the client (`anvilclient_test`), the adapter
+      (`provisioner_anvil_test`) and the handlers over a real Anvil-shaped
+      server (`provision_anvil_e2e_test`), plus Anvil's own half in
+      `TestDestroyingAMissingContainerIsNotFound`.
+- [x] `TestContainerRemoveKeepsTheVolume` promise moved to an Anvil destroy
+      test (Phase 6: `TestDestroyKeepsTheDataDirectory` — provisions, writes
+      a world file, destroys, and asserts the file survives, the response
+      names the directory, and the wire call still carries `v=0`/`force=0`
+      after a stop). Live-verified at the Phase 3 gate; now guarded.
+- [x] W's `InspectSpec` network/port edge cases verified in Anvil recreate
+      (Phase 6). Nothing tested `InspectSpec` in any repo, so a rebuild
+      silently dropping a field was unguarded end to end. Now covered at
+      both levels: the read (`udp` preserved, unbound publishes dropped,
+      `bridge` excluded, user-defined networks sorted) and the recreate
+      endpoint (env, binds, labels, ports, restart policy and networks all
+      survive; pull happens before remove; same-image recreate is a no-op).
 - [x] Advisor restored (P source) + F's dead migrations get a live reader (2b).
-- [ ] Anvil client gains `Containers()`/`Ports()` + APIVersion assertion.
+- [x] Anvil client gains `Containers()`/`Ports()` + APIVersion assertion
+      (Phase 6). `Ports()` is wired into the wizard's proposal, which is the
+      point of it: `Discover` is scoped to this console's own agent family,
+      so the proposal was blind to ports held by another console — the exact
+      collision Anvil was built to end, reintroduced one level up. Health
+      now refuses an Anvil speaking a different major (silence is still
+      accepted: an Anvil from before the field existed is not a mismatch).
 - [x] `lastFailure` consumed by the UI — live-verified at the Phase 3 gate.
 - [x] Palcon env migration documented at its port: `PROVISIONER_URL/TOKEN` →
       `ANVIL_URL/TOKEN` (docs/palcon-port-verification.md; cmd/palcon logs
