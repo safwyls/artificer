@@ -124,8 +124,10 @@ of Phase 2 and should win if it appears. Budget a recon refresh against the
 2. **Per-console rate limiting or quotas.** One console cannot currently be
    stopped from filling a host with containers. Ownership is enforced;
    volume is not.
-3. **Drop the `ilmari` image alias** once every deployed host has been
-   repointed to `ghcr.io/safwyls/anvil`.
+3. ~~Drop the `ilmari` image alias.~~ **Done 2026-08-18** — the host was
+   repointed to `ghcr.io/safwyls/anvil` and the alias removed. The stale
+   `ilmari` tag is left published but unmaintained; nothing pulls it, and
+   the last thing it points at needs `ANVIL_*` to start.
 
 ## Structural, someday
 
