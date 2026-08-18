@@ -26,6 +26,15 @@ Phase 6 closed the last four §F guards in the drift ledger on 2026-08-18 —
 two of which turned out to be live defects, not just missing tests. See the
 ledger's §F rows.
 
+The host dashboard landed 2026-08-18: every console has an admin-only
+Host page (`GET /api/host`) rendering Anvil's fleet view — every container
+on the machine with its lifecycle state, every published port, and the
+images spending the host's disk (Anvil's new `/v1/images`, additive to API
+v1; a console against an older Anvil says "upgrade to see images" rather
+than failing the page). Containers Anvil labels as this console's but that
+match no server row are flagged as adoptable orphans. Read-only by design:
+every mutation stays with the flow that owns it.
+
 ## What is verified, and what is not
 
 This distinction is the most valuable thing in this document, because every

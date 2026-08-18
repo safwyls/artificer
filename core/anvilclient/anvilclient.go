@@ -312,9 +312,16 @@ func (c *Client) Adopt(ctx context.Context, container string) (*Adopted, error) 
 // Nothing else — a container's environment carries tokens and passwords,
 // and a fleet view is not worth leaking them for.
 type ManagedContainer struct {
-	Name    string    `json:"name"`
-	Image   string    `json:"image"`
-	Running bool      `json:"running"`
+	Name    string `json:"name"`
+	Image   string `json:"image"`
+	Running bool   `json:"running"`
+	// State is docker's lifecycle word (created, running, paused, exited);
+	// Status its human sentence ("Up 3 hours", "Exited (137) 2 days ago"),
+	// which is the only place the exit code and age travel. Both empty when
+	// the Anvil predates them — Running is the fallback either way.
+	State   string    `json:"state,omitempty"`
+	Status  string    `json:"status,omitempty"`
+	Created int64     `json:"created,omitempty"` // unix seconds
 	Managed bool      `json:"managed"`
 	Mine    bool      `json:"mine"`
 	Slug    string    `json:"slug,omitempty"`
@@ -331,6 +338,32 @@ func (c *Client) Containers(ctx context.Context) ([]ManagedContainer, error) {
 		return nil, err
 	}
 	return res.Containers, nil
+}
+
+// HostImage is one image on the host's disk: its names, its size, and every
+// container created from it. Shared visibility like ports — disk is spent
+// host-wide, and a dangling image (no tags, no containers) is pure cost no
+// container row can explain.
+type HostImage struct {
+	ID         string   `json:"id"`
+	Tags       []string `json:"tags"`
+	Size       int64    `json:"size"`    // bytes
+	Created    int64    `json:"created"` // unix seconds
+	Containers []string `json:"containers"`
+}
+
+// Images lists every image on the host, biggest first. An Anvil from before
+// the endpoint existed answers 404, which arrives as ErrNotFound — callers
+// should treat that as "this Anvil doesn't report images", not as an empty
+// host.
+func (c *Client) Images(ctx context.Context) ([]HostImage, error) {
+	var res struct {
+		Images []HostImage `json:"images"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/v1/images", nil, &res, 30*time.Second); err != nil {
+		return nil, err
+	}
+	return res.Images, nil
 }
 
 // TakenPort is one published host port and what holds it.

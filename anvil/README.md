@@ -96,12 +96,16 @@ All routes need `Authorization: Bearer <that console's token>`.
 | POST | `/v1/provision/destroy` | remove one, keeping its data directory |
 | GET | `/v1/discover` | containers this console could adopt: its own, plus unlabelled ones under its image allowlist |
 | POST | `/v1/adopt` | recover one for re-registration, env filtered to the caller's `envPrefix` |
-| GET | `/v1/containers` | every container on the host, ours flagged |
+| GET | `/v1/containers` | every container on the host, ours flagged, with lifecycle state |
 | GET | `/v1/ports` | every published host port and what holds it |
+| GET | `/v1/images` | every image on disk, biggest first, with the containers using it |
 
-`/v1/containers` and `/v1/ports` deliberately report **everything on the
-host**, not just Anvil's. A view that only showed its own would reproduce
-exactly the blindness this service replaces.
+`/v1/containers`, `/v1/ports` and `/v1/images` deliberately report
+**everything on the host**, not just Anvil's. A view that only showed its
+own would reproduce exactly the blindness this service replaces. Disk is
+as shared as ports, so images follow the same rule — including dangling
+ones, which no container row can explain. These three back each console's
+Host dashboard page.
 
 ### Provisioning spec
 

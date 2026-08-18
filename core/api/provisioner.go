@@ -324,6 +324,28 @@ func (p *AnvilProvisioner) HostPorts(ctx context.Context) ([]int, error) {
 	return out, nil
 }
 
+// The Fleet* methods are the host dashboard's seam (see host.go): Anvil's
+// own wire shapes, untranslated, because the dashboard's whole job is to
+// show what Anvil sees — foreign rows, ownership labels, dangling images —
+// and the agentctl vocabulary the wizard verbs translate into has no words
+// for any of that.
+
+func (p *AnvilProvisioner) FleetHealth(ctx context.Context) (*anvilclient.Health, error) {
+	return p.c.Health(ctx)
+}
+
+func (p *AnvilProvisioner) FleetContainers(ctx context.Context) ([]anvilclient.ManagedContainer, error) {
+	return p.c.Containers(ctx)
+}
+
+func (p *AnvilProvisioner) FleetPorts(ctx context.Context) ([]anvilclient.TakenPort, error) {
+	return p.c.Ports(ctx)
+}
+
+func (p *AnvilProvisioner) FleetImages(ctx context.Context) ([]anvilclient.HostImage, error) {
+	return p.c.Images(ctx)
+}
+
 // hostPortFor finds the published host port for a container-side port, the
 // way the old provisioner read its well-known ports.
 func hostPortFor(ports []anvilclient.PortMap, containerPort int, proto string) int {

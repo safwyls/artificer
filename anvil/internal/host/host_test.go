@@ -34,6 +34,7 @@ type fakeDocker struct {
 	// about what a remove does and does not take live (v=0, force=0).
 	requests   []string
 	containers string
+	images     string
 }
 
 func (f *fakeDocker) handler() http.Handler {
@@ -50,6 +51,9 @@ func (f *fakeDocker) handler() http.Handler {
 		case r.URL.Path == "/containers/json":
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(f.containers))
+		case r.URL.Path == "/images/json":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(f.images))
 		case strings.HasPrefix(r.URL.Path, "/containers/") && strings.HasSuffix(r.URL.Path, "/json"):
 			// Inspect serves two callers: adopt reads the env (mixed
 			// namespaces on purpose, so the scoping has something to scope
@@ -76,19 +80,21 @@ func (f *fakeDocker) handler() http.Handler {
 // Two consoles' containers plus something unrelated — the situation this
 // service exists to make visible.
 const twoConsoles = `[
-  {"Id":"c1","Names":["/wkagent-ashenfall"],"Image":"ghcr.io/safwyls/wkagent:latest","State":"running",
+  {"Id":"c1","Names":["/wkagent-ashenfall"],"Image":"ghcr.io/safwyls/wkagent:latest","ImageID":"sha256:wk1",
+   "State":"running","Status":"Up 3 hours","Created":1755400000,
    "Labels":{"wildskeeper.provisioned":"true","wildskeeper.slug":"ashenfall"},
    "Ports":[{"PrivatePort":7777,"PublicPort":7777,"Type":"udp"},{"PrivatePort":8811,"PublicPort":8811,"Type":"tcp"}]},
-  {"Id":"c2","Names":["/palagent-palhalla"],"Image":"ghcr.io/safwyls/palagent:latest","State":"running",
+  {"Id":"c2","Names":["/palagent-palhalla"],"Image":"ghcr.io/safwyls/palagent:latest","ImageID":"sha256:pal1",
+   "State":"exited","Status":"Exited (137) 2 days ago","Created":1755300000,
    "Labels":{"palcon.provisioned":"true","palcon.slug":"palhalla"},
    "Ports":[{"PrivatePort":8211,"PublicPort":8211,"Type":"udp"}]},
-  {"Id":"c3","Names":["/nginx"],"Image":"nginx:latest","State":"running",
+  {"Id":"c3","Names":["/nginx"],"Image":"nginx:latest","ImageID":"sha256:ng1","State":"running","Status":"Up 5 days",
    "Ports":[{"PrivatePort":80,"PublicPort":9080,"Type":"tcp"}]}
 ]`
 
 func newService(t *testing.T) (*httptest.Server, *fakeDocker, string) {
 	t.Helper()
-	fake := &fakeDocker{containers: `[]`}
+	fake := &fakeDocker{containers: `[]`, images: `[]`}
 	dockerSrv := httptest.NewServer(fake.handler())
 	t.Cleanup(dockerSrv.Close)
 	dataRoot := t.TempDir()
@@ -374,6 +380,84 @@ func TestForeignRowsShowPortsButNotPaths(t *testing.T) {
 	// But its ports are visible — that is the part that must be shared.
 	if _, has := foreign["ports"]; !has {
 		t.Errorf("a foreign row must still show its ports: %v", foreign)
+	}
+}
+
+// The fleet row says where a container is in its lifecycle, not just
+// running-or-not: an exited server's exit code and age (docker's Status
+// sentence) are the difference between "stopped on purpose" and "crashed
+// two days ago and nobody noticed".
+func TestFleetRowsCarryLifecycleState(t *testing.T) {
+	srv, fake, _ := newService(t)
+	fake.containers = twoConsoles
+
+	_, m := do(t, srv, "GET", "/v1/containers", nil)
+	rows, _ := m["containers"].([]any)
+	byName := map[string]map[string]any{}
+	for _, r := range rows {
+		row, _ := r.(map[string]any)
+		byName[fmt.Sprint(row["name"])] = row
+	}
+	crashed := byName["palagent-palhalla"]
+	if crashed["state"] != "exited" || crashed["running"] != false {
+		t.Errorf("exited container mislabelled: %v", crashed)
+	}
+	if crashed["status"] != "Exited (137) 2 days ago" {
+		t.Errorf("status sentence lost: %v", crashed)
+	}
+	if crashed["created"] != float64(1755300000) {
+		t.Errorf("created lost: %v", crashed)
+	}
+	up := byName["wkagent-ashenfall"]
+	if up["state"] != "running" || up["status"] != "Up 3 hours" {
+		t.Errorf("running container mislabelled: %v", up)
+	}
+}
+
+// Images are as shared as ports: every console sees all of them, joined to
+// the containers using them, with dangling ones visible because they are
+// pure disk cost.
+func TestImagesReportUseAndDangling(t *testing.T) {
+	srv, fake, _ := newService(t)
+	fake.containers = twoConsoles
+	fake.images = `[
+	  {"Id":"sha256:wk1","RepoTags":["ghcr.io/safwyls/wkagent:latest"],"Size":900000000,"Created":1755000000},
+	  {"Id":"sha256:pal1","RepoTags":["ghcr.io/safwyls/palagent:latest"],"Size":400000000,"Created":1755100000},
+	  {"Id":"sha256:old1","RepoTags":["<none>:<none>"],"Size":870000000,"Created":1754000000},
+	  {"Id":"sha256:ng1","RepoTags":["nginx:latest"],"Size":100000000,"Created":1754500000}
+	]`
+
+	resp, m := do(t, srv, "GET", "/v1/images", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("images: %d %v", resp.StatusCode, m)
+	}
+	rows, _ := m["images"].([]any)
+	if len(rows) != 4 {
+		t.Fatalf("got %d images, want all 4: %v", len(rows), rows)
+	}
+	// Sorted biggest first — the list answers "what is the disk spent on".
+	first, _ := rows[0].(map[string]any)
+	if first["id"] != "sha256:wk1" {
+		t.Errorf("biggest image should lead: %v", first)
+	}
+	byID := map[string]map[string]any{}
+	for _, r := range rows {
+		row, _ := r.(map[string]any)
+		byID[fmt.Sprint(row["id"])] = row
+	}
+	if got := fmt.Sprint(byID["sha256:wk1"]["containers"]); got != "[wkagent-ashenfall]" {
+		t.Errorf("wkagent image should name its container: %v", got)
+	}
+	// The exited container still pins its image — created-from, not running-on.
+	if got := fmt.Sprint(byID["sha256:pal1"]["containers"]); got != "[palagent-palhalla]" {
+		t.Errorf("an exited container still uses its image: %v", got)
+	}
+	dangling := byID["sha256:old1"]
+	if tags, _ := dangling["tags"].([]any); len(tags) != 0 {
+		t.Errorf("a dangling image should carry no tags: %v", dangling)
+	}
+	if got := fmt.Sprint(dangling["containers"]); got != "[]" {
+		t.Errorf("nothing uses the dangling image: %v", got)
 	}
 }
 
