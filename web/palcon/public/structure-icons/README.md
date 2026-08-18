@@ -44,6 +44,6 @@ world treasure chests have no build-menu icon at all.
 ## Refreshing
 
 Re-run the same selection after a game update that adds buildings; see
-`docs/vendored-game-data.md` for the wider refresh chore. A newly-added chest
+`games/palworld/docs/vendored-game-data.md` for the wider refresh chore. A newly-added chest
 with no vendored icon degrades to a nameless-but-labelled row rather than a
 broken image.

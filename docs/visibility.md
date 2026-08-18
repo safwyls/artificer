@@ -108,8 +108,8 @@ see and nothing can therefore undo.
 
 ## Adding a new view to the list
 
-1. Add the key to `store.AllFeatures` and the `Feature` union in `web/src/lib/api.ts`.
-2. Give it a label and a blurb in `web/src/lib/visibility.ts`.
+1. Add the key to `store.AllFeatures` and the `Feature` union in `web/<console>/src/lib/api.ts`.
+2. Give it a label and a blurb in `web/<console>/src/lib/visibility.ts`.
 3. Add it to `SAVE_VIEWS` in `ServerSubNav.tsx` and `MobileChrome.tsx`.
 4. Wrap its route in `<FeatureGate feature="...">`.
 5. Pass the key to `readSaveForRequest` in whichever handler serves it.

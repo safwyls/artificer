@@ -12,7 +12,7 @@ import (
 //
 // `userGroups` is the whole of Enshrouded's permission system: a joining
 // player types a group's password and gets that group's rights for the
-// session (docs/enshrouded-recon.md, "Role groups"). That makes this list
+// session (games/enshrouded/docs/recon.md, "Role groups"). That makes this list
 // both the access-control policy *and* the credential store, which is why
 // the editor reads and writes whole groups instead of exposing
 // `userGroups[0].password` as another string setting.

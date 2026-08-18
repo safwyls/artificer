@@ -37,17 +37,22 @@ All three consoles are ported onto `core` and verified against real servers
 (flametender and wildskeeper 2026-08-16, palcon 2026-08-17). No legacy tree
 remains; every image publishes from here.
 
-Next: Phase 6 — Anvil convergence (the guards still open in the drift ledger's
-§F) and doc consolidation.
+The unification is complete through Phase 6 (2026-08-18).
 
+- `docs/state-of-play.md` — **start here**: what is verified against real
+  servers, what is still inference, and the traps that have actually bitten
+- `docs/roadmap.md` — what is next, per game and shared
+- `docs/adding-a-game.md` — the checklist for a fourth game
+- `docs/sidecar-agent.md` — the agent design
 - `docs/unification-plan.md` — the plan of record
-- `docs/drift-ledger.md` — per-file reconciliation decisions, and what's left
+- `docs/drift-ledger.md` — per-file reconciliation decisions
 
 ## Tests
 
 ```sh
 go build ./... && go vet ./... && go test ./...
-./scripts/checkbounds.sh
+./scripts/checkbounds.sh && ./scripts/checkdocs.sh
+cd anvil && go test ./...
 cd web/<console> && npm ci && npm run build && npm test
 ```
 

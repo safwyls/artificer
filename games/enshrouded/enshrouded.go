@@ -11,7 +11,7 @@
 // the game does have — Steam A2S on its UDP port — is roadmap Phase 2;
 // the log-derived roster stands alone until then.
 //
-// docs/enshrouded-recon.md is the source for every external fact used
+// games/enshrouded/docs/recon.md is the source for every external fact used
 // here, and marks which of them are still unverified against a real
 // server.
 package enshrouded

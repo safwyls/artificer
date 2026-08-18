@@ -1,6 +1,6 @@
 # UE4SS under Wine — the Phase 4 unblocker
 
-Proven working 2026-08-09 on this stack (see `docs/dragonwilds-recon.md`,
+Proven working 2026-08-09 on this stack (see `games/dragonwilds/docs/recon.md`,
 "Phase 4 unblocked"): the **Windows** dedicated server (same app id
 4019830, `+@sSteamCmdForcePlatformType windows`) runs headless under plain
 Wine on Linux, and the UE4SS nightly injects, signature-scans UE 5.6.1

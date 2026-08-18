@@ -8,7 +8,7 @@
 // lines that changed.
 //
 // The write policy is palconfig's, copied deliberately (see
-// docs/porting-to-another-game.md): never add or remove keys, validate each
+// docs/adding-a-game.md): never add or remove keys, validate each
 // new value against the type inferred from the existing one so a bad edit
 // can't brick the server's boot, keep a one-level .wildskeeper.bak, swap the file
 // in atomically. Config is the one mount this package touches; saves stay on

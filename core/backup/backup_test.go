@@ -15,7 +15,7 @@ import (
 )
 
 // worldHex is Enshrouded's fixed name for the first world slot — the
-// dedicated server's savefile (docs/enshrouded-recon.md, "Saves").
+// dedicated server's savefile (games/enshrouded/docs/recon.md, "Saves").
 const worldHex = "3ad85aea"
 
 // fakeSave lays out a save directory shaped like a real Enshrouded world:

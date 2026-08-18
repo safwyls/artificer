@@ -37,7 +37,7 @@ type SaveReader interface {
 // agent-backed servers this loop *is* the sync that backups snapshot), and —
 // when the game has a save reader — keeps the parse cache warm so save-backed
 // pages open onto a hit. Dragonwilds has no reader yet (Phase 3 gate in
-// docs/dragonwilds-recon.md), so reader may be nil and only the sync runs.
+// games/dragonwilds/docs/recon.md), so reader may be nil and only the sync runs.
 type SaveRefresher struct {
 	store  *store.Store
 	reader SaveReader

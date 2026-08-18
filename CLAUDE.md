@@ -36,14 +36,18 @@ Provisioning is Anvil-only across all three; the legacy
 provisioner-mode agent is retired (`PROVISIONER_URL` → `ANVIL_URL` —
 `docs/palcon-port-verification.md` has the migration).
 
-**Next: Phase 6** — Anvil convergence (the four §F guards still open in
-the drift ledger: the missing-vs-refused invariant, a destroy test for
-the keep-the-volume promise, InspectSpec edge cases on recreate, and
-`Containers()`/`Ports()` + an APIVersion assertion on the client), plus
-doc consolidation. The rename is complete on both sides: the GitHub repo
-is `safwyls/artificer`, and Anvil's image builds here
-(`docker-anvil.yml`), publishing `anvil` plus `ilmari` as a migration
-channel for hosts pinned to the old name.
+**Phase 6 is done** (2026-08-18). The four §F guards closed — two were
+live defects, not just missing tests: `anvilclient` had no error taxonomy,
+so "the container is already gone" and "I refuse" were indistinguishable
+(the delete-row and fatal-refusal branches both silently stopped working),
+and the wizard's port proposal could not see ports another console held.
+Docs consolidated: the recon documents, the sidecar-agent design and the
+Cloudflare Access contract now live here rather than only in the archived
+repos, `scripts/checkdocs.sh` keeps every pointer resolving, and
+`docs/state-of-play.md` is the handoff.
+
+Start here: **`docs/state-of-play.md`** (what is verified, what is
+guessed, what bit us), then `docs/roadmap.md` for what is next.
 
 Rules already in force (see the plan's "Structural rules"):
 
