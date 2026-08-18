@@ -24,9 +24,9 @@
   --c-flame: #7FC3F0;
   --c-flame-ink: #2E7EB5;   /* legible weight of the same hue on light */
 
-  /* the anvil, as a silhouette any element can take */
-  --anvil: polygon(0% 34%, 30% 17%, 100% 17%, 100% 43%, 64% 43%, 58% 60%,
-                   88% 71%, 88% 87%, 12% 87%, 12% 71%, 42% 60%, 36% 43%, 21% 43%);
+  /* the anvil, as a silhouette any element can take — the sigil's own
+     anvil path, cropped to its bounds */
+  --anvil: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='46%20100%20106%2067'%3E%3Cpath%20d='M48%20102%20L144%20102%20Q150%20102%20150%20107%20L150%20117%20Q150%20120%20146%20120%20L136%20121%20C125%20130%20119%20137%20123%20143%20L144%20149%20L148%20151%20L148%20163%20Q148%20165%20146%20165%20L124%20165%20C119%20155%2093%20155%2088%20165%20L66%20165%20Q64%20165%2064%20163%20L64%20150%20L68%20148%20L86%20143%20C89%20137%2087%20130%2077%20121%20C64%20120%2055%20112%2048%20102%20Z'/%3E%3C/svg%3E");
 
   --display: "Bricolage Grotesque", system-ui, sans-serif;
   --body: "IBM Plex Sans", system-ui, sans-serif;
@@ -58,17 +58,17 @@ img { max-width: 100%; height: auto; display: block; }
 :focus-visible { outline: 3px solid var(--ember); outline-offset: 2px; border-radius: 3px; }
 
 /* ---------- the mark: the anvil ----------
-   Not an abstraction of one — the silhouette itself, horn to the left,
-   cut from a plain block by clip-path so the markup stays a bare span.
-   Category colors pour in through --mark-fill. */
+   The sigil's anvil, masked over a plain span so category colors pour in
+   through --mark-fill and the markup stays bare. */
 .mark {
   display: inline-block; flex: none;
-  width: 32px; height: 26px;
+  width: 34px; height: 22px;
   background: var(--mark-fill, var(--ember));
-  clip-path: var(--anvil);
+  -webkit-mask: var(--anvil) center / contain no-repeat;
+  mask: var(--anvil) center / contain no-repeat;
 }
 .mark i { display: none; }
-.mark.sm { width: 20px; height: 16px; }
+.mark.sm { width: 21px; height: 14px; }
 
 /* ---------- top nav ---------- */
 header.nav {
@@ -286,7 +286,10 @@ header.nav {
 
 /* ---------- docs landing ---------- */
 .docs-home { max-width: 1280px; margin: 0 auto; padding: 2.6rem 24px 3.5rem; flex: 1 0 auto; width: 100%; }
-.docs-home-head { max-width: 44rem; margin-bottom: 2.2rem; }
+.docs-home-head { display: flex; align-items: center; justify-content: space-between; gap: 3rem; margin-bottom: 2.2rem; }
+.docs-home-head > div { max-width: 44rem; }
+.home-sigil { flex: none; width: 190px; height: 190px; }
+@media (max-width: 860px) { .home-sigil { display: none; } }
 .docs-home-head h1 {
   font-family: var(--display); font-weight: 800; letter-spacing: -.02em;
   font-size: clamp(2.2rem, 5vw, 2.9rem); margin-bottom: .7rem;

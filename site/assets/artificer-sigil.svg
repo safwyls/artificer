@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 224 224" role="img" aria-label="Artificer">
+<circle cx="112" cy="112" r="101" fill="none" stroke="#1D1916" stroke-width="2.5"/>
+<circle cx="112" cy="112" r="89" fill="none" stroke="#1D1916" stroke-width="1.5"/>
+<circle cx="112" cy="112" r="95" fill="none" stroke="#1D1916" stroke-width="9" stroke-dasharray="2 12.92" opacity="0.75"/>
+<g stroke="#17786B" stroke-width="2" fill="none" stroke-linecap="round">
+<path d="M178.34 68.5 L45.66 68.5"/>
+<path d="M182.84 76.29 L116.5 191.21"/>
+<path d="M41.16 76.29 L107.5 191.21"/>
+</g>
+<circle cx="187.34" cy="68.5" r="9" fill="none" stroke="#17786B" stroke-width="2.5"/>
+<circle cx="36.66" cy="68.5" r="9" fill="none" stroke="#17786B" stroke-width="2.5"/>
+<circle cx="112" cy="199" r="9" fill="none" stroke="#17786B" stroke-width="2.5"/>
+<circle cx="112" cy="199" r="3.5" fill="none" stroke="#17786B" stroke-width="1.5"/>
+<circle cx="187.34" cy="68.5" r="4" fill="#F0A028"/>
+<circle cx="60" cy="174" r="2.5" fill="#17786B"/>
+<circle cx="69" cy="181" r="2" fill="#17786B"/>
+<circle cx="78" cy="186" r="1.6" fill="#17786B"/>
+<circle cx="98" cy="36" r="2.2" fill="#17786B"/>
+<circle cx="107" cy="43" r="1.6" fill="#17786B"/>
+<g fill="#1D1916">
+<g transform="rotate(0 144 82)"><polygon points="135,67 153,67 149,48 139,48"/></g>
+<g transform="rotate(45 144 82)"><polygon points="135,67 153,67 149,48 139,48"/></g>
+<g transform="rotate(90 144 82)"><polygon points="135,67 153,67 149,48 139,48"/></g>
+<g transform="rotate(135 144 82)"><polygon points="135,67 153,67 149,48 139,48"/></g>
+<g transform="rotate(180 144 82)"><polygon points="135,67 153,67 149,48 139,48"/></g>
+<g transform="rotate(225 144 82)"><polygon points="135,67 153,67 149,48 139,48"/></g>
+<g transform="rotate(270 144 82)"><polygon points="135,67 153,67 149,48 139,48"/></g>
+<g transform="rotate(315 144 82)"><polygon points="135,67 153,67 149,48 139,48"/></g>
+</g>
+<path d="M119 82 a25 25 0 1 0 50 0 a25 25 0 1 0 -50 0 Z M132 82 a12 12 0 1 1 24 0 a12 12 0 1 1 -24 0 Z" fill="#1D1916" fill-rule="evenodd"/>
+<path d="M48 102 L144 102 Q150 102 150 107 L150 117 Q150 120 146 120 L136 121 C125 130 119 137 123 143 L144 149 L148 151 L148 163 Q148 165 146 165 L124 165 C119 155 93 155 88 165 L66 165 Q64 165 64 163 L64 150 L68 148 L86 143 C89 137 87 130 77 121 C64 120 55 112 48 102 Z" fill="#D6431B"/>
+</svg>
