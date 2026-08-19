@@ -57,7 +57,13 @@ ways that mattered.
   **not** save on shutdown; join/leave log lines, player id shape, and the
   ban location (ini `KnownPlayerList`) are all confirmed against a real
   client that joined on 2026-08-09. `games/dragonwilds/docs/recon.md`,
-  "Empirical findings", outranks everything above it in that file.
+  "Empirical findings", outranks everything above it in that file. The
+  SPUD object layer below the world header is byte-mapped too (recon,
+  2026-08-19), and `dwsave` reads the embedded character records — skills,
+  inventory, last position. The record *schema* is community-verified
+  against client character saves; its exact wrapper inside a played server
+  save is the one honest inference in the reader, and the reader is built
+  so being wrong about the wrapper degrades to an empty player list.
 - Enshrouded: the log vocabulary, the readiness marker and the config
   schema, all confirmed 2026-08-15. Saves on shutdown plus a 10-minute
   autosave; graceful stop is SIGINT; one UDP port carries both game traffic

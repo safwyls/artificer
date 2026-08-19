@@ -95,6 +95,11 @@ func TestParseFixture(t *testing.T) {
 	if strings.Join(ids, " ") != "INFO GLOB LVLS" {
 		t.Errorf("top-level chunks = %v", ids)
 	}
+
+	// A world nobody has joined holds no character records.
+	if len(w.Players) != 0 {
+		t.Errorf("Players = %+v, want none on an unplayed world", w.Players)
+	}
 }
 
 func TestParseRejectsGarbage(t *testing.T) {

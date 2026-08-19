@@ -32,7 +32,8 @@ func Mount(s *api.Server, worlds *savecache.Cache[dwsave.World]) func(chi.Router
 	h := &handlers{s: s, worlds: worlds}
 	return func(r chi.Router) {
 		// Admin-only for the same reason backups are: the payload names
-		// the world owner's player id, and the page it feeds already is.
+		// the world owner's player id and carries every character's
+		// inventory and last position, and the pages it feeds already are.
 		r.With(s.RequireAdmin).Get("/world", h.handleServerWorld)
 		r.With(s.RequirePermission(store.PermPower)).Put("/launch", h.handleSetLaunch)
 		r.With(s.RequirePermission(store.PermPower)).Post("/bridge/install", h.handleInstallBridge)

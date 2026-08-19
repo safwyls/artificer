@@ -11,11 +11,13 @@
 // a uint32 little-endian payload length, then the payload — and chunks nest.
 // The outer chunk is SAVE; inside it, INFO carries the world metadata this
 // package is after, GLOB and LVLS carry the object state it deliberately
-// does not parse. Inside INFO, a CINF sub-chunk holds three tables: a list
-// of field names, a fence-post offset table (one more offset than names),
-// and a values blob the offsets index into. Fields are decoded by name, so
-// a future game build adding or reordering fields degrades to missing
-// values rather than misread ones.
+// does not walk (the layout is mapped — see the recon's "SPUD object layer
+// mapped" section — but only the embedded character records are read, via
+// the scan in players.go). Inside INFO, a CINF sub-chunk holds three
+// tables: a list of field names, a fence-post offset table (one more
+// offset than names), and a values blob the offsets index into. Fields are
+// decoded by name, so a future game build adding or reordering fields
+// degrades to missing values rather than misread ones.
 package dwsave
 
 import (
@@ -82,6 +84,12 @@ type World struct {
 	// Chunks inventories the container's top-level chunks.
 	Chunks []Chunk `json:"chunks"`
 
+	// Players are the character records the save embeds — everyone who has
+	// played this world, with their skills, inventory and last position.
+	// See players.go for how they are found and why that way. Empty on a
+	// world nobody has joined.
+	Players []PlayerCharacter `json:"players"`
+
 	// File and ModTime identify which save file, and which vintage of it,
 	// this parse came from. Filled by Source.Parse, not by Parse.
 	File    string    `json:"file"`
@@ -130,6 +138,10 @@ func Parse(data []byte) (*World, error) {
 	if !infoSeen {
 		return nil, fmt.Errorf("save has no INFO chunk")
 	}
+	// Character records ride inside the object state this parser does not
+	// otherwise walk; the scan is wrapper-independent (see players.go) and
+	// needs the world guid decoded above to resolve per-world playtime.
+	w.Players = scanPlayers(data, w.SaveGuid)
 	return w, nil
 }
 

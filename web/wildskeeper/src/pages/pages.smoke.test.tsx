@@ -65,6 +65,7 @@ const overrides: Record<string, unknown> = {
       timeOfSave: "2026-08-09T12:37:07.651Z",
       levels: ["L_World"],
       chunks: [{ id: "INFO", bytes: 552 }],
+      players: [],
       file: "World-75058.sav",
       modTime: "2026-08-09T19:37:07.000Z",
     },

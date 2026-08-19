@@ -506,6 +506,81 @@ chat message was captured live by hooking `Server_SendChatMessage` (body
 verbatim), but chat does **not** appear in the server's stdout log, so
 `dwlog` cannot see it. Chat monitoring would have to come through a mod.
 
+## SPUD object layer mapped; character records readable (2026-08-19)
+
+The layout below GLOB/LVLS — the object state `dwsave` originally declined
+to parse — is now byte-mapped, from the committed capture
+(`games/dragonwilds/testdata/world-empty.sav`) cross-checked against the
+open-source SPUD plugin's serialization code. Everything in this list was
+verified by decoding the capture and matching known ground truth (the
+DomPersistence global object's fields reproduce the INFO header's
+WorldName/GUID/HardcoreState exactly):
+
+- **GLOB** = CurrentLevel FString, then `META` and `GOBS` chunks (plus a
+  Dominion-specific `GLAI` this mapping leaves alone). **LEVL** = Name
+  FString, then **two u32 version stamps (522, 1017 in this capture)** —
+  a Dominion addition over stock SPUD — then `META`, `LATS`, `SATS`,
+  `DATS`.
+- **META** holds `VERS` (u32), `CNIX`/`PNIX` (u32 count + FStrings; class
+  and property name tables), and `CLST`. Dominion wraps each class def in
+  a **`CDVE`** chunk (one unknown byte, then a stock `CDEF`) — stock SPUD
+  has CDEFs directly under CLST. CDEF = ClassName FString, u16 count,
+  then (u32 propNameID, u32 prefixID, u16 storageType) per property.
+- **NOBJ** = u32 classID, Name FString, then — Dominion again — a
+  **count-prefixed u32 array of component class ids** (the save's own
+  record of which saved components ride the actor), the same two version
+  stamps, then `CORA`/`PROP`/`CUST` chunks.
+- **CORA** = TArray<u8> holding: u16 version (1), u8 hidden, FTransform
+  (quat 4×f64, translation 3×f64, scale 3×f64), then velocity, angular
+  velocity and control rotation at 3×f64 each — 155 bytes, matching the
+  stock SPUD writer line for line. The translation is the actor's world
+  position.
+- **PROP** = u32 offset count + offsets (fence-posted against the data
+  length), then u32 data length + data; property *i* spans
+  offsets[i]..offsets[i+1], decoded by the class def's storage type.
+- **Opaque records** (storage type 64) are UE tagged-property streams:
+  u32 record count, then per record: name FString, type FString, u32
+  array index (0 observed), u32 payload size, one u8 (0 observed for
+  Str/Int; the bool value for BoolProperty, whose payload is empty), then
+  the payload — terminated by a property named `None`. Verified against
+  the capture's LastSavedByEntries, which decodes to
+  Branch="++dominion+live" / Changelist=232224 / bFullSave.
+
+**Where player state lives.** The level actors include
+`Dominion.CachedCharacterStates` (property `CachedCharacterStates`,
+opaque record) and `Dominion.SavedCharacterTransformsManager` (property
+`SavedCharacterTransforms`, opaque record) — both empty in the unplayed
+capture, and the obvious homes for the per-character records and
+positions a played save carries. The game also writes a "Players" chunk
+on a played world (its own log complains the id truncates to four
+characters).
+
+**The character record itself is JSON**, embedded in the save as string
+data — the recon of 2026-08-09 saw `char_guid`, `char_name`,
+`worlds_playtime`, `SaveCount` and `Customization` in a real played world
+save. The full schema is known from the game's client-side character
+saves (`Saved/SaveCharacters/*.sav`, which are plain JSON files of the
+same record): skills as (persistence id, raw XP) pairs, inventory and
+loadout as slot → (item persistence id, count, durability) maps, health
+and stamina, `LastAccessibleLocation.Position` as a UE
+`X=… Y=… Z=…` string, and per-world playtime keyed by world save guid.
+Community save editors read and write this schema; the schema itself is
+therefore **community-verified against the client**, while its exact
+wrapper inside the *server* world save (which of the homes above, chunk
+`Play` or the caches) remains unpinned because the only played save seen
+held personal data and was not committed.
+
+`dwsave` reads player state accordingly: it **scans the save for embedded
+JSON documents carrying the character-record identity keys** rather than
+trusting any single wrapper location — JSON is self-delimiting, so the
+scan is exact, and a game build that moves the records between chunks
+changes nothing. Records reached through a wrapper document as escaped
+strings are also found. A build that stops using JSON degrades to an
+empty player list, never a misread. The console serves XP raw; the
+frontend derives the displayed level on the classic RuneScape curve —
+an assumption, with its caveat and the hover-for-exact-XP escape hatch
+documented in `games/dragonwilds/docs/vendored-game-data.md`.
+
 ## Still open
 
 1. **Ban enforcement** — does the server honor a hand-edited
