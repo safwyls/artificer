@@ -64,6 +64,38 @@ func mustJSON(t *testing.T, v any) []byte {
 	return b
 }
 
+// mustPrettyJSON matches how the game actually embeds its JSON: newlines
+// and tab indentation between every token (seen verbatim in the committed
+// capture's WorldEventManager blob). The first shipped scan looked for
+// `{"` adjacent and walked straight past exactly this — a real played
+// save showed "nobody has joined" with multiple players in the world —
+// so the pretty form is the load-bearing case, not the compact one.
+func mustPrettyJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.MarshalIndent(v, "\t\t\t", "\t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// utf16le encodes text the way UE serializes an FString that contains any
+// non-ASCII character: the whole string as UTF-16LE, NUL-terminated.
+func utf16le(s string) []byte {
+	var out []byte
+	for _, r := range s {
+		if r > 0xFFFF {
+			r -= 0x10000
+			hi := 0xD800 + (r >> 10)
+			lo := 0xDC00 + (r & 0x3FF)
+			out = append(out, byte(hi), byte(hi>>8), byte(lo), byte(lo>>8))
+			continue
+		}
+		out = append(out, byte(r), byte(r>>8))
+	}
+	return append(out, 0, 0)
+}
+
 // TestScanPlayers exercises the harvest over a byte soup shaped like real
 // object state: binary noise, a bare record, the same record older (must
 // dedupe to the newer), a wrapper document carrying a second record as an
@@ -71,18 +103,19 @@ func mustJSON(t *testing.T, v any) []byte {
 func TestScanPlayers(t *testing.T) {
 	worldGuid := "CA220B254BB44040A0666FB7646ED7FA"
 
-	rec := mustJSON(t, charRecord("Aldra", "1D77A8A24F4A9E5B36D5CB921AC1F2E3", 12))
+	// Pretty-printed like the game writes it — the load-bearing shape.
+	rec := mustPrettyJSON(t, charRecord("Aldra", "1D77A8A24F4A9E5B36D5CB921AC1F2E3", 12))
 	older := mustJSON(t, charRecord("Aldra", "1D77A8A24F4A9E5B36D5CB921AC1F2E3", 3))
-	second := mustJSON(t, charRecord("Brantag", "9E5B36D5CB921AC1F2E31D77A8A24F4A", 5))
+	second := mustPrettyJSON(t, charRecord("Brantag", "9E5B36D5CB921AC1F2E31D77A8A24F4A", 5))
 	wrapper := mustJSON(t, map[string]any{
 		"CachedStates": map[string]any{"9E5B...": string(second)},
 	})
-	notAChar := mustJSON(t, map[string]any{"TriggerData": map[string]any{"CurrentPhase": 2}})
+	notAChar := mustPrettyJSON(t, map[string]any{"TriggerData": map[string]any{"CurrentPhase": 2}})
 
 	var soup []byte
 	add := func(parts ...[]byte) {
 		for _, p := range parts {
-			soup = append(soup, 0x00, 0xff, 0x07)
+			soup = append(soup, 0x00, 0xff, 0x07, '{', 0xc0)
 			soup = append(soup, p...)
 		}
 	}
@@ -163,6 +196,40 @@ func TestScanPlayersFallbacks(t *testing.T) {
 	}
 }
 
+// TestScanPlayersNestedObject covers a record travelling as a raw nested
+// object inside a wrapper document, rather than as an escaped string.
+func TestScanPlayersNestedObject(t *testing.T) {
+	wrapper := mustPrettyJSON(t, map[string]any{
+		"Characters": []any{charRecord("Dagny", "BBBB0000BBBB0000BBBB0000BBBB0000", 2)},
+	})
+	players := scanPlayers(wrapper, "CA220B254BB44040A0666FB7646ED7FA")
+	if len(players) != 1 || players[0].CharName != "Dagny" {
+		t.Fatalf("players = %+v, want the nested record", players)
+	}
+	if players[0].PlaytimeHours != 2 {
+		t.Errorf("PlaytimeHours = %v — the nested path must resolve playtime like the direct one", players[0].PlaytimeHours)
+	}
+}
+
+// TestScanPlayersUTF16 covers UE's wide-string serialization: an FString
+// containing any non-ASCII character is written whole as UTF-16LE, so a
+// player with an accented name must still be found.
+func TestScanPlayersUTF16(t *testing.T) {
+	rec := mustPrettyJSON(t, charRecord("Åslaug", "CCCC0000CCCC0000CCCC0000CCCC0000", 7))
+	var soup []byte
+	soup = append(soup, 0x01, 0x7b, 0x02) // a bare "{" byte that is not JSON
+	soup = append(soup, utf16le(string(rec))...)
+	soup = append(soup, 0xfe, 0xff)
+
+	players := scanPlayers(soup, "CA220B254BB44040A0666FB7646ED7FA")
+	if len(players) != 1 {
+		t.Fatalf("players = %+v, want the UTF-16 record", players)
+	}
+	if players[0].CharName != "Åslaug" || players[0].SaveCount != 7 {
+		t.Errorf("player = %q save#%d", players[0].CharName, players[0].SaveCount)
+	}
+}
+
 // TestParseWithPlayersChunk splices a "Play"-style chunk holding a
 // character record into the real capture, the shape the game's own
 // truncated "Players" chunk would take, and runs the full Parse: world
@@ -173,7 +240,7 @@ func TestParseWithPlayersChunk(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := mustJSON(t, charRecord("Aldra", "1D77A8A24F4A9E5B36D5CB921AC1F2E3", 4))
+	rec := mustPrettyJSON(t, charRecord("Aldra", "1D77A8A24F4A9E5B36D5CB921AC1F2E3", 4))
 	// A UE-string-wrapped record inside the chunk, as SPUD stores strings.
 	payload := binary.LittleEndian.AppendUint32(nil, uint32(len(rec)+1))
 	payload = append(payload, rec...)
