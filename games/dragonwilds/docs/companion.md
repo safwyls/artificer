@@ -47,6 +47,18 @@ platforms get.) To start it with Windows, drop a shortcut to the exe in
 `shell:startup` — deliberately manual for now, an app that auto-installs
 itself into startup is not this repo's style.
 
+## Reaching the console through an auth layer
+
+The push endpoints are unauthenticated-with-token by design, so anything
+that forces its own login in front of the console breaks them: a console
+behind **Cloudflare Access** (or any tunnel/proxy auth) answers the
+companion with its login page — HTTP 200, HTML — instead of the API.
+Hit for real on 2026-08-19; the companion now names this instead of
+saying "unexpected answer", and never counts such a 200 as a delivered
+push. Fixes, either of: add a bypass/service-auth policy for
+`/api/public/*` (the same consideration the public status page has), or
+give players a direct/LAN address for the console.
+
 ## The trust model
 
 - The **companion token** is minted per server by a console admin

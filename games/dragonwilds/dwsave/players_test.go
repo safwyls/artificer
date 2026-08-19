@@ -3,6 +3,7 @@ package dwsave
 import (
 	"encoding/binary"
 	"encoding/json"
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -94,6 +95,94 @@ func utf16le(s string) []byte {
 		out = append(out, byte(r), byte(r>>8))
 	}
 	return append(out, 0, 0)
+}
+
+// charRecordV2 is the current-build layout, mirrored from a real client
+// character file (2026-08-19): the body nests under GameProgress, the
+// guid is plain hex, worlds_playtime holds last-played unix timestamps
+// rather than durations, and positions wear the compact V() spelling.
+func charRecordV2(name, guidHex string, saveCount int) map[string]any {
+	return map[string]any{
+		"Version": 8,
+		"meta_data": map[string]any{
+			"char_guid": guidHex,
+			"char_name": name,
+			"char_type": 0,
+			"worlds_playtime": map[string]any{
+				// Timestamps, not durations — must NOT be read as playtime.
+				"CA220B254BB44040A0666FB7646ED7FA": 1786311999.0,
+				"BD93B2B8B4C1407D8F4D52EE93788EF4": 1787031905.0,
+			},
+		},
+		"SaveCount": 309,
+		"GameProgress": map[string]any{
+			"Version": 80,
+			"Character": map[string]any{
+				"Health":        map[string]any{"CurrentValue": 140.0},
+				"Stamina":       map[string]any{"CurrentValue": 80.0},
+				"Playtime_sim":  85557.8,
+				"Playtime_wall": 85605.2,
+				"LastAccessibleLocation": map[string]any{
+					"Position": "V(X=67189.34, Y=113003.27, Z=2277.47)",
+				},
+			},
+			"Inventory": map[string]any{
+				"0":            map[string]any{"GUID": "vXAHS0ME6KqZ9zWpJXOP6Q", "ItemData": "NmzyVLMIY0SYZfOAPICeKg", "Durability": 312.0},
+				"32":           map[string]any{"GUID": "K2opGT-OR4ipbJQvzSGGZw", "ItemData": "bbLdJRhwPEWt1ScENYRUCg", "Count": 1012},
+				"MaxSlotIndex": 81,
+			},
+			"PersonalInventory": map[string]any{"MaxSlotIndex": -1},
+			"Loadout": map[string]any{
+				"0": map[string]any{"GUID": "fVX0xkCdrxNJ9jmeBHGCUQ", "ItemData": "wLzThnOQEUaw90mBnn8QTw", "Durability": 792.0},
+				// A hotbar reference, not an item — must be skipped.
+				"5":            map[string]any{"PlayerInventoryItemIndex": 58},
+				"MaxSlotIndex": 9,
+			},
+			"Skills": map[string]any{
+				"Skills": []any{
+					map[string]any{"Id": "4zYUGF5u_0KbMLkWJmmBbQ", "Xp": 12107},
+					map[string]any{"Id": "pJggvotwOkuoc98igUn7xA", "Xp": 10280},
+				},
+			},
+		},
+	}
+}
+
+// TestParseCharacterRecordV2 pins the current-build layout against the
+// shapes seen in a real file: SaveCharacters records are now JSON with
+// the body under GameProgress.
+func TestParseCharacterRecordV2(t *testing.T) {
+	raw := mustPrettyJSON(t, charRecordV2("safwyl", "384D68C0479A97B5E99446BAB5A9405D", 309))
+	p, err := ParseCharacterRecord(raw, "CA220B254BB44040A0666FB7646ED7FA")
+	if err != nil {
+		t.Fatalf("ParseCharacterRecord: %v", err)
+	}
+	if p.CharName != "safwyl" || p.SaveCount != 309 {
+		t.Errorf("identity = %q save#%d", p.CharName, p.SaveCount)
+	}
+	if CanonicalGuid(p.CharGuid) != "384D68C0479A97B5E99446BAB5A9405D" {
+		t.Errorf("guid = %q", p.CharGuid)
+	}
+	if p.Health != 140 || p.Stamina != 80 {
+		t.Errorf("vitals = %v/%v", p.Health, p.Stamina)
+	}
+	// worlds_playtime holds timestamps now; the wall clock is the truth.
+	if want := 85605.2 / 3600; math.Abs(p.PlaytimeHours-want) > 1e-6 {
+		t.Errorf("PlaytimeHours = %v, want wall-clock %v (a timestamp must never read as a duration)", p.PlaytimeHours, want)
+	}
+	if p.Position == nil || p.Position.X != 67189.34 || p.Position.Y != 113003.27 || p.Position.Z != 2277.47 {
+		t.Errorf("Position = %+v, want the V() form parsed", p.Position)
+	}
+	if len(p.Skills) != 2 || p.Skills[0].XP != 12107 {
+		t.Errorf("Skills = %+v", p.Skills)
+	}
+	if len(p.Inventory) != 2 || p.Inventory[1].Slot != 32 || p.Inventory[1].Count != 1012 {
+		t.Errorf("Inventory = %+v", p.Inventory)
+	}
+	// The loadout keeps real items and skips hotbar references.
+	if len(p.Equipment) != 1 || p.Equipment[0].ID != "wLzThnOQEUaw90mBnn8QTw" {
+		t.Errorf("Equipment = %+v", p.Equipment)
+	}
 }
 
 // TestScanPlayers exercises the harvest over a byte soup shaped like real
