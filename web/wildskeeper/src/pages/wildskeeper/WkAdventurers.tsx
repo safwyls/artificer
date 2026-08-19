@@ -1,6 +1,8 @@
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, type Player } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import { WkCharacters } from "../../components/wildskeeper/WkCharacters";
 import { WkNote, WkPanel } from "../../components/wildskeeper/WkPanel";
 
 /**
@@ -84,12 +86,22 @@ export function WkPlayerRows({
 export function WkAdventurers() {
   const { serverID } = useParams();
   const id = Number(serverID);
+  const { isAdmin } = useAuth();
 
   const infoQuery = useQuery({
     queryKey: ["server-info", id],
     queryFn: () => api.serverInfo(id),
     retry: false,
     refetchInterval: 15_000,
+  });
+  // The save-derived character ledger. Admin-only like the endpoint: the
+  // records carry positions and inventories. The game autosaves every ~5
+  // minutes, so a slow refetch keeps pace without hammering the parser.
+  const worldQuery = useQuery({
+    queryKey: ["world", id],
+    queryFn: () => api.getWorld(id),
+    enabled: isAdmin,
+    refetchInterval: 60_000,
   });
   const playersQuery = useQuery({
     queryKey: ["server-players", id],
@@ -123,6 +135,15 @@ export function WkAdventurers() {
             offline included; Admins ban online adventurers only and cannot unban.
           </WkNote>
         </WkPanel>
+
+        {isAdmin && (
+          <WkCharacters
+            players={worldQuery.data?.world?.players ?? []}
+            available={worldQuery.data?.available ?? false}
+            loading={worldQuery.isLoading}
+            error={worldQuery.isError ? (worldQuery.error as Error).message : undefined}
+          />
+        )}
 
         <WkPanel title="Comings and goings" meta="last 7 days">
           {activityQuery.isLoading && <p className="text-sm text-wk-mist">Loading history…</p>}

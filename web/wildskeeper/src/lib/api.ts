@@ -640,9 +640,41 @@ export interface WorldInfo {
   timeOfSave: string;
   levels: string[];
   chunks: { id: string; bytes: number }[];
+  /** Character records embedded in the save — everyone who has played
+   * this world. Empty until someone joins. */
+  players: SaveCharacter[];
   file: string;
   /** When the save file was last written — the trustworthy freshness stamp. */
   modTime: string;
+}
+
+/** One character the world save knows: identity, skills, inventory and
+ * where they last stood. Item and skill ids are the game's persistence
+ * ids; the id → name maps are vendored in src/data. */
+export interface SaveCharacter {
+  /** The character guid (DCG in the server log) — not the EOS player id,
+   * which the save never contains. */
+  charGuid: string;
+  charName: string;
+  saveCount: number;
+  /** 0 when the record carries no playtime. */
+  playtimeHours: number;
+  health: number;
+  stamina: number;
+  /** Last saved position in UE units (centimetres). */
+  position?: { x: number; y: number; z: number };
+  /** Raw XP per skill — no level: the game's XP curve is its own and
+   * version-dependent, so the console shows XP rather than guessing. */
+  skills: { id: string; xp: number }[];
+  inventory: SaveItem[];
+  equipment: SaveItem[];
+}
+
+export interface SaveItem {
+  slot: number;
+  id: string;
+  count: number;
+  durability?: number;
 }
 
 export interface WorldResult {

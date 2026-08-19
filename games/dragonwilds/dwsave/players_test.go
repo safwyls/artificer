@@ -1,0 +1,226 @@
+package dwsave
+
+import (
+	"encoding/binary"
+	"encoding/json"
+	"os"
+	"strings"
+	"testing"
+)
+
+// charRecord builds a character record shaped like the game's own JSON —
+// the client character save schema, whose identity keys are the ones the
+// recon observed inside a real played world save. Values are synthetic.
+func charRecord(name, guid string, saveCount int) map[string]any {
+	return map[string]any{
+		"Version": 17,
+		"meta_data": map[string]any{
+			"char_guid": guid,
+			"char_name": name,
+			"char_type": 0,
+			// Keyed by world guid — hyphenated lowercase here, to prove
+			// the match normalizes; the fixture world's guid is
+			// CA220B254BB44040A0666FB7646ED7FA.
+			"worlds_playtime": map[string]any{
+				"ca220b25-4bb4-4040-a066-6fb7646ed7fa": 7200.0,
+				"00000000-0000-0000-0000-000000000001": 60.0,
+			},
+		},
+		"SaveCount": saveCount,
+		"Character": map[string]any{
+			"Health":  map[string]any{"CurrentValue": 87.5},
+			"Stamina": map[string]any{"CurrentValue": 100.0},
+			"LastAccessibleLocation": map[string]any{
+				"Position": "X=-96222.633 Y=-3299.294 Z=8697.630",
+			},
+			"Playtime_sim":  7100.0,
+			"Playtime_wall": 7300.0,
+		},
+		"Inventory": map[string]any{
+			"MaxSlotIndex": 30,
+			"0":            map[string]any{"GUID": "aaaaaaaaaaaaaaaaaaaaaa", "ItemData": "P3_Aq0nAXu5dlFuBNGgyaw", "Durability": 1211.0},
+			"7":            map[string]any{"GUID": "bbbbbbbbbbbbbbbbbbbbbb", "ItemData": "Mw42KUu2HuXm3baIbHa_8g", "Count": 42},
+		},
+		"PersonalInventory": map[string]any{
+			"Loadout": map[string]any{
+				"1": map[string]any{"GUID": "cccccccccccccccccccccc", "ItemData": "ewbJ37oeTkypaVfRgI_GPg", "Durability": 88.0},
+			},
+		},
+		"Skills": map[string]any{
+			"Skills": []any{
+				map[string]any{"Id": "4zYUGF5u_0KbMLkWJmmBbQ", "Xp": 13363},
+				map[string]any{"Id": "jqX0Gh6QI0GFFPCDFK_CJQ", "Xp": 388},
+			},
+		},
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// TestScanPlayers exercises the harvest over a byte soup shaped like real
+// object state: binary noise, a bare record, the same record older (must
+// dedupe to the newer), a wrapper document carrying a second record as an
+// escaped string, and a JSON document that is not a character at all.
+func TestScanPlayers(t *testing.T) {
+	worldGuid := "CA220B254BB44040A0666FB7646ED7FA"
+
+	rec := mustJSON(t, charRecord("Aldra", "1D77A8A24F4A9E5B36D5CB921AC1F2E3", 12))
+	older := mustJSON(t, charRecord("Aldra", "1D77A8A24F4A9E5B36D5CB921AC1F2E3", 3))
+	second := mustJSON(t, charRecord("Brantag", "9E5B36D5CB921AC1F2E31D77A8A24F4A", 5))
+	wrapper := mustJSON(t, map[string]any{
+		"CachedStates": map[string]any{"9E5B...": string(second)},
+	})
+	notAChar := mustJSON(t, map[string]any{"TriggerData": map[string]any{"CurrentPhase": 2}})
+
+	var soup []byte
+	add := func(parts ...[]byte) {
+		for _, p := range parts {
+			soup = append(soup, 0x00, 0xff, 0x07)
+			soup = append(soup, p...)
+		}
+	}
+	add([]byte("LogSpudData noise {\" not json"), rec, notAChar, older, wrapper)
+	soup = append(soup, 0xde, 0xad)
+
+	players := scanPlayers(soup, worldGuid)
+	if len(players) != 2 {
+		t.Fatalf("players = %d, want 2 (%+v)", len(players), players)
+	}
+
+	// Sorted by name: Aldra then Brantag.
+	a := players[0]
+	if a.CharName != "Aldra" || a.CharGuid != "1D77A8A24F4A9E5B36D5CB921AC1F2E3" {
+		t.Errorf("player[0] identity = %q/%q", a.CharName, a.CharGuid)
+	}
+	if a.SaveCount != 12 {
+		t.Errorf("SaveCount = %d, want the newer record's 12", a.SaveCount)
+	}
+	if a.Health != 87.5 || a.Stamina != 100 {
+		t.Errorf("vitals = %v/%v", a.Health, a.Stamina)
+	}
+	// 7200 s against this world's guid, matched across hyphens and case —
+	// not the 7300 s wall-clock fallback.
+	if a.PlaytimeHours != 2 {
+		t.Errorf("PlaytimeHours = %v, want 2", a.PlaytimeHours)
+	}
+	if a.Position == nil || a.Position.X != -96222.633 || a.Position.Y != -3299.294 || a.Position.Z != 8697.630 {
+		t.Errorf("Position = %+v", a.Position)
+	}
+	if len(a.Skills) != 2 || a.Skills[0].ID != "4zYUGF5u_0KbMLkWJmmBbQ" || a.Skills[0].XP != 13363 {
+		t.Errorf("Skills = %+v", a.Skills)
+	}
+	if len(a.Inventory) != 2 {
+		t.Fatalf("Inventory = %+v", a.Inventory)
+	}
+	if a.Inventory[0].Slot != 0 || a.Inventory[0].ID != "P3_Aq0nAXu5dlFuBNGgyaw" || a.Inventory[0].Count != 1 ||
+		a.Inventory[0].Durability == nil || *a.Inventory[0].Durability != 1211 {
+		t.Errorf("Inventory[0] = %+v", a.Inventory[0])
+	}
+	if a.Inventory[1].Slot != 7 || a.Inventory[1].Count != 42 || a.Inventory[1].Durability != nil {
+		t.Errorf("Inventory[1] = %+v", a.Inventory[1])
+	}
+	// The loadout was nested under PersonalInventory in this record.
+	if len(a.Equipment) != 1 || a.Equipment[0].ID != "ewbJ37oeTkypaVfRgI_GPg" || a.Equipment[0].Slot != 1 {
+		t.Errorf("Equipment = %+v", a.Equipment)
+	}
+
+	if players[1].CharName != "Brantag" {
+		t.Errorf("player[1] = %q, want the record carried inside the wrapper document", players[1].CharName)
+	}
+}
+
+// TestScanPlayersFallbacks covers the degrade paths: no per-world playtime
+// match falls back to wall clock, a position in an unexpected format stays
+// nil, and a top-level loadout wins when present.
+func TestScanPlayersFallbacks(t *testing.T) {
+	rec := charRecord("Ceridd", "AAAA0000AAAA0000AAAA0000AAAA0000", 1)
+	rec["meta_data"].(map[string]any)["worlds_playtime"] = map[string]any{"deadbeef00000000000000000000dead": 50.0}
+	rec["Character"].(map[string]any)["LastAccessibleLocation"] = map[string]any{"Position": "somewhere else"}
+	rec["Loadout"] = map[string]any{
+		"0": map[string]any{"ItemData": "TuG7zUS90qgd7BOHhOxd8Q"},
+	}
+
+	players := scanPlayers(mustJSON(t, rec), "CA220B254BB44040A0666FB7646ED7FA")
+	if len(players) != 1 {
+		t.Fatalf("players = %+v", players)
+	}
+	p := players[0]
+	if want := 7300.0 / 3600; p.PlaytimeHours != want {
+		t.Errorf("PlaytimeHours = %v, want wall-clock fallback %v", p.PlaytimeHours, want)
+	}
+	if p.Position != nil {
+		t.Errorf("Position = %+v, want nil for an unparseable string", p.Position)
+	}
+	if len(p.Equipment) != 1 || p.Equipment[0].ID != "TuG7zUS90qgd7BOHhOxd8Q" {
+		t.Errorf("Equipment = %+v, want the top-level loadout", p.Equipment)
+	}
+}
+
+// TestParseWithPlayersChunk splices a "Play"-style chunk holding a
+// character record into the real capture, the shape the game's own
+// truncated "Players" chunk would take, and runs the full Parse: world
+// metadata must be untouched and the character found.
+func TestParseWithPlayersChunk(t *testing.T) {
+	data, err := os.ReadFile(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := mustJSON(t, charRecord("Aldra", "1D77A8A24F4A9E5B36D5CB921AC1F2E3", 4))
+	// A UE-string-wrapped record inside the chunk, as SPUD stores strings.
+	payload := binary.LittleEndian.AppendUint32(nil, uint32(len(rec)+1))
+	payload = append(payload, rec...)
+	payload = append(payload, 0)
+	chunk := append([]byte("Play"), binary.LittleEndian.AppendUint32(nil, uint32(len(payload)))...)
+	chunk = append(chunk, payload...)
+
+	// Splice inside SAVE: grow the outer length, append the new chunk.
+	save := append([]byte{}, data...)
+	binary.LittleEndian.PutUint32(save[4:], binary.LittleEndian.Uint32(save[4:])+uint32(len(chunk)))
+	save = append(save, chunk...)
+
+	w, err := Parse(save)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if w.WorldName != "World-75058" || w.SaveGuid != "CA220B254BB44040A0666FB7646ED7FA" {
+		t.Errorf("world metadata disturbed: %q %q", w.WorldName, w.SaveGuid)
+	}
+	var ids []string
+	for _, c := range w.Chunks {
+		ids = append(ids, c.ID)
+	}
+	if got := strings.Join(ids, " "); got != "INFO GLOB LVLS Play" {
+		t.Errorf("chunks = %q", got)
+	}
+	if len(w.Players) != 1 {
+		t.Fatalf("Players = %+v, want the spliced record", w.Players)
+	}
+	p := w.Players[0]
+	if p.CharName != "Aldra" || p.SaveCount != 4 || p.PlaytimeHours != 2 {
+		t.Errorf("player = %+v", p)
+	}
+}
+
+// TestPlayersJSONShape pins the wire shape the console serves: players is
+// always a list (never null), and empty optional fields stay out of the way.
+func TestPlayersJSONShape(t *testing.T) {
+	w, err := Parse(readFixture(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := json.Marshal(w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), `"players":[]`) {
+		t.Errorf("players should serialize as an empty list on an unplayed world")
+	}
+}

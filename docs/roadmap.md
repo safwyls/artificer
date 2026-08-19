@@ -57,9 +57,11 @@ The longest-running console; its surface is the most complete of the three.
    working button with **no console-side work** — the capability probe
    (`game.CommandProber`) already drives the UI from what the bridge
    reports.
-2. **World map.** Once `dwsave` yields positions, a map page — player
-   last-positions, points of interest — is the showpiece. Needs coordinate
-   -system recon against the real game first.
+2. **World map.** `dwsave` now yields each character's last-saved
+   position (the Adventurers page shows them as coordinates), so a map
+   page — player last-positions, points of interest — is the showpiece.
+   Needs coordinate-system recon against the real game first: the
+   positions are UE units with an unmapped origin.
 3. **Chat capture, if it exists in the log.** Still an open recon question.
    If chat lines appear, `dwlog` grows a rule and the UI gets a read-only
    chat panel; there is no send path.
