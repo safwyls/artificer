@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -24,19 +25,55 @@ import (
 type handlers struct {
 	s      *api.Server
 	worlds *savecache.Cache[dwsave.World]
+	// charNames resolves a server's log-learned character guid → name
+	// pairings (dragonwilds.CharacterNames). Nil is fine: the world's
+	// transform records then stay name-less, which is what the save alone
+	// can say.
+	charNames func(agentURL string) map[string]string
+	// companion holds character records players relayed via the
+	// wkcompanion app — see companion.go.
+	companion *companionInbox
 }
 
-// Mount builds the contributed routes. worlds is the dwsave parse cache
-// the console main constructs (mtime-keyed, stale-serving).
-func Mount(s *api.Server, worlds *savecache.Cache[dwsave.World]) func(chi.Router) {
-	h := &handlers{s: s, worlds: worlds}
+// API is Dragonwilds' contributed route sets: the authenticated
+// per-server routes and the token-gated public ones share the companion
+// inbox, which is why both hang off one constructor.
+type API struct {
+	h *handlers
+}
+
+// New builds the contributed API. worlds is the dwsave parse cache the
+// console main constructs (mtime-keyed, stale-serving); charNames is the
+// log-derived identity lookup (dragonwilds.CharacterNames), nil when a
+// caller has none.
+func New(s *api.Server, worlds *savecache.Cache[dwsave.World], charNames func(agentURL string) map[string]string) *API {
+	return &API{h: &handlers{s: s, worlds: worlds, charNames: charNames, companion: newCompanionInbox()}}
+}
+
+// Routes mounts the authenticated per-server endpoints
+// (api.Server.GameRoutes).
+func (a *API) Routes() func(chi.Router) {
+	h := a.h
+	s := h.s
 	return func(r chi.Router) {
 		// Admin-only for the same reason backups are: the payload names
 		// the world owner's player id and carries every character's
 		// inventory and last position, and the pages it feeds already are.
 		r.With(s.RequireAdmin).Get("/world", h.handleServerWorld)
+		r.With(s.RequireAdmin).Get("/companion", h.handleGetCompanion)
+		r.With(s.RequireAdmin).Put("/companion", h.handleSetCompanion)
 		r.With(s.RequirePermission(store.PermPower)).Put("/launch", h.handleSetLaunch)
 		r.With(s.RequirePermission(store.PermPower)).Post("/bridge/install", h.handleInstallBridge)
+	}
+}
+
+// PublicRoutes mounts the token-gated companion endpoints
+// (api.Server.PublicGameRoutes) — see companion.go for the trust model.
+func (a *API) PublicRoutes() func(chi.Router) {
+	h := a.h
+	return func(r chi.Router) {
+		r.Get("/companion/{token}", h.handleCompanionPing)
+		r.Post("/companion/{token}/character", h.handleCompanionPush)
 	}
 }
 
@@ -85,7 +122,36 @@ func (h *handlers) handleServerWorld(w http.ResponseWriter, r *http.Request) {
 		api.WriteError(w, http.StatusInternalServerError, "reading world save: "+err.Error())
 		return
 	}
-	api.WriteJSON(w, http.StatusOK, map[string]any{"available": true, "world": world})
+	enriched := h.withCompanionRecords(srv, h.withCharNames(srv, world))
+	api.WriteJSON(w, http.StatusOK, map[string]any{"available": true, "world": enriched})
+}
+
+// withCharNames overlays log-learned names onto the world's name-less
+// transform records. The cached world is shared between requests, so a
+// name overlay works on a copy — the cache stays exactly what the save
+// said. A record that already carries a name (an older-build save's
+// embedded character record) keeps it.
+func (h *handlers) withCharNames(srv *store.Server, world *dwsave.World) *dwsave.World {
+	if h.charNames == nil || world == nil {
+		return world
+	}
+	names := h.charNames(srv.AgentURL)
+	if len(names) == 0 {
+		return world
+	}
+	out := *world
+	out.Players = make([]dwsave.PlayerCharacter, len(world.Players))
+	copy(out.Players, world.Players)
+	for i := range out.Players {
+		p := &out.Players[i]
+		if p.CharName != "" {
+			continue
+		}
+		if name, ok := names[strings.ToUpper(p.CharGuid)]; ok {
+			p.CharName = name
+		}
+	}
+	return &out
 }
 
 // handleSetLaunch chooses which build the agent starts next.

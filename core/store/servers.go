@@ -67,6 +67,10 @@ type Server struct {
 	// /status/<token>; empty = off. Managed via SetPublicToken, outside
 	// UpdateServer for the same reason as Watchdog.
 	PublicToken string
+	// CompanionToken lets a player-side companion app push data to this
+	// server's game-contributed public routes; empty = off. Managed via
+	// SetCompanionToken, outside UpdateServer like the other tokens.
+	CompanionToken string
 	// Save-backup schedule: snapshot every BackupIntervalHours (0 = no
 	// schedule), keeping the newest BackupKeep snapshots. Managed via
 	// SetBackupSettings, outside UpdateServer like the other automations.
@@ -103,6 +107,7 @@ type serverRow struct {
 	ContainerName   string
 	Watchdog        int
 	PublicToken     string
+	CompanionToken  string
 	BackupInterval  int
 	BackupKeep      int
 	HiddenFeatures  string
@@ -143,6 +148,7 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 		ContainerName:       r.ContainerName,
 		Watchdog:            r.Watchdog != 0,
 		PublicToken:         r.PublicToken,
+		CompanionToken:      r.CompanionToken,
 		BackupIntervalHours: r.BackupInterval,
 		BackupKeep:          r.BackupKeep,
 		HiddenFeatures:      decodeKeys(r.HiddenFeatures),
@@ -150,11 +156,11 @@ func (s *Store) decryptServer(r serverRow) (*Server, error) {
 	}, nil
 }
 
-const serverColumns = `id, name, game, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, join_address, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name, watchdog, public_token, backup_interval_hours, backup_keep, hidden_features, hide_private_storage`
+const serverColumns = `id, name, game, host, rcon_port, rcon_password_enc, rest_port, rest_password_enc, game_port, join_address, use_rest, enabled, save_path, config_path, install_path, agent_url, agent_token_enc, container_name, watchdog, public_token, companion_token, backup_interval_hours, backup_keep, hidden_features, hide_private_storage`
 
 func scanServerRow(scan func(dest ...any) error) (serverRow, error) {
 	var r serverRow
-	err := scan(&r.ID, &r.Name, &r.Game, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.GamePort, &r.JoinAddress, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.AgentURL, &r.AgentTokenEnc, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.BackupInterval, &r.BackupKeep, &r.HiddenFeatures, &r.HidePrivate)
+	err := scan(&r.ID, &r.Name, &r.Game, &r.Host, &r.RCONPort, &r.RCONPasswordEnc, &r.RESTPort, &r.RESTPasswordEnc, &r.GamePort, &r.JoinAddress, &r.UseREST, &r.Enabled, &r.SavePath, &r.ConfigPath, &r.InstallPath, &r.AgentURL, &r.AgentTokenEnc, &r.ContainerName, &r.Watchdog, &r.PublicToken, &r.CompanionToken, &r.BackupInterval, &r.BackupKeep, &r.HiddenFeatures, &r.HidePrivate)
 	return r, err
 }
 
@@ -309,6 +315,38 @@ func (s *Store) SetPublicToken(ctx context.Context, id int64, token string) erro
 		return ErrNotFound
 	}
 	return err
+}
+
+// SetCompanionToken sets or clears the companion push token, outside
+// UpdateServer for the same never-wiped-by-a-form-save reason as the
+// public token.
+func (s *Store) SetCompanionToken(ctx context.Context, id int64, token string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE servers SET companion_token = ? WHERE id = ?`, token, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// GetServerByCompanionToken resolves a companion push token. An empty
+// token never matches — it's the "feature off" value on every row.
+func (s *Store) GetServerByCompanionToken(ctx context.Context, token string) (*Server, error) {
+	if token == "" {
+		return nil, ErrNotFound
+	}
+	row := s.db.QueryRowContext(ctx, `SELECT `+serverColumns+` FROM servers WHERE companion_token = ?`, token)
+	r, err := scanServerRow(row.Scan)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.decryptServer(r)
 }
 
 // GetServerByPublicToken resolves a public status token. An empty token

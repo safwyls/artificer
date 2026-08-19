@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, type Player } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { WkCharacters } from "../../components/wildskeeper/WkCharacters";
+import { WkCompanionPanel } from "../../components/wildskeeper/WkCompanionPanel";
 import { WkNote, WkPanel } from "../../components/wildskeeper/WkPanel";
 
 /**
@@ -144,6 +145,8 @@ export function WkAdventurers() {
             error={worldQuery.isError ? (worldQuery.error as Error).message : undefined}
           />
         )}
+
+        {isAdmin && <WkCompanionPanel serverId={id} />}
 
         <WkPanel title="Comings and goings" meta="last 7 days">
           {activityQuery.isLoading && <p className="text-sm text-wk-mist">Loading history…</p>}

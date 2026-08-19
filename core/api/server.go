@@ -93,6 +93,14 @@ type Server struct {
 	// The game module builds the closure over this Server via its Routes
 	// helper; core mounts it blind.
 	GameRoutes func(r chi.Router)
+	// PublicGameRoutes, when set, mounts the game's unauthenticated
+	// endpoints under /api/public — the same trust tier as the public
+	// status page: every route must gate itself on a token the way
+	// /public/status/{token} does, because core mounts these outside
+	// requireAuth. First user: the Dragonwilds companion push endpoint
+	// (character data lives on players' machines; a companion app relays
+	// it with the server's companion token as the credential).
+	PublicGameRoutes func(r chi.Router)
 	// The advisor has two possible sources, resolved in advisor():
 	// a key saved through the admin UI (uiAdvisor, encrypted in the store)
 	// wins over one from the environment (envAdvisor, set by main). Both
@@ -142,9 +150,13 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 		// frontend's silent attempt cheap.
 		r.Post("/login/cloudflare", s.handleCloudflareLogin)
 
-		// The only unauthenticated data endpoint: token-gated, read-only,
-		// served entirely from Flametender's own database. See public.go.
+		// Unauthenticated data endpoints, all token-gated: the read-only
+		// status page (see public.go), and any public routes the game
+		// contributes (each gating itself on the companion token).
 		r.Get("/public/status/{token}", s.handlePublicStatus)
+		if s.PublicGameRoutes != nil {
+			r.Route("/public", s.PublicGameRoutes)
+		}
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireAuth)

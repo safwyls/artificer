@@ -30,10 +30,22 @@ func init() {
 // cmd/wildskeeper.
 func newTestAppWithAdmin(t *testing.T) (*apitest.App, []*http.Cookie) {
 	worlds := savecache.New[dwsave.World](dwsave.Source{})
+	// One dwapi.API serves both route sets, exactly as the console main
+	// wires it — the companion inbox is shared state between them.
+	var dw *dwapi.API
+	build := func(s *api.Server) *dwapi.API {
+		if dw == nil {
+			dw = dwapi.New(s, worlds, nil)
+		}
+		return dw
+	}
 	return apitest.NewWithAdmin(t, apitest.Options{
 		Provision: dragonwilds.ProvisionProfile(),
 		GameRoutes: func(s *api.Server) func(chi.Router) {
-			return dwapi.Mount(s, worlds)
+			return build(s).Routes()
+		},
+		PublicGameRoutes: func(s *api.Server) func(chi.Router) {
+			return build(s).PublicRoutes()
 		},
 	})
 }
@@ -44,7 +56,7 @@ func newTestAppWithAdminNoWorlds(t *testing.T) (*apitest.App, []*http.Cookie) {
 	return apitest.NewWithAdmin(t, apitest.Options{
 		Provision: dragonwilds.ProvisionProfile(),
 		GameRoutes: func(s *api.Server) func(chi.Router) {
-			return dwapi.Mount(s, nil)
+			return dwapi.New(s, nil, nil).Routes()
 		},
 	})
 }

@@ -50,6 +50,28 @@ describe("WkCharacters", () => {
     expect(screen.getByText("×42")).toBeInTheDocument();
   });
 
+  it("presents a transform-only character without inventing vitals", () => {
+    const transformOnly: SaveCharacter = {
+      charGuid: "044F259443215BB8B575B6ACAA2A1D8D",
+      charName: "",
+      saveCount: 0,
+      playtimeHours: 0,
+      health: 0,
+      stamina: 0,
+      position: { x: 46522, y: 176842, z: -4000 },
+      lastUpdated: 186648,
+      skills: [],
+      inventory: [],
+      equipment: [],
+    };
+    renderWithProviders(<WkCharacters players={[transformOnly]} available loading={false} />);
+    expect(screen.getByText("Unnamed adventurer")).toBeInTheDocument();
+    expect(screen.getByText("465, 1,768 m")).toBeInTheDocument();
+    // No fabricated zero facts for a record the save doesn't carry.
+    expect(screen.queryByText("Health")).not.toBeInTheDocument();
+    expect(screen.queryByText("Saves")).not.toBeInTheDocument();
+  });
+
   it("tells the empty world honestly", () => {
     renderWithProviders(<WkCharacters players={[]} available loading={false} />);
     expect(screen.getByText(/nobody has joined this world/)).toBeInTheDocument();

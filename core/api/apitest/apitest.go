@@ -49,6 +49,9 @@ type Options struct {
 	Provision *api.ProvisionProfile
 	// GameRoutes builds the game's contributed routes (esapi.Mount et al).
 	GameRoutes func(*api.Server) func(chi.Router)
+	// PublicGameRoutes builds the game's unauthenticated token-gated
+	// routes, mounted under /api/public like a console main would.
+	PublicGameRoutes func(*api.Server) func(chi.Router)
 	// DocsFS backs the advisor docs endpoint; nil serves none.
 	DocsFS fs.FS
 }
@@ -92,6 +95,9 @@ func New(t *testing.T, opts Options) *App {
 	srv.DocsFS = opts.DocsFS
 	if opts.GameRoutes != nil {
 		srv.GameRoutes = opts.GameRoutes(srv)
+	}
+	if opts.PublicGameRoutes != nil {
+		srv.PublicGameRoutes = opts.PublicGameRoutes(srv)
 	}
 	staticFS := fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html></html>")}}
 	return &App{Handler: srv.Routes(staticFS), Store: st, Files: files, API: srv}

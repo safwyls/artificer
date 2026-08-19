@@ -58,12 +58,19 @@ ways that mattered.
   ban location (ini `KnownPlayerList`) are all confirmed against a real
   client that joined on 2026-08-09. `games/dragonwilds/docs/recon.md`,
   "Empirical findings", outranks everything above it in that file. The
-  SPUD object layer below the world header is byte-mapped too (recon,
-  2026-08-19), and `dwsave` reads the embedded character records — skills,
-  inventory, last position. The record *schema* is community-verified
-  against client character saves; its exact wrapper inside a played server
-  save is the one honest inference in the reader, and the reader is built
-  so being wrong about the wrapper degrades to an empty player list.
+  SPUD object layer below the world header is byte-mapped too, verified
+  against a real 4 MB played save (recon, 2026-08-19): on current game
+  builds the world save carries each character's guid and last position
+  as binary transform records, which `dwsave` parses, while names,
+  skills and inventories live client-side on each player's own machine —
+  the dedicated server never holds them (operator-verified 2026-08-19),
+  which is the honest ceiling of save-derived player data. Names come
+  back through the disconnect log line's guid↔name pairing, which
+  `dwlog` learns and the world endpoint overlays; full character sheets
+  come back only by the player's own choice, via the `wkcompanion` app
+  running on their machine (`games/dragonwilds/docs/companion.md`). The
+  JSON character records older builds embedded are still read and
+  merged by guid when a save carries them.
 - Enshrouded: the log vocabulary, the readiness marker and the config
   schema, all confirmed 2026-08-15. Saves on shutdown plus a 10-minute
   autosave; graceful stop is SIGINT; one UDP port carries both game traffic

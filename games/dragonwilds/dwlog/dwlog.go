@@ -51,6 +51,11 @@ type Rules struct {
 	// (world) name. Verified against a real capture in both tables — see
 	// testdata/server-lifecycle.log.
 	Save func(line string) (slot string, ok bool)
+	// Character extracts a character-identity pairing from a line: the
+	// character guid (DCG, the id the world save's transform records use)
+	// and the display name. The disconnect line carries both. Nil when the
+	// table's vocabulary has no such line.
+	Character func(line string) (guid, name string, ok bool)
 }
 
 // v0 markers, verified only as substrings (recon doc, "Logs"):
@@ -123,6 +128,7 @@ const (
 	leaveMarkerV1  = "LogDomMatcherSession: Player Removed from session ["
 	leaveAccount   = "Account["
 	leaveCharacter = "Character Name["
+	leaveCharGuid  = "Guid[DCG:"
 )
 
 // sessionPair parses "<id>]-[<name>]" — the text following a v1 session
@@ -193,6 +199,20 @@ var RulesV1 = Rules{
 		return Event{}, false
 	},
 	Save: saveV0,
+	// The disconnect line pairs the character guid with the name:
+	//   ... Character Name[<name>] Guid[DCG:<32HEX>] ...
+	// This is the only server-side source of that pairing — character
+	// records live on each player's own machine (recon, 2026-08-19), so
+	// the world save's transform records carry guids and no names, and
+	// this line is what names them.
+	Character: func(line string) (string, string, bool) {
+		guid := bracketed(line, leaveCharGuid)
+		name := bracketed(line, leaveCharacter)
+		if guid == "" || name == "" {
+			return "", "", false
+		}
+		return strings.ToUpper(guid), name, true
+	},
 }
 
 // Session is one tracked player. ID is the player id when the rules table
@@ -230,11 +250,17 @@ type Tracker struct {
 	// the only honest answer to "how much would a restart cost".
 	lastSave     time.Time
 	lastSaveSlot string
+	// charNames maps character guid (uppercase 32 hex, the DCG id) to
+	// display name, learned from disconnect lines. Unlike sessions this
+	// deliberately survives process restarts: it is identity knowledge,
+	// not liveness — a name learned last week still correctly names that
+	// character's transform record in the world save.
+	charNames map[string]string
 }
 
 // NewTracker builds a tracker over the given rules table.
 func NewTracker(rules Rules) *Tracker {
-	return &Tracker{rules: rules, sessions: map[string]Session{}}
+	return &Tracker{rules: rules, sessions: map[string]Session{}, charNames: map[string]string{}}
 }
 
 // Update feeds the tracker the current log tail. startedAt is the supervised
@@ -278,6 +304,12 @@ func (t *Tracker) Update(startedAt time.Time, tail []string) {
 }
 
 func (t *Tracker) apply(line string, now time.Time) {
+	if t.rules.Character != nil {
+		if guid, name, ok := t.rules.Character(line); ok {
+			t.charNames[guid] = name
+		}
+		// Fall through: the same line is usually also a leave.
+	}
 	if ev, ok := t.rules.Join(line); ok {
 		if key := ev.key(); key != "" {
 			if _, tracked := t.sessions[key]; !tracked {
@@ -335,6 +367,19 @@ func (t *Tracker) LastSave() (time.Time, string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.lastSave, t.lastSaveSlot
+}
+
+// CharacterNames returns the guid → name pairings learned so far. The map
+// is a copy; the empty map just means no disconnect line has been seen yet
+// (the pairing only appears when a player leaves).
+func (t *Tracker) CharacterNames() map[string]string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make(map[string]string, len(t.charNames))
+	for k, v := range t.charNames {
+		out[k] = v
+	}
+	return out
 }
 
 // Sessions returns the current players, sorted by name for stable output.

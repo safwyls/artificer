@@ -39,6 +39,19 @@ func trackerFor(agentURL string) *dwlog.Tracker {
 	return t
 }
 
+// CharacterNames exposes the log-learned character guid → name pairings for
+// a server, keyed the same way the trackers are. It is how the world
+// endpoint names the save's transform records: character records live on
+// each player's own machine (recon, 2026-08-19), so the disconnect log
+// line is the server's only source of the pairing. Empty until the log
+// has shown a leave — a fresh console names nobody, honestly.
+func CharacterNames(agentURL string) map[string]string {
+	if agentURL == "" {
+		return nil
+	}
+	return trackerFor(agentURL).CharacterNames()
+}
+
 // logTail is how much of the agent's ring each refresh asks for — the whole
 // of it, because the tracker anchors incrementally and the ring is capped
 // at the same figure agent-side.

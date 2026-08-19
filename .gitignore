@@ -5,6 +5,7 @@
 /wkagent
 /palcon
 /palagent
+/wkcompanion
 /anvil-bin
 web/*/dist/
 web/*/dist-demo/

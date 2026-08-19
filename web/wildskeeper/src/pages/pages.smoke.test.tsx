@@ -70,6 +70,8 @@ const overrides: Record<string, unknown> = {
       modTime: "2026-08-09T19:37:07.000Z",
     },
   },
+  getCompanion: { enabled: false, token: "", shared: 0 },
+  setCompanion: { enabled: true, token: "aabbccdd", shared: 0 },
   provisionDefaults: { available: false },
   provisionDiscover: { available: false, servers: [] },
   hostOverview: { available: false, reason: "no anvil in the smoke tests" },

@@ -240,3 +240,36 @@ func TestRulesV1DisconnectAloneCloses(t *testing.T) {
 		t.Fatalf("sessions = %+v, want none after disconnect", got)
 	}
 }
+
+// TestCharacterNamesFromDisconnect pins the guid → name harvest: the
+// disconnect line pairs the character guid (the id the world save's
+// transform records use) with the display name, and that knowledge must
+// survive a server restart — identity is not liveness.
+func TestCharacterNamesFromDisconnect(t *testing.T) {
+	const disconnect = "[2026.08.09-21.46.39:311][131]LogDominionPlayerController: ClientRequestDisconnect : DisconnectMe : PlayerStateSave result[true] - state saved for Account[XP:0123456789abcdef0123456789abcdef] Character Name[Bramblejaw] Guid[DCG:0123456789abcdef0123456789ABCDEF] Type[0]"
+
+	tr := NewTracker(RulesV1)
+	start := time.Now()
+	tr.Update(start, []string{disconnect})
+
+	names := tr.CharacterNames()
+	// Uppercased on the way in: the transform records render uppercase.
+	if got := names["0123456789ABCDEF0123456789ABCDEF"]; got != "Bramblejaw" {
+		t.Fatalf("CharacterNames = %v", names)
+	}
+
+	// A restart clears sessions but keeps the learned identities.
+	tr.Update(start.Add(time.Hour), []string{noise})
+	if len(tr.Sessions()) != 0 {
+		t.Errorf("sessions survived a restart: %v", tr.Sessions())
+	}
+	if got := tr.CharacterNames()["0123456789ABCDEF0123456789ABCDEF"]; got != "Bramblejaw" {
+		t.Error("character identity lost on restart")
+	}
+
+	// The returned map is a copy, not a window into the tracker.
+	names["0123456789ABCDEF0123456789ABCDEF"] = "clobbered"
+	if got := tr.CharacterNames()["0123456789ABCDEF0123456789ABCDEF"]; got != "Bramblejaw" {
+		t.Error("CharacterNames leaked its internal map")
+	}
+}

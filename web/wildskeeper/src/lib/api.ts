@@ -663,6 +663,13 @@ export interface SaveCharacter {
   stamina: number;
   /** Last saved position in UE units (centimetres). */
   position?: { x: number; y: number; z: number };
+  /** The transform record's freshness stamp on the game's own clock
+   * (seconds, game epoch); 0/absent when the save holds no transform. */
+  lastUpdated?: number;
+  /** When a companion app last relayed this character's full record.
+   * Absent on save-derived records — skills and inventory can only
+   * arrive by a player sharing them (the game stores them client-side). */
+  sharedAt?: string;
   /** Raw XP per skill — no level: the game's XP curve is its own and
    * version-dependent, so the console shows XP rather than guessing. */
   skills: { id: string; xp: number }[];
@@ -675,6 +682,16 @@ export interface SaveItem {
   id: string;
   count: number;
   durability?: number;
+}
+
+/** Companion sharing state for a server. */
+export interface CompanionState {
+  enabled: boolean;
+  /** The push token; empty when disabled. Handed to players, so treat it
+   * like a credential — re-enabling mints a fresh one. */
+  token: string;
+  /** How many characters are currently shared (0 until players push). */
+  shared?: number;
 }
 
 export interface WorldResult {
@@ -1074,6 +1091,15 @@ export const api = {
 
   // The world as its save file tells it — admin-only, like the vault it sits above.
   getWorld: (id: number) => request<WorldResult>(`/servers/${id}/world`),
+
+  // Companion sharing: the token players paste into the wkcompanion app so
+  // their character sheets (stored on their own machines) reach this console.
+  getCompanion: (id: number) => request<CompanionState>(`/servers/${id}/companion`),
+  setCompanion: (id: number, enabled: boolean) =>
+    request<CompanionState>(`/servers/${id}/companion`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    }),
 
   // Save backups — admin-only end to end (a snapshot is the whole world).
   listBackups: (id: number) => request<BackupsResult>(`/servers/${id}/backups`),

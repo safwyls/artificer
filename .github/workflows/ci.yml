@@ -65,6 +65,10 @@ jobs:
           go build ./...
           go vet ./...
           go test ./...
+      - name: wkcompanion Windows build (players run Windows; the tray code is windows-only)
+        run: |
+          GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" ./cmd/wkcompanion
+          GOOS=windows GOARCH=amd64 go vet ./cmd/wkcompanion
 
   anvil:
     runs-on: ubuntu-latest
