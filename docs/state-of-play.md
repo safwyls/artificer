@@ -66,9 +66,11 @@ ways that mattered.
   the dedicated server never holds them (operator-verified 2026-08-19),
   which is the honest ceiling of save-derived player data. Names come
   back through the disconnect log line's guid↔name pairing, which
-  `dwlog` learns and the world endpoint overlays. The JSON character
-  records older builds embedded are still read and merged by guid when
-  a save carries them.
+  `dwlog` learns and the world endpoint overlays; full character sheets
+  come back only by the player's own choice, via the `wkcompanion` app
+  running on their machine (`games/dragonwilds/docs/companion.md`). The
+  JSON character records older builds embedded are still read and
+  merged by guid when a save carries them.
 - Enshrouded: the log vocabulary, the readiness marker and the config
   schema, all confirmed 2026-08-15. Saves on shutdown plus a 10-minute
   autosave; graceful stop is SIGINT; one UDP port carries both game traffic

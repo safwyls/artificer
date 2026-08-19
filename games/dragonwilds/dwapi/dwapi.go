@@ -30,21 +30,50 @@ type handlers struct {
 	// transform records then stay name-less, which is what the save alone
 	// can say.
 	charNames func(agentURL string) map[string]string
+	// companion holds character records players relayed via the
+	// wkcompanion app — see companion.go.
+	companion *companionInbox
 }
 
-// Mount builds the contributed routes. worlds is the dwsave parse cache
-// the console main constructs (mtime-keyed, stale-serving); charNames is
-// the log-derived identity lookup (dragonwilds.CharacterNames), nil when a
+// API is Dragonwilds' contributed route sets: the authenticated
+// per-server routes and the token-gated public ones share the companion
+// inbox, which is why both hang off one constructor.
+type API struct {
+	h *handlers
+}
+
+// New builds the contributed API. worlds is the dwsave parse cache the
+// console main constructs (mtime-keyed, stale-serving); charNames is the
+// log-derived identity lookup (dragonwilds.CharacterNames), nil when a
 // caller has none.
-func Mount(s *api.Server, worlds *savecache.Cache[dwsave.World], charNames func(agentURL string) map[string]string) func(chi.Router) {
-	h := &handlers{s: s, worlds: worlds, charNames: charNames}
+func New(s *api.Server, worlds *savecache.Cache[dwsave.World], charNames func(agentURL string) map[string]string) *API {
+	return &API{h: &handlers{s: s, worlds: worlds, charNames: charNames, companion: newCompanionInbox()}}
+}
+
+// Routes mounts the authenticated per-server endpoints
+// (api.Server.GameRoutes).
+func (a *API) Routes() func(chi.Router) {
+	h := a.h
+	s := h.s
 	return func(r chi.Router) {
 		// Admin-only for the same reason backups are: the payload names
 		// the world owner's player id and carries every character's
 		// inventory and last position, and the pages it feeds already are.
 		r.With(s.RequireAdmin).Get("/world", h.handleServerWorld)
+		r.With(s.RequireAdmin).Get("/companion", h.handleGetCompanion)
+		r.With(s.RequireAdmin).Put("/companion", h.handleSetCompanion)
 		r.With(s.RequirePermission(store.PermPower)).Put("/launch", h.handleSetLaunch)
 		r.With(s.RequirePermission(store.PermPower)).Post("/bridge/install", h.handleInstallBridge)
+	}
+}
+
+// PublicRoutes mounts the token-gated companion endpoints
+// (api.Server.PublicGameRoutes) — see companion.go for the trust model.
+func (a *API) PublicRoutes() func(chi.Router) {
+	h := a.h
+	return func(r chi.Router) {
+		r.Get("/companion/{token}", h.handleCompanionPing)
+		r.Post("/companion/{token}/character", h.handleCompanionPush)
 	}
 }
 
@@ -93,7 +122,8 @@ func (h *handlers) handleServerWorld(w http.ResponseWriter, r *http.Request) {
 		api.WriteError(w, http.StatusInternalServerError, "reading world save: "+err.Error())
 		return
 	}
-	api.WriteJSON(w, http.StatusOK, map[string]any{"available": true, "world": h.withCharNames(srv, world)})
+	enriched := h.withCompanionRecords(srv, h.withCharNames(srv, world))
+	api.WriteJSON(w, http.StatusOK, map[string]any{"available": true, "world": enriched})
 }
 
 // withCharNames overlays log-learned names onto the world's name-less

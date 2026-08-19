@@ -134,7 +134,9 @@ func run(logger *slog.Logger) error {
 	apiServer := api.New(st, cfg.JWTSecret, logger, docker, notifier, backups, files, nil)
 	apiServer.SessionCookie = "wildskeeper_session"
 	apiServer.Provision = dragonwilds.ProvisionProfile()
-	apiServer.GameRoutes = dwapi.Mount(apiServer, worlds, dragonwilds.CharacterNames)
+	dwAPI := dwapi.New(apiServer, worlds, dragonwilds.CharacterNames)
+	apiServer.GameRoutes = dwAPI.Routes()
+	apiServer.PublicGameRoutes = dwAPI.PublicRoutes()
 	apiServer.CookieSecure = cfg.CookieSecure
 	// Optional: single sign-on for a console behind a Cloudflare Tunnel.
 	// Unset means the password form is the only way in — see

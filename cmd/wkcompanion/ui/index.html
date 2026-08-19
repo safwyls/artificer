@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wildskeeper Companion</title>
+<style>
+  /* One deliberate dark look, kin to the wildskeeper console. */
+  :root {
+    --ink: #0d1117; --panel: #161c24; --edge: #2a3340;
+    --parchment: #e8dcc3; --mist: #8b93a1; --brass: #c9a860;
+    --rune: #7fb4c4; --ok: #7fc46a; --ember: #d4735e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ink); color: var(--parchment);
+    font: 15px/1.5 Georgia, 'Times New Roman', serif;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; letter-spacing: .04em; color: var(--brass); margin: 0 0 2px; }
+  .sub { color: var(--mist); font-size: 13px; margin-bottom: 20px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--edge); border-radius: 6px;
+    padding: 14px 16px; margin-bottom: 14px;
+  }
+  .panel h2 {
+    font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--brass); margin: 0 0 10px; font-weight: 600;
+  }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 6px 0 2px; }
+  .fact b { display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--mist); font-weight: 500; }
+  .charname { font-size: 19px; font-weight: 700; }
+  .guid { font-family: ui-monospace, monospace; font-size: 11px; color: var(--mist); letter-spacing: .05em; }
+  .skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 22px; margin-top: 10px; }
+  .skill { display: flex; justify-content: space-between; border-top: 1px solid var(--edge); padding-top: 4px; font-size: 13px; }
+  .skill span { color: var(--mist); }
+  .skill b { font-family: ui-monospace, monospace; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th { text-align: left; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mist); font-weight: 500; padding: 2px 8px; }
+  td { border-top: 1px solid var(--edge); padding: 4px 8px; }
+  td.num { text-align: right; font-family: ui-monospace, monospace; color: var(--mist); }
+  .mono { font-family: ui-monospace, monospace; font-size: 12px; color: var(--mist); }
+  label { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mist); margin: 10px 0 3px; }
+  input {
+    width: 100%; background: var(--ink); color: var(--parchment);
+    border: 1px solid var(--edge); border-radius: 4px; padding: 7px 9px; font: inherit; font-size: 14px;
+  }
+  button {
+    margin-top: 12px; background: linear-gradient(#2a2416, #1e1a10); color: var(--brass);
+    border: 1px solid var(--brass); border-radius: 4px; padding: 7px 18px;
+    font: inherit; font-weight: 700; letter-spacing: .05em; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.25); }
+  button.quiet { border-color: var(--edge); color: var(--mist); font-weight: 400; margin-left: 8px; }
+  .status-ok { color: var(--ok); } .status-err { color: var(--ember); } .status-idle { color: var(--mist); }
+  .note { font-size: 12px; color: var(--mist); font-style: italic; margin-top: 10px; }
+  details summary { cursor: pointer; color: var(--mist); font-size: 13px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Wildskeeper Companion</h1>
+  <div class="sub">Your Dragonwilds characters, read from this computer — the game keeps them here, not on the server.</div>
+
+  <div id="characters"></div>
+  <div class="panel" id="empty" style="display:none">
+    <h2>No characters found</h2>
+    <p id="emptyReason" class="note"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Share with your server's console</h2>
+    <p class="note" style="margin-top:0">
+      Optional. With a console URL and the companion token your server admin hands out, this app relays your
+      character sheet so it appears on the server's Adventurers page. Nothing is sent until both are set,
+      and clearing them stops it.
+    </p>
+    <label>Console URL</label>
+    <input id="consoleUrl" placeholder="https://your-console.example.com">
+    <label>Companion token</label>
+    <input id="token" placeholder="paste the token from the console's Adventurers page">
+    <label>SaveCharacters folder (leave empty to auto-detect)</label>
+    <input id="saveDir" placeholder="">
+    <div>
+      <button onclick="saveCfg()">Save &amp; test</button>
+      <button class="quiet" onclick="pushNow()">Push now</button>
+      <span id="cfgStatus" class="mono"></span>
+    </div>
+    <div class="note" id="relayLine"></div>
+  </div>
+</div>
+
+<script>
+let ITEMS = {}, SKILLS = {};
+// The classic RuneScape 1–99 curve; the game's own bends slightly above
+// 93, so the exact XP always rides in the title attribute.
+const XP_TABLE = (() => {
+  const t = [0, 0]; let pts = 0;
+  for (let l = 1; l < 99; l++) { pts += Math.floor(l + 300 * Math.pow(2, l / 7)); t.push(Math.floor(pts / 4)); }
+  return t;
+})();
+const levelFor = xp => { for (let l = 99; l >= 2; l--) if (xp >= XP_TABLE[l]) return l; return 1; };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const itemName = id => ITEMS[id] || id;
+const skillName = id => SKILLS[id] || id;
+
+function itemRows(items, kind) {
+  return items.map(it => `<tr>
+    <td class="mono">${kind}</td>
+    <td>${ITEMS[it.id] ? esc(itemName(it.id)) : `<span class="mono">${esc(it.id)}</span>`}</td>
+    <td class="num">${it.count > 1 ? "×" + it.count : ""}</td>
+    <td class="num">${it.durability !== undefined ? Math.round(it.durability).toLocaleString() : ""}</td>
+  </tr>`).join("");
+}
+
+function renderCharacter(c) {
+  const p = c.player;
+  const skills = [...(p.skills || [])].sort((a, b) => b.xp - a.xp);
+  const inv = p.inventory || [], eq = p.equipment || [];
+  const pushed = c.pushedAt ? `shared ${new Date(c.pushedAt).toLocaleTimeString()}` : "";
+  return `<div class="panel">
+    <h2>${esc(c.file)} <span class="status-ok" style="float:right;font-weight:400">${pushed}</span></h2>
+    <div class="charname">${esc(p.charName || "Unnamed")}</div>
+    <div class="guid">${esc(p.charGuid)}</div>
+    <div class="facts">
+      <div class="fact"><b>Health</b>${Math.round(p.health)}</div>
+      <div class="fact"><b>Stamina</b>${Math.round(p.stamina)}</div>
+      <div class="fact"><b>Playtime</b>${p.playtimeHours ? p.playtimeHours.toFixed(1) + " h" : "—"}</div>
+      <div class="fact"><b>Saves</b>${p.saveCount}</div>
+    </div>
+    <div class="skills">
+      ${skills.map(s => `<div class="skill"><span>${esc(skillName(s.id))}</span>
+        <b title="${s.xp.toLocaleString()} XP">${levelFor(s.xp)}</b></div>`).join("")}
+    </div>
+    ${inv.length + eq.length ? `<details><summary>Carried items (${inv.length + eq.length})</summary>
+      <table><tr><th>Where</th><th>Item</th><th>Count</th><th>Durability</th></tr>
+      ${itemRows(eq, "Worn")}${itemRows(inv, "Pack")}</table></details>` : ""}
+  </div>`;
+}
+
+async function refresh() {
+  const st = await (await fetch("/api/state")).json();
+  const box = document.getElementById("characters");
+  const empty = document.getElementById("empty");
+  if (!st.characters.length) {
+    box.innerHTML = "";
+    empty.style.display = "";
+    document.getElementById("emptyReason").textContent =
+      st.scanErr || `Watching ${st.config.detectedDir || "(no folder)"} — create or play a character and it appears here.`;
+  } else {
+    empty.style.display = "none";
+    box.innerHTML = st.characters.map(renderCharacter).join("");
+  }
+  // Settings fields: only fill when untouched, so typing isn't clobbered.
+  for (const [id, val] of [["consoleUrl", st.config.consoleUrl], ["saveDir", st.config.saveDir]]) {
+    const el = document.getElementById(id);
+    if (document.activeElement !== el && !el.dataset.dirty) el.value = val || "";
+  }
+  const line = document.getElementById("relayLine");
+  if (st.relay.configured) {
+    line.innerHTML = `Sharing with <b>${esc(st.relay.server || "console")}</b>` +
+      (st.relay.lastPushAt ? ` · last push ${new Date(st.relay.lastPushAt).toLocaleTimeString()}` : "") +
+      (st.relay.lastError ? ` · <span class="status-err">${esc(st.relay.lastError)}</span>` : "");
+  } else {
+    line.textContent = "Local-only: nothing leaves this computer.";
+  }
+}
+
+for (const id of ["consoleUrl", "token", "saveDir"])
+  document.getElementById(id).addEventListener("input", e => e.target.dataset.dirty = "1");
+
+async function saveCfg() {
+  const status = document.getElementById("cfgStatus");
+  status.textContent = "testing…"; status.className = "mono status-idle";
+  const body = {
+    consoleUrl: document.getElementById("consoleUrl").value,
+    token: document.getElementById("token").value,
+    saveDir: document.getElementById("saveDir").value,
+  };
+  const out = await (await fetch("/api/config", { method: "PUT", body: JSON.stringify(body) })).json();
+  if (out.ok) {
+    status.textContent = out.server ? `connected to ${out.server}` : "saved (local-only)";
+    status.className = "mono status-ok";
+    document.getElementById("token").value = "";
+    for (const id of ["consoleUrl", "token", "saveDir"]) delete document.getElementById(id).dataset.dirty;
+  } else {
+    status.textContent = out.error; status.className = "mono status-err";
+  }
+  refresh();
+}
+
+async function pushNow() {
+  const status = document.getElementById("cfgStatus");
+  status.textContent = "pushing…"; status.className = "mono status-idle";
+  const out = await (await fetch("/api/push", { method: "POST" })).json();
+  status.textContent = out.ok ? "pushed" : (out.error || out.relay?.lastError || "push failed");
+  status.className = "mono " + (out.ok ? "status-ok" : "status-err");
+  refresh();
+}
+
+(async () => {
+  [ITEMS, SKILLS] = await Promise.all([
+    fetch("/data/itemNames.json").then(r => r.json()),
+    fetch("/data/skillNames.json").then(r => r.json()),
+  ]);
+  await refresh();
+  setInterval(refresh, 5000);
+})();
+</script>
+</body>
+</html>

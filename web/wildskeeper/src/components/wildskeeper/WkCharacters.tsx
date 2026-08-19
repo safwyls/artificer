@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { SaveCharacter, SaveItem } from "../../lib/api";
+import { agoLabel } from "../../lib/time";
 import { levelForXp } from "../../lib/xp";
 import { WkNote, WkPanel } from "./WkPanel";
 import skillNames from "../../data/skillNames.json";
@@ -81,10 +82,10 @@ function ItemRows({ items, kind }: { items: SaveItem[]; kind: string }) {
 function CharacterCard({ c }: { c: SaveCharacter }) {
   const [open, setOpen] = useState(false);
   const itemCount = c.inventory.length + c.equipment.length;
-  // A record with a name came from a full character record; without one,
-  // only the world save's transform survives — position and guid, honestly
-  // presented rather than padded with zero vitals.
-  const hasRecord = c.charName !== "";
+  // A full record arrives by a player sharing it (or from an older-build
+  // save); a transform-only entry is position and guid, honestly presented
+  // rather than padded with zero vitals. Skills present = record present.
+  const hasRecord = c.skills.length > 0 || c.sharedAt !== undefined || (c.charName !== "" && c.saveCount > 0);
   // Highest XP first: the skills someone actually plays lead.
   const skills = [...c.skills].sort((a, b) => b.xp - a.xp);
   return (
@@ -93,6 +94,14 @@ function CharacterCard({ c }: { c: SaveCharacter }) {
         <div>
           <div className="font-wkdisplay text-lg font-semibold text-wk-parchment">
             {c.charName || "Unnamed adventurer"}
+            {c.sharedAt && (
+              <span
+                className="ml-2 align-middle text-[11px] font-normal uppercase tracking-[0.12em] text-wk-rune"
+                title={`Full sheet relayed by this player's companion app ${new Date(c.sharedAt).toLocaleString()}`}
+              >
+                shared {agoLabel(c.sharedAt)}
+              </span>
+            )}
           </div>
           <div
             className="mt-0.5 font-mono text-[11px] tracking-[0.06em] text-wk-mist"
@@ -206,11 +215,10 @@ export function WkCharacters({
       )}
       <WkNote>
         Everyone who has played this world is listed, online or not. The game keeps each character's skills
-        and inventory on that player's own machine — the server only ever holds positions — so those columns
-        stay empty on a dedicated server, honestly. Names are learned from the server log when a player
-        leaves; an adventurer stays unnamed until their first leave this console has seen. Where a save does
-        embed full records (older builds), skill levels derive from the RuneScape 1–99 curve — hover for
-        exact XP.
+        and inventory on that player's own machine — the server only holds positions — so full sheets appear
+        here when players share them through the companion app (see the panel below). Names are also learned
+        from the server log when a player leaves. Skill levels derive from the RuneScape 1–99 curve — hover
+        for exact XP.
       </WkNote>
     </WkPanel>
   );

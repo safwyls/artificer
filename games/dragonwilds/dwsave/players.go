@@ -27,8 +27,36 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf16"
 )
+
+// ParseCharacterRecord parses one character record as the game writes it —
+// a client character save file (plain JSON) or the same record embedded in
+// an old-build world save. worldGuid resolves the record's per-world
+// playtime map to this world; empty falls back to the character's
+// wall-clock total. It errors on anything that is not a character record,
+// so callers can use it as validation.
+func ParseCharacterRecord(data []byte, worldGuid string) (*PlayerCharacter, error) {
+	var c charJSON
+	if err := json.Unmarshal(data, &c); err != nil {
+		return nil, fmt.Errorf("not valid JSON: %w", err)
+	}
+	if !c.isCharacter() {
+		return nil, fmt.Errorf("not a character record: no char_guid or char_name under meta_data")
+	}
+	p := convertChar(&c, worldGuid)
+	return &p, nil
+}
+
+// CanonicalGuid folds the two guid spellings the game uses into one
+// comparison key: the JSON record's char_guid is the 16 guid bytes
+// base64url-encoded (22 characters, no padding), while the binary
+// transform record and the server log render them as 32 hex digits.
+// Anything unrecognized keys as itself.
+func CanonicalGuid(s string) string {
+	return canonicalGuid(s)
+}
 
 // PlayerCharacter is one character the world save knows. Identity is the
 // game's own: the character guid (the DCG guid the server logs on
@@ -55,6 +83,12 @@ type PlayerCharacter struct {
 	// game's clock (seconds; the epoch is the game's, not wall time).
 	// Zero when the save carries no transform for this character.
 	LastUpdated float64 `json:"lastUpdated,omitempty"`
+	// SharedAt is when a companion app last relayed this character's
+	// record (see games/dragonwilds/docs/companion.md). Nil for
+	// save-derived records; set by the console's merge, never by Parse —
+	// character data lives on each player's machine, so a record richer
+	// than guid+position can only arrive by being shared.
+	SharedAt *time.Time `json:"sharedAt,omitempty"`
 	// Skills carry raw XP per skill id; the id → display-name map is
 	// vendored frontend data. No level is derived here: the game's XP
 	// curve is its own (piecewise, and changed across game versions), so
@@ -260,7 +294,10 @@ func scanPlayers(data []byte, worldGuid string) []PlayerCharacter {
 // them as 32 hex digits. Anything unrecognized keys as itself.
 func canonicalGuid(s string) string {
 	if len(s) == 22 {
-		if b, err := base64.RawURLEncoding.DecodeString(s); err == nil && len(b) == 16 {
+		// Strict: a 22-char group has four trailing bits, and the lenient
+		// decoder would silently drop nonzero ones — aliasing distinct
+		// strings onto one guid. The game writes canonical encodings.
+		if b, err := base64.RawURLEncoding.Strict().DecodeString(s); err == nil && len(b) == 16 {
 			return renderGuid(b)
 		}
 	}

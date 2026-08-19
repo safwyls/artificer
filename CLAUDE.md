@@ -28,7 +28,9 @@ What each game module carries:
   Roster, the advisor prompt, palagent's spec. Seam 4's REST/RCON trio.
 - `games/dragonwilds` — client, dwconfig, dwlog/dwsave, both halves of
   dwbridge, dwapi, dwagent's spec with the launch chooser (native vs
-  Wine). Seam 4's UDP pair + required owner id.
+  Wine). Seam 4's UDP pair + required owner id. Also `cmd/wkcompanion`,
+  the player-side character relay (the game stores character data on
+  players' machines — see `games/dragonwilds/docs/companion.md`).
 - `games/enshrouded` — client, esconfig, eslog/esquery, banqueue behind
   the offline-work seam, esapi, esagent's spec. Seam 4's single port.
 
