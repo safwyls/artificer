@@ -8,5 +8,6 @@
 /anvil-bin
 web/*/dist/
 web/*/dist-demo/
+web/*/tsconfig.tsbuildinfo
 web/*/node_modules/
 web/*/tsconfig.tsbuildinfo

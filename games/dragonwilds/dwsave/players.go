@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 )
 
 // PlayerCharacter is one character the world save knows. Identity is the
@@ -189,29 +190,20 @@ func (v invJSON) items(nestedKey string) []Item {
 }
 
 // scanPlayers walks the whole save image for embedded character records.
-// JSON documents are self-delimiting, so each candidate "{"-run either
-// decodes (and is skipped whole if it isn't a character) or fails fast.
-// Records reachable only as escaped strings inside a wrapper document are
-// found by walking the wrapper's string values.
+// The game pretty-prints the JSON it embeds (newlines and tabs between
+// every token — visible in the committed capture's WorldEventManager
+// blob), so the scan keys on a bare "{" with a whitespace-tolerant
+// lookahead, never on "{" and a quote being adjacent. JSON documents are
+// self-delimiting, so each candidate either decodes (and is skipped whole
+// if it isn't a character) or fails fast. Records reachable only inside a
+// wrapper document — as escaped strings or as nested objects — are found
+// by walking the wrapper. A second pass catches documents UE serialized
+// as UTF-16, which it does to a whole string the moment one character in
+// it is non-ASCII — a player with an accented name must not vanish.
 func scanPlayers(data []byte, worldGuid string) []PlayerCharacter {
 	found := map[string]PlayerCharacter{}
-	marker := []byte(`{"`)
-	pos := 0
-	for {
-		i := bytes.Index(data[pos:], marker)
-		if i < 0 {
-			break
-		}
-		abs := pos + i
-		dec := json.NewDecoder(bytes.NewReader(data[abs:]))
-		var raw json.RawMessage
-		if err := dec.Decode(&raw); err != nil {
-			pos = abs + len(marker)
-			continue
-		}
-		harvestDoc(raw, worldGuid, found)
-		pos = abs + int(dec.InputOffset())
-	}
+	scanASCII(data, worldGuid, found)
+	scanUTF16(data, worldGuid, found)
 
 	players := make([]PlayerCharacter, 0, len(found))
 	for _, p := range found {
@@ -227,9 +219,101 @@ func scanPlayers(data []byte, worldGuid string) []PlayerCharacter {
 	return players
 }
 
+func scanASCII(data []byte, worldGuid string, found map[string]PlayerCharacter) {
+	pos := 0
+	for pos < len(data) {
+		i := bytes.IndexByte(data[pos:], '{')
+		if i < 0 {
+			break
+		}
+		abs := pos + i
+		if !plausibleObject(data[abs:]) {
+			pos = abs + 1
+			continue
+		}
+		dec := json.NewDecoder(bytes.NewReader(data[abs:]))
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err != nil {
+			pos = abs + 1
+			continue
+		}
+		harvestDoc(raw, worldGuid, found)
+		pos = abs + int(dec.InputOffset())
+	}
+}
+
+// scanUTF16 finds JSON objects stored as UTF-16LE text. It decodes each
+// plausible wide run back to UTF-8 and harvests that; the run ends at the
+// string's NUL terminator or the first unit that cannot be part of text.
+func scanUTF16(data []byte, worldGuid string, found map[string]PlayerCharacter) {
+	marker := []byte{'{', 0}
+	pos := 0
+	for pos+1 < len(data) {
+		i := bytes.Index(data[pos:], marker)
+		if i < 0 {
+			break
+		}
+		abs := pos + i
+		run := decodeWideRun(data[abs:])
+		if !plausibleObject(run) {
+			pos = abs + 2
+			continue
+		}
+		dec := json.NewDecoder(bytes.NewReader(run))
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err != nil {
+			pos = abs + 2
+			continue
+		}
+		harvestDoc(raw, worldGuid, found)
+		// Skip exactly the wide bytes the document occupied: re-encode
+		// the consumed UTF-8 to count its UTF-16 units, so multi-byte
+		// runes neither overshoot into a neighbouring document nor
+		// trigger a rescan of this one.
+		consumed := utf16.Encode([]rune(string(run[:dec.InputOffset()])))
+		pos = abs + 2*len(consumed)
+	}
+}
+
+// decodeWideRun converts a UTF-16LE run to UTF-8, stopping at the NUL
+// terminator UE writes, at an unpaired trailing byte, or at a generous
+// size cap (a character record is tens of KB, not tens of MB).
+func decodeWideRun(b []byte) []byte {
+	const maxUnits = 4 << 20
+	units := make([]uint16, 0, 1024)
+	for i := 0; i+1 < len(b) && len(units) < maxUnits; i += 2 {
+		u := uint16(b[i]) | uint16(b[i+1])<<8
+		if u == 0 {
+			break
+		}
+		units = append(units, u)
+	}
+	return []byte(string(utf16.Decode(units)))
+}
+
+// plausibleObject is the cheap pre-filter before spinning up a JSON
+// decoder: an object literal opens with "{", then — whitespace aside —
+// either a key or the closing brace.
+func plausibleObject(b []byte) bool {
+	if len(b) == 0 || b[0] != '{' {
+		return false
+	}
+	for _, c := range b[1:] {
+		switch c {
+		case ' ', '\t', '\r', '\n':
+			continue
+		case '"', '}':
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
+
 // harvestDoc takes one decoded JSON document: a character record is
-// converted and merged; anything else has its string values walked in
-// case the record travels escaped inside a wrapper document.
+// converted and merged; anything else is walked for records travelling
+// inside it — as escaped strings or as nested objects.
 func harvestDoc(raw []byte, worldGuid string, found map[string]PlayerCharacter) {
 	var c charJSON
 	if json.Unmarshal(raw, &c) == nil && c.isCharacter() {
@@ -240,26 +324,34 @@ func harvestDoc(raw []byte, worldGuid string, found map[string]PlayerCharacter) 
 	if json.Unmarshal(raw, &generic) != nil {
 		return
 	}
-	walkStrings(generic, func(s string) {
-		t := strings.TrimSpace(s)
-		if !strings.HasPrefix(t, "{") {
-			return
-		}
-		harvestDoc([]byte(t), worldGuid, found)
-	})
+	walkDoc(generic, worldGuid, found)
 }
 
-func walkStrings(v any, fn func(string)) {
+func walkDoc(v any, worldGuid string, found map[string]PlayerCharacter) {
 	switch x := v.(type) {
 	case string:
-		fn(x)
+		t := strings.TrimSpace(x)
+		if strings.HasPrefix(t, "{") {
+			harvestDoc([]byte(t), worldGuid, found)
+		}
 	case map[string]any:
+		// A nested object carrying the record's discriminator key is
+		// re-examined as a record in its own right.
+		if _, ok := x["meta_data"]; ok {
+			if b, err := json.Marshal(x); err == nil {
+				var c charJSON
+				if json.Unmarshal(b, &c) == nil && c.isCharacter() {
+					merge(found, convertChar(&c, worldGuid))
+					return
+				}
+			}
+		}
 		for _, e := range x {
-			walkStrings(e, fn)
+			walkDoc(e, worldGuid, found)
 		}
 	case []any:
 		for _, e := range x {
-			walkStrings(e, fn)
+			walkDoc(e, worldGuid, found)
 		}
 	}
 }

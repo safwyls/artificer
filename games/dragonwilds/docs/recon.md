@@ -574,7 +574,13 @@ held personal data and was not committed.
 JSON documents carrying the character-record identity keys** rather than
 trusting any single wrapper location — JSON is self-delimiting, so the
 scan is exact, and a game build that moves the records between chunks
-changes nothing. Records reached through a wrapper document as escaped
+changes nothing. Two shapes the scan must tolerate, both hit for real:
+**the game pretty-prints its embedded JSON** (newlines and tabs between
+every token — a scan that assumes `{"` adjacency finds nothing, which is
+exactly how a live multi-player server briefly showed an empty character
+list on 2026-08-19), and **UE serializes a whole string as UTF-16LE the
+moment one character in it is non-ASCII**, so a record mentioning an
+accented name goes wide and an ASCII-only scan misses it. Records reached through a wrapper document as escaped
 strings are also found. A build that stops using JSON degrades to an
 empty player list, never a misread. The console serves XP raw; the
 frontend derives the displayed level on the classic RuneScape curve —
