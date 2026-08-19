@@ -73,7 +73,11 @@ func (a *app) scan() {
 
 	seen := map[string]bool{}
 	for _, e := range entries {
-		if e.IsDir() || !strings.EqualFold(filepath.Ext(e.Name()), ".sav") {
+		// Current game builds write character records as <name>.json
+		// (verified against a real install, 2026-08-19); .sav is the
+		// older spelling community tooling knew. Accept both.
+		ext := filepath.Ext(e.Name())
+		if e.IsDir() || (!strings.EqualFold(ext, ".sav") && !strings.EqualFold(ext, ".json")) {
 			continue
 		}
 		info, err := e.Info()
@@ -187,10 +191,16 @@ func (a *app) pushOne(c *character) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("console answered %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
+	// A 200 is only a success if it is the console's acknowledgment. An
+	// auth layer in front of the console (a Cloudflare Access login page,
+	// say) answers 200 with HTML — that must not count as delivered.
 	var ack struct {
-		Server string `json:"server"`
+		Accepted bool   `json:"accepted"`
+		Server   string `json:"server"`
 	}
-	_ = json.Unmarshal(body, &ack)
+	if err := json.Unmarshal(body, &ack); err != nil || !ack.Accepted {
+		return fmt.Errorf("%s", interceptedHint(body))
+	}
 
 	now := time.Now()
 	a.mu.Lock()
@@ -219,8 +229,22 @@ func (a *app) ping(consoleURL, token string) (string, error) {
 	var out struct {
 		Server string `json:"server"`
 	}
-	if err := json.Unmarshal(body, &out); err != nil {
-		return "", fmt.Errorf("unexpected answer — is that URL a wildskeeper console?")
+	if err := json.Unmarshal(body, &out); err != nil || out.Server == "" {
+		return "", fmt.Errorf("%s", interceptedHint(body))
 	}
 	return out.Server, nil
+}
+
+// interceptedHint names the most common shape of a wrong 200: something
+// in front of the console (Cloudflare Access, a tunnel's login, a generic
+// reverse proxy) answered instead of the console itself. Seen for real on
+// 2026-08-19: a console behind Cloudflare Access returned its login page
+// with a 200, which read as "unexpected answer" and gave no clue why.
+func interceptedHint(body []byte) string {
+	if bytes.HasPrefix(bytes.TrimSpace(body), []byte("<")) {
+		return "the answer was a web page, not the console API — an auth layer " +
+			"(Cloudflare Access, a tunnel login) is intercepting the request. " +
+			"Allow /api/public/* to bypass it, or use the console's direct/LAN address"
+	}
+	return "unexpected answer — is that URL a wildskeeper console with companion sharing enabled?"
 }

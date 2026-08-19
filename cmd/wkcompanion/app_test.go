@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -37,7 +38,10 @@ func charFile(t *testing.T, dir, name, charName string) string {
 // relay status.
 func TestScanAndRelay(t *testing.T) {
 	dir := t.TempDir()
-	path := charFile(t, dir, "Aldra.sav", "Aldra")
+	// Current builds name character records <name>.json; .sav is the older
+	// spelling. A real install showed "no characters found" while a .json
+	// record sat right there — both extensions must land.
+	path := charFile(t, dir, "Aldra.json", "Aldra")
 	os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("{}"), 0o644)
 	os.WriteFile(filepath.Join(dir, "junk.sav"), []byte("SAVEnotjson"), 0o644)
 
@@ -115,6 +119,40 @@ func TestRelayError(t *testing.T) {
 	for _, c := range a.characters {
 		if c.PushedAt != nil {
 			t.Error("a refused record must stay due for retry")
+		}
+	}
+}
+
+// TestInterceptedAnswers pins the auth-proxy trap hit on a real setup: a
+// Cloudflare tunnel answered the companion's requests with its login page
+// and a 200. That must fail the ping with a message naming the cause, and
+// a push must never count it as delivered.
+func TestInterceptedAnswers(t *testing.T) {
+	dir := t.TempDir()
+	charFile(t, dir, "Aldra.json", "Aldra")
+	loginPage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte("<!doctype html><html><body>Sign in to your Zero Trust org</body></html>"))
+	}))
+	defer loginPage.Close()
+
+	a := newApp(Config{ConsoleURL: loginPage.URL, Token: "tok", SaveDir: dir}, filepath.Join(t.TempDir(), "cfg.json"))
+	if _, err := a.ping(loginPage.URL, "tok"); err == nil || !strings.Contains(err.Error(), "auth layer") {
+		t.Errorf("ping error = %v, want the interception named", err)
+	}
+
+	a.scan()
+	if a.pushChanged(false) {
+		t.Fatal("a login page answered 200 and the push counted it as success")
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.relay.LastPushAt != nil {
+		t.Error("LastPushAt stamped on an intercepted push")
+	}
+	for _, c := range a.characters {
+		if c.PushedAt != nil {
+			t.Error("an intercepted record must stay due for retry")
 		}
 	}
 }

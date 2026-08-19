@@ -123,28 +123,48 @@ type Item struct {
 	Durability *float64 `json:"durability,omitempty"`
 }
 
-// charJSON is the character record as the game writes it. The schema is
-// the client character save's, which community editors read and write and
-// whose identity keys match what the recon observed inside a played world
-// save byte-for-byte. Unknown fields are ignored by encoding/json, so a
-// game build adding fields costs nothing.
+// charJSON is the character record as the game writes it. Two layouts
+// exist in the wild, both seen in real files: older builds carried the
+// body (Character/Inventory/Loadout/Skills) at the top level, current
+// builds nest the same body under "GameProgress" (verified against a
+// real current-build record, 2026-08-19). Unknown fields are ignored by
+// encoding/json, so a game build adding fields costs nothing.
 type charJSON struct {
 	MetaData struct {
 		CharGuid string `json:"char_guid"`
 		CharName string `json:"char_name"`
-		// WorldsPlaytime maps world save guid → seconds played there.
+		// WorldsPlaytime is keyed by world save guid. Its values changed
+		// meaning between builds: seconds played there originally,
+		// last-played unix timestamps now — see playtimeHours.
 		WorldsPlaytime map[string]float64 `json:"worlds_playtime"`
 	} `json:"meta_data"`
 	SaveCount int `json:"SaveCount"`
+
+	recordBody              // old builds: the body at top level
+	GameProgress *recordBody `json:"GameProgress"` // current builds
+}
+
+// body picks whichever layout this record uses.
+func (c *charJSON) body() *recordBody {
+	if c.GameProgress != nil {
+		return c.GameProgress
+	}
+	return &c.recordBody
+}
+
+// recordBody is the character state itself, identical between layouts.
+type recordBody struct {
 	Character struct {
-		Health  struct {
+		Health struct {
 			CurrentValue float64 `json:"CurrentValue"`
 		} `json:"Health"`
 		Stamina struct {
 			CurrentValue float64 `json:"CurrentValue"`
 		} `json:"Stamina"`
 		LastAccessibleLocation struct {
-			// Position is UE's FVector::ToString: "X=1.000 Y=2.000 Z=3.000".
+			// Position appears as UE's plain FVector::ToString
+			// ("X=1.000 Y=2.000 Z=3.000") in old records and the compact
+			// "V(X=1.00, Y=2.00, Z=3.00)" form in current ones.
 			Position string `json:"Position"`
 		} `json:"LastAccessibleLocation"`
 		PlaytimeWall float64 `json:"Playtime_wall"`
@@ -458,56 +478,67 @@ func merge(found map[string]PlayerCharacter, p PlayerCharacter) {
 }
 
 func convertChar(c *charJSON, worldGuid string) PlayerCharacter {
+	b := c.body()
 	p := PlayerCharacter{
 		CharGuid:  c.MetaData.CharGuid,
 		CharName:  c.MetaData.CharName,
 		SaveCount: c.SaveCount,
-		Health:    c.Character.Health.CurrentValue,
-		Stamina:   c.Character.Stamina.CurrentValue,
-		Inventory: c.Inventory.items("Inventory"),
-		Skills:    make([]Skill, 0, len(c.Skills.Skills)),
+		Health:    b.Character.Health.CurrentValue,
+		Stamina:   b.Character.Stamina.CurrentValue,
+		Inventory: b.Inventory.items("Inventory"),
+		Skills:    make([]Skill, 0, len(b.Skills.Skills)),
 	}
-	for _, s := range c.Skills.Skills {
+	for _, s := range b.Skills.Skills {
 		p.Skills = append(p.Skills, Skill{ID: s.ID, XP: s.XP})
 	}
 	// The loadout has been seen top-level and nested under
 	// PersonalInventory; take whichever is populated.
-	p.Equipment = c.Loadout.items("Loadout")
+	p.Equipment = b.Loadout.items("Loadout")
 	if len(p.Equipment) == 0 {
-		p.Equipment = c.PersonalInventory.items("Loadout")
+		p.Equipment = b.PersonalInventory.items("Loadout")
 	}
-	if pos, ok := parsePosition(c.Character.LastAccessibleLocation.Position); ok {
+	if pos, ok := parsePosition(b.Character.LastAccessibleLocation.Position); ok {
 		p.Position = &pos
 	}
 	p.PlaytimeHours = playtimeHours(c, worldGuid)
 	return p
 }
 
-// parsePosition reads UE's FVector::ToString form. Anything else is "no
-// position", never a guess.
+// parsePosition reads both position spellings the game has used: plain
+// FVector::ToString ("X=1.000 Y=2.000 Z=3.000") and the compact
+// "V(X=1.00, Y=2.00, Z=3.00)" current records carry. Anything else is
+// "no position", never a guess.
 func parsePosition(s string) (Position, bool) {
 	var p Position
-	n, err := fmt.Sscanf(s, "X=%f Y=%f Z=%f", &p.X, &p.Y, &p.Z)
-	if err != nil || n != 3 {
-		return Position{}, false
+	if n, err := fmt.Sscanf(s, "X=%f Y=%f Z=%f", &p.X, &p.Y, &p.Z); err == nil && n == 3 {
+		return p, true
 	}
-	return p, true
+	if n, err := fmt.Sscanf(s, "V(X=%f, Y=%f, Z=%f)", &p.X, &p.Y, &p.Z); err == nil && n == 3 {
+		return p, true
+	}
+	return Position{}, false
 }
 
-// playtimeHours resolves this world's playtime. The per-world map is keyed
-// by world save guid in a case/hyphenation the game chooses; normalizing
-// both sides makes the match, and the character's wall-clock total is the
-// fallback when this world has no entry.
+// maxPlausibleSeconds separates the two meanings worlds_playtime has had:
+// old builds stored seconds played per world, current builds store
+// last-played unix timestamps. Three years of continuous play is beyond
+// any real duration and far below any current timestamp.
+const maxPlausibleSeconds = 100_000_000
+
+// playtimeHours resolves this record's playtime. An old-build per-world
+// entry (a duration, matched by normalized world guid) is the most
+// precise answer; a current-build entry is a timestamp, not a duration,
+// so the character's wall-clock total is the honest figure there.
 func playtimeHours(c *charJSON, worldGuid string) float64 {
 	want := normalizeGuid(worldGuid)
 	if want != "" {
 		for k, seconds := range c.MetaData.WorldsPlaytime {
-			if normalizeGuid(k) == want {
+			if normalizeGuid(k) == want && seconds < maxPlausibleSeconds {
 				return seconds / 3600
 			}
 		}
 	}
-	return c.Character.PlaytimeWall / 3600
+	return c.body().Character.PlaytimeWall / 3600
 }
 
 func normalizeGuid(s string) string {

@@ -585,17 +585,26 @@ complained about has no counterpart in this save.
 **The character record itself is JSON**, embedded in the save as string
 data — the recon of 2026-08-09 saw `char_guid`, `char_name`,
 `worlds_playtime`, `SaveCount` and `Customization` in a real played world
-save. The full schema is known from the game's client-side character
-saves (`Saved/SaveCharacters/*.sav`, which are plain JSON files of the
-same record): skills as (persistence id, raw XP) pairs, inventory and
-loadout as slot → (item persistence id, count, durability) maps, health
-and stamina, `LastAccessibleLocation.Position` as a UE
-`X=… Y=… Z=…` string, and per-world playtime keyed by world save guid.
-Community save editors read and write this schema; the schema itself is
-therefore **community-verified against the client**, while its exact
-wrapper inside the *server* world save (which of the homes above, chunk
-`Play` or the caches) remains unpinned because the only played save seen
-held personal data and was not committed.
+save. The schema was first known from community editors of the old-build
+client character saves, and on 2026-08-19 **verified against a real
+current-build client record** (`Saved/SaveCharacters/<name>.json` — the
+extension is `.json` now, not the `.sav` community tooling knew).
+Between builds the record moved and shifted, and the parser handles both
+layouts:
+
+- Old builds: `Character`/`Inventory`/`Loadout`/`Skills` at the top
+  level; `char_guid` is 22-char base64url; `worlds_playtime` maps world
+  guid → **seconds played**; positions are plain FVector::ToString
+  (`X=… Y=… Z=…`).
+- Current builds: the same body nests under **`GameProgress`**;
+  `char_guid` is 32-hex (matching the world save's transform records
+  directly); `worlds_playtime` values became **last-played unix
+  timestamps** — the real duration is `Character.Playtime_wall` — and
+  positions wear the compact `V(X=…, Y=…, Z=…)` spelling. Loadout slots
+  can be hotbar references (`PlayerInventoryItemIndex`) rather than
+  items. Cross-check that closed the loop: the real record's guid and
+  `LastAccessibleLocation` matched one of the same world's binary
+  transform records to the meter.
 
 `dwsave` reads player state through both doors: it **parses the
 `SavedCharacterTransforms` records** (guid, position, freshness — the
