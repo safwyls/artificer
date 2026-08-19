@@ -62,10 +62,13 @@ ways that mattered.
   against a real 4 MB played save (recon, 2026-08-19): on current game
   builds the world save carries each character's guid and last position
   as binary transform records, which `dwsave` parses, while names,
-  skills and inventories moved to per-character storage outside the
-  world save — locating that store is the recon's newest open question.
-  The JSON character records older builds embedded are still read and
-  merged by guid when a save carries them.
+  skills and inventories live client-side on each player's own machine —
+  the dedicated server never holds them (operator-verified 2026-08-19),
+  which is the honest ceiling of save-derived player data. Names come
+  back through the disconnect log line's guid↔name pairing, which
+  `dwlog` learns and the world endpoint overlays. The JSON character
+  records older builds embedded are still read and merged by guid when
+  a save carries them.
 - Enshrouded: the log vocabulary, the readiness marker and the config
   schema, all confirmed 2026-08-15. Saves on shutdown plus a 10-minute
   autosave; graceful stop is SIGINT; one UDP port carries both game traffic

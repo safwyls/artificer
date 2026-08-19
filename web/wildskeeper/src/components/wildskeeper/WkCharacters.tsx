@@ -205,10 +205,12 @@ export function WkCharacters({
         </div>
       )}
       <WkNote>
-        Everyone who has played this world is listed, online or not. On current game builds the world save
-        carries each character's last position but keeps names, skills and inventories in per-character
-        records outside it — those show here whenever the save embeds them. Skill levels are derived on the
-        RuneScape 1–99 curve (the game's own curve bends slightly above 93); hover a level for the exact XP.
+        Everyone who has played this world is listed, online or not. The game keeps each character's skills
+        and inventory on that player's own machine — the server only ever holds positions — so those columns
+        stay empty on a dedicated server, honestly. Names are learned from the server log when a player
+        leaves; an adventurer stays unnamed until their first leave this console has seen. Where a save does
+        embed full records (older builds), skill levels derive from the RuneScape 1–99 curve — hover for
+        exact XP.
       </WkNote>
     </WkPanel>
   );

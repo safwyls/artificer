@@ -33,7 +33,7 @@ func newTestAppWithAdmin(t *testing.T) (*apitest.App, []*http.Cookie) {
 	return apitest.NewWithAdmin(t, apitest.Options{
 		Provision: dragonwilds.ProvisionProfile(),
 		GameRoutes: func(s *api.Server) func(chi.Router) {
-			return dwapi.Mount(s, worlds)
+			return dwapi.Mount(s, worlds, nil)
 		},
 	})
 }
@@ -44,7 +44,7 @@ func newTestAppWithAdminNoWorlds(t *testing.T) (*apitest.App, []*http.Cookie) {
 	return apitest.NewWithAdmin(t, apitest.Options{
 		Provision: dragonwilds.ProvisionProfile(),
 		GameRoutes: func(s *api.Server) func(chi.Router) {
-			return dwapi.Mount(s, nil)
+			return dwapi.Mount(s, nil, nil)
 		},
 	})
 }

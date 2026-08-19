@@ -568,13 +568,19 @@ position, and a `LastUpdated` float on the game's own clock —
 JSON character records the 2026-08-09 recon saw embedded in the world
 save are gone**: no `char_guid`, `meta_data`, `Skills` or player names
 appear anywhere in the file (the only embedded JSON is container
-inventories — chests — as pretty-printed slot maps). So on current
-builds the world save yields identities and positions; names, skills
-and inventories live in per-character storage **outside the world
-save**, location not yet pinned (the client keeps its own at
-`Saved/SaveCharacters/`; where the dedicated server keeps its
-players' records is the open question below). The 0.12-era "Players"
-chunk the server log complained about has no counterpart in this save.
+inventories — chests — as pretty-printed slot maps). The reason,
+settled by the server's operator the same day: **character data is
+stored client-side, on each player's own machine** (the same
+`Saved/SaveCharacters/` store the client uses for solo play) — the
+dedicated server never holds its players' names, skills or
+inventories at all. So the world save yields identities and
+positions, full stop; that is the honest ceiling of save-derived
+player data on a dedicated server. Names come back through the one
+server-side source that pairs them with the character guid: the
+disconnect log line (`Character Name[<name>] Guid[DCG:<32HEX>]`),
+which `dwlog` harvests and the world endpoint overlays onto the
+transform records. The 0.12-era "Players" chunk the server log
+complained about has no counterpart in this save.
 
 **The character record itself is JSON**, embedded in the save as string
 data — the recon of 2026-08-09 saw `char_guid`, `char_name`,
@@ -620,10 +626,7 @@ documented in `games/dragonwilds/docs/vendored-game-data.md`.
 2. **The `KickedUsers` / `BannedUsers` GameState arrays** — whether pushing
    a net id into them actually disconnects a player, or merely replicates
    UI state. The one untried lead for a live kick.
-3. **Where a current-build dedicated server keeps its players' character
-   records** (names, skills, inventories) now that the world save no
-   longer embeds them. First move: `ls -R Saved/` on a live server with
-   players — a `SaveCharacters/` directory beside `SaveGames/` is the
-   obvious suspect; one such file settles the format (the client's are
-   plain JSON) and turns the console's name-less transform records into
-   full character sheets.
+(A third question — where a current-build dedicated server keeps its
+players' character records — was opened and closed on 2026-08-19: it
+doesn't. The records are client-side on each player's machine; see
+"Where player state lives" above.)
