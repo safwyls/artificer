@@ -35,8 +35,10 @@ describe("WkCharacters", () => {
     expect(screen.getByText("Woodcutting")).toBeInTheDocument();
     expect(screen.getByText("Mining")).toBeInTheDocument();
     expect(screen.getByText("not-a-known-skill")).toBeInTheDocument();
-    // XP shown raw, never a derived level.
-    expect(screen.getByText("13,363")).toBeInTheDocument();
+    // Levels derived on the RuneScape curve — 13,363 XP is exactly level
+    // 30, 388 exactly level 5 — with the raw XP kept on hover.
+    expect(screen.getByTitle(/^13,363 XP/)).toHaveTextContent("30");
+    expect(screen.getByTitle(/^388 XP/)).toHaveTextContent("5");
     // Position in metres.
     expect(screen.getByText("-962, -33 m")).toBeInTheDocument();
 

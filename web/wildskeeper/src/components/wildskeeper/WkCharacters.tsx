@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { SaveCharacter, SaveItem } from "../../lib/api";
+import { levelForXp } from "../../lib/xp";
 import { WkNote, WkPanel } from "./WkPanel";
 import skillNames from "../../data/skillNames.json";
 import itemNames from "../../data/itemNames.json";
@@ -113,8 +114,11 @@ function CharacterCard({ c }: { c: SaveCharacter }) {
           {skills.map((s) => (
             <div key={s.id} className="flex items-baseline justify-between gap-2 border-t border-wk-edge pt-1.5">
               <span className="text-xs text-wk-mist">{skillName(s.id)}</span>
-              <span className="font-mono text-xs text-wk-parchment" title="Raw XP as the save records it">
-                {s.xp.toLocaleString()}
+              <span
+                className="font-mono text-xs text-wk-parchment"
+                title={`${s.xp.toLocaleString()} XP — level derived on the RuneScape curve`}
+              >
+                {levelForXp(s.xp)}
               </span>
             </div>
           ))}
@@ -193,9 +197,9 @@ export function WkCharacters({
         </div>
       )}
       <WkNote>
-        Skill numbers are raw XP as the save records them — the game's level curve is its own, so the console
-        shows the true figure rather than a guessed level. Character records list everyone who has ever played
-        this world, online or not.
+        Skill levels are derived on the RuneScape 1–99 curve; hover a level for the exact XP the save records.
+        The game's own curve bends slightly above level 93, so a number in that band can sit one off — the XP
+        is the truth. Character records list everyone who has ever played this world, online or not.
       </WkNote>
     </WkPanel>
   );

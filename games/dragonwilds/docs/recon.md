@@ -576,10 +576,10 @@ trusting any single wrapper location — JSON is self-delimiting, so the
 scan is exact, and a game build that moves the records between chunks
 changes nothing. Records reached through a wrapper document as escaped
 strings are also found. A build that stops using JSON degrades to an
-empty player list, never a misread. The one field derived rather than
-read: nothing — XP is served raw (the game's XP curve is piecewise,
-version-dependent, and not vendored; see
-`games/dragonwilds/docs/vendored-game-data.md`).
+empty player list, never a misread. The console serves XP raw; the
+frontend derives the displayed level on the classic RuneScape curve —
+an assumption, with its caveat and the hover-for-exact-XP escape hatch
+documented in `games/dragonwilds/docs/vendored-game-data.md`.
 
 ## Still open
 
