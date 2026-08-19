@@ -24,8 +24,28 @@ One Go binary (`cmd/wkcompanion`), no installer, no service:
    10-minute heartbeat. The console's Adventurers page then shows the
    full sheet, marked "shared" with its freshness.
 
-Build: `GOOS=windows GOARCH=amd64 go build ./cmd/wkcompanion` (players
-run Windows; the binary itself is portable).
+## How it runs on a player's machine
+
+On Windows it **lives in the system tray**: no window while it works,
+just an icon whose menu opens the character sheet, pushes to the console
+on demand, shows the sharing state at a glance ("Sharing with grimwood ·
+pushed 16:02" / "Local-only"), and quits. The character sheet itself is
+the local browser page — the tray is the handle, not the UI. Launching
+the exe a second time doesn't start a second copy: it notices the
+running instance and opens its page instead. Because a windowed build
+has no console, logs go to `companion.log` beside the config file.
+
+Build for players:
+
+```sh
+GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" ./cmd/wkcompanion
+```
+
+(`-H windowsgui` is what suppresses the console window; without it the
+same binary runs as a console app, which is what non-Windows dev
+platforms get.) To start it with Windows, drop a shortcut to the exe in
+`shell:startup` — deliberately manual for now, an app that auto-installs
+itself into startup is not this repo's style.
 
 ## The trust model
 

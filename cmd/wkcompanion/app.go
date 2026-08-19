@@ -124,6 +124,27 @@ func (a *app) relayConfigured() bool {
 	return a.cfg.ConsoleURL != "" && a.cfg.Token != ""
 }
 
+// statusLine is the one-glance sharing state, shown in the tray menu.
+func (a *app) statusLine() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cfg.ConsoleURL == "" || a.cfg.Token == "" {
+		return "Local-only — nothing is shared"
+	}
+	name := a.relay.Server
+	if name == "" {
+		name = "console"
+	}
+	switch {
+	case a.relay.LastError != "":
+		return "Sharing error — open the sheet for details"
+	case a.relay.LastPushAt != nil:
+		return fmt.Sprintf("Sharing with %s · pushed %s", name, a.relay.LastPushAt.Format("15:04"))
+	default:
+		return fmt.Sprintf("Sharing with %s · waiting for first push", name)
+	}
+}
+
 // pushChanged relays characters that changed since their last push; force
 // re-pushes everything (the heartbeat that heals a restarted console).
 // Reports whether every due push succeeded.

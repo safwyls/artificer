@@ -9,24 +9,33 @@
 // player configures it — relays the record to a wildskeeper console using
 // a companion token its admin minted.
 //
+// On Windows it lives in the system tray (build with
+// -ldflags="-H windowsgui" so no console window opens): the tray menu
+// opens the character sheet, pushes on demand, and shows the sharing
+// state. Elsewhere it runs as a plain console process — development
+// platforms, not player machines.
+//
 // Design notes, in the repo's spirit:
 //   - Local-first: with no console configured it is a character viewer
 //     and nothing leaves the machine.
 //   - The relay pushes the record verbatim; the console re-parses it with
 //     the same dwsave code this program uses, so there is exactly one
 //     parser to be wrong in.
-//   - No installer, no service: one binary, a browser tab, a config file
+//   - No installer, no service: one binary, a tray icon, a config file
 //     under the user's config directory.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
-
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -44,21 +53,69 @@ func main() {
 	if *dir != "" {
 		cfg.SaveDir = *dir
 	}
-
-	app := newApp(cfg, cfgPath)
-	go app.watchLoop()
+	setupLogging(cfgPath)
 
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
+		// A second launch is a normal user action, not an error: hand over
+		// to the instance already running and bow out.
+		if alreadyRunning(*listen) {
+			fmt.Printf("wkcompanion is already running — opening http://%s/\n", *listen)
+			openBrowser("http://" + *listen + "/")
+			return
+		}
 		log.Fatalf("listening on %s: %v", *listen, err)
 	}
 	url := fmt.Sprintf("http://%s/", ln.Addr())
+
+	app := newApp(cfg, cfgPath)
+	go app.watchLoop()
+	go func() {
+		if err := http.Serve(ln, app.routes()); err != nil {
+			log.Fatalf("local server: %v", err)
+		}
+	}()
+
 	fmt.Printf("wkcompanion — your character sheet is at %s\n", url)
 	fmt.Printf("config: %s\n", cfgPath)
 	if !*noBrowser {
 		openBrowser(url)
 	}
-	log.Fatal(http.Serve(ln, app.routes()))
+
+	// Blocks until quit: the system tray on Windows, a plain wait
+	// elsewhere. See tray_windows.go / tray_other.go.
+	runUI(app, url)
+}
+
+// setupLogging mirrors logs into a file beside the config: a
+// -H=windowsgui build has no console, and "why didn't it push" must be
+// answerable after the fact.
+func setupLogging(cfgPath string) {
+	logPath := filepath.Join(filepath.Dir(cfgPath), "companion.log")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err != nil {
+		return
+	}
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return
+	}
+	log.SetOutput(io.MultiWriter(os.Stdout, f))
+}
+
+// alreadyRunning checks whether the listen address is a live companion.
+func alreadyRunning(addr string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+"/api/state", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 // openBrowser is best-effort: the printed URL is the real interface.
