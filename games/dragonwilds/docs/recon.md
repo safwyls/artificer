@@ -538,22 +538,43 @@ WorldName/GUID/HardcoreState exactly):
 - **PROP** = u32 offset count + offsets (fence-posted against the data
   length), then u32 data length + data; property *i* spans
   offsets[i]..offsets[i+1], decoded by the class def's storage type.
-- **Opaque records** (storage type 64) are UE tagged-property streams:
-  u32 record count, then per record: name FString, type FString, u32
-  array index (0 observed), u32 payload size, one u8 (0 observed for
-  Str/Int; the bool value for BoolProperty, whose payload is empty), then
-  the payload — terminated by a property named `None`. Verified against
-  the capture's LastSavedByEntries, which decodes to
-  Branch="++dominion+live" / Changelist=232224 / bFullSave.
+- **Opaque records** (storage type 64) are UE 5.4 tagged-property
+  streams: u32 record count, then per record a stream of property tags
+  terminated by a property named `None`. Each tag: name FString, a
+  recursive **type-name tree** (FString + u32 param count + params — so
+  `StructProperty(DomCharacterGuid(/Script/Dominion))` is three nested
+  names, and a primitive's lone u32 0 is its empty param list, not an
+  array index as an earlier revision of this section guessed), u32
+  payload size, u8 flags (UE's EPropertyTagFlags: 0x08 = the payload is
+  native binary, 0x10 = the bool value, 0x01/0x02 = array index /
+  property guid follow), then the payload. A struct payload without the
+  native flag is itself a tagged stream; native ones are raw (Guid 16
+  bytes, Vector 3×f64, Quat 4×f64). Verified against the capture's
+  LastSavedByEntries (Branch="++dominion+live" / Changelist=232224 /
+  bFullSave) and against a real played save's transform records, which
+  is where the flag semantics became unambiguous.
 
-**Where player state lives.** The level actors include
-`Dominion.CachedCharacterStates` (property `CachedCharacterStates`,
-opaque record) and `Dominion.SavedCharacterTransformsManager` (property
-`SavedCharacterTransforms`, opaque record) — both empty in the unplayed
-capture, and the obvious homes for the per-character records and
-positions a played save carries. The game also writes a "Players" chunk
-on a played world (its own log complains the id truncates to four
-characters).
+**Where player state lives — and how it moved between builds.** The
+level actors include `Dominion.CachedCharacterStates` (property
+`CachedCharacterStates`, opaque record) and
+`Dominion.SavedCharacterTransformsManager` (property
+`SavedCharacterTransforms`, opaque record). A real played save from a
+**current** game build (4 MB, four characters, examined 2026-08-19)
+settled what they hold: `SavedCharacterTransforms` carries one record
+per character — `CharacterGuid` (a DomCharacterGuid wrapping a native
+Guid), a full `Transform` whose `Translation` is the character's last
+position, and a `LastUpdated` float on the game's own clock —
+`CachedCharacterStates` was empty even with four characters, and **the
+JSON character records the 2026-08-09 recon saw embedded in the world
+save are gone**: no `char_guid`, `meta_data`, `Skills` or player names
+appear anywhere in the file (the only embedded JSON is container
+inventories — chests — as pretty-printed slot maps). So on current
+builds the world save yields identities and positions; names, skills
+and inventories live in per-character storage **outside the world
+save**, location not yet pinned (the client keeps its own at
+`Saved/SaveCharacters/`; where the dedicated server keeps its
+players' records is the open question below). The 0.12-era "Players"
+chunk the server log complained about has no counterpart in this save.
 
 **The character record itself is JSON**, embedded in the save as string
 data — the recon of 2026-08-09 saw `char_guid`, `char_name`,
@@ -570,17 +591,19 @@ wrapper inside the *server* world save (which of the homes above, chunk
 `Play` or the caches) remains unpinned because the only played save seen
 held personal data and was not committed.
 
-`dwsave` reads player state accordingly: it **scans the save for embedded
-JSON documents carrying the character-record identity keys** rather than
-trusting any single wrapper location — JSON is self-delimiting, so the
-scan is exact, and a game build that moves the records between chunks
-changes nothing. Two shapes the scan must tolerate, both hit for real:
-**the game pretty-prints its embedded JSON** (newlines and tabs between
-every token — a scan that assumes `{"` adjacency finds nothing, which is
-exactly how a live multi-player server briefly showed an empty character
-list on 2026-08-19), and **UE serializes a whole string as UTF-16LE the
-moment one character in it is non-ASCII**, so a record mentioning an
-accented name goes wide and an ASCII-only scan misses it. Records reached through a wrapper document as escaped
+`dwsave` reads player state through both doors: it **parses the
+`SavedCharacterTransforms` records** (guid, position, freshness — the
+current build's whole story), and it **scans the save for embedded JSON
+documents carrying the character-record identity keys** for builds that
+embed them, merging the two by guid — the JSON's `char_guid` is the same
+16 bytes base64url-encoded that the binary record renders as 32 hex.
+Shapes the JSON scan must tolerate, both hit for real: **the game
+pretty-prints its embedded JSON** (newlines and tabs between every token
+— a scan that assumes `{"` adjacency finds nothing, which is exactly how
+a live multi-player server briefly showed an empty character list on
+2026-08-19), and **UE serializes a whole string as UTF-16LE the moment
+one character in it is non-ASCII**, so a record mentioning an accented
+name goes wide and an ASCII-only scan misses it. Records reached through a wrapper document as escaped
 strings are also found. A build that stops using JSON degrades to an
 empty player list, never a misread. The console serves XP raw; the
 frontend derives the displayed level on the classic RuneScape curve —
@@ -597,3 +620,10 @@ documented in `games/dragonwilds/docs/vendored-game-data.md`.
 2. **The `KickedUsers` / `BannedUsers` GameState arrays** — whether pushing
    a net id into them actually disconnects a player, or merely replicates
    UI state. The one untried lead for a live kick.
+3. **Where a current-build dedicated server keeps its players' character
+   records** (names, skills, inventories) now that the world save no
+   longer embeds them. First move: `ls -R Saved/` on a live server with
+   players — a `SaveCharacters/` directory beside `SaveGames/` is the
+   obvious suspect; one such file settles the format (the client's are
+   plain JSON) and turns the console's name-less transform records into
+   full character sheets.

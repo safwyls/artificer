@@ -81,16 +81,22 @@ function ItemRows({ items, kind }: { items: SaveItem[]; kind: string }) {
 function CharacterCard({ c }: { c: SaveCharacter }) {
   const [open, setOpen] = useState(false);
   const itemCount = c.inventory.length + c.equipment.length;
+  // A record with a name came from a full character record; without one,
+  // only the world save's transform survives — position and guid, honestly
+  // presented rather than padded with zero vitals.
+  const hasRecord = c.charName !== "";
   // Highest XP first: the skills someone actually plays lead.
   const skills = [...c.skills].sort((a, b) => b.xp - a.xp);
   return (
     <div className="rounded-md border border-wk-edge bg-wk-ink/40 px-3.5 py-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="font-wkdisplay text-lg font-semibold text-wk-parchment">{c.charName || "Unnamed"}</div>
+          <div className="font-wkdisplay text-lg font-semibold text-wk-parchment">
+            {c.charName || "Unnamed adventurer"}
+          </div>
           <div
             className="mt-0.5 font-mono text-[11px] tracking-[0.06em] text-wk-mist"
-            title="Character guid — the DCG id the server logs; the save never holds the EOS player id"
+            title="Character guid — the id the server logs on disconnect; the save never holds the EOS player id"
           >
             {c.charGuid}
           </div>
@@ -104,8 +110,10 @@ function CharacterCard({ c }: { c: SaveCharacter }) {
             />
           )}
           {c.playtimeHours > 0 && <CharFact label="Time in world" value={playtimeLabel(c.playtimeHours)} />}
-          <CharFact label="Health" value={Math.round(c.health)} />
-          <CharFact label="Saves" value={c.saveCount} title="How many times this character's state has been written" />
+          {hasRecord && <CharFact label="Health" value={Math.round(c.health)} />}
+          {hasRecord && (
+            <CharFact label="Saves" value={c.saveCount} title="How many times this character's state has been written" />
+          )}
         </div>
       </div>
 
@@ -197,9 +205,10 @@ export function WkCharacters({
         </div>
       )}
       <WkNote>
-        Skill levels are derived on the RuneScape 1–99 curve; hover a level for the exact XP the save records.
-        The game's own curve bends slightly above level 93, so a number in that band can sit one off — the XP
-        is the truth. Character records list everyone who has ever played this world, online or not.
+        Everyone who has played this world is listed, online or not. On current game builds the world save
+        carries each character's last position but keeps names, skills and inventories in per-character
+        records outside it — those show here whenever the save embeds them. Skill levels are derived on the
+        RuneScape 1–99 curve (the game's own curve bends slightly above 93); hover a level for the exact XP.
       </WkNote>
     </WkPanel>
   );

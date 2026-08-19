@@ -663,6 +663,9 @@ export interface SaveCharacter {
   stamina: number;
   /** Last saved position in UE units (centimetres). */
   position?: { x: number; y: number; z: number };
+  /** The transform record's freshness stamp on the game's own clock
+   * (seconds, game epoch); 0/absent when the save holds no transform. */
+  lastUpdated?: number;
   /** Raw XP per skill — no level: the game's XP curve is its own and
    * version-dependent, so the console shows XP rather than guessing. */
   skills: { id: string; xp: number }[];

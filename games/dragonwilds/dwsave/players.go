@@ -21,6 +21,7 @@ package dwsave
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -47,7 +48,13 @@ type PlayerCharacter struct {
 	Stamina       float64 `json:"stamina"`
 	// Position is where the character last stood when their state was
 	// saved, in UE units (centimetres). Nil when the record carries none.
+	// The world save's own transform record wins over the character
+	// record's last-accessible location when both exist.
 	Position *Position `json:"position,omitempty"`
+	// LastUpdated is the transform record's own freshness stamp, in the
+	// game's clock (seconds; the epoch is the game's, not wall time).
+	// Zero when the save carries no transform for this character.
+	LastUpdated float64 `json:"lastUpdated,omitempty"`
 	// Skills carry raw XP per skill id; the id → display-name map is
 	// vendored frontend data. No level is derived here: the game's XP
 	// curve is its own (piecewise, and changed across game versions), so
@@ -205,18 +212,62 @@ func scanPlayers(data []byte, worldGuid string) []PlayerCharacter {
 	scanASCII(data, worldGuid, found)
 	scanUTF16(data, worldGuid, found)
 
+	// Newer game builds keep no JSON record in the world save at all —
+	// the world carries each character's transform instead (see spud.go).
+	// Transforms enrich a JSON-found record with the save's own position,
+	// and stand alone as a name-less record when there is no JSON side.
+	for _, ct := range collectTransforms(data) {
+		key := canonicalGuid(ct.guid)
+		if p, ok := found[key]; ok {
+			pos := ct.pos
+			p.Position = &pos
+			p.LastUpdated = ct.lastUpdated
+			found[key] = p
+			continue
+		}
+		pos := ct.pos
+		found[key] = PlayerCharacter{
+			CharGuid:    ct.guid,
+			Position:    &pos,
+			LastUpdated: ct.lastUpdated,
+			Skills:      []Skill{},
+			Inventory:   []Item{},
+			Equipment:   []Item{},
+		}
+	}
+
 	players := make([]PlayerCharacter, 0, len(found))
 	for _, p := range found {
 		players = append(players, p)
 	}
 	sort.Slice(players, func(i, j int) bool {
 		a, b := strings.ToLower(players[i].CharName), strings.ToLower(players[j].CharName)
+		// Named characters lead; name-less transform records follow.
+		if (a == "") != (b == "") {
+			return a != ""
+		}
 		if a != b {
 			return a < b
 		}
 		return players[i].CharGuid < players[j].CharGuid
 	})
 	return players
+}
+
+// canonicalGuid folds the two guid spellings the game uses into one merge
+// key: the JSON record's char_guid is the 16 guid bytes base64url-encoded
+// (22 characters, no padding), while the binary transform record renders
+// them as 32 hex digits. Anything unrecognized keys as itself.
+func canonicalGuid(s string) string {
+	if len(s) == 22 {
+		if b, err := base64.RawURLEncoding.DecodeString(s); err == nil && len(b) == 16 {
+			return renderGuid(b)
+		}
+	}
+	if len(s) == 32 {
+		return strings.ToUpper(s)
+	}
+	return s
 }
 
 func scanASCII(data []byte, worldGuid string, found map[string]PlayerCharacter) {
@@ -359,7 +410,7 @@ func walkDoc(v any, worldGuid string, found map[string]PlayerCharacter) {
 // merge dedups by character identity; a save can hold more than one copy
 // of a record, and the one that has been saved more times is the newer.
 func merge(found map[string]PlayerCharacter, p PlayerCharacter) {
-	key := p.CharGuid
+	key := canonicalGuid(p.CharGuid)
 	if key == "" {
 		key = "name:" + p.CharName
 	}
