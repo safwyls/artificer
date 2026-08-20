@@ -101,11 +101,13 @@
 
 <script>
 let ITEMS = {}, SKILLS = {};
-// The classic RuneScape 1–99 curve; the game's own bends slightly above
-// 93, so the exact XP always rides in the title attribute.
+// The game's own curve — the classic RuneScape formula with the divisor
+// changed to 10, calibrated against a real character's in-game skill
+// panel (twelve exact XP→level pairs, 2026-08-20). The exact XP always
+// rides in the title attribute.
 const XP_TABLE = (() => {
   const t = [0, 0]; let pts = 0;
-  for (let l = 1; l < 99; l++) { pts += Math.floor(l + 300 * Math.pow(2, l / 7)); t.push(Math.floor(pts / 4)); }
+  for (let l = 1; l < 99; l++) { pts += Math.floor(l + 300 * Math.pow(2, l / 7)); t.push(Math.floor(pts / 10)); }
   return t;
 })();
 const levelFor = xp => { for (let l = 99; l >= 2; l--) if (xp >= XP_TABLE[l]) return l; return 1; };

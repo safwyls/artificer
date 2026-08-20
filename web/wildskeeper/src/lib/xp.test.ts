@@ -2,34 +2,49 @@ import { describe, expect, it } from "vitest";
 import { levelForXp, xpForLevel } from "./xp";
 
 /**
- * The expected values are the published classic-curve table, written here
- * as independent constants rather than derived from the code under test —
- * if the builder drifts, these fail rather than follow it.
+ * The ground truth: twelve (XP, level) pairs read off a real character's
+ * in-game skill panel next to the same character's save file
+ * (2026-08-20). Any curve change must keep matching every one — these are
+ * observations of the game, not values derived from the code under test.
  */
-const KNOWN: [level: number, xp: number][] = [
-  [2, 83],
-  [3, 174],
-  [5, 388],
-  [10, 1_154],
-  [30, 13_363],
-  [50, 101_333],
-  [70, 737_627],
-  [92, 6_517_253],
-  [99, 13_034_431],
+const OBSERVED: [xp: number, level: number][] = [
+  [56, 2],
+  [259, 6],
+  [273, 7],
+  [1_771, 19],
+  [3_019, 24],
+  [5_729, 30],
+  [6_001, 31],
+  [10_280, 36],
+  [12_107, 37],
+  [13_888, 39],
+  [15_806, 40],
+  [15_814, 40],
 ];
 
 describe("levelForXp", () => {
-  it("matches the published table at its boundaries", () => {
-    for (const [level, xp] of KNOWN) {
-      expect(xpForLevel(level), `xp for level ${level}`).toBe(xp);
-      expect(levelForXp(xp), `level at exactly ${xp} xp`).toBe(level);
-      expect(levelForXp(xp - 1), `level just under ${xp} xp`).toBe(level - 1);
+  it("matches every level the game itself displayed", () => {
+    for (const [xp, level] of OBSERVED) {
+      expect(levelForXp(xp), `${xp} xp`).toBe(level);
     }
+  });
+
+  it("keeps the calibrated boundaries", () => {
+    // Spot boundaries from the fitted formula (classic RS sum ÷ 10),
+    // written as constants so a drifted builder fails rather than follows.
+    expect(xpForLevel(2)).toBe(33);
+    expect(xpForLevel(7)).toBe(260);
+    expect(xpForLevel(31)).toBe(5_933);
+    expect(xpForLevel(40)).toBe(14_889);
+    expect(xpForLevel(99)).toBe(5_213_772);
+    // Exactly at a boundary is that level; one below is not.
+    expect(levelForXp(5_933)).toBe(31);
+    expect(levelForXp(5_932)).toBe(30);
   });
 
   it("clamps the edges", () => {
     expect(levelForXp(0)).toBe(1);
-    expect(levelForXp(82)).toBe(1);
+    expect(levelForXp(32)).toBe(1);
     expect(levelForXp(200_000_000)).toBe(99);
   });
 });
