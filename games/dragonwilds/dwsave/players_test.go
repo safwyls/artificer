@@ -120,11 +120,30 @@ func charRecordV2(name, guidHex string, saveCount int) map[string]any {
 			"Character": map[string]any{
 				"Health":        map[string]any{"CurrentValue": 140.0},
 				"Stamina":       map[string]any{"CurrentValue": 80.0},
+				"Sustenance":    map[string]any{"SustenanceValue": 23.7},
+				"Hydration":     map[string]any{"HydrationValue": 23.1},
+				"Endurance":     map[string]any{"EnduranceValue": 37.2},
 				"Playtime_sim":  85557.8,
 				"Playtime_wall": 85605.2,
 				"LastAccessibleLocation": map[string]any{
 					"Position": "V(X=67189.34, Y=113003.27, Z=2277.47)",
 				},
+			},
+			"QuestProgress": map[string]any{
+				"Quests": []any{
+					map[string]any{"QuestId": "q1", "QuestState": 2},
+					map[string]any{"QuestId": "q2", "QuestState": 2},
+					map[string]any{"QuestId": "q3", "QuestState": 1},
+					map[string]any{"QuestId": "q4", "QuestState": 0},
+				},
+			},
+			"Progress": map[string]any{
+				"RecipesUnlocked":   []any{"r1", "r2", "r3"},
+				"SpellsUnlocked":    []any{"s1"},
+				"BuildingsUnlocked": []any{"b1", "b2"},
+			},
+			"Journal": map[string]any{
+				"UnlockedEntries": []any{"j1", "j2", "j3", "j4"},
 			},
 			"Inventory": map[string]any{
 				"0":            map[string]any{"GUID": "vXAHS0ME6KqZ9zWpJXOP6Q", "ItemData": "NmzyVLMIY0SYZfOAPICeKg", "Durability": 312.0},
@@ -182,6 +201,16 @@ func TestParseCharacterRecordV2(t *testing.T) {
 	// The loadout keeps real items and skips hotbar references.
 	if len(p.Equipment) != 1 || p.Equipment[0].ID != "wLzThnOQEUaw90mBnn8QTw" {
 		t.Errorf("Equipment = %+v", p.Equipment)
+	}
+	if p.Sustenance != 23.7 || p.Hydration != 23.1 || p.Endurance != 37.2 {
+		t.Errorf("survival meters = %v/%v/%v", p.Sustenance, p.Hydration, p.Endurance)
+	}
+	if p.Progression == nil {
+		t.Fatal("Progression missing on a full record")
+	}
+	want := Progression{QuestsCompleted: 2, QuestsInProgress: 1, Recipes: 3, Spells: 1, Buildings: 2, Journal: 4}
+	if *p.Progression != want {
+		t.Errorf("Progression = %+v, want %+v", *p.Progression, want)
 	}
 }
 

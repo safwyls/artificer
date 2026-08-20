@@ -31,10 +31,19 @@
   .fact b { display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--mist); font-weight: 500; }
   .charname { font-size: 19px; font-weight: 700; }
   .guid { font-family: ui-monospace, monospace; font-size: 11px; color: var(--mist); letter-spacing: .05em; }
-  .skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 22px; margin-top: 10px; }
-  .skill { display: flex; justify-content: space-between; border-top: 1px solid var(--edge); padding-top: 4px; font-size: 13px; }
+  .skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 22px; margin-top: 10px; }
+  .skill { border-top: 1px solid var(--edge); padding-top: 4px; font-size: 13px; }
+  .skill .row { display: flex; justify-content: space-between; }
   .skill span { color: var(--mist); }
   .skill b { font-family: ui-monospace, monospace; font-weight: 600; }
+  .meter { height: 4px; border-radius: 2px; background: var(--ink); overflow: hidden; margin-top: 4px; }
+  .meter i { display: block; height: 100%; background: linear-gradient(90deg, #47707c, var(--rune)); }
+  .meter.warm i { background: linear-gradient(90deg, #6e5a2a, var(--brass)); }
+  .vitals { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 12px; }
+  .vital { flex: 1; min-width: 110px; }
+  .vital .row { display: flex; justify-content: space-between; font-size: 12px; }
+  .vital .row span { color: var(--mist); letter-spacing: .1em; text-transform: uppercase; font-size: 10px; }
+  .progline { margin-top: 12px; background: var(--ink); border-radius: 4px; padding: 6px 10px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--mist); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
   th { text-align: left; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mist); font-weight: 500; padding: 2px 8px; }
   td { border-top: 1px solid var(--edge); padding: 4px 8px; }
@@ -113,25 +122,41 @@ function itemRows(items, kind) {
   </tr>`).join("");
 }
 
+const vital = (label, v, warm) => v === undefined ? "" :
+  `<div class="vital"><div class="row"><span>${label}</span><b>${Math.round(v)}</b></div>
+   <div class="meter${warm ? " warm" : ""}"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div></div>`;
+
+function skillRow(s) {
+  const level = levelFor(s.xp);
+  const floor = XP_TABLE[level], ceil = XP_TABLE[Math.min(99, level + 1)];
+  const pct = level >= 99 ? 100 : ((s.xp - floor) / Math.max(1, ceil - floor)) * 100;
+  const hint = level >= 99 ? "maxed" : `${(ceil - s.xp).toLocaleString()} to ${level + 1}`;
+  return `<div class="skill" title="${s.xp.toLocaleString()} XP — ${hint}">
+    <div class="row"><span>${esc(skillName(s.id))}</span><b>${level}</b></div>
+    <div class="meter"><i style="width:${pct}%"></i></div></div>`;
+}
+
 function renderCharacter(c) {
   const p = c.player;
   const skills = [...(p.skills || [])].sort((a, b) => b.xp - a.xp);
   const inv = p.inventory || [], eq = p.equipment || [];
   const pushed = c.pushedAt ? `shared ${new Date(c.pushedAt).toLocaleTimeString()}` : "";
+  const pr = p.progression;
   return `<div class="panel">
     <h2>${esc(c.file)} <span class="status-ok" style="float:right;font-weight:400">${pushed}</span></h2>
     <div class="charname">${esc(p.charName || "Unnamed")}</div>
     <div class="guid">${esc(p.charGuid)}</div>
     <div class="facts">
-      <div class="fact"><b>Health</b>${Math.round(p.health)}</div>
-      <div class="fact"><b>Stamina</b>${Math.round(p.stamina)}</div>
       <div class="fact"><b>Playtime</b>${p.playtimeHours ? p.playtimeHours.toFixed(1) + " h" : "—"}</div>
       <div class="fact"><b>Saves</b>${p.saveCount}</div>
     </div>
-    <div class="skills">
-      ${skills.map(s => `<div class="skill"><span>${esc(skillName(s.id))}</span>
-        <b title="${s.xp.toLocaleString()} XP">${levelFor(s.xp)}</b></div>`).join("")}
+    <div class="vitals">
+      ${vital("Health", p.health, true)}${vital("Stamina", p.stamina, true)}
+      ${vital("Sustenance", p.sustenance)}${vital("Hydration", p.hydration)}${vital("Endurance", p.endurance)}
     </div>
+    <div class="skills">${skills.map(skillRow).join("")}</div>
+    ${pr ? `<div class="progline">quests ${pr.questsCompleted} done · ${pr.questsInProgress} underway ·
+      recipes ${pr.recipes} · spells ${pr.spells} · buildings ${pr.buildings} · journal ${pr.journal}</div>` : ""}
     ${inv.length + eq.length ? `<details><summary>Carried items (${inv.length + eq.length})</summary>
       <table><tr><th>Where</th><th>Item</th><th>Count</th><th>Durability</th></tr>
       ${itemRows(eq, "Worn")}${itemRows(inv, "Pack")}</table></details>` : ""}

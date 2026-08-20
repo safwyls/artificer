@@ -74,6 +74,15 @@ type PlayerCharacter struct {
 	PlaytimeHours float64 `json:"playtimeHours"`
 	Health        float64 `json:"health"`
 	Stamina       float64 `json:"stamina"`
+	// The survival meters, 0–100 as the game keeps them. Zero when the
+	// record carries none (transform-only entries).
+	Sustenance float64 `json:"sustenance,omitempty"`
+	Hydration  float64 `json:"hydration,omitempty"`
+	Endurance  float64 `json:"endurance,omitempty"`
+	// Progression summarizes the record's unlock lists as counts — the
+	// full lists are thousands of opaque ids, and a character sheet wants
+	// the shape of progress, not the ids. Nil on transform-only entries.
+	Progression *Progression `json:"progression,omitempty"`
 	// Position is where the character last stood when their state was
 	// saved, in UE units (centimetres). Nil when the record carries none.
 	// The world save's own transform record wins over the character
@@ -105,6 +114,19 @@ type Position struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
 	Z float64 `json:"z"`
+}
+
+// Progression is the countable shape of a character's advancement. Quest
+// states follow the game's own enum (0 not started, 1 in progress,
+// 2 complete — community-verified against the quest editor tooling and a
+// real record).
+type Progression struct {
+	QuestsCompleted  int `json:"questsCompleted"`
+	QuestsInProgress int `json:"questsInProgress"`
+	Recipes          int `json:"recipes"`
+	Spells           int `json:"spells"`
+	Buildings        int `json:"buildings"`
+	Journal          int `json:"journal"`
 }
 
 // Skill is one skill's raw XP, keyed by the game's skill persistence id.
@@ -161,6 +183,15 @@ type recordBody struct {
 		Stamina struct {
 			CurrentValue float64 `json:"CurrentValue"`
 		} `json:"Stamina"`
+		Sustenance struct {
+			SustenanceValue float64 `json:"SustenanceValue"`
+		} `json:"Sustenance"`
+		Hydration struct {
+			HydrationValue float64 `json:"HydrationValue"`
+		} `json:"Hydration"`
+		Endurance struct {
+			EnduranceValue float64 `json:"EnduranceValue"`
+		} `json:"Endurance"`
 		LastAccessibleLocation struct {
 			// Position appears as UE's plain FVector::ToString
 			// ("X=1.000 Y=2.000 Z=3.000") in old records and the compact
@@ -169,6 +200,19 @@ type recordBody struct {
 		} `json:"LastAccessibleLocation"`
 		PlaytimeWall float64 `json:"Playtime_wall"`
 	} `json:"Character"`
+	QuestProgress struct {
+		Quests []struct {
+			QuestState int `json:"QuestState"`
+		} `json:"Quests"`
+	} `json:"QuestProgress"`
+	Progress struct {
+		RecipesUnlocked   []json.RawMessage `json:"RecipesUnlocked"`
+		SpellsUnlocked    []json.RawMessage `json:"SpellsUnlocked"`
+		BuildingsUnlocked []json.RawMessage `json:"BuildingsUnlocked"`
+	} `json:"Progress"`
+	Journal struct {
+		UnlockedEntries []json.RawMessage `json:"UnlockedEntries"`
+	} `json:"Journal"`
 	Inventory         invJSON `json:"Inventory"`
 	PersonalInventory invJSON `json:"PersonalInventory"`
 	Loadout           invJSON `json:"Loadout"`
@@ -479,14 +523,32 @@ func merge(found map[string]PlayerCharacter, p PlayerCharacter) {
 
 func convertChar(c *charJSON, worldGuid string) PlayerCharacter {
 	b := c.body()
+	prog := Progression{
+		Recipes:   len(b.Progress.RecipesUnlocked),
+		Spells:    len(b.Progress.SpellsUnlocked),
+		Buildings: len(b.Progress.BuildingsUnlocked),
+		Journal:   len(b.Journal.UnlockedEntries),
+	}
+	for _, q := range b.QuestProgress.Quests {
+		switch q.QuestState {
+		case 1:
+			prog.QuestsInProgress++
+		case 2:
+			prog.QuestsCompleted++
+		}
+	}
 	p := PlayerCharacter{
-		CharGuid:  c.MetaData.CharGuid,
-		CharName:  c.MetaData.CharName,
-		SaveCount: c.SaveCount,
-		Health:    b.Character.Health.CurrentValue,
-		Stamina:   b.Character.Stamina.CurrentValue,
-		Inventory: b.Inventory.items("Inventory"),
-		Skills:    make([]Skill, 0, len(b.Skills.Skills)),
+		CharGuid:    c.MetaData.CharGuid,
+		CharName:    c.MetaData.CharName,
+		SaveCount:   c.SaveCount,
+		Health:      b.Character.Health.CurrentValue,
+		Stamina:     b.Character.Stamina.CurrentValue,
+		Sustenance:  b.Character.Sustenance.SustenanceValue,
+		Hydration:   b.Character.Hydration.HydrationValue,
+		Endurance:   b.Character.Endurance.EnduranceValue,
+		Progression: &prog,
+		Inventory:   b.Inventory.items("Inventory"),
+		Skills:      make([]Skill, 0, len(b.Skills.Skills)),
 	}
 	for _, s := range b.Skills.Skills {
 		p.Skills = append(p.Skills, Skill{ID: s.ID, XP: s.XP})
