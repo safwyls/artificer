@@ -1,10 +1,14 @@
 package dwapi
 
 import (
+	"context"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/safwyls/artificer/core/crypto"
+	"github.com/safwyls/artificer/core/db"
 	"github.com/safwyls/artificer/core/store"
 	"github.com/safwyls/artificer/games/dragonwilds/dwsave"
 )
@@ -48,7 +52,14 @@ func offlineWorld(modTime time.Time, x float64) *dwsave.World {
 }
 
 func testHandlers() *handlers {
-	return &handlers{companion: newCompanionInbox(), records: newRecordMemory()}
+	return &handlers{companion: newCompanionInbox(), records: newRecordMemory(nil, nil)}
+}
+
+// storeHandlers is the same wiring with persistence behind it, as a
+// console main builds it.
+func storeHandlers(t *testing.T, st *store.Store) *handlers {
+	t.Helper()
+	return &handlers{companion: newCompanionInbox(), records: newRecordMemory(st, nil)}
 }
 
 // TestSheetSurvivesLogout is the behaviour the live server forced: the
@@ -62,7 +73,7 @@ func TestSheetSurvivesLogout(t *testing.T) {
 	online := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 
 	// While connected: the save's own sheet, unstamped — nothing is fresher.
-	got := h.withKnownRecords(srv, onlineWorld(online, 100))
+	got := h.withKnownRecords(context.Background(), srv, onlineWorld(online, 100))
 	p := got.Players[0]
 	if len(p.Skills) != 1 || p.SeenAt != nil || p.SharedAt != nil {
 		t.Fatalf("online player = %+v, want the live sheet unstamped", p)
@@ -70,7 +81,7 @@ func TestSheetSurvivesLogout(t *testing.T) {
 
 	// After logout: the sheet is remembered, stamped with the save it came
 	// from, and the position comes from the newer save.
-	got = h.withKnownRecords(srv, offlineWorld(online.Add(30*time.Minute), 250))
+	got = h.withKnownRecords(context.Background(), srv, offlineWorld(online.Add(30*time.Minute), 250))
 	p = got.Players[0]
 	if len(p.Skills) != 1 || p.Skills[0].XP != 12107 {
 		t.Errorf("Skills = %+v, want the remembered sheet", p.Skills)
@@ -100,12 +111,12 @@ func TestLiveSheetOutranksMemory(t *testing.T) {
 	srv := &store.Server{ID: 1}
 	first := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 
-	h.withKnownRecords(srv, onlineWorld(first, 100))
-	h.withKnownRecords(srv, offlineWorld(first.Add(time.Hour), 250))
+	h.withKnownRecords(context.Background(), srv, onlineWorld(first, 100))
+	h.withKnownRecords(context.Background(), srv, offlineWorld(first.Add(time.Hour), 250))
 
 	back := onlineWorld(first.Add(2*time.Hour), 300)
 	back.Players[0].Skills[0].XP = 20000 // they levelled while away
-	got := h.withKnownRecords(srv, back)
+	got := h.withKnownRecords(context.Background(), srv, back)
 	p := got.Players[0]
 	if p.SeenAt != nil {
 		t.Errorf("SeenAt = %v on a live sheet", p.SeenAt)
@@ -134,7 +145,7 @@ func TestSharedSheetFillsAnUnseenCharacter(t *testing.T) {
 		t.Fatal("push refused")
 	}
 
-	got := h.withKnownRecords(srv, offlineWorld(time.Now(), 42))
+	got := h.withKnownRecords(context.Background(), srv, offlineWorld(time.Now(), 42))
 	p := got.Players[0]
 	if len(p.Skills) != 1 || p.Skills[0].XP != 999 {
 		t.Fatalf("Skills = %+v, want the shared sheet", p.Skills)
@@ -159,7 +170,7 @@ func TestRevokeForgetsOnlySharedSheets(t *testing.T) {
 	seen := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 
 	// One character the console saw in the save.
-	h.withKnownRecords(srv, onlineWorld(seen, 100))
+	h.withKnownRecords(context.Background(), srv, onlineWorld(seen, 100))
 	// Another that only ever arrived by companion push.
 	otherGuid := "AAAA0000AAAA0000AAAA0000AAAA0000"
 	raw, _ := json.Marshal(map[string]any{
@@ -167,7 +178,7 @@ func TestRevokeForgetsOnlySharedSheets(t *testing.T) {
 		"Skills":    map[string]any{"Skills": []any{map[string]any{"Id": "x", "Xp": 5}}},
 	})
 	h.companion.put(srv.ID, dwsave.CanonicalGuid(otherGuid), raw)
-	h.withKnownRecords(srv, offlineWorld(seen.Add(time.Minute), 100))
+	h.withKnownRecords(context.Background(), srv, offlineWorld(seen.Add(time.Minute), 100))
 
 	h.companion.drop(srv.ID)
 	h.records.forgetCompanionSourced(srv.ID)
@@ -183,15 +194,91 @@ func TestRevokeForgetsOnlySharedSheets(t *testing.T) {
 // TestMemoryIsBounded: a leaked token or a long-lived console cannot grow
 // the memory without limit.
 func TestMemoryIsBounded(t *testing.T) {
-	m := newRecordMemory()
+	m := newRecordMemory(nil, nil)
 	at := time.Now()
 	for i := 0; i < maxRememberedRecords+8; i++ {
 		guid := string(rune('A'+i%26)) + "0000000000000000000000000000000"
-		m.remember(1, guid, dwsave.PlayerCharacter{CharGuid: guid}, at, false)
+		m.remember(context.Background(), 1, guid, dwsave.PlayerCharacter{CharGuid: guid}, at.Add(time.Duration(i)*time.Second), false)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if n := len(m.byServer[1]); n > maxRememberedRecords {
 		t.Errorf("remembered %d sheets, cap is %d", n, maxRememberedRecords)
+	}
+}
+
+// newTestStore builds a real sqlite-backed store, as a console main has.
+func newTestStore(t *testing.T) (*store.Store, int64) {
+	t.Helper()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+	box, err := crypto.New([]byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatalf("crypto: %v", err)
+	}
+	st := store.New(sqlDB, box)
+	id, err := st.CreateServer(context.Background(), &store.Server{Name: "wilds", Host: "10.0.0.5", Enabled: true})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	return st, id
+}
+
+// TestSheetSurvivesConsoleRestart is why the memory is backed by the
+// store at all: a sheet is an observation of a moment that will not come
+// back until that player logs in again, so a redeploy must not empty the
+// view for a group that plays weekly.
+func TestSheetSurvivesConsoleRestart(t *testing.T) {
+	st, serverID := newTestStore(t)
+	srv := &store.Server{ID: serverID}
+	online := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+
+	// One console reads a save while the player is connected.
+	h := storeHandlers(t, st)
+	h.withKnownRecords(context.Background(), srv, onlineWorld(online, 100))
+
+	// The console restarts: fresh memory, same database. The player is
+	// long gone, so the save carries only their transform.
+	restarted := storeHandlers(t, st)
+	got := restarted.withKnownRecords(context.Background(), srv, offlineWorld(online.Add(2*time.Hour), 250))
+	p := got.Players[0]
+	if len(p.Skills) != 1 || p.Skills[0].XP != 12107 {
+		t.Fatalf("Skills = %+v, want the sheet reloaded from the store", p.Skills)
+	}
+	if p.CharName != "safwyl" || p.Health != 140 {
+		t.Errorf("reloaded sheet lost detail: %+v", p)
+	}
+	if p.SeenAt == nil || !p.SeenAt.Equal(online) {
+		t.Errorf("SeenAt = %v, want the save the sheet came from (%v)", p.SeenAt, online)
+	}
+	if p.Position == nil || p.Position.X != 250 {
+		t.Errorf("Position = %+v, want the current save's", p.Position)
+	}
+}
+
+// TestSharedSheetsAreNotPersisted: a player's shared sheet must be
+// forgettable, so it never reaches disk — a revoke cannot un-write a row
+// a later restart would reload.
+func TestSharedSheetsAreNotPersisted(t *testing.T) {
+	st, serverID := newTestStore(t)
+	srv := &store.Server{ID: serverID}
+
+	h := storeHandlers(t, st)
+	raw, _ := json.Marshal(map[string]any{
+		"meta_data": map[string]any{"char_guid": testGuid, "char_name": "safwyl"},
+		"Skills":    map[string]any{"Skills": []any{map[string]any{"Id": "x", "Xp": 7}}},
+	})
+	h.companion.put(srv.ID, dwsave.CanonicalGuid(testGuid), raw)
+	h.withKnownRecords(context.Background(), srv, offlineWorld(time.Now(), 42))
+
+	entries, err := st.ListGameState(context.Background(), serverID, sheetScope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("companion-shared sheet reached the store: %+v", entries)
 	}
 }

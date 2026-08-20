@@ -591,9 +591,9 @@ any instant carries:
 Consequences for anything reading this: a sheet is not missing because
 the server never had it, it is missing because that player is offline;
 and a sheet that is present is at most one autosave (~5 min) old.
-`dwapi`'s `records.go` remembers each sheet it sees so an offline
-player's does not vanish from the console, stamped with when it was
-true. Names come back independently through the disconnect log line
+`dwapi`'s `records.go` remembers each sheet it sees — persisting the
+save-read ones — so an offline player's does not vanish from the
+console, stamped with when it was true. Names come back independently through the disconnect log line
 (`Character Name[<name>] Guid[DCG:<32HEX>]`), which `dwlog` harvests —
 still the only source for a character the console has never seen
 online. The 0.12-era "Players" chunk the server log complained about

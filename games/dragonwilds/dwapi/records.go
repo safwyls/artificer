@@ -1,6 +1,9 @@
 package dwapi
 
 import (
+	"context"
+	"encoding/json"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -19,21 +22,28 @@ import (
 // and a console that showed only what the current save says would watch
 // each sheet evaporate at logout.
 //
-// This file keeps the last full record seen for each character, from
-// either source — the save while they were online, or a companion push —
-// and restores it when the save stops carrying one. A restored sheet is
+// This file keeps the last full record seen for each character and
+// restores it when the save stops carrying one. A restored sheet is
 // stamped with when it was true (SeenAt / SharedAt) rather than passed
 // off as current: the position beside it still comes from the save's live
 // transform record, which outlives the session.
 //
-// In memory by design, like the companion inbox: a console restart
-// forgets, and the next time each player logs in (or their companion
-// pushes) the memory refills. Nothing here is a database.
+// Sheets the console read from the world save are **persisted** (core's
+// neutral game_state table): they are observations of a moment that will
+// not come back until that player logs in again, so losing them to a
+// console restart would empty the view for a group that plays weekly.
+// Sheets a player *shared* through the companion app are memory-only, on
+// purpose — revoking sharing must be able to forget them completely, and
+// the companion re-sends within minutes of a restart anyway.
 
-// maxRememberedRecords bounds the memory per server, matching the
-// companion inbox: a world holds six players, with headroom for
-// characters who have come and gone.
-const maxRememberedRecords = 16
+const (
+	// maxRememberedRecords bounds the memory per server: a world holds six
+	// players, with headroom for characters who have come and gone. The
+	// oldest sheet gives way when a new character arrives at the cap.
+	maxRememberedRecords = 16
+	// sheetScope namespaces this game's rows in core's game_state table.
+	sheetScope = "dragonwilds.character_sheet"
+)
 
 // rememberedRecord is one character sheet the console has seen, with the
 // instant it was true and where it came from. Provenance is load-bearing:
@@ -45,48 +55,134 @@ type rememberedRecord struct {
 	fromCompanion bool
 }
 
+// storedSheet is the persisted shape: the sheet plus when it was true.
+// The value column carries both so a reload needs no second lookup.
+type storedSheet struct {
+	SeenAt time.Time              `json:"seenAt"`
+	Player dwsave.PlayerCharacter `json:"player"`
+}
+
 type recordMemory struct {
+	// store persists save-read sheets; nil keeps everything in memory
+	// (the shape tests use when persistence isn't what they're pinning).
+	store  *store.Store
+	logger *slog.Logger
+
 	mu       sync.Mutex
 	byServer map[int64]map[string]rememberedRecord
+	loaded   map[int64]bool
 }
 
-func newRecordMemory() *recordMemory {
-	return &recordMemory{byServer: map[int64]map[string]rememberedRecord{}}
+func newRecordMemory(st *store.Store, logger *slog.Logger) *recordMemory {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &recordMemory{
+		store:    st,
+		logger:   logger,
+		byServer: map[int64]map[string]rememberedRecord{},
+		loaded:   map[int64]bool{},
+	}
 }
 
-// remember stores a sheet if it is newer than the one already held. The
-// cap only refuses characters the memory has never seen, so a regular
-// six-player group never evicts itself.
-func (m *recordMemory) remember(serverID int64, guid string, p dwsave.PlayerCharacter, seenAt time.Time, fromCompanion bool) {
+// ensureLoaded reads a server's persisted sheets once per process. A
+// failure is logged and forgotten: the console still works from whatever
+// the current save carries, which is the pre-persistence behaviour.
+func (m *recordMemory) ensureLoaded(ctx context.Context, serverID int64) {
+	m.mu.Lock()
+	done := m.store == nil || m.loaded[serverID]
+	m.mu.Unlock()
+	if done {
+		return
+	}
+
+	entries, err := m.store.ListGameState(ctx, serverID, sheetScope)
+	if err != nil {
+		m.logger.Warn("reading remembered character sheets", "server", serverID, "error", err)
+		return
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.loaded[serverID] { // another request got here first
+		return
+	}
 	recs := m.byServer[serverID]
 	if recs == nil {
 		recs = map[string]rememberedRecord{}
 		m.byServer[serverID] = recs
 	}
-	prev, known := recs[guid]
-	if known && !seenAt.After(prev.seenAt) {
-		return
+	// Newest first from the store, so the cap keeps the freshest.
+	for _, e := range entries {
+		if len(recs) >= maxRememberedRecords {
+			break
+		}
+		var sheet storedSheet
+		if err := json.Unmarshal(e.Value, &sheet); err != nil {
+			m.logger.Warn("discarding unreadable remembered sheet", "server", serverID, "key", e.Key, "error", err)
+			continue
+		}
+		if prev, ok := recs[e.Key]; ok && !sheet.SeenAt.After(prev.seenAt) {
+			continue
+		}
+		recs[e.Key] = rememberedRecord{player: sheet.Player, seenAt: sheet.SeenAt}
 	}
-	if !known && len(recs) >= maxRememberedRecords {
-		return
-	}
-	recs[guid] = rememberedRecord{player: p, seenAt: seenAt, fromCompanion: fromCompanion}
+	m.loaded[serverID] = true
 }
 
-// forgetCompanionSourced drops the sheets that arrived by companion push,
-// leaving what the console read from the save. Called when an admin
-// revokes sharing: a revoke that left shared sheets on screen would be a
-// lie to the players who shared them.
-func (m *recordMemory) forgetCompanionSourced(serverID int64) {
+// remember stores a sheet if it is newer than the one already held. At
+// the cap a new character displaces the stalest sheet rather than being
+// turned away — the interesting characters are the ones playing now.
+func (m *recordMemory) remember(ctx context.Context, serverID int64, guid string, p dwsave.PlayerCharacter, seenAt time.Time, fromCompanion bool) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	for guid, rec := range m.byServer[serverID] {
-		if rec.fromCompanion {
-			delete(m.byServer[serverID], guid)
+	recs := m.byServer[serverID]
+	if recs == nil {
+		recs = map[string]rememberedRecord{}
+		m.byServer[serverID] = recs
+	}
+	if prev, known := recs[guid]; known && !seenAt.After(prev.seenAt) {
+		m.mu.Unlock()
+		return
+	}
+	evicted := ""
+	if _, known := recs[guid]; !known && len(recs) >= maxRememberedRecords {
+		evicted = stalestKey(recs)
+		delete(recs, evicted)
+	}
+	recs[guid] = rememberedRecord{player: p, seenAt: seenAt, fromCompanion: fromCompanion}
+	m.mu.Unlock()
+
+	if m.store == nil {
+		return
+	}
+	if evicted != "" {
+		if err := m.store.DeleteGameState(ctx, serverID, sheetScope, evicted); err != nil {
+			m.logger.Warn("dropping evicted character sheet", "server", serverID, "error", err)
 		}
 	}
+	// Only what the console read for itself is persisted; shared sheets
+	// stay in memory so a revoke can forget them completely.
+	if fromCompanion {
+		return
+	}
+	value, err := json.Marshal(storedSheet{SeenAt: seenAt, Player: p})
+	if err != nil {
+		return
+	}
+	if err := m.store.PutGameState(ctx, serverID, sheetScope, guid, value, seenAt); err != nil {
+		m.logger.Warn("remembering character sheet", "server", serverID, "error", err)
+	}
+}
+
+// stalestKey names the oldest sheet held, for eviction.
+func stalestKey(recs map[string]rememberedRecord) string {
+	oldest, at := "", time.Time{}
+	for guid, rec := range recs {
+		if oldest == "" || rec.seenAt.Before(at) {
+			oldest, at = guid, rec.seenAt
+		}
+	}
+	return oldest
 }
 
 // lookup returns the remembered sheet for a character, if any.
@@ -97,10 +193,19 @@ func (m *recordMemory) lookup(serverID int64, guid string) (rememberedRecord, bo
 	return rec, ok
 }
 
-func (m *recordMemory) drop(serverID int64) {
+// forgetCompanionSourced drops the sheets that arrived by companion push,
+// leaving what the console read from the save. Called when an admin
+// revokes sharing: a revoke that left shared sheets on screen would be a
+// lie to the players who shared them. Nothing to clean up in the store —
+// shared sheets are never written there.
+func (m *recordMemory) forgetCompanionSourced(serverID int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.byServer, serverID)
+	for guid, rec := range m.byServer[serverID] {
+		if rec.fromCompanion {
+			delete(m.byServer[serverID], guid)
+		}
+	}
 }
 
 // hasSheet reports whether a parsed player carries a full character
@@ -115,9 +220,12 @@ func hasSheet(p dwsave.PlayerCharacter) bool { return len(p.Skills) > 0 }
 // whichever snapshot is fresher. The save's own transform position and
 // freshness always win — they are host-side and current even when the
 // sheet beside them is a memory.
-func (h *handlers) withKnownRecords(srv *store.Server, world *dwsave.World) *dwsave.World {
+func (h *handlers) withKnownRecords(ctx context.Context, srv *store.Server, world *dwsave.World) *dwsave.World {
 	if world == nil || (h.records == nil && h.companion == nil) {
 		return world
+	}
+	if h.records != nil {
+		h.records.ensureLoaded(ctx, srv.ID)
 	}
 
 	out := *world
@@ -135,7 +243,7 @@ func (h *handlers) withKnownRecords(srv *store.Server, world *dwsave.World) *dws
 		// A sheet in the save means that player was connected as of this
 		// save; remember it for after they log off.
 		if h.records != nil && guid != "" && hasSheet(p) {
-			h.records.remember(srv.ID, guid, p, savedAt, false)
+			h.records.remember(ctx, srv.ID, guid, p, savedAt, false)
 		}
 	}
 
@@ -151,7 +259,7 @@ func (h *handlers) withKnownRecords(srv *store.Server, world *dwsave.World) *dws
 			shared[guid] = *p
 			sharedAt[guid] = rec.receivedAt
 			if h.records != nil {
-				h.records.remember(srv.ID, guid, *p, rec.receivedAt, true)
+				h.records.remember(ctx, srv.ID, guid, *p, rec.receivedAt, true)
 			}
 		}
 	}

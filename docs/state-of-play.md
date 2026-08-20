@@ -67,7 +67,9 @@ ways that mattered.
   logout (corrected 2026-08-20; the earlier "the server never holds
   it" came from one snapshot taken with nobody online). `dwsave` reads
   both; `dwapi`'s record memory keeps an offline player's sheet on
-  screen, stamped with when it was true. Names come back through the
+  screen, stamped with when it was true, and persists what it read from
+  the save (core's neutral `game_state` table) so a console restart
+  does not empty the view. Names come back through the
   disconnect log line's guid↔name pairing, which `dwlog` learns and the
   world endpoint overlays. The Artificer Companion app (`cmd/companion`,
   born wkcompanion — `games/dragonwilds/docs/companion.md`) is now the

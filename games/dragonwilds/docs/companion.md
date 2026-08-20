@@ -110,7 +110,10 @@ give players a direct/LAN address for the console.
   server — a world holds 6 players). Nothing a player shared outlives
   the console process unless they are still running the app that shares
   it; the heartbeat re-fills the inbox within minutes of a console
-  restart.
+  restart. Shared sheets are deliberately never written to the console's
+  database — only sheets it read from the world save itself are
+  persisted (`dwapi/records.go`), so a revoke cannot be undone by a
+  later restart reloading a row.
 - The pushed record is validated by the same `dwsave` parser the
   companion itself uses (`dwsave.ParseCharacterRecord`) — one parser to
   be wrong in — and junk is refused with the reason.

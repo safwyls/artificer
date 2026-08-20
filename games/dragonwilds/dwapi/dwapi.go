@@ -56,7 +56,8 @@ type API struct {
 func New(s *api.Server, worlds *savecache.Cache[dwsave.World], charNames func(agentURL string) map[string]string) *API {
 	return &API{h: &handlers{
 		s: s, worlds: worlds, charNames: charNames,
-		companion: newCompanionInbox(), records: newRecordMemory(),
+		companion: newCompanionInbox(),
+		records:   newRecordMemory(s.StoreHandle(), s.LoggerHandle()),
 	}}
 }
 
@@ -138,7 +139,7 @@ func (h *handlers) handleServerWorld(w http.ResponseWriter, r *http.Request) {
 		api.WriteError(w, http.StatusInternalServerError, "reading world save: "+err.Error())
 		return
 	}
-	enriched := h.withKnownRecords(srv, h.withCharNames(srv, world))
+	enriched := h.withKnownRecords(r.Context(), srv, h.withCharNames(srv, world))
 	api.WriteJSON(w, http.StatusOK, map[string]any{"available": true, "world": enriched})
 }
 
