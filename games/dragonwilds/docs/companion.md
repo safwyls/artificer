@@ -35,17 +35,34 @@ the exe a second time doesn't start a second copy: it notices the
 running instance and opens its page instead. Because a windowed build
 has no console, logs go to `companion.log` beside the config file.
 
-Build for players:
+## Getting the app to players
+
+**The console hands it out itself.** The wildskeeper image build
+cross-compiles `wkcompanion.exe` (deploy/wildskeeper/Dockerfile) and
+ships it beside the console binary; with sharing enabled, the
+Adventurers panel shows a **download link** —
+`/api/public/companion/<token>/download`, token-gated like the rest of
+the tier — that an admin copies and gives players along with the
+console address and token. A deployment without the bundle (a source
+checkout, an older image) answers the link with the build command
+instead of a broken download; `WKCOMPANION_EXE` overrides the bundled
+path when needed.
+
+Building by hand instead:
 
 ```sh
 GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" ./cmd/wkcompanion
 ```
 
-(`-H windowsgui` is what suppresses the console window; without it the
-same binary runs as a console app, which is what non-Windows dev
-platforms get.) To start it with Windows, drop a shortcut to the exe in
-`shell:startup` — deliberately manual for now, an app that auto-installs
-itself into startup is not this repo's style.
+(`-H windowsgui` is what suppresses the console window entirely. A plain
+`go build` produces a console-subsystem exe instead — double-clicked, it
+detects that the console was created for it alone and closes it right
+after startup, so the flag is polish, not a requirement: without it the
+window flashes briefly instead of never appearing. Run from a terminal,
+the console is the developer's and stays.) To start it with Windows,
+drop a shortcut to the exe in `shell:startup` — deliberately manual for
+now, an app that auto-installs itself into startup is not this repo's
+style.
 
 ## Reaching the console through an auth layer
 

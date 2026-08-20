@@ -33,6 +33,9 @@ type handlers struct {
 	// companion holds character records players relayed via the
 	// wkcompanion app — see companion.go.
 	companion *companionInbox
+	// companionExe is the path of the bundled wkcompanion.exe the console
+	// hands out (companion.go); empty when this deployment ships none.
+	companionExe string
 }
 
 // API is Dragonwilds' contributed route sets: the authenticated
@@ -67,12 +70,18 @@ func (a *API) Routes() func(chi.Router) {
 	}
 }
 
+// SetCompanionExe names the bundled wkcompanion.exe to hand out; empty
+// (the default) makes the download answer honestly that this deployment
+// ships none.
+func (a *API) SetCompanionExe(path string) { a.h.companionExe = path }
+
 // PublicRoutes mounts the token-gated companion endpoints
 // (api.Server.PublicGameRoutes) — see companion.go for the trust model.
 func (a *API) PublicRoutes() func(chi.Router) {
 	h := a.h
 	return func(r chi.Router) {
 		r.Get("/companion/{token}", h.handleCompanionPing)
+		r.Get("/companion/{token}/download", h.handleCompanionDownload)
 		r.Post("/companion/{token}/character", h.handleCompanionPush)
 	}
 }

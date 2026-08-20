@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -138,6 +139,37 @@ func (h *handlers) handleCompanionPush(w http.ResponseWriter, r *http.Request) {
 		"server":    srv.Name,
 		"character": p.CharName,
 	})
+}
+
+// handleCompanionDownload hands out the companion app itself. The console
+// image cross-compiles wkcompanion.exe at build time and ships it beside
+// the console binary, so the admin's "give players this link" is the whole
+// distribution story. Token-gated like the rest of the tier — the exe
+// isn't a secret, but an open path invites scraping and the token link is
+// the one players are handed anyway.
+func (h *handlers) handleCompanionDownload(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.s.StoreHandle().GetServerByCompanionToken(r.Context(), chi.URLParam(r, "token")); err != nil {
+		api.WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if h.companionExe == "" {
+		api.WriteError(w, http.StatusNotFound, "this deployment ships without the companion app — build it with: GOOS=windows GOARCH=amd64 go build ./cmd/wkcompanion")
+		return
+	}
+	f, err := os.Open(h.companionExe)
+	if err != nil {
+		api.WriteError(w, http.StatusNotFound, "companion app not present in this deployment ("+h.companionExe+")")
+		return
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		api.WriteError(w, http.StatusInternalServerError, "reading companion app")
+		return
+	}
+	w.Header().Set("Content-Type", "application/vnd.microsoft.portable-executable")
+	w.Header().Set("Content-Disposition", `attachment; filename="wkcompanion.exe"`)
+	http.ServeContent(w, r, "wkcompanion.exe", fi.ModTime(), f)
 }
 
 // handleCompanionPing lets a companion app verify its configuration
