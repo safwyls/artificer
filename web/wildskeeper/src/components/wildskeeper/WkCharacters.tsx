@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { SaveCharacter, SaveItem } from "../../lib/api";
 import { agoLabel } from "../../lib/time";
-import { levelForXp } from "../../lib/xp";
+import { levelForXp, xpForLevel } from "../../lib/xp";
 import { WkNote, WkPanel } from "./WkPanel";
 import skillNames from "../../data/skillNames.json";
 import itemNames from "../../data/itemNames.json";
@@ -46,6 +46,43 @@ function CharFact({ label, value, title }: { label: string; value: React.ReactNo
       <div className="text-[11px] uppercase tracking-[0.14em] text-wk-mist">{label}</div>
       <div className="mt-0.5 text-sm text-wk-parchment" title={title}>
         {value}
+      </div>
+    </div>
+  );
+}
+
+/** A vital as the game meters it: label, value, 0–100 fill. */
+function Vital({ label, value, warm }: { label: string; value: number; warm?: boolean }) {
+  return (
+    <div className="min-w-[110px] flex-1">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px] uppercase tracking-[0.14em] text-wk-mist">{label}</span>
+        <span className="font-mono text-xs text-wk-parchment">{Math.round(value)}</span>
+      </div>
+      <div className="mt-1 h-[5px] overflow-hidden rounded bg-wk-ink">
+        <i
+          className={`block h-full ${warm ? "bg-gradient-to-r from-[#6e5a2a] to-wk-brasshi" : "bg-gradient-to-r from-wk-runedim to-wk-rune"}`}
+          style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** One skill with its level and progress into the next. */
+function SkillRow({ id, xp }: { id: string; xp: number }) {
+  const level = levelForXp(xp);
+  const floor = xpForLevel(level);
+  const ceil = xpForLevel(Math.min(99, level + 1));
+  const pct = level >= 99 ? 100 : ((xp - floor) / Math.max(1, ceil - floor)) * 100;
+  return (
+    <div className="border-t border-wk-edge pt-1.5" title={`${xp.toLocaleString()} XP — ${level >= 99 ? "maxed" : `${(ceil - xp).toLocaleString()} to level ${level + 1}`}`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs text-wk-mist">{skillName(id)}</span>
+        <span className="font-mono text-xs font-semibold text-wk-parchment">{level}</span>
+      </div>
+      <div className="mt-1 h-[3px] overflow-hidden rounded bg-wk-ink">
+        <i className="block h-full bg-gradient-to-r from-wk-runedim to-wk-rune" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -110,7 +147,7 @@ function CharacterCard({ c }: { c: SaveCharacter }) {
             {c.charGuid}
           </div>
         </div>
-        <div className="grid shrink-0 grid-cols-2 gap-x-7 gap-y-2.5 sm:grid-cols-4 sm:text-right">
+        <div className="grid shrink-0 grid-cols-2 gap-x-7 gap-y-2.5 sm:grid-cols-3 sm:text-right">
           {c.position && (
             <CharFact
               label="Last stood at"
@@ -118,27 +155,38 @@ function CharacterCard({ c }: { c: SaveCharacter }) {
               title={`UE units: X=${Math.round(c.position.x)} Y=${Math.round(c.position.y)} Z=${Math.round(c.position.z)}`}
             />
           )}
-          {c.playtimeHours > 0 && <CharFact label="Time in world" value={playtimeLabel(c.playtimeHours)} />}
-          {hasRecord && <CharFact label="Health" value={Math.round(c.health)} />}
+          {c.playtimeHours > 0 && (
+            <CharFact label="Playtime" value={playtimeLabel(c.playtimeHours)} title="The character's wall-clock total, as its record keeps it" />
+          )}
           {hasRecord && (
             <CharFact label="Saves" value={c.saveCount} title="How many times this character's state has been written" />
           )}
         </div>
       </div>
 
+      {hasRecord && (
+        <div className="mt-3.5 flex flex-wrap gap-x-6 gap-y-2">
+          <Vital label="Health" value={c.health} warm />
+          <Vital label="Stamina" value={c.stamina} warm />
+          {c.sustenance !== undefined && <Vital label="Sustenance" value={c.sustenance} />}
+          {c.hydration !== undefined && <Vital label="Hydration" value={c.hydration} />}
+          {c.endurance !== undefined && <Vital label="Endurance" value={c.endurance} />}
+        </div>
+      )}
+
       {skills.length > 0 && (
-        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 sm:grid-cols-5">
+        <div className="mt-3.5 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4 lg:grid-cols-6">
           {skills.map((s) => (
-            <div key={s.id} className="flex items-baseline justify-between gap-2 border-t border-wk-edge pt-1.5">
-              <span className="text-xs text-wk-mist">{skillName(s.id)}</span>
-              <span
-                className="font-mono text-xs text-wk-parchment"
-                title={`${s.xp.toLocaleString()} XP — level derived on the RuneScape curve`}
-              >
-                {levelForXp(s.xp)}
-              </span>
-            </div>
+            <SkillRow key={s.id} id={s.id} xp={s.xp} />
           ))}
+        </div>
+      )}
+
+      {c.progression && (
+        <div className="mt-3.5 rounded-sm bg-wk-ink px-3 py-2 font-mono text-[11px] text-wk-mist">
+          quests {c.progression.questsCompleted} done · {c.progression.questsInProgress} underway · recipes{" "}
+          {c.progression.recipes} · spells {c.progression.spells} · buildings {c.progression.buildings} · journal{" "}
+          {c.progression.journal}
         </div>
       )}
 

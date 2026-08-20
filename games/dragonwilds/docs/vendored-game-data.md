@@ -20,12 +20,14 @@ together:
 
 | File | Contents | Source |
 |------|----------|--------|
-| `itemNames.json` | item persistence id → display name (792 entries) | the community DWCharacterEditor catalog (`data/ItemID.json`, extracted from the game's own data tables via pak extraction), reduced to the id/name pair only |
-| `skillNames.json` | skill persistence id → skill name (10 entries) | same project's `data/SkillID.json` |
+| `itemNames.json` | item persistence id → display name (~1,400 entries) | [RSDWArchive/RSDWTools](https://github.com/RSDWArchive/RSDWTools) `data/items` + `data/consumables` — per-asset JSON extracted from the game's paks, each carrying `PersistenceID` and `Name.SourceString`; reduced to the id/name pair only |
+| `skillNames.json` | skill persistence id → skill name (12 entries, Agility and Fishing included) | same archive's `data/skills` `SKILL_*.json` assets (`PersistenceID` per skill) |
 
-The upstream project publishes no license file; only the factual id → name
-pairs are taken — the game's own identifiers and English display strings —
-not the editor's code or the catalog's stats columns.
+An earlier revision used the community DWCharacterEditor catalog (792
+items, 10 skills); the RSDWTools extract supersedes it — every id the old
+catalog knew appears in the new one. Neither upstream publishes a license
+file; only the factual id → name pairs are taken — the game's own
+identifiers and English display strings — not the projects' code.
 
 ## What the ids are
 

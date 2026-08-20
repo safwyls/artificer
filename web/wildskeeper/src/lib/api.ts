@@ -661,6 +661,19 @@ export interface SaveCharacter {
   playtimeHours: number;
   health: number;
   stamina: number;
+  /** Survival meters, 0–100; absent on transform-only entries. */
+  sustenance?: number;
+  hydration?: number;
+  endurance?: number;
+  /** Advancement counts; absent on transform-only entries. */
+  progression?: {
+    questsCompleted: number;
+    questsInProgress: number;
+    recipes: number;
+    spells: number;
+    buildings: number;
+    journal: number;
+  };
   /** Last saved position in UE units (centimetres). */
   position?: { x: number; y: number; z: number };
   /** The transform record's freshness stamp on the game's own clock

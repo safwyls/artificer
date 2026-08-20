@@ -12,11 +12,18 @@ const aldra: SaveCharacter = {
   playtimeHours: 2,
   health: 87.5,
   stamina: 100,
+  sustenance: 23.7,
+  hydration: 55,
+  endurance: 37.2,
+  progression: { questsCompleted: 8, questsInProgress: 5, recipes: 286, spells: 18, buildings: 459, journal: 324 },
   position: { x: -96222.633, y: -3299.294, z: 8697.63 },
   skills: [
-    // Real skill ids — the vendored map must resolve them.
+    // Real skill ids — the vendored map must resolve them, including the
+    // two the game added after the first catalog (Agility, Fishing).
     { id: "4zYUGF5u_0KbMLkWJmmBbQ", xp: 13363 },
     { id: "jqX0Gh6QI0GFFPCDFK_CJQ", xp: 388 },
+    { id: "pJggvotwOkuoc98igUn7xA", xp: 10280 },
+    { id: "vwY5IkQJJDwb2PKEfoc8MQ", xp: 273 },
     { id: "not-a-known-skill", xp: 1 },
   ],
   inventory: [
@@ -31,10 +38,19 @@ describe("WkCharacters", () => {
     renderWithProviders(<WkCharacters players={[aldra]} available loading={false} />);
 
     expect(screen.getByText("Aldra")).toBeInTheDocument();
-    // Skill ids resolve through the vendored map; unknown ids stay raw.
+    // Skill ids resolve through the vendored map — including Agility and
+    // Fishing, added by the game after the first catalog; unknown ids
+    // stay raw.
     expect(screen.getByText("Woodcutting")).toBeInTheDocument();
     expect(screen.getByText("Mining")).toBeInTheDocument();
+    expect(screen.getByText("Agility")).toBeInTheDocument();
+    expect(screen.getByText("Fishing")).toBeInTheDocument();
     expect(screen.getByText("not-a-known-skill")).toBeInTheDocument();
+    // The sheet: survival meters and progression counts.
+    expect(screen.getByText("Sustenance")).toBeInTheDocument();
+    expect(screen.getByText("Hydration")).toBeInTheDocument();
+    expect(screen.getByText("Endurance")).toBeInTheDocument();
+    expect(screen.getByText(/quests 8 done · 5 underway/)).toBeInTheDocument();
     // Levels derived on the RuneScape curve — 13,363 XP is exactly level
     // 30, 388 exactly level 5 — with the raw XP kept on hover.
     expect(screen.getByTitle(/^13,363 XP/)).toHaveTextContent("30");
