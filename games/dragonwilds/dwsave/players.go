@@ -94,10 +94,15 @@ type PlayerCharacter struct {
 	LastUpdated float64 `json:"lastUpdated,omitempty"`
 	// SharedAt is when a companion app last relayed this character's
 	// record (see games/dragonwilds/docs/companion.md). Nil for
-	// save-derived records; set by the console's merge, never by Parse —
-	// character data lives on each player's machine, so a record richer
-	// than guid+position can only arrive by being shared.
+	// save-derived records; set by the console's merge, never by Parse.
 	SharedAt *time.Time `json:"sharedAt,omitempty"`
+	// SeenAt is when the console last found this sheet in the world save.
+	// The server caches a character's full record only while that player
+	// is connected and drops it when they leave, so a sheet outliving the
+	// session is a remembered snapshot and says so. Nil means the record
+	// in hand is the save's current one — set by the console's merge,
+	// never by Parse.
+	SeenAt *time.Time `json:"seenAt,omitempty"`
 	// Skills carry raw XP per skill id; the id → display-name map is
 	// vendored frontend data. No level is derived here: the game's XP
 	// curve is its own (piecewise, and changed across game versions), so

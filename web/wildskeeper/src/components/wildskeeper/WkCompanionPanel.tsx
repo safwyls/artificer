@@ -4,11 +4,13 @@ import { api, errorDetail } from "../../lib/api";
 import { WkNote, WkPanel } from "./WkPanel";
 
 /**
- * Companion sharing: the admin-facing half of the Artificer Companion app. The
- * game keeps each character's skills and inventory on the player's own
- * machine, so the console can only show them when players choose to share
- * — this panel mints the token that makes that choice possible, and
- * re-enabling mints a fresh one (revoking every copy players hold).
+ * Companion sharing: the admin-facing half of the Artificer Companion
+ * app. The console reads a character's sheet from the world save while
+ * that player is connected and remembers it afterwards, so sharing is no
+ * longer the only path — it is how a sheet stays current for someone who
+ * has not logged in, and how a player gets their own local view. This
+ * panel mints the token that makes that choice possible, and re-enabling
+ * mints a fresh one (revoking every copy players hold).
  */
 export function WkCompanionPanel({ serverId }: { serverId: number }) {
   const queryClient = useQueryClient();
@@ -33,9 +35,11 @@ export function WkCompanionPanel({ serverId }: { serverId: number }) {
       meta={state?.enabled ? `${state.shared ?? 0} character${(state.shared ?? 0) === 1 ? "" : "s"} shared` : "off"}
     >
       <p className="text-sm text-wk-mist">
-        The game keeps each adventurer's skills and inventory on their own computer — this server never sees
-        them. Players who install the <b className="text-wk-parchment">Artificer Companion</b> app can choose to share
-        their character sheet with this console: hand them this console's address and the token below.
+        This console reads a character's sheet from the world save while that player is connected, and
+        remembers it afterwards. The <b className="text-wk-parchment">Artificer Companion</b> app covers the
+        rest: it keeps a player's sheet current without them logging in, carries adventurers this console has
+        never seen online, and gives each player a character sheet on their own machine. Optional — hand
+        players the download link, this console's address, and the token below.
       </p>
       {state?.enabled && (
         <>
@@ -87,9 +91,9 @@ export function WkCompanionPanel({ serverId }: { serverId: number }) {
       </div>
       <WkNote>
         The token is the whole credential — anyone holding it can push character data here, so share it like a
-        password. Disabling revokes it and drops everything it delivered; re-enabling mints a fresh token.
-        Shared sheets live in console memory and re-arrive within minutes of a restart while players run the
-        app.
+        password. Disabling revokes it and forgets every sheet it delivered, including copies this console had
+        folded into memory; sheets it read from the world save itself are its own and stay. Re-enabling mints a
+        fresh token, and shared sheets re-arrive within minutes of a console restart while players run the app.
       </WkNote>
     </WkPanel>
   );

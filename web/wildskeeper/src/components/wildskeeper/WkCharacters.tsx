@@ -8,9 +8,11 @@ import itemNames from "../../data/itemNames.json";
 
 /**
  * The characters the world save knows — everyone who has played, not just
- * who is online now. Read-only by nature: the save is the source, and it
- * moves when the game saves (~5 minutes), so this is the ledger next to
- * the Adventurers table's live roster.
+ * who is online now. Read-only by nature, and the freshness varies by
+ * field: the save moves when the game saves (~5 minutes), and it carries
+ * a full sheet only for players connected at that moment, so an offline
+ * adventurer shows a current position beside a remembered sheet marked
+ * with when it was true.
  *
  * Skill and item ids resolve through vendored id → name maps
  * (src/data, see games/dragonwilds/docs/vendored-game-data.md); an id the
@@ -139,6 +141,14 @@ function CharacterCard({ c }: { c: SaveCharacter }) {
                 shared {agoLabel(c.sharedAt)}
               </span>
             )}
+            {c.seenAt && (
+              <span
+                className="ml-2 align-middle text-[11px] font-normal uppercase tracking-[0.12em] text-wk-mist"
+                title={`The server holds a character's sheet only while that player is connected. This one is as the console last saw it, ${new Date(c.seenAt).toLocaleString()} — the position beside it is current.`}
+              >
+                sheet as of {agoLabel(c.seenAt)}
+              </span>
+            )}
           </div>
           <div
             className="mt-0.5 font-mono text-[11px] tracking-[0.06em] text-wk-mist"
@@ -262,10 +272,10 @@ export function WkCharacters({
         </div>
       )}
       <WkNote>
-        Everyone who has played this world is listed, online or not. The game keeps each character's skills
-        and inventory on that player's own machine — the server only holds positions — so full sheets appear
-        here when players share them through the companion app (see the panel below). Names are also learned
-        from the server log when a player leaves. Skill levels use the game's own XP curve, calibrated
+        Everyone who has played this world is listed, online or not. The server holds a character's full
+        sheet only while that player is connected, so an offline adventurer's sheet is the one this console
+        last saw — marked with when that was, beside a position that stays current. The companion app fills
+        in anyone this console has never seen online. Skill levels use the game's own XP curve, calibrated
         against a real character — hover for exact XP.
       </WkNote>
     </WkPanel>

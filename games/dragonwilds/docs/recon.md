@@ -568,19 +568,36 @@ position, and a `LastUpdated` float on the game's own clock —
 JSON character records the 2026-08-09 recon saw embedded in the world
 save are gone**: no `char_guid`, `meta_data`, `Skills` or player names
 appear anywhere in the file (the only embedded JSON is container
-inventories — chests — as pretty-printed slot maps). The reason,
-settled by the server's operator the same day: **character data is
-stored client-side, on each player's own machine** (the same
-`Saved/SaveCharacters/` store the client uses for solo play) — the
-dedicated server never holds its players' names, skills or
-inventories at all. So the world save yields identities and
-positions, full stop; that is the honest ceiling of save-derived
-player data on a dedicated server. Names come back through the one
-server-side source that pairs them with the character guid: the
-disconnect log line (`Character Name[<name>] Guid[DCG:<32HEX>]`),
-which `dwlog` harvests and the world endpoint overlays onto the
-transform records. The 0.12-era "Players" chunk the server log
-complained about has no counterpart in this save.
+inventories — chests — as pretty-printed slot maps).
+
+**Corrected 2026-08-20 — the save is empty of sheets only when nobody
+is on.** The reading above was taken from a single snapshot and
+generalised too far. Watching a live server settled the real rule:
+character data lives client-side on each player's machine *and* the
+server caches a connected player's full record, writing it into the
+world save on the next autosave; when that player disconnects the
+cache entry is dropped and the following save no longer carries it.
+The 4 MB snapshot had `CachedCharacterStates` at record count zero
+because it was taken with nobody connected. So a world save read at
+any instant carries:
+
+- a `SavedCharacterTransforms` record for **every** character who has
+  played — guid, last position, freshness — which persists across
+  sessions, and
+- a full JSON character sheet for **only those connected as of that
+  save** — skills, inventory, vitals, progression — found by the same
+  scan that reads old-build embedded records.
+
+Consequences for anything reading this: a sheet is not missing because
+the server never had it, it is missing because that player is offline;
+and a sheet that is present is at most one autosave (~5 min) old.
+`dwapi`'s `records.go` remembers each sheet it sees so an offline
+player's does not vanish from the console, stamped with when it was
+true. Names come back independently through the disconnect log line
+(`Character Name[<name>] Guid[DCG:<32HEX>]`), which `dwlog` harvests —
+still the only source for a character the console has never seen
+online. The 0.12-era "Players" chunk the server log complained about
+has no counterpart in this save.
 
 **The character record itself is JSON**, embedded in the save as string
 data — the recon of 2026-08-09 saw `char_guid`, `char_name`,
@@ -636,6 +653,8 @@ documented in `games/dragonwilds/docs/vendored-game-data.md`.
    a net id into them actually disconnects a player, or merely replicates
    UI state. The one untried lead for a live kick.
 (A third question — where a current-build dedicated server keeps its
-players' character records — was opened and closed on 2026-08-19: it
-doesn't. The records are client-side on each player's machine; see
-"Where player state lives" above.)
+players' character records — was opened 2026-08-19, answered wrongly
+that day from a single snapshot ("it doesn't"), and settled 2026-08-20
+by watching a live server: it caches them while players are connected
+and drops them at logout. See "Where player state lives" above, and
+treat one snapshot of a save as one moment, never as the rule.)
