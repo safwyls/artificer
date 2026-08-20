@@ -28,6 +28,11 @@ func init() {
 // newTestAppWithAdmin builds the app with Dragonwilds' contributions —
 // worlds cache, provisioning profile, contributed routes — mirroring
 // cmd/wildskeeper.
+// dwAPIUnderTest is the API instance the most recent newTestAppWithAdmin
+// built, for tests that adjust post-construction wiring (SetCompanionExe,
+// as the console main does). Tests in this package run sequentially.
+var dwAPIUnderTest *dwapi.API
+
 func newTestAppWithAdmin(t *testing.T) (*apitest.App, []*http.Cookie) {
 	worlds := savecache.New[dwsave.World](dwsave.Source{})
 	// One dwapi.API serves both route sets, exactly as the console main
@@ -36,6 +41,7 @@ func newTestAppWithAdmin(t *testing.T) (*apitest.App, []*http.Cookie) {
 	build := func(s *api.Server) *dwapi.API {
 		if dw == nil {
 			dw = dwapi.New(s, worlds, nil)
+			dwAPIUnderTest = dw
 		}
 		return dw
 	}

@@ -135,6 +135,14 @@ func run(logger *slog.Logger) error {
 	apiServer.SessionCookie = "wildskeeper_session"
 	apiServer.Provision = dragonwilds.ProvisionProfile()
 	dwAPI := dwapi.New(apiServer, worlds, dragonwilds.CharacterNames)
+	// The bundled player-side companion the console hands out — the image
+	// build places it beside the binary; a source checkout usually has
+	// none, and the endpoint says so instead of 500ing.
+	companionExe := os.Getenv("WKCOMPANION_EXE")
+	if companionExe == "" {
+		companionExe = "wkcompanion.exe"
+	}
+	dwAPI.SetCompanionExe(companionExe)
 	apiServer.GameRoutes = dwAPI.Routes()
 	apiServer.PublicGameRoutes = dwAPI.PublicRoutes()
 	apiServer.CookieSecure = cfg.CookieSecure

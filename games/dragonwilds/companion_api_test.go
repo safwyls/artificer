@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/safwyls/artificer/games/dragonwilds/dwsave"
@@ -128,6 +131,48 @@ func TestCompanionFlow(t *testing.T) {
 	}
 	if len(out.World.Players) != 0 {
 		t.Errorf("players after disable = %+v, want none", out.World.Players)
+	}
+}
+
+// TestCompanionDownload pins the exe hand-out: token-gated, served as an
+// attachment when the deployment bundles it, honest when it doesn't.
+func TestCompanionDownload(t *testing.T) {
+	app, admin := newTestAppWithAdmin(t)
+	worldPath := worldServer(t, app, realSaveDir(t))
+	base := worldPath[:len(worldPath)-len("/world")]
+
+	rec := app.Do(t, "PUT", base+"/companion", map[string]any{"enabled": true}, admin)
+	var enabled struct{ Token string }
+	if err := json.Unmarshal(rec.Body.Bytes(), &enabled); err != nil {
+		t.Fatal(err)
+	}
+
+	// No exe wired (the harness default): a named refusal, not a 500.
+	rec = app.Do(t, "GET", "/api/public/companion/"+enabled.Token+"/download", nil, nil)
+	if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "without the companion app") {
+		t.Fatalf("download without a bundle: got %d %s", rec.Code, rec.Body)
+	}
+
+	// With the bundle present, the exe streams as an attachment.
+	exe := filepath.Join(t.TempDir(), "wkcompanion.exe")
+	if err := os.WriteFile(exe, []byte("MZfake-exe-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dwAPIUnderTest.SetCompanionExe(exe)
+	rec = app.Do(t, "GET", "/api/public/companion/"+enabled.Token+"/download", nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("download: got %d %s", rec.Code, rec.Body)
+	}
+	if got := rec.Header().Get("Content-Disposition"); !strings.Contains(got, "wkcompanion.exe") {
+		t.Errorf("Content-Disposition = %q", got)
+	}
+	if rec.Body.String() != "MZfake-exe-bytes" {
+		t.Errorf("body = %q", rec.Body.String())
+	}
+
+	// The wrong token gets nothing, bundle or not.
+	if rec := app.Do(t, "GET", "/api/public/companion/wrongtoken/download", nil, nil); rec.Code != http.StatusNotFound {
+		t.Errorf("download with bad token: got %d", rec.Code)
 	}
 }
 

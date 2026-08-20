@@ -35,7 +35,20 @@ the exe a second time doesn't start a second copy: it notices the
 running instance and opens its page instead. Because a windowed build
 has no console, logs go to `companion.log` beside the config file.
 
-Build for players:
+## Getting the app to players
+
+**The console hands it out itself.** The wildskeeper image build
+cross-compiles `wkcompanion.exe` (deploy/wildskeeper/Dockerfile) and
+ships it beside the console binary; with sharing enabled, the
+Adventurers panel shows a **download link** —
+`/api/public/companion/<token>/download`, token-gated like the rest of
+the tier — that an admin copies and gives players along with the
+console address and token. A deployment without the bundle (a source
+checkout, an older image) answers the link with the build command
+instead of a broken download; `WKCOMPANION_EXE` overrides the bundled
+path when needed.
+
+Building by hand instead:
 
 ```sh
 GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" ./cmd/wkcompanion
