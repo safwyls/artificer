@@ -41,12 +41,15 @@ so the maps join directly against what `dwsave` extracts.
 
 - **Item stats** (weight, stack size, damage): the console shows what a
   character carries, not a build planner. Names suffice.
-- **The game's own XP → level table**: levels shown in the console are
-  derived in code (`web/wildskeeper/src/lib/xp.ts`) from the classic
-  RuneScape 1–99 curve — a deliberate assumption (maintainer's call,
-  2026-08-19) riding on 99 being the family cap. The wiki documents a
-  game-specific tail (94–95 linear bridge, 96–99 quadratic), so a level
-  in that band can sit one off the game's own; the exact XP stays on
-  hover so the derived number never hides the true one. If the game's
-  exact table gets vendored some day, it replaces the formula there and
-  this caveat goes away.
+- **The game's raw XP table**: levels are computed in code
+  (`web/wildskeeper/src/lib/xp.ts`, mirrored in the companion page) from
+  a formula **calibrated against a real character** (2026-08-20): a
+  player's in-game skill panel supplied twelve exact XP→level pairs
+  across levels 2–40, and exactly one clean formula matches all twelve —
+  the classic RuneScape curve with its divisor changed from 4 to 10
+  (level 99 = 5,213,772 XP). The classic-divisor version shipped first
+  and read levels visibly low; the observations are pinned as tests so a
+  drift shows up as a failure. Remaining caveat: the wiki describes a
+  bend above level 93 (linear bridge, then quadratic) that the
+  observations cannot reach — recalibrate from a high-level screenshot +
+  save pair when one exists. The exact XP always rides on hover.

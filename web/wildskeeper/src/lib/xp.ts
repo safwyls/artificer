@@ -1,16 +1,18 @@
 /**
- * Skill level from raw XP, on the classic RuneScape curve (levels 1–99):
+ * Skill level from raw XP, on the game's own curve — calibrated against a
+ * real character (2026-08-20): a player's in-game skill panel gave twelve
+ * exact (XP → level) pairs across levels 2–40, and exactly one clean
+ * formula matches all twelve. It is the classic RuneScape curve with the
+ * divisor changed from 4 to 10:
  *
- *   xp(L) = floor( (1/4) · Σ_{l=1}^{L-1} floor(l + 300·2^(l/7)) )
+ *   xp(L) = floor( (1/10) · Σ_{l=1}^{L-1} floor(l + 300·2^(l/7)) )
  *
- * Dragonwilds' own curve is the same shape where it matters — exponential
- * up to 93, and 99-capped like every RuneScape before it — but the wiki
- * documents a game-specific tail (a 94–95 linear bridge into a 96–99
- * quadratic), so levels shown in that band may sit one off the game's
- * own. The console rides the family curve on the maintainer's call
- * (2026-08-19) and always shows the exact XP on hover, so the derived
- * number never hides the true one. Swap in the game's own table if it
- * ever gets vendored — see games/dragonwilds/docs/vendored-game-data.md.
+ * (So level 99 costs 5,213,772 XP here, not RuneScape's 13,034,431.)
+ * The wiki describes a bend above level 93 (a 94–95 linear bridge into a
+ * 96–99 quadratic) that these observations cannot reach; until someone's
+ * up there, this formula stands for the whole range and the exact XP
+ * always rides on hover. Recalibrate from a new screenshot + save pair if
+ * levels ever drift — see games/dragonwilds/docs/vendored-game-data.md.
  */
 
 const MAX_LEVEL = 99;
@@ -21,7 +23,7 @@ const xpForLevelTable: number[] = (() => {
   let points = 0;
   for (let level = 1; level < MAX_LEVEL; level++) {
     points += Math.floor(level + 300 * Math.pow(2, level / 7));
-    table.push(Math.floor(points / 4));
+    table.push(Math.floor(points / 10));
   }
   return table;
 })();

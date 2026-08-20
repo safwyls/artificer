@@ -51,10 +51,10 @@ describe("WkCharacters", () => {
     expect(screen.getByText("Hydration")).toBeInTheDocument();
     expect(screen.getByText("Endurance")).toBeInTheDocument();
     expect(screen.getByText(/quests 8 done · 5 underway/)).toBeInTheDocument();
-    // Levels derived on the RuneScape curve — 13,363 XP is exactly level
-    // 30, 388 exactly level 5 — with the raw XP kept on hover.
-    expect(screen.getByTitle(/^13,363 XP/)).toHaveTextContent("30");
-    expect(screen.getByTitle(/^388 XP/)).toHaveTextContent("5");
+    // Levels on the game's calibrated curve (classic RS formula ÷ 10):
+    // 13,363 XP is level 38, 388 is level 9 — with the raw XP on hover.
+    expect(screen.getByTitle(/^13,363 XP/)).toHaveTextContent("38");
+    expect(screen.getByTitle(/^388 XP/)).toHaveTextContent("9");
     // Position in metres.
     expect(screen.getByText("-962, -33 m")).toBeInTheDocument();
 
