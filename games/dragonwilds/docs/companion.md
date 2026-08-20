@@ -41,11 +41,15 @@ Build for players:
 GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" ./cmd/wkcompanion
 ```
 
-(`-H windowsgui` is what suppresses the console window; without it the
-same binary runs as a console app, which is what non-Windows dev
-platforms get.) To start it with Windows, drop a shortcut to the exe in
-`shell:startup` — deliberately manual for now, an app that auto-installs
-itself into startup is not this repo's style.
+(`-H windowsgui` is what suppresses the console window entirely. A plain
+`go build` produces a console-subsystem exe instead — double-clicked, it
+detects that the console was created for it alone and closes it right
+after startup, so the flag is polish, not a requirement: without it the
+window flashes briefly instead of never appearing. Run from a terminal,
+the console is the developer's and stays.) To start it with Windows,
+drop a shortcut to the exe in `shell:startup` — deliberately manual for
+now, an app that auto-installs itself into startup is not this repo's
+style.
 
 ## Reaching the console through an auth layer
 

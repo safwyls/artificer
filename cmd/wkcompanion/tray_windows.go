@@ -16,6 +16,10 @@ var trayIcon []byte
 // demand, read the sharing state at a glance, quit. The character sheet
 // itself stays a browser page — the tray is the handle, not the UI.
 func runUI(a *app, url string) {
+	// A console-subsystem build (plain `go build`) double-clicked from
+	// Explorer drags a console window along; close it once startup has
+	// printed the URL. See console_windows.go.
+	detachOwnConsole()
 	systray.Run(func() {
 		systray.SetIcon(trayIcon)
 		systray.SetTooltip("Wildskeeper Companion")
