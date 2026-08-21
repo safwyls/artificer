@@ -1,36 +1,30 @@
-// companion is the Artificer Companion — the Artificer app that runs on
-// a player's own machine. It began life as wkcompanion, the Dragonwilds
-// character relay, and that is still its first job: the game keeps each
-// character's record on the player's machine
-// (games/dragonwilds/docs/recon.md, "Where player state lives"), so this
-// program watches the local SaveCharacters directory, shows the
-// character sheet in a local browser page, and — only when the player
-// configures it — relays the record to a wildskeeper console using a
-// companion token its admin minted.
+// companion is the Artificer Companion — the save-sync client that runs
+// on a player's own machine (docs/save-sync-architecture.md). It finds
+// the games installed here, links their save folders to shared worlds on
+// the save-sync service (reliquary), and moves the saves: checkout to
+// host, mid-session checkpoints as crash insurance, check-in when the
+// hosting stretch ends, and automatic pickup when a queued claim comes
+// through.
 //
-// Its second job is save-sync custody (docs/save-sync-architecture.md):
-// checking a shared world out of the console to host it from this
-// machine, pushing mid-session checkpoints, and checking it back in —
-// authenticated by the player's personal sync token from the console's
-// Worlds page. See sync.go.
+// It began life as wkcompanion, the Dragonwilds character relay; that
+// job retired when the recon showed the dedicated server carries the
+// character sheets itself (games/dragonwilds/docs/recon.md), and the
+// app is now solely the custody client — deliberately game-blind, one
+// binary for every game Artificer syncs.
 //
 // On Windows it lives in the system tray (build with
 // -ldflags="-H windowsgui" so no console window opens): the tray menu
-// opens the page, pushes on demand, and shows the sharing state.
-// Elsewhere it runs as a plain console process — development platforms,
-// not player machines.
+// opens the page and shows the custody state. Elsewhere it runs as a
+// plain console process — development platforms, not player machines.
 //
 // Design notes, in the repo's spirit:
-//   - Local-first: with no console configured it is a character viewer
-//     and nothing leaves the machine.
-//   - The relay pushes the record verbatim; the console re-parses it with
-//     the same dwsave code this program uses, so there is exactly one
-//     parser to be wrong in.
+//   - Local-first: with no service configured, nothing leaves the
+//     machine and the app is a save-folder finder.
 //   - No installer, no service: one binary, a tray icon, a config file
-//     under the user's config directory.
-//   - One app for every game Artificer runs, not a tray binary per game:
-//     game modules contribute their client-side knowledge to this
-//     command the way they contribute modules to the consoles.
+//     under the user's config directory (wkcompanion-era configs are
+//     read as a fallback so upgrades keep their token).
+//   - Save locations are discovered as candidates and confirmed by the
+//     player, never followed blindly — most are heuristics.
 package main
 
 import (
@@ -48,18 +42,19 @@ import (
 	"time"
 )
 
+// version is stamped by the release build (-X main.version=<sha>);
+// "dev" means a local build.
+var version = "dev"
+
 func main() {
 	listen := flag.String("listen", "127.0.0.1:8377", "local address for the companion page (loopback only by design)")
-	dir := flag.String("dir", "", "SaveCharacters directory (default: auto-detect the game's)")
 	noBrowser := flag.Bool("no-browser", false, "do not open the companion page on start")
 	flag.Parse()
+	log.Printf("artificer companion %s", version)
 
 	cfg, cfgPath, err := loadConfig()
 	if err != nil {
 		log.Fatalf("loading config: %v", err)
-	}
-	if *dir != "" {
-		cfg.SaveDir = *dir
 	}
 	setupLogging(cfgPath)
 
@@ -77,6 +72,7 @@ func main() {
 	url := fmt.Sprintf("http://%s/", ln.Addr())
 
 	app := newApp(cfg, cfgPath)
+	app.discovered = discoverGames()
 	go app.watchLoop()
 	go func() {
 		if err := http.Serve(ln, app.routes()); err != nil {
@@ -96,7 +92,7 @@ func main() {
 }
 
 // setupLogging mirrors logs into a file beside the config: a
-// -H=windowsgui build has no console, and "why didn't it push" must be
+// -H=windowsgui build has no console, and "why didn't it sync" must be
 // answerable after the fact.
 func setupLogging(cfgPath string) {
 	logPath := filepath.Join(filepath.Dir(cfgPath), "companion.log")
@@ -143,27 +139,13 @@ func openBrowser(url string) {
 	}()
 }
 
-// watchLoop is the whole engine: scan the save directory, keep the state
-// fresh for the page, and relay changes when a console is configured. A
-// steady heartbeat re-push keeps the console's in-memory inbox warm across
-// its restarts. The save-sync side rides the same loop: a status poll,
-// hold adoption when a queued claim came through, and the checkpoint
-// pushes (sync.go).
+// watchLoop is the whole engine: a custody poll against the service,
+// handoff adoption when a queued claim came through, and the automatic
+// checkpoint pushes (sync.go).
 func (a *app) watchLoop() {
-	const (
-		scanEvery      = 15 * time.Second
-		heartbeatEvery = 10 * time.Minute
-	)
-	lastHeartbeat := time.Time{}
+	const tickEvery = 15 * time.Second
 	for {
-		a.scan()
-		force := time.Since(lastHeartbeat) >= heartbeatEvery
-		if a.relayConfigured() {
-			if a.pushChanged(force) && force {
-				lastHeartbeat = time.Now()
-			}
-		}
 		a.syncTick()
-		time.Sleep(scanEvery)
+		time.Sleep(tickEvery)
 	}
 }

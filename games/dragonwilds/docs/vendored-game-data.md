@@ -13,10 +13,10 @@ crash or a wrong name. Keep it that way when regenerating.
 
 ## What's vendored, and from where
 
-Both files live in `web/wildskeeper/src/data/`, with byte-for-byte
-mirrors in `cmd/companion/ui/data/` for the companion app's local page
-(`games/dragonwilds/docs/companion.md`) — regenerate the two locations
-together:
+Both files live in `web/wildskeeper/src/data/`. (The companion app once
+carried byte-for-byte mirrors for its local character page; that page
+retired with the relay — `docs/companion.md` — so the frontend copies
+are the only ones now.)
 
 | File | Contents | Source |
 |------|----------|--------|

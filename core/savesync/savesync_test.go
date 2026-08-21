@@ -430,7 +430,7 @@ func TestPruneKeepsHeadAndConflicts(t *testing.T) {
 	alice := makeUser(t, st, "alice", "")
 	bob := makeUser(t, st, "bob", "")
 	wid := makeWorld(t, st, "midgard")
-	if err := st.UpdateSyncWorldSettings(ctx, wid, "midgard", nil, 48, 1<<20, 2, true, ""); err != nil {
+	if err := st.UpdateSyncWorldSettings(ctx, wid, "midgard", 48, 1<<20, 2, true, "", "", ""); err != nil {
 		t.Fatalf("settings: %v", err)
 	}
 

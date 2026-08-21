@@ -1,14 +1,58 @@
 # Save sync — architecture review and proposal
 
-**Status: phases 1–4 implemented (2026-08-21); this document is the
+**Status: implemented, as option B (2026-08-21); this document is the
 contract for custody semantics.** Written 2026-08-20 as a review of the
-2026-08-19 brainstorm ("P2P Save-Sync Extension") after a survey of the
-seams it would land on; the proposal below was then built as proposed,
-with two amendments recorded in place: claim-next/renewal in the session
-lifecycle, and the companion shipping as one all-games app (the
-Artificer Companion, `cmd/companion`) rather than a per-game kit.
-Phase 0 (recon), phase 5 (Discord) and phase 6 (Witchspire) remain open
-— see `docs/roadmap.md`.
+2026-08-19 brainstorm ("P2P Save-Sync Extension"); the proposal was
+first built as option A (hosted by each console), then — one day and one
+recon correction later — moved to the standalone service this review
+called option B. The custody semantics below (the lock, the head rule,
+claim-next, renewal, the transfer protocol, the agent restore pair) are
+unchanged by the move and remain the contract. Phase 0 (recon), phase 5
+(Discord) and phase 6 (Witchspire) remain open — see `docs/roadmap.md`.
+
+## The option-B pivot (2026-08-21)
+
+Two things changed the answer to "where does this live":
+
+1. The recon behind the companion's first job reversed: the world save
+   carries a connected player's full character sheet, and wildskeeper
+   now reads and remembers those itself (`games/dragonwilds/dwapi`,
+   records memory). The companion no longer had a console-side reason
+   to exist.
+2. Hosting worlds inside one game's console coupled a game-agnostic
+   feature to a game-specific surface — the separation-of-concerns cost
+   this review already priced under option B.
+
+So the escape hatch became the design, exactly as reserved: the model,
+store schema and client survived the move.
+
+- **`cmd/reliquary`** is the standalone save-sync service (its own
+  container, `deploy/reliquary`): worlds, custody, versions, the friend
+  group's accounts and tokens, a deliberately light embedded UI, and
+  the token-gated companion download. It registers no game — save
+  verification is structural, and game knowledge arrives as metadata
+  the companion reports (`game_title`, `save_hint`, `game_meta` on the
+  world). Assembly: `api.VaultRoutes`, the same handlers as the console
+  Routes in a smaller selection.
+- **Worlds link agents, not server rows**: the give/take flows drive a
+  world's own `agent_url`/`agent_token` (encrypted at rest), so a
+  dedicated server anywhere can hold a world with no console in the
+  loop. `sync_worlds.server_id` is retired in place.
+- **The Artificer Companion is custody-only and game-blind**: the
+  character relay is gone (old wkcompanion builds still work against
+  wildskeeper's unchanged inbox), and in its place the app discovers
+  installed games (Steam libraries → manifests → candidate save
+  folders, always confirmed by the player), links them to worlds —
+  creating the world with its game metadata, optionally seeding it with
+  the current save — and syncs any number of linked worlds.
+- **World creation, import and metadata ride PermSync** rather than
+  admin: the companion's link flow is the onboarding path, and the
+  custody grant is the trust boundary. Settings, deletion, release,
+  rollback and give/take stay admin.
+- **The consoles are out of the custody business**: wildskeeper's
+  Worlds page, savesync wiring and companion bundling are removed; the
+  per-server backup restore button stays, since that is console
+  territory on the same agent verb.
 
 ## The idea, restated in this repo's vocabulary
 

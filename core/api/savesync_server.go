@@ -29,58 +29,26 @@ import (
 	"github.com/safwyls/artificer/core/store"
 )
 
-// syncServerStopped proves the linked server is not holding its save
-// open. Supervisor agents answer from their own process state; companion
-// agents fall back to the container. A state that cannot be proven is a
-// refusal, not a shrug — restoring under a running game corrupts.
-func (s *Server) syncServerStopped(ctx context.Context, srv *store.Server) error {
-	if _, health := s.agentSupervisor(ctx, srv); health != nil {
-		if health.Game != nil && health.Game.State == "running" {
-			return errors.New("the server is running — stop it first")
-		}
-		return nil
+// syncServerAgent resolves the world's own agent link — the standalone
+// service knows agents, not console server rows — and proves the game
+// behind it is not holding its save open. Only a supervisor agent can
+// answer that from its own process state; anything less is a refusal,
+// not a shrug, because restoring under a running game corrupts.
+func (s *Server) syncServerAgent(w http.ResponseWriter, r *http.Request, world *store.SyncWorld) (*agentctl.Client, bool) {
+	if world.AgentURL == "" {
+		writeError(w, http.StatusConflict, "this world has no dedicated-server agent — set one in its settings")
+		return nil, false
 	}
-	if s.docker != nil && srv.ContainerName != "" {
-		st, err := s.docker.Inspect(ctx, srv.ContainerName)
-		if err != nil {
-			return fmt.Errorf("cannot verify the server is stopped: %v", err)
-		}
-		if st.Running {
-			return errors.New("the server's container is running — stop it first")
-		}
-		return nil
+	client, health := agentctl.Supervisor(r.Context(), world.AgentURL, world.AgentToken)
+	if client == nil {
+		writeError(w, http.StatusConflict, "the world's agent is unreachable or not a supervisor — only a supervisor agent can prove the game is stopped")
+		return nil, false
 	}
-	return errors.New("cannot verify the server is stopped (no supervisor agent and no docker control)")
-}
-
-// syncServerAgent resolves the world's linked server and its agent
-// client, refusing with the reason when either half is missing.
-func (s *Server) syncServerAgent(w http.ResponseWriter, r *http.Request, world *store.SyncWorld) (*store.Server, *agentctl.Client, bool) {
-	if world.ServerID == nil {
-		writeError(w, http.StatusConflict, "this world has no linked server — link one in its settings")
-		return nil, nil, false
+	if health.Game != nil && health.Game.State == "running" {
+		writeError(w, http.StatusConflict, "the server is running — stop it first")
+		return nil, false
 	}
-	srv, err := s.store.GetServer(r.Context(), *world.ServerID)
-	if err != nil {
-		writeError(w, http.StatusConflict, "the linked server no longer exists")
-		return nil, nil, false
-	}
-	if srv.AgentURL == "" {
-		// The console's own save mount is read-only by design; only the
-		// agent can write a save. Say where the ability lives.
-		writeError(w, http.StatusConflict, "moving saves needs the server's sidecar agent — the console's save mount is read-only")
-		return nil, nil, false
-	}
-	client, err := agentctl.New(srv.AgentURL, srv.AgentToken)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return nil, nil, false
-	}
-	if err := s.syncServerStopped(r.Context(), srv); err != nil {
-		writeError(w, http.StatusConflict, err.Error())
-		return nil, nil, false
-	}
-	return srv, client, true
+	return client, true
 }
 
 // handleSyncServerGive hands the world to the dedicated server: the
@@ -99,7 +67,7 @@ func (s *Server) handleSyncServerGive(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "this world has no versions yet — import or check one in first")
 		return
 	}
-	srv, client, ok := s.syncServerAgent(w, r, world)
+	client, ok := s.syncServerAgent(w, r, world)
 	if !ok {
 		return
 	}
@@ -136,7 +104,7 @@ func (s *Server) handleSyncServerGive(w http.ResponseWriter, r *http.Request) {
 		fail(http.StatusBadGateway, "restoring onto the server: "+err.Error())
 		return
 	}
-	s.audit(r, srv.ID, "sync-server-give", fmt.Sprintf("world %q, version %d", world.Name, *world.HeadVersion))
+	s.syncAudit(r, world, "sync-server-give", fmt.Sprintf("version %d", *world.HeadVersion))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"accepted": true,
 		"session":  ss,
@@ -165,7 +133,7 @@ func (s *Server) handleSyncServerTake(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "this world is held by a player, not the server — they check it in themselves")
 		return
 	}
-	_, client, ok := s.syncServerAgent(w, r, world)
+	client, ok := s.syncServerAgent(w, r, world)
 	if !ok {
 		return
 	}
@@ -181,10 +149,32 @@ func (s *Server) handleSyncServerTake(w http.ResponseWriter, r *http.Request) {
 		writeSyncError(w, err)
 		return
 	}
-	if world.ServerID != nil {
-		s.audit(r, *world.ServerID, "sync-server-take", fmt.Sprintf("world %q, version %d", world.Name, v.ID))
-	}
+	s.syncAudit(r, world, "sync-server-take", fmt.Sprintf("version %d", v.ID))
 	writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "version": v})
+}
+
+// serverStoppedForRestore proves a console server row's game is not
+// holding its save open. Supervisor agents answer from their own process
+// state; companion agents fall back to the container. A state that
+// cannot be proven is a refusal, not a shrug.
+func (s *Server) serverStoppedForRestore(ctx context.Context, srv *store.Server) error {
+	if _, health := s.agentSupervisor(ctx, srv); health != nil {
+		if health.Game != nil && health.Game.State == "running" {
+			return errors.New("the server is running — stop it first")
+		}
+		return nil
+	}
+	if s.docker != nil && srv.ContainerName != "" {
+		st, err := s.docker.Inspect(ctx, srv.ContainerName)
+		if err != nil {
+			return fmt.Errorf("cannot verify the server is stopped: %v", err)
+		}
+		if st.Running {
+			return errors.New("the server's container is running — stop it first")
+		}
+		return nil
+	}
+	return errors.New("cannot verify the server is stopped (no supervisor agent and no docker control)")
 }
 
 // handleRestoreBackup places a snapshot back onto the server — the
@@ -215,7 +205,7 @@ func (s *Server) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if err := s.syncServerStopped(r.Context(), srv); err != nil {
+	if err := s.serverStoppedForRestore(r.Context(), srv); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}

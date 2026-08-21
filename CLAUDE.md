@@ -34,11 +34,18 @@ What each game module carries:
 - `games/enshrouded` — client, esconfig, eslog/esquery, banqueue behind
   the offline-work seam, esapi, esagent's spec. Seam 4's single port.
 
-**Save sync** (2026-08-21): shared-world checkout/check-in custody —
-`core/savesync` engine, wildskeeper Worlds page + per-player token tier,
-the Artificer Companion (`cmd/companion`, born wkcompanion) as the
-player-side client, and the agent's `PUT /v1/files/save` restore verb
-(which also closed roadmap "backup restore").
+**Save sync** (2026-08-21): shared-world checkout/check-in custody,
+standalone — **reliquary** (`cmd/reliquary`, `deploy/reliquary`, its own
+image) is the game-blind service holding worlds, versions, users and
+tokens over the `core/savesync` engine via `api.VaultRoutes`; the
+Artificer Companion (`cmd/companion`, born wkcompanion; GitHub releases
++ bundled in the reliquary image) is the player-side client — it
+discovers installed games, links save folders to worlds with game
+metadata, and moves the saves. The agent's `PUT /v1/files/save` restore
+verb serves both the give/take flows (a world's own agent link) and the
+consoles' backup-restore button. Consoles host none of the custody
+surface; wildskeeper's old character relay survives only as the
+console-side inbox for old wkcompanion builds.
 `docs/save-sync-architecture.md` is the contract for custody semantics;
 its phase 0 recon (player-hosted save location) is still open.
 

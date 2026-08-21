@@ -115,14 +115,20 @@ relied on anywhere in code — keep it that way.
 
 Shared-world custody — checkout/check-in of peer-hosted saves with one
 holder at a time, versioned archives, claim-next and lease renewal —
-landed as phases 1–4 of `docs/save-sync-architecture.md` (that document
-is the contract; read it before touching custody semantics). The shape:
-`core/savesync` is the engine (the lock is the unique active session
-row; only the active session moves the head; late check-ins become
-flagged conflicts, never overwrites), wildskeeper hosts the Worlds page
-and the per-player token tier, the Artificer Companion (`cmd/companion`,
-born wkcompanion) is the player-side client, and the agent's new
-`PUT /v1/files/save` lets the dedicated server itself hold a world.
+per `docs/save-sync-architecture.md` (that document is the contract;
+read it before touching custody semantics), built first inside
+wildskeeper and moved the next day to its own service (the doc's
+"option-B pivot" section says why). The shape now: **reliquary**
+(`cmd/reliquary`, its own image) holds worlds, versions, users and
+tokens over the `core/savesync` engine (the lock is the unique active
+session row; only the active session moves the head; late check-ins
+become flagged conflicts, never overwrites) — deliberately game-blind,
+with game knowledge arriving as metadata the companion reports. The
+Artificer Companion (`cmd/companion`, born wkcompanion; GitHub releases
++ bundled in the reliquary image, `docs/companion.md`) discovers
+installed games, links their save folders to worlds, and moves the
+saves; the agent's `PUT /v1/files/save` lets a dedicated server hold a
+world through the world's own agent link. Consoles host none of it.
 **Verified in tests only so far** — no real friend-group rotation has
 run through it yet, and the phase 0 recon items below gate calling it
 done.
@@ -143,11 +149,11 @@ done.
 - **TLS between console and agent** is still deferred; today it is plain
   HTTP on a trusted network, with a bearer token.
 - **Save-sync recon is open.** Where the player-hosted Dragonwilds world
-  save lives, whether it is the SPUD layout `dwsave` parses, and the game
-  client's process name are all unverified — the companion asks for the
-  world folder rather than guessing, and its running-game guard is
-  belt-only until the name is confirmed. Discord slash commands (phase 5)
-  and the Witchspire decision (phase 6) are on the roadmap.
+  save lives is unverified — the companion's discovery marks its
+  candidates as guesses and the player confirms the folder; the settle
+  window is the torn-save guard (the game-blind companion has no process
+  check). Discord slash commands (phase 5) and the Witchspire decision
+  (phase 6) are on the roadmap.
 
 ## Working rules
 

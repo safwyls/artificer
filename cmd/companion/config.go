@@ -8,44 +8,44 @@ import (
 	"strings"
 )
 
-// Config is what survives restarts: where the console is, the companion
-// token its admin handed out, an optional save-directory override, and
-// the save-sync side (the personal token and the hold this machine has).
-// The tokens are credentials, so the file is written 0600.
+// Config is what survives restarts: where the save-sync service
+// (reliquary) is, the player's personal token, and the worlds this
+// machine syncs. The token is a credential, so the file is written 0600.
 type Config struct {
-	// ConsoleURL is the wildskeeper console's base URL, e.g.
-	// "https://wilds.example.com". Empty = local-only mode.
-	ConsoleURL string `json:"consoleUrl"`
-	// Token is the server's companion token, minted by a console admin on
-	// the Adventurers page.
+	// ServerURL is the save-sync service's base URL, e.g.
+	// "https://vault.example.com". Empty = nothing configured, nothing
+	// leaves the machine.
+	ServerURL string `json:"serverUrl"`
+	// Token is the player's personal sync token from the service's page.
 	Token string `json:"token"`
-	// SaveDir overrides the auto-detected SaveCharacters directory.
-	SaveDir string `json:"saveDir,omitempty"`
-	// Sync is the save-sync custody side (sync.go); zero value = off.
-	Sync SyncConfig `json:"sync,omitempty"`
+	// Links are the worlds this machine syncs — one per linked game save
+	// folder.
+	Links []WorldLink `json:"links,omitempty"`
 }
 
-// SyncConfig is the world-custody configuration and the one piece of
-// custody state that must survive a restart: which hold is ours.
-type SyncConfig struct {
-	// Token is the player's personal sync token from the console's
-	// Worlds page — per person, unlike the shared companion token.
-	Token string `json:"token,omitempty"`
-	// WorldID is the shared world this machine hosts.
-	WorldID int64 `json:"worldId,omitempty"`
-	// WorldDir is where the hosted world's save lives on this machine.
-	// Deliberately not auto-detected: the player-hosted save location is
-	// unverified recon (docs/save-sync-architecture.md, phase 0), and a
-	// wrong guess here would sync the wrong directory.
-	WorldDir string `json:"worldDir,omitempty"`
-	// SessionID is the hold this machine currently has (0 = none) and
-	// BaseVersion the version it delivered — what a check-in reports
-	// against.
+// WorldLink ties one world on the service to one save folder here, and
+// carries the one piece of custody state that must survive a restart:
+// which hold is ours.
+type WorldLink struct {
+	WorldID   int64  `json:"worldId"`
+	GameTitle string `json:"gameTitle,omitempty"`
+	Dir       string `json:"dir"`
+	// SessionID is the hold this machine has on the world (0 = none);
+	// BaseVersion the version it delivered.
 	SessionID   int64 `json:"sessionId,omitempty"`
 	BaseVersion int64 `json:"baseVersion,omitempty"`
 }
 
-func (sc SyncConfig) configured() bool { return sc.Token != "" && sc.WorldDir != "" }
+func (c Config) configured() bool { return c.ServerURL != "" && c.Token != "" }
+
+func (c *Config) link(worldID int64) *WorldLink {
+	for i := range c.Links {
+		if c.Links[i].WorldID == worldID {
+			return &c.Links[i]
+		}
+	}
+	return nil
+}
 
 func configPath() (string, error) {
 	base, err := os.UserConfigDir()
@@ -55,15 +55,59 @@ func configPath() (string, error) {
 	return filepath.Join(base, "artificer-companion", "config.json"), nil
 }
 
-// legacyConfigPath is where wkcompanion kept its config before the app
-// became the Artificer Companion. Read as a fallback so players' pasted
-// tokens survive the upgrade; the next save writes the new location.
+// legacyConfigPath is where wkcompanion kept its config. Read as a
+// fallback so an upgraded machine keeps what it can; the next save
+// writes the new location and the old file stays for old binaries.
 func legacyConfigPath() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(base, "wkcompanion", "config.json"), nil
+}
+
+// legacyConfig is both earlier shapes at once: the wkcompanion character
+// relay's fields, and the first Artificer Companion cut's nested sync
+// block. The character relay is retired, so only the sync side maps
+// forward.
+type legacyConfig struct {
+	ConsoleURL string `json:"consoleUrl"`
+	Sync       struct {
+		Token       string `json:"token"`
+		WorldID     int64  `json:"worldId"`
+		WorldDir    string `json:"worldDir"`
+		SessionID   int64  `json:"sessionId"`
+		BaseVersion int64  `json:"baseVersion"`
+	} `json:"sync"`
+}
+
+func parseConfig(data []byte) (Config, error) {
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return Config{}, err
+	}
+	if cfg.ServerURL != "" || len(cfg.Links) > 0 {
+		return cfg, nil
+	}
+	// Nothing in the current shape: try the legacy fields in the same
+	// bytes. A wkcompanion-era config with no sync block maps to an
+	// empty config — its relay credential has nothing to authenticate
+	// any more.
+	var old legacyConfig
+	if json.Unmarshal(data, &old) != nil || old.Sync.Token == "" {
+		return cfg, nil
+	}
+	cfg.ServerURL = old.ConsoleURL
+	cfg.Token = old.Sync.Token
+	if old.Sync.WorldID != 0 || old.Sync.WorldDir != "" {
+		cfg.Links = []WorldLink{{
+			WorldID:     old.Sync.WorldID,
+			Dir:         old.Sync.WorldDir,
+			SessionID:   old.Sync.SessionID,
+			BaseVersion: old.Sync.BaseVersion,
+		}}
+	}
+	return cfg, nil
 }
 
 func loadConfig() (Config, string, error) {
@@ -73,13 +117,9 @@ func loadConfig() (Config, string, error) {
 	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		// The wkcompanion-era config, if one exists. The old file is left
-		// in place: an old binary still runs, and a stale config is
-		// cheaper than a migration that deletes someone's credential.
 		if legacy, lerr := legacyConfigPath(); lerr == nil {
 			if ldata, lerr := os.ReadFile(legacy); lerr == nil {
-				var cfg Config
-				if json.Unmarshal(ldata, &cfg) == nil {
+				if cfg, perr := parseConfig(ldata); perr == nil {
 					return cfg, path, nil
 				}
 			}
@@ -89,11 +129,8 @@ func loadConfig() (Config, string, error) {
 	if err != nil {
 		return Config{}, path, err
 	}
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return Config{}, path, err
-	}
-	return cfg, path, nil
+	cfg, err := parseConfig(data)
+	return cfg, path, err
 }
 
 func saveConfig(path string, cfg Config) error {
@@ -107,23 +144,9 @@ func saveConfig(path string, cfg Config) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-// resolveSaveDir picks the directory to watch: the explicit override, or
-// the game's own location. The game stores characters per player under
-// LocalAppData on Windows; other platforms have no game client, so the
-// override is the only path there.
-func (c Config) resolveSaveDir() string {
-	if c.SaveDir != "" {
-		return c.SaveDir
-	}
-	if local := os.Getenv("LOCALAPPDATA"); local != "" {
-		return filepath.Join(local, "RSDragonwilds", "Saved", "SaveCharacters")
-	}
-	return ""
-}
-
-// normalizeConsoleURL trims the shapes people paste: trailing slashes and
+// normalizeServerURL trims the shapes people paste: trailing slashes and
 // an accidental /api suffix.
-func normalizeConsoleURL(u string) string {
+func normalizeServerURL(u string) string {
 	u = strings.TrimSpace(u)
 	u = strings.TrimRight(u, "/")
 	u = strings.TrimSuffix(u, "/api")

@@ -1,0 +1,56 @@
+name: Release (companion)
+
+# Publishes the Artificer Companion beside the docker images: every push
+# to main rebuilds the exe and replaces the assets on the rolling
+# `companion-latest` release, so the download link players hold keeps
+# pointing at the current build (the reliquary image bundles the same
+# exe for its token-gated download). Version tags additionally attach
+# the exe to that tag's own release.
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go.sum
+      - name: Build the companion (Windows is what players run; linux for dev machines)
+        run: |
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -ldflags="-H windowsgui -X main.version=${GITHUB_SHA::12}" -o artificer-companion.exe ./cmd/companion
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+            go build -o artificer-companion-linux ./cmd/companion
+      - name: Rolling companion-latest release (main)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: companion-latest
+          name: Artificer Companion (latest)
+          body: |
+            The Artificer Companion — the save-sync client that runs on a player's machine.
+            Rebuilt from every push to main; the commit this build came from is ${{ github.sha }}.
+            Windows players want `artificer-companion.exe`.
+          prerelease: true
+          files: |
+            artificer-companion.exe
+            artificer-companion-linux
+      - name: Tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artificer-companion.exe
+            artificer-companion-linux

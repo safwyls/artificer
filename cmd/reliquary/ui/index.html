@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reliquary</title>
+<style>
+  /* One deliberate dark look: the vault. */
+  :root {
+    --ink: #100d17; --panel: #1a1524; --edge: #2f2740;
+    --parchment: #e8e0cf; --mist: #948da3; --gold: #c9a860; --goldhi: #e3c67f;
+    --ok: #7fc46a; --ember: #d4735e; --rune: #9d7fc4;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ink); color: var(--parchment); font: 15px/1.5 Georgia, 'Times New Roman', serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; letter-spacing: .06em; color: var(--gold); margin: 0 0 2px; }
+  .sub { color: var(--mist); font-size: 13px; margin-bottom: 20px; }
+  .topline { display: flex; justify-content: space-between; align-items: baseline; }
+  .panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; padding: 14px 16px; margin-bottom: 14px; }
+  .panel h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); margin: 0 0 10px; font-weight: 600; }
+  .panel h2 .meta { float: right; color: var(--mist); text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .worldname { font-size: 18px; font-weight: 700; }
+  .gametag { color: var(--rune); font-size: 12px; margin-left: 8px; }
+  .mono { font-family: ui-monospace, monospace; font-size: 12px; color: var(--mist); }
+  .note { font-size: 12px; color: var(--mist); font-style: italic; margin-top: 8px; }
+  .line { color: var(--parchment); font-size: 14px; margin: 4px 0; }
+  .conflict { color: var(--ember); }
+  .free { color: var(--ok); }
+  label { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mist); margin: 10px 0 3px; }
+  input, select { width: 100%; background: var(--ink); color: var(--parchment); border: 1px solid var(--edge); border-radius: 4px; padding: 7px 9px; font: inherit; font-size: 14px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  button { margin: 10px 8px 0 0; background: linear-gradient(#2a2416, #1e1a10); color: var(--gold); border: 1px solid var(--gold); border-radius: 4px; padding: 6px 16px; font: inherit; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
+  button:hover { filter: brightness(1.25); }
+  button.quiet { border-color: var(--edge); color: var(--mist); font-weight: 400; }
+  button.danger:hover { border-color: var(--ember); color: var(--ember); }
+  button:disabled { opacity: .5; cursor: default; }
+  .versions { border-top: 1px solid var(--edge); margin-top: 10px; }
+  .version { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--edge); padding: 6px 0; font-size: 13px; }
+  .badge { background: var(--ink); border-radius: 3px; padding: 1px 6px; font-size: 10px; margin-left: 6px; }
+  .badge.head { color: var(--goldhi); }
+  .badge.conflictb { color: var(--ember); }
+  a { color: var(--goldhi); }
+  .status-ok { color: var(--ok); } .status-err { color: var(--ember); } .status-idle { color: var(--mist); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mist); font-weight: 500; padding: 2px 8px; }
+  td { border-top: 1px solid var(--edge); padding: 4px 8px; }
+  #login { max-width: 380px; margin: 12vh auto 0; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap hidden" id="app">
+  <div class="topline">
+    <div>
+      <h1>Reliquary</h1>
+      <div class="sub">Shared world saves: one holder at a time, every check-in a kept version.</div>
+    </div>
+    <div class="mono"><span id="whoami"></span> · <a href="#" onclick="logout();return false">sign out</a></div>
+  </div>
+
+  <div id="worlds"></div>
+
+  <div class="panel" id="createPanel">
+    <h2>New shared world</h2>
+    <label>Name</label>
+    <input id="newName" placeholder="the world's name">
+    <button onclick="createWorld()">Create</button>
+    <div class="note">Linking an installed game from the Artificer Companion also creates a world, with the game's
+      details filled in — this form is the by-hand path.</div>
+  </div>
+
+  <div class="panel" id="tokenPanel">
+    <h2>Your companion</h2>
+    <div id="tokenBody"></div>
+    <div class="note">The Artificer Companion runs on your gaming machine: it finds installed games, links their save
+      folders to worlds here, and moves the saves for you. The token is yours alone — minting a new one revokes the
+      old everywhere.</div>
+  </div>
+
+  <div class="panel hidden" id="usersPanel">
+    <h2>Users</h2>
+    <div id="usersBody"></div>
+    <div class="row">
+      <div><label>Username</label><input id="newUser"></div>
+      <div><label>Password</label><input id="newPass" type="password"></div>
+    </div>
+    <label style="display:inline-flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;color:var(--parchment)">
+      <input type="checkbox" id="newAdmin" style="width:auto"> admin
+    </label>
+    <br><button onclick="createUser()">Add user</button>
+    <div class="note">New users get the world-custody grant; admins additionally manage worlds, users and rollbacks.</div>
+  </div>
+
+  <div class="mono" id="statusLine"></div>
+</div>
+
+<div class="wrap panel hidden" id="login">
+  <h1>Reliquary</h1>
+  <div class="sub">Sign in to the vault.</div>
+  <label>Username</label><input id="loginUser">
+  <label>Password</label><input id="loginPass" type="password" onkeydown="if(event.key==='Enter')login()">
+  <button onclick="login()">Sign in</button>
+  <div class="mono" id="loginErr"></div>
+</div>
+
+<script>
+let ME = null, TOKEN = "", OPEN_HISTORY = {};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtBytes = b => b >= 1<<30 ? (b/(1<<30)).toFixed(1)+" GB" : b >= 1<<20 ? (b/(1<<20)).toFixed(1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
+const fmtTime = t => new Date(t).toLocaleString();
+
+async function j(method, path, body) {
+  const res = await fetch("/api" + path, {
+    method, credentials: "include",
+    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 204) return {};
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error || res.statusText);
+  return out;
+}
+function say(msg, ok) {
+  const el = document.getElementById("statusLine");
+  el.textContent = msg; el.className = "mono " + (ok ? "status-ok" : "status-err");
+}
+async function act(fn, okMsg) {
+  try { await fn(); if (okMsg) say(okMsg, true); refresh(); }
+  catch (e) { say(e.message, false); refresh(); }
+}
+
+// --- auth ---
+async function boot() {
+  try {
+    ME = await j("GET", "/me");
+    document.getElementById("login").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    document.getElementById("whoami").textContent = ME.username;
+    const canSync = ME.isAdmin || (ME.permissions || []).includes("savesync");
+    document.getElementById("createPanel").classList.toggle("hidden", !canSync);
+    document.getElementById("tokenPanel").classList.toggle("hidden", !canSync);
+    document.getElementById("usersPanel").classList.toggle("hidden", !ME.isAdmin);
+    refresh();
+  } catch {
+    document.getElementById("app").classList.add("hidden");
+    document.getElementById("login").classList.remove("hidden");
+  }
+}
+async function login() {
+  try {
+    await j("POST", "/login", { username: document.getElementById("loginUser").value, password: document.getElementById("loginPass").value });
+    boot();
+  } catch (e) { document.getElementById("loginErr").textContent = e.message; document.getElementById("loginErr").className = "mono status-err"; }
+}
+async function logout() { await j("POST", "/logout").catch(() => {}); location.reload(); }
+
+// --- worlds ---
+function holderLine(st) {
+  const h = st.holder;
+  if (!h) return `<span class="free">Free — nobody holds this world</span>` + (st.claimedBy ? ` · next claim: ${esc(st.claimedBy)}` : "");
+  const who = h.username === ME.username ? "you" : esc(h.username);
+  const where = h.serverHeld ? " (on the dedicated server)" : "";
+  if (h.claimable) return `Held by ${who}${where} — <span class="conflict">the hold expired and is claimable</span>`;
+  return `Held by ${who}${where} until ${fmtTime(h.expiresAt)}`;
+}
+
+function worldActions(st) {
+  const w = st.world, h = st.holder;
+  const canSync = ME.isAdmin || (ME.permissions || []).includes("savesync");
+  const mine = h && h.username === ME.username;
+  const b = [];
+  const btn = (label, call, cls) => b.push(`<button class="${cls || ""}" onclick="${call}">${label}</button>`);
+  if (canSync && !h) btn("Check out", `checkout(${w.id}, false)`);
+  if (canSync && h && !mine && h.claimable) btn("Take over expired hold", `checkout(${w.id}, true)`);
+  if (canSync && mine) {
+    btn("Check in…", `upload('/sync/sessions/${h.sessionId}/checkin')`);
+    btn("Renew hold", `act(() => j('POST', '/sync/sessions/${h.sessionId}/renew'), 'hold extended')`, "quiet");
+  }
+  if (canSync && h && !mine && !st.claimedBy) btn("Claim next", `act(() => j('POST', '/sync/worlds/${w.id}/claim'), \`you're next — your companion fetches it automatically\`)`, "quiet");
+  if (canSync && st.claimedBy === ME.username) btn("Withdraw claim", `act(() => j('DELETE', '/sync/worlds/${w.id}/claim'))`, "quiet");
+  if (st.head) b.push(`<a href="/api/sync/worlds/${w.id}/versions/${st.head.id}/download"><button class="quiet">Download head</button></a>`);
+  btn(OPEN_HISTORY[w.id] ? "Hide history" : "History", `toggleHistory(${w.id})`, "quiet");
+  if (canSync && !h) btn("Import…", `upload('/sync/worlds/${w.id}/import')`, "quiet");
+  if (ME.isAdmin) {
+    if (w.agentUrl && !h && st.head) btn("Host on dedicated server", `act(() => j('POST', '/sync/worlds/${w.id}/server/give'), 'the server holds the world — start it when ready')`, "quiet");
+    if (w.agentUrl && h && h.serverHeld) btn("Take back from server", `act(() => j('POST', '/sync/worlds/${w.id}/server/take'), 'taken back — the server save is the new head')`, "quiet");
+    if (h) btn("Force release", `confirm('Force-release this hold?') && act(() => j('POST', '/sync/worlds/${w.id}/release'), 'released')`, "quiet danger");
+    btn("Settings", `toggleSettings(${w.id})`, "quiet");
+    btn("Delete", `confirm('Delete ${esc(w.name)} and every stored version?') && act(() => j('DELETE', '/sync/worlds/${w.id}'), 'deleted')`, "quiet danger");
+  }
+  return b.join(" ");
+}
+
+function settingsForm(w) {
+  return `<div class="row" id="settings-${w.id}" data-open="1">
+    <div><label>Name</label><input id="s-name-${w.id}" value="${esc(w.name)}"></div>
+    <div><label>Lease (hours)</label><input id="s-lease-${w.id}" type="number" value="${w.leaseHours}"></div>
+    <div><label>Max size (MiB)</label><input id="s-max-${w.id}" type="number" value="${Math.round(w.maxBytes / (1<<20))}"></div>
+    <div><label>Keep versions</label><input id="s-keep-${w.id}" type="number" value="${w.keepVersions}"></div>
+    <div><label>Discord webhook URL</label><input id="s-hook-${w.id}" value="${esc(w.webhookUrl)}"></div>
+    <div><label>Dedicated-server agent URL (optional)</label><input id="s-agent-${w.id}" value="${esc(w.agentUrl)}" placeholder="http://host:8420"></div>
+    <div><label>Agent token ${w.hasAgentToken ? "(saved — empty keeps it)" : ""}</label><input id="s-atok-${w.id}" type="password"></div>
+    <div><label style="text-transform:none">
+      <input type="checkbox" id="s-cp-${w.id}" ${w.checkpoints ? "checked" : ""} style="width:auto"> mid-session checkpoints</label>
+      <button onclick="saveSettings(${w.id})">Save settings</button>
+    </div>
+  </div>`;
+}
+
+async function saveSettings(id) {
+  await act(() => j("PUT", `/sync/worlds/${id}`, {
+    name: document.getElementById(`s-name-${id}`).value,
+    leaseHours: Number(document.getElementById(`s-lease-${id}`).value),
+    maxBytes: Number(document.getElementById(`s-max-${id}`).value) * (1<<20),
+    keepVersions: Number(document.getElementById(`s-keep-${id}`).value),
+    checkpoints: document.getElementById(`s-cp-${id}`).checked,
+    webhookUrl: document.getElementById(`s-hook-${id}`).value,
+    agentUrl: document.getElementById(`s-agent-${id}`).value,
+    agentToken: document.getElementById(`s-atok-${id}`).value,
+  }), "settings saved");
+}
+let OPEN_SETTINGS = {};
+function toggleSettings(id) { OPEN_SETTINGS[id] = !OPEN_SETTINGS[id]; refresh(); }
+function toggleHistory(id) { OPEN_HISTORY[id] = !OPEN_HISTORY[id]; refresh(); }
+
+async function historyBlock(id) {
+  const d = await j("GET", `/sync/worlds/${id}`);
+  const head = d.status.world.headVersion;
+  if (!d.versions.length) return `<div class="note">No versions yet — the first check-in or import starts the history.</div>`;
+  return `<div class="versions">` + d.versions.map(v => {
+    const by = v.uploaderId != null ? (d.uploaders[String(v.uploaderId)] || `user #${v.uploaderId}`) : "unknown";
+    return `<div class="version"><div>
+      <span class="mono">v${v.id}</span>
+      ${head === v.id ? '<span class="badge head">head</span>' : ""}
+      ${v.conflict ? '<span class="badge conflictb" title="Checked in from a hold that could no longer move the head — pick a head to resolve">conflict</span>' : ""}
+      <span class="mono">${esc(v.kind)} by ${esc(by)} · ${fmtBytes(v.bytes)} · ${fmtTime(v.createdAt)}</span></div>
+      <div><a href="/api/sync/worlds/${id}/versions/${v.id}/download"><button class="quiet" style="margin:0">Download</button></a>
+      ${ME.isAdmin && head !== v.id ? `<button class="quiet" style="margin:0" onclick="confirm('Make v${v.id} the canonical head?') && act(() => j('POST', '/sync/worlds/${id}/head', {versionId: ${v.id}}), 'head moved')">Make head</button>` : ""}</div>
+    </div>`;
+  }).join("") + `</div>`;
+}
+
+async function renderWorlds() {
+  const out = await j("GET", "/sync/worlds");
+  const box = document.getElementById("worlds");
+  if (!out.worlds.length) {
+    box.innerHTML = `<div class="panel"><h2>Shared worlds</h2><p class="note">No worlds yet. Create one below, or link an installed game from the Artificer Companion.</p></div>`;
+    return;
+  }
+  const parts = [];
+  for (const st of out.worlds) {
+    const w = st.world;
+    let block = `<div class="panel">
+      <h2><span class="worldname">${esc(w.name)}</span>${w.gameTitle ? `<span class="gametag">${esc(w.gameTitle)}</span>` : ""}
+        <span class="meta">${st.head ? `head v${st.head.id} · ${fmtBytes(st.head.bytes)} · ${fmtTime(st.head.createdAt)}` : "no versions yet"}</span></h2>
+      <div class="line">${holderLine(st)}</div>
+      ${st.holder && st.claimedBy ? `<div class="mono">next claim: ${esc(st.claimedBy)}</div>` : ""}
+      ${w.saveHint ? `<div class="mono" title="where the companion that linked this game found its save">save location: ${esc(w.saveHint)}</div>` : ""}
+      <div>${worldActions(st)}</div>`;
+    if (OPEN_SETTINGS[w.id] && ME.isAdmin) block += settingsForm(w);
+    if (OPEN_HISTORY[w.id]) block += await historyBlock(w.id).catch(e => `<div class="note">${esc(e.message)}</div>`);
+    parts.push(block + `</div>`);
+  }
+  box.innerHTML = parts.join("");
+}
+
+async function createWorld() {
+  const name = document.getElementById("newName").value.trim();
+  if (!name) return;
+  await act(() => j("POST", "/sync/worlds", { name }), "world created");
+  document.getElementById("newName").value = "";
+}
+
+// checkout from the browser exists for the take-over-and-inspect cases;
+// the companion is the usual driver.
+function checkout(id, takeover) {
+  if (takeover && !confirm("Take over the expired hold? The old holder's late check-in will be kept and flagged, not lost.")) return;
+  act(() => j("POST", `/sync/worlds/${id}/checkout`, { takeover }), "checked out — download the head or let your companion fetch it");
+}
+
+// upload posts a .tar save bundle from the browser (check-in or import).
+function upload(path) {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = ".tar,application/x-tar";
+  input.onchange = async () => {
+    if (!input.files[0]) return;
+    say("uploading…", true);
+    try {
+      const res = await fetch("/api" + path, { method: "POST", body: input.files[0], credentials: "include", headers: { "Content-Type": "application/x-tar" } });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || res.statusText);
+      say(out.version && out.version.conflict ? "checked in, but flagged as a conflict — pick a head in the history" : "uploaded", !out.version || !out.version.conflict);
+    } catch (e) { say(e.message, false); }
+    refresh();
+  };
+  input.click();
+}
+
+// --- companion token ---
+async function renderToken() {
+  const el = document.getElementById("tokenBody");
+  try {
+    TOKEN = (await j("GET", "/me/sync-token")).token || "";
+  } catch { el.innerHTML = ""; return; }
+  if (!TOKEN) {
+    el.innerHTML = `<button onclick="act(() => j('POST', '/me/sync-token'), 'token minted — paste it into your companion')">Mint a token</button>`;
+    return;
+  }
+  el.innerHTML = `<span class="mono" style="background:var(--ink);padding:3px 8px;border-radius:3px;color:var(--parchment)">${esc(TOKEN)}</span>
+    <button class="quiet" onclick="navigator.clipboard.writeText('${esc(TOKEN)}');say('copied', true)">Copy</button>
+    <a href="/api/public/sync/${esc(TOKEN)}/companion/download"><button class="quiet">Download the companion</button></a>
+    <button class="quiet danger" onclick="act(() => j('DELETE', '/me/sync-token'), 'token revoked')">Revoke</button>`;
+}
+
+// --- users (admin) ---
+async function renderUsers() {
+  if (!ME.isAdmin) return;
+  const users = await j("GET", "/users");
+  document.getElementById("usersBody").innerHTML = `<table><tr><th>User</th><th>Role</th><th></th></tr>` +
+    users.map(u => `<tr><td>${esc(u.username)}${u.disabled ? ' <span class="badge conflictb">disabled</span>' : ""}</td>
+      <td class="mono">${u.role === "admin" ? "admin" : (u.permissions || []).join(", ") || "—"}</td>
+      <td style="text-align:right">
+        <button class="quiet" style="margin:0" onclick="act(() => j('PUT', '/users/${u.id}', {role: '${u.role}', permissions: ${JSON.stringify(u.permissions || [])}, disabled: ${!u.disabled}}))">${u.disabled ? "Enable" : "Disable"}</button>
+        <button class="quiet danger" style="margin:0" onclick="confirm('Delete ${esc(u.username)}?') && act(() => j('DELETE', '/users/${u.id}'), 'deleted')">Delete</button>
+      </td></tr>`).join("") + `</table>`;
+}
+async function createUser() {
+  const username = document.getElementById("newUser").value.trim();
+  const password = document.getElementById("newPass").value;
+  const role = document.getElementById("newAdmin").checked ? "admin" : "";
+  await act(() => j("POST", "/users", { username, password, role, permissions: ["savesync"] }), "user added");
+  document.getElementById("newUser").value = ""; document.getElementById("newPass").value = "";
+}
+
+async function refresh() {
+  if (!ME) return;
+  await Promise.all([renderWorlds(), renderToken(), renderUsers()]).catch(e => say(e.message, false));
+}
+
+boot();
+setInterval(() => refresh(), 20000);
+</script>
+</body>
+</html>

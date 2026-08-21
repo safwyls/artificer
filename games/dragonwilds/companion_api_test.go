@@ -149,7 +149,7 @@ func TestCompanionDownload(t *testing.T) {
 
 	// No exe wired (the harness default): a named refusal, not a 500.
 	rec = app.Do(t, "GET", "/api/public/companion/"+enabled.Token+"/download", nil, nil)
-	if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "without the companion app") {
+	if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "no relay companion is bundled") {
 		t.Fatalf("download without a bundle: got %d %s", rec.Code, rec.Body)
 	}
 

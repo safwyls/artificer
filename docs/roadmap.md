@@ -39,14 +39,15 @@ for the monorepo restated as a table of contents.
 6. **Multi-host.** Anvil is already one service per machine, which is the
    hard half. What is missing: per-host registrations instead of one
    `ANVIL_URL`, and host labels in the UI.
-7. **Save sync, the remaining phases.** Phases 1–4 of
-   `docs/save-sync-architecture.md` landed 2026-08-21 (custody engine,
-   HTTP surface + wildskeeper Worlds page, the Artificer Companion's
-   sync client, the server-as-holder flows). Still open: **phase 0
-   recon** — the player-hosted Dragonwilds save location/format and the
-   game process name are unverified, so the companion asks for the world
-   folder instead of guessing — plus the Discord interactions endpoint
-   (phase 5) and the Witchspire decision (phase 6).
+7. **Save sync, the remaining phases.** Implemented 2026-08-21 as the
+   standalone **reliquary** service plus the game-blind Artificer
+   Companion (`docs/save-sync-architecture.md`, "The option-B pivot").
+   Still open: **phase 0 recon** — the player-hosted Dragonwilds save
+   location/format is unverified, so discovery marks its candidates as
+   guesses and the player confirms — plus the Discord interactions
+   endpoint (phase 5), the Witchspire catalog entry once its save
+   location is known (phase 6), and growing reliquary's deliberately
+   light embedded UI as use demands.
 
 ## Palworld (palcon)
 

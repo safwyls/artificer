@@ -84,11 +84,9 @@ func TestSyncCustodyOverHTTP(t *testing.T) {
 	app.createUser(t, admin, "alice", "alicepassword", "user", []string{store.PermSync})
 	alice := app.login(t, "alice", "alicepassword")
 
-	// Worlds are admin territory.
-	if rec := app.do(t, "POST", "/api/sync/worlds", map[string]string{"name": "midgard"}, alice); rec.Code != http.StatusForbidden {
-		t.Errorf("non-admin world create: got %d, want 403", rec.Code)
-	}
-	rec := app.do(t, "POST", "/api/sync/worlds", map[string]string{"name": "midgard"}, admin)
+	// World creation rides the custody grant — the companion's
+	// link-a-game flow creates worlds, so alice can.
+	rec := app.do(t, "POST", "/api/sync/worlds", map[string]any{"name": "midgard", "gameTitle": "Dragonwilds"}, alice)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create world: got %d (body %s)", rec.Code, rec.Body)
 	}

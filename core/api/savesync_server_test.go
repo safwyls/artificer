@@ -8,7 +8,6 @@ package api_test
 import (
 	"archive/tar"
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -72,23 +71,18 @@ func TestSyncServerGiveAndTake(t *testing.T) {
 	defer agentSrv.Close()
 
 	app, admin := newSyncApp(t)
-	serverID, err := app.store.CreateServer(context.Background(), &store.Server{
-		Name: "grimwood", Host: "127.0.0.1", Enabled: true,
-		AgentURL: agentSrv.URL, AgentToken: agentToken,
-	})
-	if err != nil {
-		t.Fatalf("create server: %v", err)
-	}
 
-	// A world linked to the server, seeded with a head.
+	// A world with its own agent link — the standalone service knows
+	// agents, not console server rows — seeded with a head.
 	if rec := app.do(t, "POST", "/api/sync/worlds", map[string]string{"name": "midgard"}, admin); rec.Code != http.StatusCreated {
 		t.Fatalf("create world: %d", rec.Code)
 	}
 	if rec := app.do(t, "PUT", "/api/sync/worlds/1", map[string]any{
-		"name": "midgard", "serverId": serverID, "leaseHours": 48,
+		"name": "midgard", "leaseHours": 48,
 		"maxBytes": 1 << 24, "keepVersions": 5, "checkpoints": true, "webhookUrl": "",
+		"agentUrl": agentSrv.URL, "agentToken": agentToken,
 	}, admin); rec.Code != http.StatusOK {
-		t.Fatalf("link server: %d (body %s)", rec.Code, rec.Body)
+		t.Fatalf("link agent: %d (body %s)", rec.Code, rec.Body)
 	}
 	if rec := app.doTar(t, "/api/sync/worlds/1/import", admin); rec.Code != http.StatusOK {
 		t.Fatalf("import head: %d (body %s)", rec.Code, rec.Body)
