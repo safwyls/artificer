@@ -17,10 +17,12 @@ for the monorepo restated as a table of contents.
    stale server is unjoinable rather than merely out of date. It also
    supplies the missing half of version surfacing: "you are behind"
    instead of only "you are on this".
-2. **Backup restore.** Backups exist on all three; restore is still "the
-   operator untars by hand". A deliberate restore verb on the agent —
-   the one thing the read-only save mount was waiting for — gated in the UI
-   behind a stopped server and a confirmation naming what it overwrites.
+2. ~~Backup restore.~~ **The verb landed with save sync** (2026-08-21):
+   `PUT /v1/files/save` on every agent — stopped-game gate, `If-Match`
+   precondition, verify-then-swap with one `.bak` — and a Restore button
+   on wildskeeper's backups page. Remaining: the same button on
+   flametender's and palcon's pages (the API is already there), and
+   Enshrouded's index-aware rollback stays its own Phase 3 item.
 3. **TLS between console and agent.** Plain HTTP with a bearer token on a
    trusted network today. A pinned self-signed certificate fingerprint
    stored alongside the token is the intended shape; the verb surface does
@@ -37,6 +39,14 @@ for the monorepo restated as a table of contents.
 6. **Multi-host.** Anvil is already one service per machine, which is the
    hard half. What is missing: per-host registrations instead of one
    `ANVIL_URL`, and host labels in the UI.
+7. **Save sync, the remaining phases.** Phases 1–4 of
+   `docs/save-sync-architecture.md` landed 2026-08-21 (custody engine,
+   HTTP surface + wildskeeper Worlds page, the Artificer Companion's
+   sync client, the server-as-holder flows). Still open: **phase 0
+   recon** — the player-hosted Dragonwilds save location/format and the
+   game process name are unverified, so the companion asks for the world
+   folder instead of guessing — plus the Discord interactions endpoint
+   (phase 5) and the Witchspire decision (phase 6).
 
 ## Palworld (palcon)
 

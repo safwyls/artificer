@@ -34,6 +34,14 @@ What each game module carries:
 - `games/enshrouded` — client, esconfig, eslog/esquery, banqueue behind
   the offline-work seam, esapi, esagent's spec. Seam 4's single port.
 
+**Save sync** (2026-08-21): shared-world checkout/check-in custody —
+`core/savesync` engine, wildskeeper Worlds page + per-player token tier,
+the Artificer Companion (`cmd/companion`, born wkcompanion) as the
+player-side client, and the agent's `PUT /v1/files/save` restore verb
+(which also closed roadmap "backup restore").
+`docs/save-sync-architecture.md` is the contract for custody semantics;
+its phase 0 recon (player-hosted save location) is still open.
+
 Provisioning is Anvil-only across all three; the legacy
 provisioner-mode agent is retired (`PROVISIONER_URL` → `ANVIL_URL` —
 `docs/palcon-port-verification.md` has the migration). The live host and

@@ -106,6 +106,22 @@ relied on anywhere in code — keep it that way.
   propose the same host ports unless the wizard asks Anvil what the machine
   already publishes. It does now.
 
+## Save sync (2026-08-21)
+
+Shared-world custody — checkout/check-in of peer-hosted saves with one
+holder at a time, versioned archives, claim-next and lease renewal —
+landed as phases 1–4 of `docs/save-sync-architecture.md` (that document
+is the contract; read it before touching custody semantics). The shape:
+`core/savesync` is the engine (the lock is the unique active session
+row; only the active session moves the head; late check-ins become
+flagged conflicts, never overwrites), wildskeeper hosts the Worlds page
+and the per-player token tier, the Artificer Companion (`cmd/companion`,
+born wkcompanion) is the player-side client, and the agent's new
+`PUT /v1/files/save` lets the dedicated server itself hold a world.
+**Verified in tests only so far** — no real friend-group rotation has
+run through it yet, and the phase 0 recon items below gate calling it
+done.
+
 ## Known gaps
 
 - **dwbridge is one command deep.** Dragonwilds reaches the game through a
@@ -121,6 +137,12 @@ relied on anywhere in code — keep it that way.
   than merely up.
 - **TLS between console and agent** is still deferred; today it is plain
   HTTP on a trusted network, with a bearer token.
+- **Save-sync recon is open.** Where the player-hosted Dragonwilds world
+  save lives, whether it is the SPUD layout `dwsave` parses, and the game
+  client's process name are all unverified — the companion asks for the
+  world folder rather than guessing, and its running-game guard is
+  belt-only until the name is confirmed. Discord slash commands (phase 5)
+  and the Witchspire decision (phase 6) are on the roadmap.
 
 ## Working rules
 

@@ -1,9 +1,14 @@
 # Save sync — architecture review and proposal
 
-**Status: proposal, for review.** `docs/unification-plan.md` remains the
-plan of record; nothing here is committed until the maintainer says so.
-Written 2026-08-20 against the 2026-08-19 brainstorm ("P2P Save-Sync
-Extension"), after a survey of the seams it would land on.
+**Status: phases 1–4 implemented (2026-08-21); this document is the
+contract for custody semantics.** Written 2026-08-20 as a review of the
+2026-08-19 brainstorm ("P2P Save-Sync Extension") after a survey of the
+seams it would land on; the proposal below was then built as proposed,
+with two amendments recorded in place: claim-next/renewal in the session
+lifecycle, and the companion shipping as one all-games app (the
+Artificer Companion, `cmd/companion`) rather than a per-game kit.
+Phase 0 (recon), phase 5 (Discord) and phase 6 (Witchspire) remain open
+— see `docs/roadmap.md`.
 
 ## The idea, restated in this repo's vocabulary
 
