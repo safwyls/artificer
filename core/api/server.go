@@ -19,6 +19,7 @@ import (
 	"github.com/safwyls/artificer/core/cfaccess"
 	"github.com/safwyls/artificer/core/dockerctl"
 	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/store"
 )
 
@@ -88,6 +89,11 @@ type Server struct {
 	// Roster, when set, reads the save-derived player roster for the
 	// visibility editor (assigned after New, like Provisioner).
 	Roster RosterSource
+	// SaveSync, when set (assigned after New, like Provisioner), enables
+	// shared-world checkout/check-in custody — worlds, holds, versions
+	// (docs/save-sync-architecture.md). Nil means the console doesn't
+	// offer it and the routes are simply absent.
+	SaveSync *savesync.Service
 	// GameRoutes, when set, mounts the game's own per-server endpoints
 	// (drift ledger seam 5) inside the authenticated /servers/{id} group.
 	// The game module builds the closure over this Server via its Routes
@@ -136,170 +142,202 @@ func (s *Server) Routes(staticFS fs.FS) http.Handler {
 	r.Use(middleware.Compress(5))
 
 	r.Route("/api", func(r chi.Router) {
-		// No endpoint takes a body anywhere near this size; cap it so
-		// json.Decode can't be fed an arbitrarily large request.
-		r.Use(maxBodyBytes(1 << 20))
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "not found")
 		})
-		r.Post("/login", s.handleLogin)
-		// Sign-in for people Cloudflare Access already authenticated.
-		// Unauthenticated by necessity — the assertion on the request
-		// *is* the credential, and cfaccess verifies it before anything
-		// is read from it. A 404 when Access isn't configured keeps the
-		// frontend's silent attempt cheap.
-		r.Post("/login/cloudflare", s.handleCloudflareLogin)
-
-		// Unauthenticated data endpoints, all token-gated: the read-only
-		// status page (see public.go), and any public routes the game
-		// contributes (each gating itself on the companion token).
-		r.Get("/public/status/{token}", s.handlePublicStatus)
-		if s.PublicGameRoutes != nil {
-			r.Route("/public", s.PublicGameRoutes)
+		// Save-bundle transfers (save sync) are the one surface whose
+		// bodies legitimately dwarf the API-wide cap below; they live in
+		// their own group, bounded per world while staging.
+		if s.SaveSync != nil {
+			r.Group(func(r chi.Router) {
+				r.Use(maxBodyBytes(maxSyncUpload))
+				s.mountSyncUploads(r)
+			})
 		}
 
+		// Everything else: no endpoint takes a body anywhere near this
+		// size; cap it so json.Decode can't be fed an arbitrarily large
+		// request.
 		r.Group(func(r chi.Router) {
-			r.Use(s.requireAuth)
-			r.Post("/logout", s.handleLogout)
-			r.Get("/me", s.handleMe)
-			r.Post("/me/password", s.handleChangeOwnPassword)
-
-			// Registered flat rather than via r.Route: a subrouter's "/"
-			// only matches /users/, so POST /api/users 404s.
-			// The host dashboard: what Anvil holds on this machine —
-			// containers, ports, images. Read-only; see host.go.
-			r.With(s.requireAdmin).Get("/host", s.handleHostOverview)
-
-			r.With(s.requireAdmin).Get("/users", s.handleListUsers)
-			r.With(s.requireAdmin).Post("/users", s.handleCreateUser)
-			r.With(s.requireAdmin).Put("/users/{userID}", s.handleUpdateUser)
-			r.With(s.requireAdmin).Delete("/users/{userID}", s.handleDeleteUser)
-
-			// Advisor key management: process-wide (the advisor is one
-			// feature, not a per-server one), admin-only, stored encrypted.
-			// A key saved here wins over one from the environment.
-			r.With(s.requireAdmin).Put("/advisor/key", s.handleSetAdvisorKey)
-			r.With(s.requireAdmin).Delete("/advisor/key", s.handleDeleteAdvisorKey)
-			r.With(s.requireAdmin).Put("/advisor/settings", s.handleSetAdvisorSettings)
-			// Change which model a saved key runs, without re-entering it.
-			r.With(s.requireAdmin).Put("/advisor/key/model", s.handleSetAdvisorKeyModel)
-			r.Put("/me/advisor-key/model", s.handleSetUserAdvisorKeyModel)
-			// A user's own key, shadowing the shared one for their requests
-			// only. Any signed-in user; scoped to their account.
-			r.Put("/me/advisor-key", s.handleSetUserAdvisorKey)
-			r.Delete("/me/advisor-key", s.handleDeleteUserAdvisorKey)
-			// Embedded console docs, for the advisor's docs-search tool.
-			r.Get("/docs", s.handleDocs)
-
-			r.Get("/servers", s.handleListServers)
-			r.With(s.requireAdmin).Post("/servers", s.handleCreateServer)
-			// New-server wizard: registers the row and generates the
-			// supervisor stack file for the human to deploy. Defaults and
-			// discovery let the wizard prefill from the provisioner's
-			// config instead of asking.
-			r.With(s.requireAdmin).Post("/servers/provision", s.handleProvisionServer)
-			r.With(s.requireAdmin).Get("/servers/provision/defaults", s.handleProvisionDefaults)
-			r.With(s.requireAdmin).Get("/servers/provision/discover", s.handleProvisionDiscover)
-			r.With(s.requireAdmin).Post("/servers/adopt", s.handleAdoptServer)
-			r.Route("/servers/{serverID}", func(r chi.Router) {
-				r.Get("/", s.handleGetServer)
-				r.With(s.requireAdmin).Put("/", s.handleUpdateServer)
-				r.With(s.requireAdmin).Delete("/", s.handleDeleteServer)
-
-				r.Get("/info", s.handleServerInfo)
-				r.Get("/players", s.handleServerPlayers)
-				// What this server's commands can actually do, asked
-				// before offering them rather than discovered by a 501.
-				r.Get("/capabilities", s.handleServerCapabilities)
-				r.With(s.requirePermission(store.PermBroadcast)).Post("/broadcast", s.handleServerBroadcast)
-				r.With(s.requirePermission(store.PermModerate)).Post("/kick", s.handleServerKick)
-				r.With(s.requirePermission(store.PermModerate)).Post("/ban", s.handleServerBan)
-				r.With(s.requirePermission(store.PermModerate)).Post("/unban", s.handleServerUnban)
-				r.With(s.requirePermission(store.PermSave)).Post("/save", s.handleServerSave)
-				r.With(s.requirePermission(store.PermShutdown)).Post("/shutdown", s.handleServerShutdown)
-
-				// Container power. Reading state is fine for anyone
-				// signed in; changing it needs the grant.
-				r.Get("/container", s.handleContainerStatus)
-				r.With(s.requirePermission(store.PermPower)).Post("/container/{action}", s.handleContainerAction)
-				r.With(s.requirePermission(store.PermPower)).Get("/container/logs", s.handleContainerLogs)
-				// SteamCMD repair & update — power territory: they exist
-				// to get a broken container updating again. Runs via the
-				// server's flameagent when configured, else the local
-				// install-path mount (cache clear only).
-				// How the agent will start the game. Read-only — one build
-				// exists, so there is nothing to select; it answers "can
-				// this agent's image actually run it?".
-				r.Get("/launch", s.handleGetLaunch)
-				// Rebuild this server's agent on another flameagent image.
-				// Admin-only: it destroys and recreates a container, which
-				// is provisioning, not day-to-day power.
-				r.With(s.requireAdmin).Post("/agent/image", s.handleRecreateAgent)
-				r.With(s.requirePermission(store.PermPower)).Post("/steam-cache/clear", s.handleClearSteamCache)
-				r.With(s.requirePermission(store.PermPower)).Post("/steam/update", s.handleSteamUpdateStart)
-				r.With(s.requirePermission(store.PermPower)).Get("/steam/update", s.handleSteamUpdateStatus)
-				r.Get("/settings", s.handleServerSettings)
-
-				// Settings editor (enshrouded_server.json here; the codec
-				// is per-game, see config.go). Gated even for reading: the
-				// file holds the role passwords in the clear.
-				r.With(s.requirePermission(store.PermSettings)).Get("/config", s.handleGetConfig)
-				r.With(s.requirePermission(store.PermSettings)).Put("/config", s.handleUpdateConfig)
-				r.With(s.requirePermission(store.PermSettings)).Post("/config/rotate-admin-password", s.handleRotateAdminPassword)
-				// Game-contributed routes (roles, ban lists, save-derived
-				// views). The permission-boundary rule they must follow:
-				// credential-bearing config behind PermSettings,
-				// credential-free moderation behind PermModerate.
-				if s.GameRoutes != nil {
-					s.GameRoutes(r)
-				}
-
-				// Automation: restart schedules are visible to anyone
-				// signed in ("when's the next restart?" is player-facing
-				// information); changing them, and everything Discord, is
-				// admin infrastructure config.
-				r.Get("/automation", s.handleGetAutomation)
-				r.With(s.requireAdmin).Post("/schedules", s.handleCreateSchedule)
-				r.With(s.requireAdmin).Put("/schedules/{scheduleID}", s.handleUpdateSchedule)
-				r.With(s.requireAdmin).Delete("/schedules/{scheduleID}", s.handleDeleteSchedule)
-				r.With(s.requireAdmin).Put("/discord", s.handleUpdateDiscord)
-				r.With(s.requireAdmin).Delete("/discord", s.handleDeleteDiscord)
-				r.With(s.requireAdmin).Post("/discord/test", s.handleTestDiscord)
-				r.With(s.requireAdmin).Put("/watchdog", s.handleUpdateWatchdog)
-				r.With(s.requireAdmin).Put("/public", s.handleUpdatePublicStatus)
-
-				// Save backups: the archive is the whole world, so even
-				// listing is admin-only.
-				r.With(s.requireAdmin).Get("/backups", s.handleListBackups)
-				r.With(s.requireAdmin).Put("/backups/settings", s.handleUpdateBackupSettings)
-				r.With(s.requireAdmin).Post("/backups/run", s.handleRunBackup)
-				r.With(s.requireAdmin).Get("/backups/{name}/download", s.handleDownloadBackup)
-				r.With(s.requireAdmin).Delete("/backups/{name}", s.handleDeleteBackup)
-
-				// Player join/leave history is player-facing; the audit
-				// trail names which admin did what and stays admin-only.
-				r.Get("/activity", s.handleServerActivity)
-				r.With(s.requireAdmin).Get("/audit", s.handleServerAudit)
-
-				r.Get("/metrics", s.handleServerMetrics)
-				r.Get("/metrics/history", s.handleServerMetricsHistory)
-				// Advisor chat. GET says whether the process has a key at
-				// all; POST answers one question.
-				r.Get("/advisor", s.handleAdvisorStatus)
-				r.Post("/advisor", s.handleAdvisorChat)
-
-				// Who can see what. Admin-only in both directions: the list of
-				// players who asked to be hidden is itself the sort of thing
-				// the hiding is meant to keep quiet.
-				r.With(s.requireAdmin).Get("/visibility", s.handleServerVisibility)
-				r.With(s.requireAdmin).Put("/visibility", s.handleUpdateServerVisibility)
-			})
+			r.Use(maxBodyBytes(1 << 20))
+			s.mountAPI(r)
 		})
 	})
 
 	r.NotFound(spaHandler(staticFS))
 
 	return r
+}
+
+// mountAPI is the JSON API under the standard body cap — the whole
+// surface except the save-bundle uploads mounted above it.
+func (s *Server) mountAPI(r chi.Router) {
+	r.Post("/login", s.handleLogin)
+	// Sign-in for people Cloudflare Access already authenticated.
+	// Unauthenticated by necessity — the assertion on the request
+	// *is* the credential, and cfaccess verifies it before anything
+	// is read from it. A 404 when Access isn't configured keeps the
+	// frontend's silent attempt cheap.
+	r.Post("/login/cloudflare", s.handleCloudflareLogin)
+
+	// Unauthenticated data endpoints, all token-gated: the read-only
+	// status page (see public.go), and any public routes the game
+	// contributes (each gating itself on the companion token).
+	r.Get("/public/status/{token}", s.handlePublicStatus)
+	if s.PublicGameRoutes != nil {
+		r.Route("/public", s.PublicGameRoutes)
+	}
+
+	r.Group(func(r chi.Router) {
+		r.Use(s.requireAuth)
+		r.Post("/logout", s.handleLogout)
+		r.Get("/me", s.handleMe)
+		r.Post("/me/password", s.handleChangeOwnPassword)
+
+		// Registered flat rather than via r.Route: a subrouter's "/"
+		// only matches /users/, so POST /api/users 404s.
+		// The host dashboard: what Anvil holds on this machine —
+		// containers, ports, images. Read-only; see host.go.
+		r.With(s.requireAdmin).Get("/host", s.handleHostOverview)
+
+		r.With(s.requireAdmin).Get("/users", s.handleListUsers)
+		r.With(s.requireAdmin).Post("/users", s.handleCreateUser)
+		r.With(s.requireAdmin).Put("/users/{userID}", s.handleUpdateUser)
+		r.With(s.requireAdmin).Delete("/users/{userID}", s.handleDeleteUser)
+
+		// Advisor key management: process-wide (the advisor is one
+		// feature, not a per-server one), admin-only, stored encrypted.
+		// A key saved here wins over one from the environment.
+		r.With(s.requireAdmin).Put("/advisor/key", s.handleSetAdvisorKey)
+		r.With(s.requireAdmin).Delete("/advisor/key", s.handleDeleteAdvisorKey)
+		r.With(s.requireAdmin).Put("/advisor/settings", s.handleSetAdvisorSettings)
+		// Change which model a saved key runs, without re-entering it.
+		r.With(s.requireAdmin).Put("/advisor/key/model", s.handleSetAdvisorKeyModel)
+		r.Put("/me/advisor-key/model", s.handleSetUserAdvisorKeyModel)
+		// A user's own key, shadowing the shared one for their requests
+		// only. Any signed-in user; scoped to their account.
+		r.Put("/me/advisor-key", s.handleSetUserAdvisorKey)
+		r.Delete("/me/advisor-key", s.handleDeleteUserAdvisorKey)
+		// Embedded console docs, for the advisor's docs-search tool.
+		r.Get("/docs", s.handleDocs)
+
+		// Save-sync custody (docs/save-sync-architecture.md): a
+		// console-level resource, not a per-server one — a shared
+		// world is a save with holders, not a container. Mounted only
+		// when the console wires the engine; the upload verbs live in
+		// the big-body group above.
+		if s.SaveSync != nil {
+			s.mountSyncSmall(r)
+		}
+
+		r.Get("/servers", s.handleListServers)
+		r.With(s.requireAdmin).Post("/servers", s.handleCreateServer)
+		// New-server wizard: registers the row and generates the
+		// supervisor stack file for the human to deploy. Defaults and
+		// discovery let the wizard prefill from the provisioner's
+		// config instead of asking.
+		r.With(s.requireAdmin).Post("/servers/provision", s.handleProvisionServer)
+		r.With(s.requireAdmin).Get("/servers/provision/defaults", s.handleProvisionDefaults)
+		r.With(s.requireAdmin).Get("/servers/provision/discover", s.handleProvisionDiscover)
+		r.With(s.requireAdmin).Post("/servers/adopt", s.handleAdoptServer)
+		r.Route("/servers/{serverID}", func(r chi.Router) {
+			r.Get("/", s.handleGetServer)
+			r.With(s.requireAdmin).Put("/", s.handleUpdateServer)
+			r.With(s.requireAdmin).Delete("/", s.handleDeleteServer)
+
+			r.Get("/info", s.handleServerInfo)
+			r.Get("/players", s.handleServerPlayers)
+			// What this server's commands can actually do, asked
+			// before offering them rather than discovered by a 501.
+			r.Get("/capabilities", s.handleServerCapabilities)
+			r.With(s.requirePermission(store.PermBroadcast)).Post("/broadcast", s.handleServerBroadcast)
+			r.With(s.requirePermission(store.PermModerate)).Post("/kick", s.handleServerKick)
+			r.With(s.requirePermission(store.PermModerate)).Post("/ban", s.handleServerBan)
+			r.With(s.requirePermission(store.PermModerate)).Post("/unban", s.handleServerUnban)
+			r.With(s.requirePermission(store.PermSave)).Post("/save", s.handleServerSave)
+			r.With(s.requirePermission(store.PermShutdown)).Post("/shutdown", s.handleServerShutdown)
+
+			// Container power. Reading state is fine for anyone
+			// signed in; changing it needs the grant.
+			r.Get("/container", s.handleContainerStatus)
+			r.With(s.requirePermission(store.PermPower)).Post("/container/{action}", s.handleContainerAction)
+			r.With(s.requirePermission(store.PermPower)).Get("/container/logs", s.handleContainerLogs)
+			// SteamCMD repair & update — power territory: they exist
+			// to get a broken container updating again. Runs via the
+			// server's flameagent when configured, else the local
+			// install-path mount (cache clear only).
+			// How the agent will start the game. Read-only — one build
+			// exists, so there is nothing to select; it answers "can
+			// this agent's image actually run it?".
+			r.Get("/launch", s.handleGetLaunch)
+			// Rebuild this server's agent on another flameagent image.
+			// Admin-only: it destroys and recreates a container, which
+			// is provisioning, not day-to-day power.
+			r.With(s.requireAdmin).Post("/agent/image", s.handleRecreateAgent)
+			r.With(s.requirePermission(store.PermPower)).Post("/steam-cache/clear", s.handleClearSteamCache)
+			r.With(s.requirePermission(store.PermPower)).Post("/steam/update", s.handleSteamUpdateStart)
+			r.With(s.requirePermission(store.PermPower)).Get("/steam/update", s.handleSteamUpdateStatus)
+			r.Get("/settings", s.handleServerSettings)
+
+			// Settings editor (enshrouded_server.json here; the codec
+			// is per-game, see config.go). Gated even for reading: the
+			// file holds the role passwords in the clear.
+			r.With(s.requirePermission(store.PermSettings)).Get("/config", s.handleGetConfig)
+			r.With(s.requirePermission(store.PermSettings)).Put("/config", s.handleUpdateConfig)
+			r.With(s.requirePermission(store.PermSettings)).Post("/config/rotate-admin-password", s.handleRotateAdminPassword)
+			// Game-contributed routes (roles, ban lists, save-derived
+			// views). The permission-boundary rule they must follow:
+			// credential-bearing config behind PermSettings,
+			// credential-free moderation behind PermModerate.
+			if s.GameRoutes != nil {
+				s.GameRoutes(r)
+			}
+
+			// Automation: restart schedules are visible to anyone
+			// signed in ("when's the next restart?" is player-facing
+			// information); changing them, and everything Discord, is
+			// admin infrastructure config.
+			r.Get("/automation", s.handleGetAutomation)
+			r.With(s.requireAdmin).Post("/schedules", s.handleCreateSchedule)
+			r.With(s.requireAdmin).Put("/schedules/{scheduleID}", s.handleUpdateSchedule)
+			r.With(s.requireAdmin).Delete("/schedules/{scheduleID}", s.handleDeleteSchedule)
+			r.With(s.requireAdmin).Put("/discord", s.handleUpdateDiscord)
+			r.With(s.requireAdmin).Delete("/discord", s.handleDeleteDiscord)
+			r.With(s.requireAdmin).Post("/discord/test", s.handleTestDiscord)
+			r.With(s.requireAdmin).Put("/watchdog", s.handleUpdateWatchdog)
+			r.With(s.requireAdmin).Put("/public", s.handleUpdatePublicStatus)
+
+			// Save backups: the archive is the whole world, so even
+			// listing is admin-only.
+			r.With(s.requireAdmin).Get("/backups", s.handleListBackups)
+			r.With(s.requireAdmin).Put("/backups/settings", s.handleUpdateBackupSettings)
+			r.With(s.requireAdmin).Post("/backups/run", s.handleRunBackup)
+			r.With(s.requireAdmin).Get("/backups/{name}/download", s.handleDownloadBackup)
+			// The restore verb the archive was waiting for: place a
+			// snapshot back via the agent, server stopped, If-Match
+			// gated (savesync_server.go).
+			r.With(s.requireAdmin).Post("/backups/{name}/restore", s.handleRestoreBackup)
+			r.With(s.requireAdmin).Delete("/backups/{name}", s.handleDeleteBackup)
+
+			// Player join/leave history is player-facing; the audit
+			// trail names which admin did what and stays admin-only.
+			r.Get("/activity", s.handleServerActivity)
+			r.With(s.requireAdmin).Get("/audit", s.handleServerAudit)
+
+			r.Get("/metrics", s.handleServerMetrics)
+			r.Get("/metrics/history", s.handleServerMetricsHistory)
+			// Advisor chat. GET says whether the process has a key at
+			// all; POST answers one question.
+			r.Get("/advisor", s.handleAdvisorStatus)
+			r.Post("/advisor", s.handleAdvisorChat)
+
+			// Who can see what. Admin-only in both directions: the list of
+			// players who asked to be hidden is itself the sort of thing
+			// the hiding is meant to keep quiet.
+			r.With(s.requireAdmin).Get("/visibility", s.handleServerVisibility)
+			r.With(s.requireAdmin).Put("/visibility", s.handleUpdateServerVisibility)
+		})
+	})
 }
 
 // maxBodyBytes caps request body reads; exceeding it makes json.Decode

@@ -149,6 +149,181 @@ func (a *Agent) handleGetSave(w http.ResponseWriter, r *http.Request) {
 	_ = tw.Close()
 }
 
+// maxRestoreBytes bounds a save upload — the same ceiling agentctl
+// applies when extracting bundles from this agent.
+const maxRestoreBytes = 4 << 30
+
+// handleHeadSave answers the bundle ETag without the bundle, so a
+// restore caller can state its precondition without a full download. An
+// install with no save yet answers the ETag of the empty set — a real
+// value, so "restore into a fresh install" has something to match.
+func (a *Agent) handleHeadSave(w http.ResponseWriter, _ *http.Request) {
+	var entries []saveEntry
+	if saveDir, err := a.findSaveDir(); err == nil {
+		if entries, err = listSaveFiles(saveDir); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	w.Header().Set("ETag", bundleETag(entries))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handlePutSave replaces the world save with an uploaded bundle — the
+// one deliberate widening of the fixed-verb file surface
+// (docs/sidecar-agent.md), argued in docs/save-sync-architecture.md and
+// gated three ways:
+//
+//  1. The supervised game must not be running. (A companion-mode agent
+//     cannot see the game container; its console gates on container
+//     state before calling.)
+//  2. If-Match must name the current bundle ETag — the repo's first
+//     write precondition. A save that changed since the caller last
+//     looked is never blindly replaced; 412 carries the current ETag so
+//     the caller can look again and decide again.
+//  3. The upload is extracted beside the save and verified before an
+//     atomic swap, with the replaced save kept as one .bak.
+func (a *Agent) handlePutSave(w http.ResponseWriter, r *http.Request) {
+	if a.game != nil && a.game.Running() {
+		writeError(w, http.StatusConflict, "the game is running — stop it before restoring a save")
+		return
+	}
+
+	saveDir, findErr := a.findSaveDir()
+	var entries []saveEntry
+	if findErr == nil {
+		var err error
+		if entries, err = listSaveFiles(saveDir); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	} else {
+		// No save yet: restore targets the game's declared location. A
+		// game whose save dir needs discovery has nowhere unambiguous to
+		// restore into until the server has run once.
+		if a.cfg.Game.SaveDirName == "" {
+			writeError(w, http.StatusConflict, "no save directory exists yet and this game's location needs discovery — start the server once first")
+			return
+		}
+		saveDir = filepath.Join(a.cfg.InstallDir, a.cfg.Game.SaveDirName)
+	}
+	current := bundleETag(entries)
+	ifMatch := r.Header.Get("If-Match")
+	if ifMatch == "" {
+		writeError(w, http.StatusBadRequest, "If-Match is required: state the save you believe you are replacing")
+		return
+	}
+	if ifMatch != current {
+		w.Header().Set("ETag", current)
+		writeError(w, http.StatusPreconditionFailed, "the save changed since you last looked — fetch it again and decide again")
+		return
+	}
+
+	tmp := saveDir + ".agent-restore"
+	if err := os.RemoveAll(tmp); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := extractBundle(http.MaxBytesReader(w, r.Body, maxRestoreBytes), tmp); err != nil {
+		os.RemoveAll(tmp)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if a.cfg.Game.VerifyRestore != nil {
+		if err := a.cfg.Game.VerifyRestore(tmp); err != nil {
+			os.RemoveAll(tmp)
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	bak := saveDir + ".bak"
+	if _, err := os.Stat(saveDir); err == nil {
+		if err := os.RemoveAll(bak); err != nil {
+			os.RemoveAll(tmp)
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if err := os.Rename(saveDir, bak); err != nil {
+			os.RemoveAll(tmp)
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	} else if err := os.MkdirAll(filepath.Dir(saveDir), 0o755); err != nil {
+		os.RemoveAll(tmp)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := os.Rename(tmp, saveDir); err != nil {
+		// Put the old save back rather than leaving nothing live.
+		os.Rename(bak, saveDir)
+		os.RemoveAll(tmp)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	newEntries, err := listSaveFiles(saveDir)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	a.cfg.Logger.Info("save restored", "files", len(newEntries), "dir", saveDir)
+	w.Header().Set("ETag", bundleETag(newEntries))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// extractBundle unpacks an uploaded save bundle into dir, admitting only
+// relative regular files that resolve inside it — kept in lockstep with
+// agentctl's extractTar, which applies the same rules in the other
+// direction.
+func extractBundle(r io.Reader, dir string) error {
+	const maxFiles = 20_000
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tr := tar.NewReader(r)
+	files := 0
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			if files == 0 {
+				return errors.New("the uploaded bundle holds no files")
+			}
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("not a save bundle: %w", err)
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		if files++; files > maxFiles {
+			return errors.New("bundle exceeds the file-count bound")
+		}
+		name := filepath.FromSlash(hdr.Name)
+		if filepath.IsAbs(name) || strings.Contains(hdr.Name, "..") {
+			return fmt.Errorf("bundle entry %q escapes the destination", hdr.Name)
+		}
+		dest := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return err
+		}
+		f, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(f, tr)
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			return err
+		}
+		if !hdr.ModTime.IsZero() {
+			_ = os.Chtimes(dest, hdr.ModTime, hdr.ModTime)
+		}
+	}
+}
+
 func (a *Agent) configPath() string {
 	// Follow the launch profile when the agent runs the game (a custom
 	// profile can relocate the exe and its json); companion mode launches

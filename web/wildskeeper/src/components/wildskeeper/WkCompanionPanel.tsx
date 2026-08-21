@@ -4,7 +4,7 @@ import { api, errorDetail } from "../../lib/api";
 import { WkNote, WkPanel } from "./WkPanel";
 
 /**
- * Companion sharing: the admin-facing half of the wkcompanion app. The
+ * Companion sharing: the admin-facing half of the Artificer Companion app. The
  * game keeps each character's skills and inventory on the player's own
  * machine, so the console can only show them when players choose to share
  * — this panel mints the token that makes that choice possible, and
@@ -34,7 +34,7 @@ export function WkCompanionPanel({ serverId }: { serverId: number }) {
     >
       <p className="text-sm text-wk-mist">
         The game keeps each adventurer's skills and inventory on their own computer — this server never sees
-        them. Players who install the <b className="text-wk-parchment">wkcompanion</b> app can choose to share
+        them. Players who install the <b className="text-wk-parchment">Artificer Companion</b> app can choose to share
         their character sheet with this console: hand them this console's address and the token below.
       </p>
       {state?.enabled && (

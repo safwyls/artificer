@@ -194,6 +194,8 @@ A bare `GET /healthz` (204, no body) exists for container healthchecks only.
 | POST | `/v1/steam/update` | companion, supervisor | SteamCMD `app_update` job; 202 with a job id; 409 while busy, or (supervisor) while the game runs |
 | GET | `/v1/jobs/{id}` | all | state, timestamps, error, capped log tail |
 | GET | `/v1/files/save` | companion, supervisor | world save directory as a tar bundle, ETag/304 |
+| HEAD | `/v1/files/save` | companion, supervisor | the bundle ETag alone — the restore precondition's input (empty install answers the empty set's ETag) |
+| PUT | `/v1/files/save` | companion, supervisor | replace the save with an uploaded bundle (docs/save-sync-architecture.md). The one deliberate widening of the fixed-verb posture, still a fixed location: refused while the supervised game runs, `If-Match` on the current ETag required (412 carries the current one), extract-verify-swap with one `.bak` |
 | GET/PUT | `/v1/files/config` | companion, supervisor | the game's settings file; PUT writes atomically and refuses to create |
 | POST | `/v1/power/{start,stop,restart}` | supervisor | game process control. `?graceful=20s` on stop means the game has already accepted an in-game shutdown — let that exit finish before signalling |
 | GET | `/v1/power/logs` | supervisor | game stdout ring buffer |

@@ -31,9 +31,9 @@ type handlers struct {
 	// can say.
 	charNames func(agentURL string) map[string]string
 	// companion holds character records players relayed via the
-	// wkcompanion app — see companion.go.
+	// Artificer Companion app — see companion.go.
 	companion *companionInbox
-	// companionExe is the path of the bundled wkcompanion.exe the console
+	// companionExe is the path of the bundled artificer-companion.exe the console
 	// hands out (companion.go); empty when this deployment ships none.
 	companionExe string
 }
@@ -70,7 +70,7 @@ func (a *API) Routes() func(chi.Router) {
 	}
 }
 
-// SetCompanionExe names the bundled wkcompanion.exe to hand out; empty
+// SetCompanionExe names the bundled artificer-companion.exe to hand out; empty
 // (the default) makes the download answer honestly that this deployment
 // ships none.
 func (a *API) SetCompanionExe(path string) { a.h.companionExe = path }

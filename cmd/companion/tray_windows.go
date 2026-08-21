@@ -22,9 +22,9 @@ func runUI(a *app, url string) {
 	detachOwnConsole()
 	systray.Run(func() {
 		systray.SetIcon(trayIcon)
-		systray.SetTooltip("Wildskeeper Companion")
+		systray.SetTooltip("Artificer Companion")
 
-		open := systray.AddMenuItem("Open character sheet", "Show your characters in the browser")
+		open := systray.AddMenuItem("Open companion page", "Your characters and shared worlds, in the browser")
 		push := systray.AddMenuItem("Push to console now", "Send your character sheet immediately")
 		systray.AddSeparator()
 		status := systray.AddMenuItem("Starting…", "Sharing state")

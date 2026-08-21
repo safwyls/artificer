@@ -1,19 +1,24 @@
-// wkcompanion is the player-side companion for RuneScape: Dragonwilds.
+// companion is the Artificer Companion — the Artificer app that runs on
+// a player's own machine. It began life as wkcompanion, the Dragonwilds
+// character relay, and that is still its first job: the game keeps each
+// character's record on the player's machine
+// (games/dragonwilds/docs/recon.md, "Where player state lives"), so this
+// program watches the local SaveCharacters directory, shows the
+// character sheet in a local browser page, and — only when the player
+// configures it — relays the record to a wildskeeper console using a
+// companion token its admin minted.
 //
-// The game keeps each character's record — name, skills, inventory,
-// vitals — on the player's own machine (games/dragonwilds/docs/recon.md,
-// "Where player state lives"), so a dedicated server's console can never
-// show more than guid and position on its own. This program runs where
-// the data actually is: it watches the local SaveCharacters directory,
-// shows the character sheet in a local browser page, and — only when the
-// player configures it — relays the record to a wildskeeper console using
-// a companion token its admin minted.
+// Its second job is save-sync custody (docs/save-sync-architecture.md):
+// checking a shared world out of the console to host it from this
+// machine, pushing mid-session checkpoints, and checking it back in —
+// authenticated by the player's personal sync token from the console's
+// Worlds page. See sync.go.
 //
 // On Windows it lives in the system tray (build with
 // -ldflags="-H windowsgui" so no console window opens): the tray menu
-// opens the character sheet, pushes on demand, and shows the sharing
-// state. Elsewhere it runs as a plain console process — development
-// platforms, not player machines.
+// opens the page, pushes on demand, and shows the sharing state.
+// Elsewhere it runs as a plain console process — development platforms,
+// not player machines.
 //
 // Design notes, in the repo's spirit:
 //   - Local-first: with no console configured it is a character viewer
@@ -23,6 +28,9 @@
 //     parser to be wrong in.
 //   - No installer, no service: one binary, a tray icon, a config file
 //     under the user's config directory.
+//   - One app for every game Artificer runs, not a tray binary per game:
+//     game modules contribute their client-side knowledge to this
+//     command the way they contribute modules to the consoles.
 package main
 
 import (
@@ -60,7 +68,7 @@ func main() {
 		// A second launch is a normal user action, not an error: hand over
 		// to the instance already running and bow out.
 		if alreadyRunning(*listen) {
-			fmt.Printf("wkcompanion is already running — opening http://%s/\n", *listen)
+			fmt.Printf("the companion is already running — opening http://%s/\n", *listen)
 			openBrowser("http://" + *listen + "/")
 			return
 		}
@@ -76,7 +84,7 @@ func main() {
 		}
 	}()
 
-	fmt.Printf("wkcompanion — your character sheet is at %s\n", url)
+	fmt.Printf("artificer companion — your page is at %s\n", url)
 	fmt.Printf("config: %s\n", cfgPath)
 	if !*noBrowser {
 		openBrowser(url)
@@ -138,7 +146,9 @@ func openBrowser(url string) {
 // watchLoop is the whole engine: scan the save directory, keep the state
 // fresh for the page, and relay changes when a console is configured. A
 // steady heartbeat re-push keeps the console's in-memory inbox warm across
-// its restarts.
+// its restarts. The save-sync side rides the same loop: a status poll,
+// hold adoption when a queued claim came through, and the checkpoint
+// pushes (sync.go).
 func (a *app) watchLoop() {
 	const (
 		scanEvery      = 15 * time.Second
@@ -153,6 +163,7 @@ func (a *app) watchLoop() {
 				lastHeartbeat = time.Now()
 			}
 		}
+		a.syncTick()
 		time.Sleep(scanEvery)
 	}
 }

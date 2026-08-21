@@ -26,6 +26,7 @@ import (
 	"github.com/safwyls/artificer/core/game"
 	"github.com/safwyls/artificer/core/notify"
 	"github.com/safwyls/artificer/core/savecache"
+	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/sched"
 	"github.com/safwyls/artificer/core/store"
 	"github.com/safwyls/artificer/core/watchdog"
@@ -130,17 +131,41 @@ func run(logger *slog.Logger) error {
 	backups := backup.New(st, notifier, logger, cfg.DataDir, files)
 	go backups.Run(ctx)
 
+	// Shared-world save custody: checkout/check-in with versioned
+	// archives under DATA_DIR (docs/save-sync-architecture.md). The
+	// background loop only sends expiry warnings; custody itself is
+	// request-driven.
+	saveSync := savesync.New(st, notifier, logger, cfg.DataDir)
+	go saveSync.Run(ctx)
+
 	// Dragonwilds has no offline-config work: the ini has one writer.
 	apiServer := api.New(st, cfg.JWTSecret, logger, docker, notifier, backups, files, nil)
 	apiServer.SessionCookie = "wildskeeper_session"
 	apiServer.Provision = dragonwilds.ProvisionProfile()
+	apiServer.SaveSync = saveSync
 	dwAPI := dwapi.New(apiServer, worlds, dragonwilds.CharacterNames)
 	// The bundled player-side companion the console hands out — the image
 	// build places it beside the binary; a source checkout usually has
-	// none, and the endpoint says so instead of 500ing.
-	companionExe := os.Getenv("WKCOMPANION_EXE")
+	// none, and the endpoint says so instead of 500ing. The app was
+	// renamed wkcompanion → Artificer Companion; the old env var and the
+	// old bundled filename keep working (frozen API: a rename is a
+	// migration, not an edit).
+	companionExe := os.Getenv("COMPANION_EXE")
 	if companionExe == "" {
-		companionExe = "wkcompanion.exe"
+		if legacy := os.Getenv("WKCOMPANION_EXE"); legacy != "" {
+			logger.Warn("WKCOMPANION_EXE is the retired name for COMPANION_EXE; it still works, but rename it")
+			companionExe = legacy
+		}
+	}
+	if companionExe == "" {
+		companionExe = "artificer-companion.exe"
+		if _, err := os.Stat(companionExe); err != nil {
+			// A wkcompanion-era image ships the exe under its old name;
+			// keep that deployment's download link working.
+			if _, err := os.Stat("wkcompanion.exe"); err == nil {
+				companionExe = "wkcompanion.exe"
+			}
+		}
 	}
 	dwAPI.SetCompanionExe(companionExe)
 	apiServer.GameRoutes = dwAPI.Routes()

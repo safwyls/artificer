@@ -104,6 +104,14 @@ export function WkSaves() {
     },
     onError: (e: Error) => toast.error(e.message || "Delete failed"),
   });
+  const restore = useMutation({
+    mutationFn: (name: string) => api.restoreBackup(id, name),
+    onSuccess: (out) => {
+      toast.success(`Restored ${out.restored} — start the server when ready`);
+      queryClient.invalidateQueries({ queryKey: ["world", id] });
+    },
+    onError: (e) => toast.error("Restore refused", { description: errorDetail(e) ?? (e as Error).message }),
+  });
   // On-demand save through the dwbridge mod. The world panel is the
   // confirmation: "Last written" ticks to just now and the save revision
   // counts up, so refetch it. A server with no bridge answers 501 with its
@@ -213,6 +221,21 @@ export function WkSaves() {
                         </a>
                         <button
                           onClick={() => {
+                            if (
+                              confirm(
+                                `Restore ${s.name} over the live save? The server must be stopped; everything written since this snapshot is replaced (the agent keeps one .bak).`,
+                              )
+                            )
+                              restore.mutate(s.name);
+                          }}
+                          disabled={restore.isPending}
+                          title="Place this snapshot back via the server's agent (server stopped)"
+                          className="rounded-sm border border-wk-edge px-2.5 py-0.5 text-xs text-wk-mist transition hover:border-wk-brass hover:text-wk-brasshi disabled:opacity-50"
+                        >
+                          Restore
+                        </button>
+                        <button
+                          onClick={() => {
                             if (confirm(`Delete snapshot ${s.name}? This cannot be undone.`)) remove.mutate(s.name);
                           }}
                           className="rounded-sm border border-wk-edge px-2.5 py-0.5 text-xs text-wk-mist transition hover:border-wk-emberdim hover:text-wk-ember"
@@ -228,8 +251,8 @@ export function WkSaves() {
           )}
           <WkNote>
             The live server loads the newest .sav in SaveGames/ on start, and the filename must match the world name.
-            Restoring a snapshot in place lands with the agent's supervisor work — until then, download and place it
-            by hand while the server is stopped.
+            Restore places a snapshot back through the server's agent: the server must be stopped, the agent verifies
+            before swapping, and the replaced save is kept as one .bak.
           </WkNote>
         </WkPanel>
       </div>

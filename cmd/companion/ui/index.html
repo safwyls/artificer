@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wildskeeper Companion</title>
+<title>Artificer Companion</title>
 <style>
   /* One deliberate dark look, kin to the wildskeeper console. */
   :root {
@@ -68,13 +68,32 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Wildskeeper Companion</h1>
+  <h1>Artificer Companion</h1>
   <div class="sub">Your Dragonwilds characters, read from this computer — the game keeps them here, not on the server.</div>
 
   <div id="characters"></div>
   <div class="panel" id="empty" style="display:none">
     <h2>No characters found</h2>
     <p id="emptyReason" class="note"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Shared worlds</h2>
+    <p class="note" style="margin-top:0">
+      Optional. With your personal sync token from the console's Worlds page, this app checks a shared world out
+      to this computer so you can host it, pushes safety checkpoints while you play, and checks it back in when
+      you're done.
+    </p>
+    <div id="worlds"></div>
+    <label>Your sync token (from the console's Worlds page)</label>
+    <input id="syncToken" placeholder="paste your personal sync token">
+    <label>World save folder on this computer (where the game keeps the hosted world)</label>
+    <input id="worldDir" placeholder="e.g. C:\Users\you\AppData\Local\RSDragonwilds\Saved\SaveGames\...">
+    <div>
+      <button onclick="saveSyncCfg()">Save &amp; connect</button>
+      <span id="syncStatus" class="mono"></span>
+    </div>
+    <div class="note" id="syncLine"></div>
   </div>
 
   <div class="panel">
@@ -165,6 +184,66 @@ function renderCharacter(c) {
   </div>`;
 }
 
+function worldRow(w, st) {
+  const me = st.sync.username;
+  const h = w.holder;
+  let line, actions = [];
+  const btn = (label, call, quiet) =>
+    `<button class="${quiet ? "quiet" : ""}" style="margin-top:6px" onclick="${call}">${label}</button>`;
+  if (!h) {
+    line = w.claimedBy ? `Free · next claim: ${esc(w.claimedBy)}` : "Free — nobody holds this world";
+    actions.push(btn("Check out & host", `syncCheckout(${w.world.id}, false)`));
+  } else if (h.username === me) {
+    line = `You hold this world until ${new Date(h.expiresAt).toLocaleString()}`;
+    if (st.sync.sessionId === h.sessionId) {
+      actions.push(btn("Check in", `syncCheckin()`));
+      actions.push(btn("Checkpoint now", `syncCall('/api/sync/checkpoint', 'checkpoint pushed')`, true));
+      actions.push(btn("Renew hold", `syncCall('/api/sync/renew', 'hold renewed')`, true));
+    } else {
+      line += " — fetching it to this machine…";
+    }
+  } else {
+    line = `Held by ${esc(h.username)} until ${new Date(h.expiresAt).toLocaleString()}`;
+    if (h.claimable) {
+      line = `Held by ${esc(h.username)} — the hold expired`;
+      actions.push(btn("Take over expired hold", `syncCheckout(${w.world.id}, true)`));
+    }
+    if (!w.claimedBy) actions.push(btn("Claim next", `syncClaim(${w.world.id})`, true));
+    else if (w.claimedBy === me) line += ` · you're next`;
+  }
+  const head = w.head ? ` · latest version ${new Date(w.head.createdAt).toLocaleString()}` : " · no versions yet";
+  return `<div style="border-top:1px solid var(--edge);padding:8px 0">
+    <b>${esc(w.world.name)}</b><span class="mono">${head}</span><br>
+    <span class="note">${line}</span><br>${actions.join(" ")}
+  </div>`;
+}
+
+async function syncCall(path, okMsg, body) {
+  const status = document.getElementById("syncStatus");
+  status.textContent = "working…"; status.className = "mono status-idle";
+  const out = await (await fetch(path, { method: path.endsWith("config") ? "PUT" : "POST", body: JSON.stringify(body || {}) })).json();
+  status.textContent = out.ok ? okMsg : out.error;
+  status.className = "mono " + (out.ok ? "status-ok" : "status-err");
+  refresh();
+  return out.ok;
+}
+const syncCheckout = (worldId, takeover) => {
+  if (takeover && !confirm("Take over the expired hold? The old holder's late check-in will be kept and flagged, not lost.")) return;
+  syncCall("/api/sync/checkout", "world checked out to this machine", { worldId, takeover });
+};
+const syncCheckin = () => syncCall("/api/sync/checkin", "checked in — the world is free");
+const syncClaim = worldId => syncCall("/api/sync/claim", "you're next — the world downloads automatically when it frees up", { worldId });
+async function saveSyncCfg() {
+  const ok = await syncCall("/api/sync/config", "connected", {
+    token: document.getElementById("syncToken").value,
+    worldDir: document.getElementById("worldDir").value,
+  });
+  if (ok) {
+    document.getElementById("syncToken").value = "";
+    for (const id of ["syncToken", "worldDir"]) delete document.getElementById(id).dataset.dirty;
+  }
+}
+
 async function refresh() {
   const st = await (await fetch("/api/state")).json();
   const box = document.getElementById("characters");
@@ -191,9 +270,30 @@ async function refresh() {
   } else {
     line.textContent = "Local-only: nothing leaves this computer.";
   }
+
+  const sync = st.sync || {};
+  const worldsBox = document.getElementById("worlds");
+  if (sync.configured && (sync.worlds || []).length) {
+    worldsBox.innerHTML = sync.worlds.map(w => worldRow(w, st)).join("");
+  } else if (sync.configured) {
+    worldsBox.innerHTML = `<p class="note">Connected as ${esc(sync.username || "…")} — the console lists no shared worlds yet.</p>`;
+  } else {
+    worldsBox.innerHTML = "";
+  }
+  const dirEl = document.getElementById("worldDir");
+  if (document.activeElement !== dirEl && !dirEl.dataset.dirty) dirEl.value = sync.worldDir || "";
+  const syncLine = document.getElementById("syncLine");
+  if (sync.configured) {
+    syncLine.innerHTML = `Connected as <b>${esc(sync.username || "…")}</b>` +
+      (sync.busy ? " · transfer in progress…" : "") +
+      (sync.lastAction ? ` · ${esc(sync.lastAction)}` : "") +
+      (sync.lastError ? ` · <span class="status-err">${esc(sync.lastError)}</span>` : "");
+  } else {
+    syncLine.textContent = "World sync is off until a token and world folder are set.";
+  }
 }
 
-for (const id of ["consoleUrl", "token", "saveDir"])
+for (const id of ["consoleUrl", "token", "saveDir", "syncToken", "worldDir"])
   document.getElementById(id).addEventListener("input", e => e.target.dataset.dirty = "1");
 
 async function saveCfg() {

@@ -42,7 +42,7 @@ func companionRecordJSON(name, guidB64 string) map[string]any {
 	}
 }
 
-// TestCompanionFlow drives the whole loop the wkcompanion app uses:
+// TestCompanionFlow drives the whole loop the companion app uses:
 // admin enables sharing, the app validates its token, pushes a record,
 // and the world endpoint serves the merged character.
 func TestCompanionFlow(t *testing.T) {
@@ -154,7 +154,7 @@ func TestCompanionDownload(t *testing.T) {
 	}
 
 	// With the bundle present, the exe streams as an attachment.
-	exe := filepath.Join(t.TempDir(), "wkcompanion.exe")
+	exe := filepath.Join(t.TempDir(), "artificer-companion.exe")
 	if err := os.WriteFile(exe, []byte("MZfake-exe-bytes"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestCompanionDownload(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("download: got %d %s", rec.Code, rec.Body)
 	}
-	if got := rec.Header().Get("Content-Disposition"); !strings.Contains(got, "wkcompanion.exe") {
+	if got := rec.Header().Get("Content-Disposition"); !strings.Contains(got, "artificer-companion.exe") {
 		t.Errorf("Content-Disposition = %q", got)
 	}
 	if rec.Body.String() != "MZfake-exe-bytes" {

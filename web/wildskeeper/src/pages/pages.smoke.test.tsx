@@ -105,6 +105,9 @@ const overrides: Record<string, unknown> = {
     allStreams: [],
   },
   publicStatus: { name: "Palhalla", online: false },
+  listSyncWorlds: { worlds: [] },
+  getSyncWorld: { status: { world: { id: 1, name: "midgard" } }, versions: [], uploaders: {} },
+  getSyncToken: { token: "" },
 };
 
 vi.mock("../lib/api", async () => {
@@ -113,7 +116,7 @@ vi.mock("../lib/api", async () => {
     {},
     {
       get(_target, prop: string) {
-        if (prop === "backupDownloadURL") return () => "";
+        if (prop === "backupDownloadURL" || prop === "syncDownloadURL") return () => "";
         return () => Promise.resolve(prop in overrides ? overrides[prop] : []);
       },
     },
@@ -129,6 +132,7 @@ import { ServerActivity } from "./ServerActivity";
 import { ServerAutomation } from "./ServerAutomation";
 import { Host } from "./Host";
 import { Users } from "./Users";
+import { Worlds } from "./Worlds";
 import { WkOverview } from "./wildskeeper/WkOverview";
 import { WkAdventurers } from "./wildskeeper/WkAdventurers";
 import { WkSaves } from "./wildskeeper/WkSaves";
@@ -165,6 +169,7 @@ const pages: [string, ReactElement, string, string][] = [
   ["PublicStatus", <PublicStatus />, "/status/:token", "/status/abc"],
   ["Users", <Users />, "/users", "/users"],
   ["Host", <Host />, "/host", "/host"],
+  ["Worlds", <Worlds />, "/worlds", "/worlds"],
   ["ServerActivity", <ServerActivity />, SERVER_ROUTE, SERVER_PATH],
   ["ServerAutomation", <ServerAutomation />, SERVER_ROUTE, SERVER_PATH],
   ["WkOverview", <WkOverview />, SERVER_ROUTE, SERVER_PATH],
