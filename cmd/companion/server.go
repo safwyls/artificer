@@ -121,7 +121,11 @@ func (a *app) handleDiscover(w http.ResponseWriter, r *http.Request) {
 // handleArtwork answers cover art for the discovered games, resolved
 // through the sync service (which holds the IGDB credentials).
 func (a *app) handleArtwork(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]any{"ok": true, "art": a.artwork()})
+	art := a.artwork()
+	a.mu.Lock()
+	failure, asked := a.artError, a.artAsked
+	a.mu.Unlock()
+	writeJSON(w, map[string]any{"ok": true, "art": art, "asked": asked, "error": failure})
 }
 
 func (a *app) handleAddLink(w http.ResponseWriter, r *http.Request) {

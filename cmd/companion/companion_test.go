@@ -2,6 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -251,5 +255,96 @@ func TestSaveCandidates(t *testing.T) {
 	// A game with nothing anywhere gets nothing — no false positives.
 	if got := saveCandidatesFor(discoveredGame{Name: "Some Game Nobody Installed", InstallDir: "NopeNopeNope"}, nil); len(got) != 0 {
 		t.Errorf("invented candidates for an absent game: %+v", got)
+	}
+}
+
+// Artwork is asked for once games exist, and not before.
+//
+// The bug this pins down: the page fetched covers exactly once, at load,
+// before the filesystem walk had found anything. artwork() saw an empty
+// shelf, had nothing to look up, and returned without calling the
+// service — which then reported "0 asked" beside credentials that tested
+// fine. Nothing re-triggered it, so covers never appeared at all.
+func TestArtworkAsksOnceGamesAreKnown(t *testing.T) {
+	var batches [][]artQuery
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Games []artQuery `json:"games"`
+		}
+		json.NewDecoder(r.Body).Decode(&in)
+		batches = append(batches, in.Games)
+		json.NewEncoder(w).Encode(map[string]any{
+			"accepted": true,
+			"art":      map[string]gameArt{"app:111": {Name: "Palworld", Cover: "https://img/co1.jpg"}},
+		})
+	}))
+	defer srv.Close()
+
+	a := newApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+
+	// Discovery hasn't run: nothing to ask about, and nothing asked.
+	if art := a.artwork(); len(art) != 0 {
+		t.Errorf("art = %v before discovery, want none", art)
+	}
+	if len(batches) != 0 {
+		t.Fatalf("the service was asked %d times with no games known", len(batches))
+	}
+
+	// Discovery finishes. The next ask reaches the service — the step
+	// that never used to happen.
+	a.mu.Lock()
+	a.discovered = discovery{Games: []discoveredGame{
+		{Name: "Palworld", AppID: "111"},
+		{Name: "Some Unknown Game", AppID: "222"},
+	}}
+	a.mu.Unlock()
+
+	art := a.artwork()
+	if len(batches) != 1 || len(batches[0]) != 2 {
+		t.Fatalf("service batches = %v, want one batch of both games", batches)
+	}
+	if got := art["app:111"]; got.Name != "Palworld" || got.Cover == "" {
+		t.Errorf("art for the known game = %+v, want the service's answer", got)
+	}
+	if _, ok := art["app:222"]; ok {
+		t.Error("a game the service knows nothing about should be absent, not empty")
+	}
+
+	// Asking again re-uses the cache, misses included: a rescan must not
+	// re-ask for games IGDB has never heard of.
+	a.artwork()
+	if len(batches) != 1 {
+		t.Errorf("service asked %d times, want the second call served from cache", len(batches))
+	}
+	a.mu.Lock()
+	asked, failure := a.artAsked, a.artError
+	a.mu.Unlock()
+	if asked != 2 || failure != "" {
+		t.Errorf("asked = %d, artError = %q; want 2 and no failure", asked, failure)
+	}
+}
+
+// A service that cannot answer says so, instead of leaving a bare shelf
+// with no explanation.
+func TestArtworkFailureIsRecorded(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		io.WriteString(w, "upstream is down")
+	}))
+	defer srv.Close()
+
+	a := newApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+	a.mu.Lock()
+	a.discovered = discovery{Games: []discoveredGame{{Name: "Palworld", AppID: "111"}}}
+	a.mu.Unlock()
+
+	if art := a.artwork(); len(art) != 0 {
+		t.Errorf("art = %v from a failing service, want none", art)
+	}
+	a.mu.Lock()
+	failure := a.artError
+	a.mu.Unlock()
+	if failure == "" {
+		t.Error("a failed artwork lookup left no explanation for the page to show")
 	}
 }

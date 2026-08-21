@@ -819,16 +819,25 @@ func (a *app) artwork() map[string]gameArt {
 	if len(need) == 0 || !configured {
 		return out
 	}
+	a.mu.Lock()
+	a.artAsked += len(need)
+	a.mu.Unlock()
 	var resp struct {
 		Art map[string]gameArt `json:"art"`
 	}
 	if err := a.syncDo(http.MethodPost, "/artwork", map[string]any{"games": need}, &resp); err != nil {
-		// Not worth surfacing: artwork is decoration, and the sync error
-		// surface is for things that block custody.
+		// Artwork never blocks custody, so this stays out of the sync
+		// error line — but it is not silent either: the page shows it
+		// under the shelf, where a missing cover is what prompts the
+		// question.
 		log.Printf("artwork lookup: %v", err)
+		a.mu.Lock()
+		a.artError = err.Error()
+		a.mu.Unlock()
 		return out
 	}
 	a.mu.Lock()
+	a.artError = ""
 	for _, q := range need {
 		key := artKey(q)
 		hit := resp.Art[key] // a miss caches as empty, so it isn't re-asked every rescan

@@ -81,6 +81,7 @@
       linking tells the sync service which game a world belongs to and where its save lives here.
     </p>
     <div id="discovered" class="grid"></div>
+    <div class="note" id="artNote"></div>
     <div class="mono" id="lookedIn" style="margin-top:8px"></div>
     <button class="quiet" onclick="rescan()">Rescan</button>
     <button class="quiet" onclick="openLinkForm(null)">Link a folder by hand…</button>
@@ -398,10 +399,34 @@ async function saveCfg() {
   document.getElementById("token").value = "";
 }
 
+// Covers are fetched whenever the discovered game set changes — not
+// once at page load, which was the bug that made a perfectly good IGDB
+// credential look dead. Discovery is a filesystem walk that finishes
+// after the first render, so the one boot-time call always found an
+// empty shelf, asked for nothing, and never ran again; the service's own
+// counter read "0 asked" while its credentials tested fine.
+let ART_SIG = null, ART_BUSY = false;
+async function maybeLoadArt() {
+  if (ART_BUSY) return;
+  const games = ((ST.discovered || {}).games || []).map(gameKey).sort();
+  if (!games.length) return;
+  const sig = JSON.stringify(games);
+  if (sig === ART_SIG) return;
+  ART_SIG = sig;
+  ART_BUSY = true;
+  try { await loadArt(); } finally { ART_BUSY = false; }
+}
 async function loadArt() {
   try {
     const out = await (await fetch("/api/artwork")).json();
     if (out.art) { ART = out.art; renderShelf(); }
+    const note = document.getElementById("artNote");
+    note.className = out.error ? "note status-err" : "note";
+    note.textContent = out.error
+      ? "Cover art unavailable: " + out.error
+      : (out.asked && !Object.keys(out.art || {}).length
+          ? "The sync service has no cover art for these games — check its Cover art panel."
+          : "");
   } catch { /* covers are decoration; a failure changes nothing */ }
 }
 
@@ -420,6 +445,7 @@ async function refresh() {
   renderLinks();
   renderDiscovered();
   renderVersion();
+  maybeLoadArt();
   const urlEl = document.getElementById("serverUrl");
   if (document.activeElement !== urlEl && !urlEl.dataset.dirty) urlEl.value = ST.config.serverUrl || "";
   const steamEl = document.getElementById("steamDir");
@@ -438,7 +464,7 @@ async function refresh() {
 for (const id of ["serverUrl", "token", "steamDir"])
   document.getElementById(id).addEventListener("input", e => e.target.dataset.dirty = "1");
 
-refresh().then(loadArt);
+refresh();
 setInterval(refresh, 5000);
 </script>
 </body>
