@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -30,6 +31,10 @@ func (a *app) routes() http.Handler {
 	// putting non-game entries away (browse.go, hidden.go).
 	mux.HandleFunc("GET /api/savehints", a.handleSaveHints)
 	mux.HandleFunc("GET /api/browse", a.handleBrowse)
+	// The two halves of a save folder (savepath.go): where does this
+	// folder split, and where does an existing world live under mine.
+	mux.HandleFunc("GET /api/savepath/split", a.handleSplitSavePath)
+	mux.HandleFunc("POST /api/savepath/resolve", a.handleResolveSavePath)
 	mux.HandleFunc("POST /api/hide", a.handleHide)
 	// World links and custody. Local-only like everything here; the real
 	// authorization is the sync token these calls carry upstream.
@@ -168,6 +173,69 @@ func (a *app) handleSaveHints(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "available": available, "known": known, "error": failure})
 }
 
+// handleSplitSavePath reports where a chosen folder divides into the
+// part a joining player supplies and the part the world carries with it.
+// The page shows the answer before anything is recorded, because a guess
+// nobody can see is a guess nobody can correct.
+func (a *app) handleSplitSavePath(w http.ResponseWriter, r *http.Request) {
+	dir := cleanPastedPath(r.URL.Query().Get("dir"))
+	if dir == "" {
+		writeJSON(w, map[string]any{"ok": false, "error": "no folder given"})
+		return
+	}
+	a.mu.Lock()
+	libs := append([]string(nil), a.discovered.Libraries...)
+	var roots []string
+	for _, g := range a.discovered.Games {
+		if g.AppID == r.URL.Query().Get("appId") || strings.EqualFold(g.Name, r.URL.Query().Get("name")) {
+			for _, c := range g.SaveDirs {
+				roots = append(roots, c.Path)
+			}
+			for _, loc := range a.hints[gameKey(g)] {
+				if !loc.appliesHere() {
+					continue
+				}
+				roots = append(roots, expandTemplate(loc.Template, g.InstallDir, libs)...)
+			}
+		}
+	}
+	a.mu.Unlock()
+	writeJSON(w, map[string]any{"ok": true, "split": splitSaveDir(dir, roots)})
+}
+
+// handleResolveSavePath joins a world's own folder under a root the
+// player chose, creating it when asked. This is the join flow: the
+// second player to take a world cannot type an opaque id they have never
+// seen, so they supply the half they know and the companion makes the
+// rest.
+func (a *app) handleResolveSavePath(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Root   string `json:"root"`
+		Leaf   string `json:"leaf"`
+		Create bool   `json:"create"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
+		return
+	}
+	var dir string
+	var err error
+	if in.Create {
+		dir, err = prepareWorldDir(in.Root, in.Leaf)
+	} else {
+		dir, err = joinSavePath(in.Root, in.Leaf)
+	}
+	if err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	exists := false
+	if info, serr := os.Stat(dir); serr == nil && info.IsDir() {
+		exists = true
+	}
+	writeJSON(w, map[string]any{"ok": true, "dir": dir, "exists": exists})
+}
+
 func (a *app) handleAddLink(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		WorldID   int64  `json:"worldId"`
@@ -194,13 +262,14 @@ func (a *app) handleCreateWorld(w http.ResponseWriter, r *http.Request) {
 		Dir       string `json:"dir"`
 		Meta      string `json:"meta"`
 		AppID     string `json:"appId"`
+		SavePath  string `json:"savePath"`
 		Seed      bool   `json:"seed"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
 		return
 	}
-	if err := a.createWorld(strings.TrimSpace(in.Name), in.GameTitle, strings.TrimSpace(in.Dir), in.Meta, in.AppID, in.Seed); err != nil {
+	if err := a.createWorld(strings.TrimSpace(in.Name), in.GameTitle, strings.TrimSpace(in.Dir), in.Meta, in.AppID, in.SavePath, in.Seed); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}

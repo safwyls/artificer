@@ -347,6 +347,74 @@ func TestGrantingCustodyAfterTheFact(t *testing.T) {
 	}
 }
 
+// A world remembers the folder it lives in, and that folder is treated
+// as what it is: a path that will be created on someone else's machine.
+func TestWorldSavePath(t *testing.T) {
+	app, admin := newVaultApp(t)
+	app.createUser(t, admin, "alice", "alicepassword", "user", []string{store.PermSync})
+	alice := app.login(t, "alice", "alicepassword")
+	rec := app.do(t, "POST", "/api/me/sync-token", nil, alice)
+	token := decodeMap(t, rec)["token"].(string)
+
+	// The first companion to link records where the world lives.
+	rec = app.do(t, "POST", "/api/public/sync/"+token+"/worlds", map[string]string{
+		"name": "witchspire", "gameTitle": "Witchspire",
+		"saveHint": `C:\Users\alice\AppData\Local\Witchspire\Saved\SaveGames\K2hAc0p_LH74aymwOemkgg`,
+		"savePath": "K2hAc0p_LH74aymwOemkgg",
+	}, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create with a save path: %d (body %s)", rec.Code, rec.Body)
+	}
+	world := decodeMap(t, rec)["status"].(map[string]any)["world"].(map[string]any)
+	if world["savePath"] != "K2hAc0p_LH74aymwOemkgg" {
+		t.Fatalf("world = %v, want the save path recorded", world)
+	}
+
+	// A second companion reporting its own metadata must not move the
+	// world: the first one settled where it lives, and a joiner whose
+	// own folder differs would otherwise rewrite it for everyone.
+	rec = app.do(t, "PUT", "/api/public/sync/"+token+"/worlds/1/meta", map[string]string{
+		"gameTitle": "Witchspire", "saveHint": `D:\Games\Witchspire`, "savePath": "someone-elses-folder",
+	}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second companion meta: %d (body %s)", rec.Code, rec.Body)
+	}
+	rec = app.do(t, "GET", "/api/sync/worlds/1", nil, admin)
+	world = decodeMap(t, rec)["status"].(map[string]any)["world"].(map[string]any)
+	if world["savePath"] != "K2hAc0p_LH74aymwOemkgg" {
+		t.Errorf("save path = %v after a joiner reported its own, want the original", world["savePath"])
+	}
+
+	// An admin can correct it, through the settings form.
+	rec = app.do(t, "PUT", "/api/sync/worlds/1", map[string]any{
+		"name": "witchspire", "leaseHours": 6, "maxBytes": 1 << 30, "keepVersions": 5,
+		"checkpoints": true, "savePath": "corrected/folder",
+	}, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin edit: %d (body %s)", rec.Code, rec.Body)
+	}
+	rec = app.do(t, "GET", "/api/sync/worlds/1", nil, admin)
+	world = decodeMap(t, rec)["status"].(map[string]any)["world"].(map[string]any)
+	if world["savePath"] != "corrected/folder" {
+		t.Errorf("save path = %v after an admin edit", world["savePath"])
+	}
+
+	// The save path becomes a real folder on someone else's machine, so
+	// anything that could point outside the folder they chose is refused
+	// at the door.
+	for _, bad := range []string{
+		"../escape", "a/../../escape", "/absolute", `windows\style`,
+		"C:/drive", "trailing/", "double//slash", "dot/./here",
+	} {
+		rec := app.do(t, "POST", "/api/public/sync/"+token+"/worlds", map[string]string{
+			"name": "bad-" + bad, "savePath": bad,
+		}, nil)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("save path %q was accepted with %d", bad, rec.Code)
+		}
+	}
+}
+
 // The build is reported without a session: the login page shows it too,
 // and a version is not a secret.
 func TestVaultVersion(t *testing.T) {

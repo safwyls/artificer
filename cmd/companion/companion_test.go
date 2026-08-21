@@ -422,7 +422,7 @@ func TestCreateWorldChecksTheFolderBeforeCreatingAnything(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			hits = nil
-			err := a.createWorld("midgard", "Palworld", tc.dir, "", "", false)
+			err := a.createWorld("midgard", "Palworld", tc.dir, "", "", "", false)
 			if err == nil {
 				t.Fatal("createWorld succeeded with an unusable save folder")
 			}
@@ -447,7 +447,7 @@ func TestCreateWorldChecksTheFolderBeforeCreatingAnything(t *testing.T) {
 		t.Fatalf("write save: %v", err)
 	}
 	hits = nil
-	if err := a.createWorld("midgard", "Palworld", dir, `{"appId":"1623730"}`, "1623730", false); err != nil {
+	if err := a.createWorld("midgard", "Palworld", dir, `{"appId":"1623730"}`, "1623730", "", false); err != nil {
 		t.Fatalf("createWorld with a real folder: %v", err)
 	}
 	if len(hits) == 0 || hits[0] != "POST /api/public/sync/tok/worlds" {
@@ -663,5 +663,105 @@ func TestEmptyCandidatesSink(t *testing.T) {
 	})
 	if len(got) != 2 || got[0].Path != full {
 		t.Errorf("candidates = %+v, want the folder with saves in it first", got)
+	}
+}
+
+// Splitting a save folder into the half a joining player supplies and
+// the half the world carries.
+func TestSplitSaveDir(t *testing.T) {
+	root := t.TempDir()
+	saveGames := filepath.Join(root, "Witchspire", "Saved", "SaveGames")
+	world := filepath.Join(saveGames, "K2hAc0p_LH74aymwOemkgg")
+	if err := os.MkdirAll(world, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	// A catalogue root that contains the folder settles it outright.
+	got := splitSaveDir(world, []string{saveGames})
+	if got.Root != saveGames || got.Leaf != "K2hAc0p_LH74aymwOemkgg" {
+		t.Errorf("with a known root: %+v", got)
+	}
+
+	// Without one, a parent named like a save container is the giveaway —
+	// this is the Unreal shape, and the whole reason the leaf is opaque.
+	got = splitSaveDir(world, nil)
+	if got.Root != saveGames || got.Leaf != "K2hAc0p_LH74aymwOemkgg" {
+		t.Errorf("by SaveGames parent: %+v", got)
+	}
+	if got.Why == "" {
+		t.Error("the split gave no reason; a guess nobody can see is a guess nobody can correct")
+	}
+
+	// A game with one save folder and nothing beneath it has no leaf to
+	// reproduce, which is the ordinary case and must stay silent.
+	plain := filepath.Join(root, "SomeGame")
+	if err := os.MkdirAll(plain, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if got := splitSaveDir(plain, nil); got.Leaf != "" || got.Root != plain {
+		t.Errorf("a plain save folder split anyway: %+v", got)
+	}
+
+	// A known root equal to the folder is not a split either.
+	if got := splitSaveDir(saveGames, []string{saveGames}); got.Leaf != "" {
+		t.Errorf("the root split against itself: %+v", got)
+	}
+
+	// Nested leaves survive, slash-separated whatever the platform.
+	deep := filepath.Join(saveGames, "profile", "slot1")
+	if err := os.MkdirAll(deep, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if got := splitSaveDir(deep, []string{saveGames}); got.Leaf != "profile/slot1" {
+		t.Errorf("nested leaf = %q, want slash-separated", got.Leaf)
+	}
+}
+
+// Joining a world creates its folder under the player's own root — and
+// refuses anything that would put it somewhere else.
+func TestPrepareWorldDir(t *testing.T) {
+	root := t.TempDir()
+
+	dir, err := prepareWorldDir(root, "K2hAc0p_LH74aymwOemkgg")
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	want := filepath.Join(root, "K2hAc0p_LH74aymwOemkgg")
+	if dir != want {
+		t.Errorf("dir = %q, want %q", dir, want)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Errorf("the world's folder was not created: %v", err)
+	}
+
+	// Doing it twice is not an error: a player relinking should not have
+	// to care whether the folder is already there.
+	if _, err := prepareWorldDir(root, "K2hAc0p_LH74aymwOemkgg"); err != nil {
+		t.Errorf("second prepare: %v", err)
+	}
+
+	// No leaf means the root is the world's folder.
+	if got, err := prepareWorldDir(root, ""); err != nil || got != filepath.Clean(root) {
+		t.Errorf("empty leaf = %q, %v", got, err)
+	}
+
+	// A root that isn't there is refused, rather than conjuring a tree of
+	// empty folders somewhere nobody meant.
+	missing := filepath.Join(root, "nope")
+	if _, err := prepareWorldDir(missing, "world"); err == nil {
+		t.Error("a missing root was accepted")
+	}
+	if _, err := os.Stat(missing); err == nil {
+		t.Error("a refused prepare created folders anyway")
+	}
+
+	// Traversal cannot escape the root the player chose.
+	for _, leaf := range []string{"../escape", "a/../../escape", "/absolute", `..\windows`} {
+		if _, err := joinSavePath(root, leaf); err == nil {
+			t.Errorf("joinSavePath accepted %q", leaf)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(root), "escape")); err == nil {
+		t.Error("a traversal leaf escaped the root")
 	}
 }

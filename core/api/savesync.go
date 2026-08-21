@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -186,12 +187,13 @@ func (s *Server) handleCreateSyncWorld(w http.ResponseWriter, r *http.Request) {
 		GameTitle string `json:"gameTitle"`
 		SaveHint  string `json:"saveHint"`
 		GameMeta  string `json:"gameMeta"`
+		SavePath  string `json:"savePath"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" {
 		writeError(w, http.StatusBadRequest, "a world needs a name")
 		return
 	}
-	if err := validSyncGameInfo(in.GameTitle, in.SaveHint, in.GameMeta); err != nil {
+	if err := validSyncGameInfo(in.GameTitle, in.SaveHint, in.GameMeta, in.SavePath); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -200,8 +202,8 @@ func (s *Server) handleCreateSyncWorld(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if in.GameTitle != "" || in.SaveHint != "" || in.GameMeta != "" {
-		if err := s.store.SetSyncWorldGameInfo(r.Context(), id, in.GameTitle, in.SaveHint, in.GameMeta); err != nil {
+	if in.GameTitle != "" || in.SaveHint != "" || in.GameMeta != "" || in.SavePath != "" {
+		if err := s.store.SetSyncWorldGameInfo(r.Context(), id, in.GameTitle, in.SaveHint, in.GameMeta, in.SavePath); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -218,7 +220,7 @@ func (s *Server) handleCreateSyncWorld(w http.ResponseWriter, r *http.Request) {
 // validSyncGameInfo bounds companion-reported metadata: stored and shown
 // verbatim, so the only rule is that it stays small and, for the meta
 // blob, is actually JSON.
-func validSyncGameInfo(title, hint, meta string) error {
+func validSyncGameInfo(title, hint, meta, savePath string) error {
 	if len(title) > 200 || len(hint) > 500 {
 		return errors.New("game title or save hint is unreasonably long")
 	}
@@ -227,6 +229,44 @@ func validSyncGameInfo(title, hint, meta string) error {
 	}
 	if meta != "" && !json.Valid([]byte(meta)) {
 		return errors.New("game metadata must be JSON")
+	}
+	return validSavePath(savePath)
+}
+
+// validSavePath guards the one piece of metadata that becomes a real
+// filesystem path on someone else's machine.
+//
+// Every other field here is displayed; this one is joined onto a folder
+// the player chose and then created. So it is checked the way a path
+// from a stranger has to be: relative, no traversal, no root, no drive
+// letter, no UNC — the companion is careful too, but a rule enforced in
+// one place only is a rule waiting to be routed around.
+func validSavePath(savePath string) error {
+	if savePath == "" {
+		return nil
+	}
+	if len(savePath) > 300 {
+		return errors.New("the world's save path is unreasonably long")
+	}
+	if strings.ContainsAny(savePath, "\\") {
+		return errors.New(`the world's save path must use "/" separators`)
+	}
+	if strings.HasPrefix(savePath, "/") {
+		return errors.New("the world's save path must be relative to a player's save folder, not absolute")
+	}
+	// "C:", "\\server" and friends: anything that could escape the root
+	// a player picks.
+	if len(savePath) > 1 && savePath[1] == ':' {
+		return errors.New("the world's save path must be relative, not a drive path")
+	}
+	for _, part := range strings.Split(savePath, "/") {
+		switch part {
+		case "", ".", "..":
+			return errors.New(`the world's save path must not contain empty, "." or ".." segments`)
+		}
+		if strings.ContainsAny(part, "\x00:*?\"<>|") {
+			return errors.New("the world's save path contains characters a folder name cannot hold")
+		}
 	}
 	return nil
 }
@@ -243,16 +283,25 @@ func (s *Server) handleSyncWorldMeta(w http.ResponseWriter, r *http.Request) {
 		GameTitle string `json:"gameTitle"`
 		SaveHint  string `json:"saveHint"`
 		GameMeta  string `json:"gameMeta"`
+		SavePath  string `json:"savePath"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := validSyncGameInfo(in.GameTitle, in.SaveHint, in.GameMeta); err != nil {
+	if err := validSyncGameInfo(in.GameTitle, in.SaveHint, in.GameMeta, in.SavePath); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := s.store.SetSyncWorldGameInfo(r.Context(), world.ID, in.GameTitle, in.SaveHint, in.GameMeta); err != nil {
+	// The save path is the world's own, not the reporter's: the first
+	// companion to record it settles where the world lives for everyone,
+	// and a later joiner reporting its own metadata must not overwrite
+	// it. Clearing it is an admin's job, through the settings form.
+	savePath := world.SavePath
+	if savePath == "" {
+		savePath = in.SavePath
+	}
+	if err := s.store.SetSyncWorldGameInfo(r.Context(), world.ID, in.GameTitle, in.SaveHint, in.GameMeta, savePath); err != nil {
 		writeSyncError(w, err)
 		return
 	}
@@ -306,6 +355,11 @@ func (s *Server) handleUpdateSyncWorld(w http.ResponseWriter, r *http.Request) {
 		// the credential with it.
 		AgentURL   string `json:"agentUrl"`
 		AgentToken string `json:"agentToken"`
+		// The world's folder beneath each player's save root. Editable
+		// here because the meta endpoint deliberately will not overwrite
+		// it — the first companion to record it settles it, and only an
+		// admin can correct a mistake.
+		SavePath string `json:"savePath"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -333,9 +387,19 @@ func (s *Server) handleUpdateSyncWorld(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if err := validSavePath(in.SavePath); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := s.store.UpdateSyncWorldSettings(r.Context(), world.ID, in.Name, in.LeaseHours, in.MaxBytes, in.KeepVersions, in.Checkpoints, in.WebhookURL, in.AgentURL, in.AgentToken); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if in.SavePath != world.SavePath {
+		if err := s.store.SetSyncWorldGameInfo(r.Context(), world.ID, world.GameTitle, world.SaveHint, world.GameMeta, in.SavePath); err != nil {
+			writeSyncError(w, err)
+			return
+		}
 	}
 	world, err := s.store.GetSyncWorld(r.Context(), world.ID)
 	if err != nil {

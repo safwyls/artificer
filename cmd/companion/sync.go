@@ -560,7 +560,7 @@ func (a *app) linkWorld(worldID int64, gameTitle, dir, meta, appID string) error
 
 // createWorld makes a world on the service from a discovered game, links
 // it, and optionally seeds it with the folder's current save.
-func (a *app) createWorld(name, gameTitle, dir, meta, appID string, seed bool) error {
+func (a *app) createWorld(name, gameTitle, dir, meta, appID, savePath string, seed bool) error {
 	if name == "" {
 		return errors.New("a world needs a name")
 	}
@@ -582,6 +582,10 @@ func (a *app) createWorld(name, gameTitle, dir, meta, appID string, seed bool) e
 	}
 	if err := a.syncDo(http.MethodPost, "/worlds", map[string]string{
 		"name": name, "gameTitle": gameTitle, "saveHint": dir, "gameMeta": meta,
+		// The folder this world lives in, beneath whatever save folder
+		// each player has. Recorded once, by whoever creates the world,
+		// so everyone who joins later gets the same folder made for them.
+		"savePath": savePath,
 	}, &out); err != nil {
 		a.setSyncErr(err)
 		return err

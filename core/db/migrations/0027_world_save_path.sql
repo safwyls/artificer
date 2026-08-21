@@ -1,0 +1,17 @@
+-- The folder a world lives in, relative to whatever each player's own
+-- save root happens to be.
+--
+-- A save folder has two parts. The root is machine-specific and
+-- discoverable — %LOCALAPPDATA%/Witchspire/Saved/SaveGames. The leaf is
+-- the world's own identity inside it, and for Unreal games it is
+-- routinely an opaque id like K2hAc0p_LH74aymwOemkgg: shared by everyone
+-- who plays that world, and impossible to guess or retype.
+--
+-- Save bundles already carry paths relative to the linked folder, so the
+-- leaf never travels inside an archive. Recording it here is what lets a
+-- second player join a world without being told the string: they choose
+-- their own root, and their companion recreates the leaf beneath it.
+--
+-- Empty is the ordinary case — a game whose save folder is the root, with
+-- nothing beneath it to reproduce.
+ALTER TABLE sync_worlds ADD COLUMN save_path TEXT NOT NULL DEFAULT '';
