@@ -265,8 +265,8 @@ export function WkCharacters({
         Everyone who has played this world is listed, online or not. The game keeps each character's skills
         and inventory on that player's own machine — the server only holds positions — so full sheets appear
         here when players share them through the companion app (see the panel below). Names are also learned
-        from the server log when a player leaves. Skill levels derive from the RuneScape 1–99 curve — hover
-        for exact XP.
+        from the server log when a player leaves. Skill levels use the game's own XP curve, calibrated
+        against a real character — hover for exact XP.
       </WkNote>
     </WkPanel>
   );
