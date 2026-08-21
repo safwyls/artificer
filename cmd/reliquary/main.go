@@ -33,6 +33,7 @@ import (
 	"github.com/safwyls/artificer/core/crypto"
 	"github.com/safwyls/artificer/core/db"
 	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/savedb"
 	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/store"
 )
@@ -120,6 +121,20 @@ func run(logger *slog.Logger) error {
 		logger.Info("igdb artwork enabled", "source", map[bool]string{true: "settings", false: "env"}[stored])
 	} else {
 		logger.Info("igdb artwork not configured; the shelf will show names without covers")
+	}
+	// Save locations, from the Ludusavi manifest: a community catalogue
+	// of where games keep their saves, fetched once here so no player's
+	// machine pulls 17MB of YAML. SAVEDB_URL overrides the source;
+	// SAVEDB_DISABLED=1 turns it off, and the companion falls back to
+	// its own heuristics.
+	if os.Getenv("SAVEDB_DISABLED") != "1" {
+		saveDB := savedb.New(os.Getenv("SAVEDB_URL"), logger)
+		apiServer.SaveDB = saveDB
+		// In the background: a 17MB fetch and parse must not hold up
+		// listening, and a host with no egress must not fail to start.
+		go saveDB.Run(ctx)
+	} else {
+		logger.Info("save-location catalogue disabled; companions fall back to their own heuristics")
 	}
 	if cfg.AccessEnabled() {
 		verifier, err := cfaccess.New(cfg.AccessTeamDomain, cfg.AccessAUD)

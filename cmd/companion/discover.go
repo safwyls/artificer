@@ -64,6 +64,10 @@ type probe struct {
 type discovery struct {
 	Games  []discoveredGame `json:"games"`
 	Probes []probe          `json:"probes"`
+	// Libraries are the steamapps folders this scan resolved. Kept
+	// because expanding a manifest template needs them: <base> is the
+	// game's install folder inside one, <root> the store root above it.
+	Libraries []string `json:"libraries,omitempty"`
 }
 
 var (
@@ -239,7 +243,7 @@ func discoverGames(extraDirs []string) discovery {
 			if g.Name == "" {
 				continue
 			}
-			g.SaveDirs = saveCandidatesFor(g, libs)
+			g.SaveDirs = saveCandidatesFor(g, libs, nil)
 			out.Games = append(out.Games, g)
 			byInstallDir[strings.ToLower(g.InstallDir)] = true
 			found++
@@ -254,7 +258,7 @@ func discoverGames(extraDirs []string) discovery {
 					continue
 				}
 				g := discoveredGame{Name: e.Name(), InstallDir: e.Name()}
-				g.SaveDirs = saveCandidatesFor(g, libs)
+				g.SaveDirs = saveCandidatesFor(g, libs, nil)
 				out.Games = append(out.Games, g)
 				byInstallDir[strings.ToLower(e.Name())] = true
 				extra++
@@ -271,6 +275,7 @@ func discoverGames(extraDirs []string) discovery {
 		}
 	}
 
+	out.Libraries = libs
 	sort.Slice(out.Games, func(i, j int) bool {
 		// Games with a found save folder first; alphabetical within.
 		if (len(out.Games[i].SaveDirs) > 0) != (len(out.Games[j].SaveDirs) > 0) {

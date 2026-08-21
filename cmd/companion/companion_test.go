@@ -223,7 +223,7 @@ func TestSaveCandidates(t *testing.T) {
 	unreal := filepath.Join(local, "Palworld", "Saved", "SaveGames")
 	os.MkdirAll(unreal, 0o755)
 
-	got := saveCandidatesFor(discoveredGame{Name: "Palworld", AppID: "1623730", InstallDir: "Palworld"}, []string{lib})
+	got := saveCandidatesFor(discoveredGame{Name: "Palworld", AppID: "1623730", InstallDir: "Palworld"}, []string{lib}, nil)
 	if len(got) < 2 {
 		t.Fatalf("found %d candidates, want the cloud save and the Unreal folder: %+v", len(got), got)
 	}
@@ -247,13 +247,13 @@ func TestSaveCandidates(t *testing.T) {
 	// "RuneScape: Dragonwilds" living under Jagex\RSDragonwilds.
 	pub := filepath.Join(home, "Documents", "My Games", "Jagex", "RSDragonwilds", "Saved")
 	os.MkdirAll(pub, 0o755)
-	got = saveCandidatesFor(discoveredGame{Name: "RuneScape: Dragonwilds", InstallDir: "RSDragonwilds"}, nil)
+	got = saveCandidatesFor(discoveredGame{Name: "RuneScape: Dragonwilds", InstallDir: "RSDragonwilds"}, nil, nil)
 	if len(got) == 0 || got[0].Path != pub {
 		t.Errorf("publisher-nested save missed: %+v", got)
 	}
 
 	// A game with nothing anywhere gets nothing — no false positives.
-	if got := saveCandidatesFor(discoveredGame{Name: "Some Game Nobody Installed", InstallDir: "NopeNopeNope"}, nil); len(got) != 0 {
+	if got := saveCandidatesFor(discoveredGame{Name: "Some Game Nobody Installed", InstallDir: "NopeNopeNope"}, nil, nil); len(got) != 0 {
 		t.Errorf("invented candidates for an absent game: %+v", got)
 	}
 }
@@ -555,5 +555,113 @@ func TestBrowse(t *testing.T) {
 	missing := browse(filepath.Join(root, "nope"))
 	if missing.Error == "" {
 		t.Error("browsing a missing folder said nothing")
+	}
+}
+
+// Expanding a manifest template into folders that actually exist.
+func TestExpandTemplate(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	local := filepath.Join(home, "AppData", "Local")
+	t.Setenv("LOCALAPPDATA", local)
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	// Two Steam accounts, as a real machine often has.
+	for _, id := range []string{"7656119", "7656120"} {
+		if err := os.MkdirAll(filepath.Join(local, "Pal", "Saved", "SaveGames", id), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	got := expandTemplate("<winLocalAppData>/Pal/Saved/SaveGames/<storeUserId>", "Palworld", nil)
+	if len(got) != 2 {
+		t.Fatalf("expanded to %v, want both account folders", got)
+	}
+	for _, p := range got {
+		if !strings.HasPrefix(p, local) {
+			t.Errorf("expansion escaped the root: %q", p)
+		}
+	}
+
+	// A folder the template names but this machine doesn't have yields
+	// nothing — a suggestion that doesn't exist is worse than none.
+	if got := expandTemplate("<winLocalAppData>/NotInstalled/Saves", "", nil); len(got) != 0 {
+		t.Errorf("expanded a missing folder to %v", got)
+	}
+
+	// A placeholder this build doesn't know refuses the whole template
+	// rather than resolving half of it to a wrong folder.
+	if got := expandTemplate("<someFuturePlaceholder>/Saves", "", nil); len(got) != 0 {
+		t.Errorf("an unknown placeholder expanded to %v", got)
+	}
+}
+
+// Only the entries that apply to this machine and this store are used.
+func TestManifestCandidatesFilterByOSAndStore(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	local := filepath.Join(home, "AppData", "Local")
+	t.Setenv("LOCALAPPDATA", local)
+	steamSave := filepath.Join(local, "Pal", "Saved", "SaveGames", "7656119")
+	msSave := filepath.Join(local, "Packages", "PocketpairInc.Palworld", "SystemAppData", "wgs", "7656119")
+	for _, d := range []string{steamSave, msSave} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+
+	g := discoveredGame{Name: "Palworld", AppID: "1623730", InstallDir: "Palworld"}
+	locs := []location{
+		// The Microsoft Store path: real on this disk, wrong for a game
+		// installed through Steam. This is the trap the store filter
+		// exists for.
+		{Template: "<winLocalAppData>/Packages/PocketpairInc.Palworld/SystemAppData/wgs/<storeUserId>", OS: "windows", Store: "microsoft"},
+		{Template: "<winLocalAppData>/Pal/Saved/SaveGames/<storeUserId>", OS: "windows"},
+		{Template: "<xdgData>/pal", OS: "linux"},
+	}
+
+	// hostOS() decides which entries apply, so assert against it rather
+	// than against whichever machine runs the suite.
+	got := manifestCandidates(g, locs, nil)
+	var paths []string
+	for _, c := range got {
+		paths = append(paths, c.Path)
+	}
+	for _, p := range paths {
+		if strings.Contains(p, "Packages") {
+			t.Errorf("a Microsoft Store location was offered for a Steam game: %v", paths)
+		}
+	}
+	if hostOS() == "windows" {
+		if len(got) != 1 || got[0].Path != steamSave {
+			t.Errorf("candidates = %v, want just the Steam save folder", paths)
+		}
+		if !strings.Contains(got[0].Why, "Ludusavi") {
+			t.Errorf("candidate reason = %q, want it to name the catalogue", got[0].Why)
+		}
+	} else if len(got) != 0 {
+		t.Errorf("windows-only locations were offered on %s: %v", hostOS(), paths)
+	}
+}
+
+// A folder with saves in it outranks an empty one of the same kind.
+func TestEmptyCandidatesSink(t *testing.T) {
+	root := t.TempDir()
+	empty := filepath.Join(root, "empty")
+	full := filepath.Join(root, "full")
+	for _, d := range []string{empty, full} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(full, "world.sav"), []byte("save"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got := saveCandidatesFor(discoveredGame{Name: "X"}, nil, []saveCandidate{
+		{Path: empty, Why: "first"}, {Path: full, Why: "second"},
+	})
+	if len(got) != 2 || got[0].Path != full {
+		t.Errorf("candidates = %+v, want the folder with saves in it first", got)
 	}
 }

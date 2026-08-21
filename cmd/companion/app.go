@@ -32,6 +32,12 @@ type app struct {
 	// artAsked counts games actually sent to the service, so "nothing
 	// was ever asked" is distinguishable from "asked, got nothing".
 	artAsked int
+	// hints caches the catalogue's save locations per game, misses
+	// included (an empty list), so a rescan does not re-ask about games
+	// the manifest has never carried.
+	hints          map[string][]location
+	hintsError     string
+	hintsAvailable bool
 }
 
 // rescan re-runs game discovery with the configured Steam folders.

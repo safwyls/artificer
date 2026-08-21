@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -225,10 +226,29 @@ func searchSaveRoots(g discoveredGame) []saveCandidate {
 	return out
 }
 
+// dirHasFiles reports whether a folder holds anything at all. Two
+// candidates can both be real folders with only one holding saves — an
+// empty Steam Cloud folder next to a populated local one is the common
+// shape — so emptiness demotes a candidate without disqualifying it.
+func dirHasFiles(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	return len(entries) > 0
+}
+
 // saveCandidatesFor assembles every candidate for one game, strongest
 // first, keeping only folders that exist and dropping duplicates.
-func saveCandidatesFor(g discoveredGame, libs []string) []saveCandidate {
+//
+// hints are the catalogue's own locations for this game (expand.go),
+// already expanded to real folders. They lead because they are curated
+// per-game knowledge rather than a shape that usually works: Steam's
+// cloud folder for a given app id certainly belongs to that app, but
+// plenty of games never put a save in it.
+func saveCandidatesFor(g discoveredGame, libs []string, hints []saveCandidate) []saveCandidate {
 	var all []saveCandidate
+	all = append(all, hints...)
 	all = append(all, steamCloudSaves(g.AppID, libs)...)
 	for _, fn := range knownSaveDirs[g.InstallDir] {
 		if p := fn(); p != "" {
@@ -265,5 +285,13 @@ func saveCandidatesFor(g discoveredGame, libs []string) []saveCandidate {
 		seen[key] = true
 		out = append(out, c)
 	}
+	// Empty folders sink, keeping their order among themselves. A game
+	// that has never been played leaves its save folder empty, and a
+	// game that has been played leaves the wrong one empty — so this
+	// reorders nothing when there is nothing to tell apart, and puts the
+	// folder with saves in it first when there is.
+	sort.SliceStable(out, func(i, j int) bool {
+		return dirHasFiles(out[i].Path) && !dirHasFiles(out[j].Path)
+	})
 	return out
 }
