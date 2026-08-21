@@ -1,0 +1,54 @@
+# Reliquary on TrueNAS SCALE — paste into Apps → Discover → Custom App →
+# "Install via YAML".
+#
+# One reliquary per friend group: it holds the canonical shared-world
+# saves, the custody ledger, everyone's accounts and companion tokens
+# (docs/save-sync-architecture.md). It talks to no game and needs no
+# Docker rights — one container, one dataset, one port.
+#
+# Before pasting, fill in:
+#   1. JWT_SECRET: `openssl rand -hex 32`. Signs sessions; keep it stable
+#      or every sign-in drops on restart.
+#   2. ENCRYPTION_KEY: `openssl rand -hex 16` (exactly 32 characters).
+#      Encrypts stored agent tokens at rest; changing it orphans them.
+#   3. ADMIN_PASSWORD: the bootstrap admin, created only while the users
+#      table is empty — later changes happen in the UI, not here.
+#   4. The dataset path, if yours differs. Version archives live under it
+#      (DATA_DIR/savesync/<world>/<version>.tar), so give it the same
+#      snapshot/backup care as any world data: retention per world is
+#      keep-N, and the sqlite database sits beside the archives.
+#
+# Port 8830 on the host is arbitrary but must be free; the app listens on
+# 8080 inside. Players' companions reach it at http://<LAN-IP>:8830 (or
+# your tunnel's hostname). Behind TLS, set COOKIE_SECURE. Behind
+# Cloudflare Access, add a bypass/service-auth policy for /api/public/* —
+# the companion's token-in-path tier authenticates itself, and an Access
+# login page in front of it breaks every push (docs/companion.md has the
+# incident).
+
+services:
+  reliquary:
+    image: ghcr.io/safwyls/reliquary:latest
+    restart: unless-stopped
+    # Match the dataset owner. 568:568 is TrueNAS's apps user; the binary
+    # needs nothing beyond a writable /data, so any owner works as long
+    # as the two agree.
+    user: "568:568"
+    ports:
+      - "8830:8080"
+    environment:
+      JWT_SECRET: "CHANGE-ME-openssl-rand-hex-32"
+      ENCRYPTION_KEY: "CHANGE-ME-32-chars-x"
+      ADMIN_USERNAME: "admin"
+      ADMIN_PASSWORD: "CHANGE-ME"
+      # Behind TLS (a tunnel, a reverse proxy with certs): mark session
+      # cookies Secure. Leave unset for plain-HTTP LAN use.
+      # COOKIE_SECURE: "true"
+      # Cloudflare Access SSO, both required to enable it — see
+      # docs/cloudflare-access.md. The admin list is anti-lockout,
+      # re-applied on every sign-in.
+      # CF_ACCESS_TEAM_DOMAIN: "yourteam.cloudflareaccess.com"
+      # CF_ACCESS_AUD: "the-application-audience-tag"
+      # CF_ACCESS_ADMIN_EMAILS: "you@example.com"
+    volumes:
+      - /mnt/tank/apps/reliquary:/data

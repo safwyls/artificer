@@ -27,7 +27,8 @@ So the escape hatch became the design, exactly as reserved: the model,
 store schema and client survived the move.
 
 - **`cmd/reliquary`** is the standalone save-sync service (its own
-  container, `deploy/reliquary`): worlds, custody, versions, the friend
+  container, `deploy/reliquary` — a TrueNAS SCALE custom-app YAML ships
+  beside the Dockerfile): worlds, custody, versions, the friend
   group's accounts and tokens, a deliberately light embedded UI, and
   the token-gated companion download. It registers no game — save
   verification is structural, and game knowledge arrives as metadata
