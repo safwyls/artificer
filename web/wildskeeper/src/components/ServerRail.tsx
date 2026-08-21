@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { HardDrive, LogOut, Plus, Users as UsersIcon } from "lucide-react";
+import { Globe2, HardDrive, LogOut, Plus, Users as UsersIcon } from "lucide-react";
 import { type Server } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
@@ -46,6 +46,25 @@ export function ServerRail({ servers, activeServerId }: { servers: Server[]; act
       )}
 
       <div className="flex-1" />
+
+      {/* Shared-world custody — open to everyone signed in; the page
+          itself hides the verbs a viewer lacks. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => navigate("/worlds")}
+            className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-full transition",
+              location.pathname === "/worlds"
+                ? "bg-wk-panel text-wk-parchment"
+                : "text-wk-parchment/40 hover:bg-wk-panel hover:text-wk-parchment",
+            )}
+          >
+            <Globe2 className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">Shared worlds</TooltipContent>
+      </Tooltip>
 
       {isAdmin && (
         <Tooltip>

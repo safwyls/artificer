@@ -48,7 +48,7 @@ export function errorDetail(err: unknown): string | undefined {
   return err instanceof ApiError && err.message ? err.message : undefined;
 }
 
-export const PERMISSIONS = ["power", "broadcast", "save", "moderate", "shutdown", "settings"] as const;
+export const PERMISSIONS = ["power", "broadcast", "save", "moderate", "shutdown", "settings", "savesync"] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
 /** Human labels for the permission checkboxes, and what each actually allows. */
@@ -59,6 +59,7 @@ export const PERMISSION_LABELS: Record<Permission, { label: string; help: string
   moderate: { label: "Moderate", help: "Kick, ban and unban players" },
   shutdown: { label: "In-game shutdown", help: "Shut the server down with a countdown" },
   settings: { label: "Edit settings", help: "Read and edit DedicatedServer.ini" },
+  savesync: { label: "World custody", help: "Check shared worlds out and in — the hosting rotation" },
 };
 
 export interface Me {
@@ -1034,6 +1035,101 @@ export interface HostOverview {
   imagesError?: string;
 }
 
+// --- save-sync custody (docs/save-sync-architecture.md) ---
+
+export interface SyncWorld {
+  id: number;
+  name: string;
+  /** The dedicated server that can also hold this world; absent for a
+   * purely peer-hosted world. */
+  serverId?: number;
+  leaseHours: number;
+  maxBytes: number;
+  keepVersions: number;
+  checkpoints: boolean;
+  webhookUrl: string;
+  headVersion?: number;
+  nextHolder?: number;
+  createdAt: string;
+}
+
+export interface SyncHolder {
+  sessionId: number;
+  userId: number;
+  username: string;
+  serverHeld: boolean;
+  expiresAt: string;
+  /** Past its lease — an explicit takeover checkout would succeed. */
+  claimable: boolean;
+}
+
+export interface SyncVersion {
+  id: number;
+  worldId: number;
+  sessionId?: number;
+  parentId?: number;
+  kind: "checkin" | "checkpoint" | "import";
+  /** A check-in that could not move the head; kept until a human picks. */
+  conflict: boolean;
+  bytes: number;
+  sha256: string;
+  uploaderId?: number;
+  createdAt: string;
+}
+
+export interface SyncSession {
+  id: number;
+  worldId: number;
+  holderId: number;
+  serverHeld: boolean;
+  baseVersion?: number;
+  status: string;
+  checkedOutAt: string;
+  expiresAt: string;
+}
+
+export interface SyncWorldStatus {
+  world: SyncWorld;
+  holder?: SyncHolder;
+  claimedBy?: string;
+  head?: SyncVersion;
+}
+
+export interface SyncWorldDetail {
+  status: SyncWorldStatus;
+  versions: SyncVersion[];
+  /** Uploader usernames by user id, for the history table. */
+  uploaders: Record<string, string>;
+}
+
+export interface SyncWorldSettings {
+  name: string;
+  serverId?: number | null;
+  leaseHours: number;
+  maxBytes: number;
+  keepVersions: number;
+  checkpoints: boolean;
+  webhookUrl: string;
+}
+
+/** Raw-body upload for save bundles — request() would JSON-wrap it. */
+async function upload<T>(path: string, file: Blob): Promise<T> {
+  const res = await fetch(`/api${path}`, {
+    method: "POST",
+    body: file,
+    credentials: "include",
+    headers: { "Content-Type": "application/x-tar" },
+  });
+  const isJSON = res.headers.get("content-type")?.includes("application/json");
+  const body = isJSON ? await res.json() : undefined;
+  if (!res.ok) {
+    if (res.status === 401) onUnauthorized?.();
+    const message = body && typeof body === "object" && "error" in body ? String(body.error) : res.statusText;
+    throw new ApiError(res.status, message);
+  }
+  return body as T;
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<{ username: string }>("/login", { method: "POST", body: JSON.stringify({ username, password }) }),
@@ -1124,6 +1220,35 @@ export const api = {
   runBackup: (id: number) => request<void>(`/servers/${id}/backups/run`, { method: "POST" }),
   deleteBackup: (id: number, name: string) => request<void>(`/servers/${id}/backups/${name}`, { method: "DELETE" }),
   backupDownloadURL: (id: number, name: string) => `/api/servers/${id}/backups/${name}/download`,
+
+  // Save-sync custody: worlds are console-level, not per-server. 404s
+  // from every route mean the console runs without the engine.
+  listSyncWorlds: () => request<{ worlds: SyncWorldStatus[] }>("/sync/worlds"),
+  createSyncWorld: (name: string) =>
+    request<SyncWorldStatus>("/sync/worlds", { method: "POST", body: JSON.stringify({ name }) }),
+  getSyncWorld: (id: number) => request<SyncWorldDetail>(`/sync/worlds/${id}`),
+  updateSyncWorld: (id: number, settings: SyncWorldSettings) =>
+    request<SyncWorldStatus>(`/sync/worlds/${id}`, { method: "PUT", body: JSON.stringify(settings) }),
+  deleteSyncWorld: (id: number) => request<void>(`/sync/worlds/${id}`, { method: "DELETE" }),
+  syncCheckout: (id: number, takeover: boolean) =>
+    request<{ session: SyncSession }>(`/sync/worlds/${id}/checkout`, {
+      method: "POST",
+      body: JSON.stringify({ takeover }),
+    }),
+  syncClaim: (id: number) => request<unknown>(`/sync/worlds/${id}/claim`, { method: "POST" }),
+  syncUnclaim: (id: number) => request<unknown>(`/sync/worlds/${id}/claim`, { method: "DELETE" }),
+  syncRelease: (id: number) => request<unknown>(`/sync/worlds/${id}/release`, { method: "POST" }),
+  syncSetHead: (id: number, versionId: number) =>
+    request<unknown>(`/sync/worlds/${id}/head`, { method: "POST", body: JSON.stringify({ versionId }) }),
+  syncRenew: (sessionId: number) =>
+    request<{ expiresAt: string }>(`/sync/sessions/${sessionId}/renew`, { method: "POST" }),
+  syncCheckin: (sessionId: number, file: Blob) =>
+    upload<{ version: SyncVersion }>(`/sync/sessions/${sessionId}/checkin`, file),
+  syncImport: (worldId: number, file: Blob) => upload<{ version: SyncVersion }>(`/sync/worlds/${worldId}/import`, file),
+  syncDownloadURL: (worldId: number, versionId: number) => `/api/sync/worlds/${worldId}/versions/${versionId}/download`,
+  getSyncToken: () => request<{ token: string }>("/me/sync-token"),
+  mintSyncToken: () => request<{ token: string }>("/me/sync-token", { method: "POST" }),
+  revokeSyncToken: () => request<void>("/me/sync-token", { method: "DELETE" }),
 
   listServers: () => request<Server[]>("/servers"),
   // New-server wizard: registers a fully wired row and returns the

@@ -26,6 +26,7 @@ import (
 	"github.com/safwyls/artificer/core/game"
 	"github.com/safwyls/artificer/core/notify"
 	"github.com/safwyls/artificer/core/savecache"
+	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/sched"
 	"github.com/safwyls/artificer/core/store"
 	"github.com/safwyls/artificer/core/watchdog"
@@ -130,10 +131,18 @@ func run(logger *slog.Logger) error {
 	backups := backup.New(st, notifier, logger, cfg.DataDir, files)
 	go backups.Run(ctx)
 
+	// Shared-world save custody: checkout/check-in with versioned
+	// archives under DATA_DIR (docs/save-sync-architecture.md). The
+	// background loop only sends expiry warnings; custody itself is
+	// request-driven.
+	saveSync := savesync.New(st, notifier, logger, cfg.DataDir)
+	go saveSync.Run(ctx)
+
 	// Dragonwilds has no offline-config work: the ini has one writer.
 	apiServer := api.New(st, cfg.JWTSecret, logger, docker, notifier, backups, files, nil)
 	apiServer.SessionCookie = "wildskeeper_session"
 	apiServer.Provision = dragonwilds.ProvisionProfile()
+	apiServer.SaveSync = saveSync
 	dwAPI := dwapi.New(apiServer, worlds, dragonwilds.CharacterNames)
 	// The bundled player-side companion the console hands out — the image
 	// build places it beside the binary; a source checkout usually has

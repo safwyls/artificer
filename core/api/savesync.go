@@ -1,0 +1,641 @@
+package api
+
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/savesync"
+	"github.com/safwyls/artificer/core/store"
+)
+
+// Save-sync custody (docs/save-sync-architecture.md): worlds, holds and
+// versions over core/savesync. Two trust tiers speak the same verbs:
+// the session cookie (browser, gated per-route below) and the
+// per-player sync token (the companion app, /api/public/sync/{token}).
+//
+// World management is admin territory; holding and moving the save is
+// PermSync — the grant that says "this person is in the rotation".
+// Reading custody state is open to any signed-in user, like dashboards.
+
+// maxSyncUpload is the transport ceiling for save-bundle uploads; the
+// real bound is each world's max_bytes, enforced while staging. This
+// only exists so the API-wide 1 MiB body cap doesn't apply.
+const maxSyncUpload = 2<<30 + 1<<20
+
+// syncWorldStatus is one world's custody state, shaped for both the
+// console page and the companion's status poll.
+type syncWorldStatus struct {
+	World *store.SyncWorld `json:"world"`
+	// Holder is the active hold, nil when the world is free.
+	Holder *syncHolder `json:"holder,omitempty"`
+	// ClaimedBy names the queued next holder.
+	ClaimedBy string `json:"claimedBy,omitempty"`
+	// Head describes the canonical current version.
+	Head *store.SyncVersion `json:"head,omitempty"`
+}
+
+type syncHolder struct {
+	SessionID  int64     `json:"sessionId"`
+	UserID     int64     `json:"userId"`
+	Username   string    `json:"username"`
+	ServerHeld bool      `json:"serverHeld"`
+	ExpiresAt  time.Time `json:"expiresAt"`
+	// Claimable: the hold is past its lease, so a takeover checkout
+	// would succeed.
+	Claimable bool `json:"claimable"`
+}
+
+func (s *Server) syncStatus(r *http.Request, w *store.SyncWorld) *syncWorldStatus {
+	out := &syncWorldStatus{World: w}
+	if ss, err := s.store.ActiveSyncSession(r.Context(), w.ID); err == nil {
+		holder := &syncHolder{
+			SessionID: ss.ID, UserID: ss.HolderID, ServerHeld: ss.ServerHeld,
+			ExpiresAt: ss.ExpiresAt, Claimable: ss.Expired(time.Now()),
+		}
+		if u, err := s.store.GetUser(r.Context(), ss.HolderID); err == nil {
+			holder.Username = u.Username
+		}
+		out.Holder = holder
+	}
+	if w.NextHolder != nil {
+		if u, err := s.store.GetUser(r.Context(), *w.NextHolder); err == nil {
+			out.ClaimedBy = u.Username
+		}
+	}
+	if w.HeadVersion != nil {
+		if v, err := s.store.GetSyncVersion(r.Context(), *w.HeadVersion); err == nil {
+			out.Head = v
+		}
+	}
+	return out
+}
+
+// writeSyncError maps the engine's refusals onto responses: custody
+// refusals are 409s carrying enough for the client to render the state
+// (who holds it, whether a takeover would work), refused uploads are the
+// uploader's fault, and the rest is a plain error.
+func writeSyncError(w http.ResponseWriter, err error) {
+	var held *savesync.HeldError
+	var upload *savesync.UploadError
+	switch {
+	case errors.As(err, &held):
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":     held.Error(),
+			"holder":    held.Holder,
+			"expiresAt": held.Session.ExpiresAt,
+			"claimable": held.Claimable,
+		})
+	case errors.As(err, &upload):
+		writeError(w, http.StatusBadRequest, upload.Msg)
+	case errors.Is(err, savesync.ErrReserved), errors.Is(err, savesync.ErrWorldFree), errors.Is(err, store.ErrWorldHeld):
+		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, "not found")
+	default:
+		writeError(w, http.StatusInternalServerError, err.Error())
+	}
+}
+
+// syncAudit records custody actions on the linked server's audit trail
+// when the world has one; a world without a server has no audit page to
+// land on, and the session/version history is itself the custody record.
+func (s *Server) syncAudit(r *http.Request, w *store.SyncWorld, action, detail string) {
+	if w.ServerID != nil {
+		s.audit(r, *w.ServerID, action, detail)
+		return
+	}
+	username := "unknown"
+	if user, ok := userFromContext(r.Context()); ok {
+		username = user.Username
+	}
+	s.logger.Info("savesync: "+action, "world", w.Name, "user", username, "detail", detail)
+}
+
+func (s *Server) loadSyncWorld(w http.ResponseWriter, r *http.Request) (*store.SyncWorld, bool) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "worldID"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid world id")
+		return nil, false
+	}
+	world, err := s.store.GetSyncWorld(r.Context(), id)
+	if err != nil {
+		writeSyncError(w, err)
+		return nil, false
+	}
+	return world, true
+}
+
+func (s *Server) loadSyncSession(w http.ResponseWriter, r *http.Request) (*store.SyncSession, bool) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "sessionID"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return nil, false
+	}
+	ss, err := s.store.GetSyncSession(r.Context(), id)
+	if err != nil {
+		writeSyncError(w, err)
+		return nil, false
+	}
+	return ss, true
+}
+
+// requireSyncHolder: the session's holder may act on it; an admin may
+// too (that is how a hold whose holder vanished gets checked in from a
+// downloaded copy).
+func requireSyncHolder(w http.ResponseWriter, r *http.Request, ss *store.SyncSession) (*store.User, bool) {
+	user, ok := userFromContext(r.Context())
+	if !ok || (user.ID != ss.HolderID && !user.IsAdmin()) {
+		writeError(w, http.StatusForbidden, "this hold belongs to someone else")
+		return nil, false
+	}
+	return user, true
+}
+
+// --- world management and custody state (session-cookie tier) ---
+
+func (s *Server) handleListSyncWorlds(w http.ResponseWriter, r *http.Request) {
+	if s.SaveSync == nil {
+		writeError(w, http.StatusNotFound, "save sync is not enabled on this console")
+		return
+	}
+	worlds, err := s.store.ListSyncWorlds(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list worlds")
+		return
+	}
+	out := make([]*syncWorldStatus, 0, len(worlds))
+	for _, world := range worlds {
+		out = append(out, s.syncStatus(r, world))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"worlds": out})
+}
+
+func (s *Server) handleCreateSyncWorld(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" {
+		writeError(w, http.StatusBadRequest, "a world needs a name")
+		return
+	}
+	id, err := s.store.CreateSyncWorld(r.Context(), in.Name, time.Now())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	world, err := s.store.GetSyncWorld(r.Context(), id)
+	if err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	s.syncAudit(r, world, "sync-world-create", in.Name)
+	writeJSON(w, http.StatusCreated, s.syncStatus(r, world))
+}
+
+func (s *Server) handleGetSyncWorld(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	versions, err := s.store.ListSyncVersions(r.Context(), world.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list versions")
+		return
+	}
+	// Uploader names for the history table, resolved once per user.
+	names := map[int64]string{}
+	for _, v := range versions {
+		if v.UploaderID == nil {
+			continue
+		}
+		if _, ok := names[*v.UploaderID]; !ok {
+			if u, err := s.store.GetUser(r.Context(), *v.UploaderID); err == nil {
+				names[*v.UploaderID] = u.Username
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":    s.syncStatus(r, world),
+		"versions":  versions,
+		"uploaders": names,
+	})
+}
+
+func (s *Server) handleUpdateSyncWorld(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Name         string `json:"name"`
+		ServerID     *int64 `json:"serverId"`
+		LeaseHours   int    `json:"leaseHours"`
+		MaxBytes     int64  `json:"maxBytes"`
+		KeepVersions int    `json:"keepVersions"`
+		Checkpoints  bool   `json:"checkpoints"`
+		WebhookURL   string `json:"webhookUrl"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if in.Name == "" {
+		writeError(w, http.StatusBadRequest, "a world needs a name")
+		return
+	}
+	if in.LeaseHours < 1 || in.LeaseHours > 24*30 {
+		writeError(w, http.StatusBadRequest, "lease must be 1 hour to 30 days")
+		return
+	}
+	if in.MaxBytes < 1<<20 || in.MaxBytes > 2<<30 {
+		writeError(w, http.StatusBadRequest, "max size must be 1 MiB to 2 GiB")
+		return
+	}
+	if in.KeepVersions < 1 || in.KeepVersions > 100 {
+		writeError(w, http.StatusBadRequest, "keep must be 1 to 100 versions")
+		return
+	}
+	if in.WebhookURL != "" {
+		if err := notify.ValidateWebhookURL(in.WebhookURL); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+	if in.ServerID != nil {
+		if _, err := s.store.GetServer(r.Context(), *in.ServerID); err != nil {
+			writeError(w, http.StatusBadRequest, "linked server does not exist")
+			return
+		}
+	}
+	if err := s.store.UpdateSyncWorldSettings(r.Context(), world.ID, in.Name, in.ServerID, in.LeaseHours, in.MaxBytes, in.KeepVersions, in.Checkpoints, in.WebhookURL); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	world, err := s.store.GetSyncWorld(r.Context(), world.ID)
+	if err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	s.syncAudit(r, world, "sync-world-settings", in.Name)
+	writeJSON(w, http.StatusOK, s.syncStatus(r, world))
+}
+
+func (s *Server) handleDeleteSyncWorld(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	if err := s.SaveSync.DeleteWorld(r.Context(), world.ID); err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	s.syncAudit(r, world, "sync-world-delete", world.Name)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- custody verbs (shared by both tiers via the user resolved on the
+// request) ---
+
+func (s *Server) syncCheckout(w http.ResponseWriter, r *http.Request, user *store.User) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Takeover bool `json:"takeover"`
+	}
+	if r.Body != nil {
+		json.NewDecoder(r.Body).Decode(&in) // an empty body is a plain checkout
+	}
+	ss, err := s.SaveSync.Checkout(r.Context(), world.ID, user, false, in.Takeover)
+	if err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	action := "sync-checkout"
+	if in.Takeover {
+		action = "sync-takeover"
+	}
+	s.syncAudit(r, world, action, fmt.Sprintf("session %d", ss.ID))
+	writeJSON(w, http.StatusOK, map[string]any{
+		"accepted": true,
+		"session":  ss,
+		"world":    world.Name,
+	})
+}
+
+func (s *Server) syncClaim(w http.ResponseWriter, r *http.Request, user *store.User) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	if err := s.SaveSync.Claim(r.Context(), world.ID, user); err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "world": world.Name})
+}
+
+func (s *Server) syncUnclaim(w http.ResponseWriter, r *http.Request, user *store.User) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	if err := s.SaveSync.Unclaim(r.Context(), world.ID, user); err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "world": world.Name})
+}
+
+func (s *Server) syncRenew(w http.ResponseWriter, r *http.Request) {
+	ss, ok := s.loadSyncSession(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := requireSyncHolder(w, r, ss); !ok {
+		return
+	}
+	until, err := s.SaveSync.Renew(r.Context(), ss)
+	if err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "expiresAt": until})
+}
+
+func (s *Server) syncCheckin(w http.ResponseWriter, r *http.Request, kind string) {
+	ss, ok := s.loadSyncSession(w, r)
+	if !ok {
+		return
+	}
+	user, ok := requireSyncHolder(w, r, ss)
+	if !ok {
+		return
+	}
+	v, err := s.SaveSync.Checkin(r.Context(), ss, user, r.Body, kind)
+	if err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	if world, werr := s.store.GetSyncWorld(r.Context(), ss.WorldID); werr == nil && kind == store.SyncKindCheckin {
+		s.syncAudit(r, world, "sync-checkin", fmt.Sprintf("version %d, conflict=%v", v.ID, v.Conflict))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "version": v})
+}
+
+func (s *Server) syncDownload(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	versionID, err := strconv.ParseInt(chi.URLParam(r, "versionID"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid version id")
+		return
+	}
+	path, v, err := s.SaveSync.VersionPath(r.Context(), world.ID, versionID)
+	if err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-tar")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fmt.Sprintf("%s-v%d.tar", world.Name, v.ID)))
+	w.Header().Set("ETag", `"`+v.SHA256+`"`)
+	http.ServeFile(w, r, path)
+}
+
+func (s *Server) handleSyncImport(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	user, uok := userFromContext(r.Context())
+	if !uok {
+		writeError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	v, err := s.SaveSync.Import(r.Context(), world.ID, user, r.Body)
+	if err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	s.syncAudit(r, world, "sync-import", fmt.Sprintf("version %d", v.ID))
+	writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "version": v})
+}
+
+func (s *Server) handleSyncRelease(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	user, uok := userFromContext(r.Context())
+	if !uok {
+		writeError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	ss, err := s.store.ActiveSyncSession(r.Context(), world.ID)
+	if err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	if err := s.SaveSync.Release(r.Context(), ss, user); err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	s.syncAudit(r, world, "sync-release", fmt.Sprintf("session %d", ss.ID))
+	writeJSON(w, http.StatusOK, map[string]any{"accepted": true})
+}
+
+func (s *Server) handleSyncSetHead(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		VersionID int64 `json:"versionId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := s.SaveSync.SetHead(r.Context(), world.ID, in.VersionID); err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	s.syncAudit(r, world, "sync-set-head", fmt.Sprintf("version %d", in.VersionID))
+	writeJSON(w, http.StatusOK, map[string]any{"accepted": true})
+}
+
+// --- the per-player companion token ---
+
+// handleMySyncToken mints (POST), shows (GET) or revokes (DELETE) the
+// caller's own companion credential. Minting rotates: the old token
+// stops working the moment a new one exists.
+func (s *Server) handleMySyncToken(w http.ResponseWriter, r *http.Request) {
+	user, ok := userFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		token, err := s.store.GetUserSyncToken(r.Context(), user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to read token")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"token": token})
+	case http.MethodPost:
+		buf := make([]byte, 16)
+		if _, err := rand.Read(buf); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to generate token")
+			return
+		}
+		token := hex.EncodeToString(buf)
+		if err := s.store.SetUserSyncToken(r.Context(), user.ID, token); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to save token")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"token": token})
+	case http.MethodDelete:
+		if err := s.store.SetUserSyncToken(r.Context(), user.ID, ""); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to revoke token")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// --- the companion tier: /api/public/sync/{token} ---
+
+// syncTokenUser resolves the token in the path to a user who may sync.
+// A miss is a 404 with no hint of which part was wrong, like the other
+// token tiers; a revoked grant is indistinguishable from a bad token on
+// purpose.
+func (s *Server) syncTokenUser(w http.ResponseWriter, r *http.Request) (*store.User, bool) {
+	if s.SaveSync == nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return nil, false
+	}
+	user, err := s.store.GetUserBySyncToken(r.Context(), chi.URLParam(r, "token"))
+	if err != nil || !user.Can(store.PermSync) {
+		writeError(w, http.StatusNotFound, "not found")
+		return nil, false
+	}
+	return user, true
+}
+
+// withSyncTokenUser adapts the cookie-tier handlers to the token tier by
+// placing the resolved user on the context, so both tiers run the same
+// code and cannot drift.
+func (s *Server) withSyncTokenUser(fn func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := s.syncTokenUser(w, r)
+		if !ok {
+			return
+		}
+		fn(w, r.WithContext(contextWithUser(r.Context(), user)))
+	}
+}
+
+func (s *Server) handlePublicSyncStatus(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.syncTokenUser(w, r)
+	if !ok {
+		return
+	}
+	worlds, err := s.store.ListSyncWorlds(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list worlds")
+		return
+	}
+	out := make([]*syncWorldStatus, 0, len(worlds))
+	for _, world := range worlds {
+		out = append(out, s.syncStatus(r, world))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"accepted": true,
+		"username": user.Username,
+		"worlds":   out,
+	})
+}
+
+// mountSyncRoutes registers the custody surface on both tiers. Called
+// from Routes() — the small-verb group and the upload group carry
+// different body caps, so the routes arrive in two pieces.
+func (s *Server) mountSyncSmall(r chi.Router) {
+	// Reading custody state: any signed-in user. Holding: PermSync.
+	// Managing worlds: admin.
+	r.Get("/sync/worlds", s.handleListSyncWorlds)
+	r.With(s.requireAdmin).Post("/sync/worlds", s.handleCreateSyncWorld)
+	r.Get("/sync/worlds/{worldID}", s.handleGetSyncWorld)
+	r.With(s.requireAdmin).Put("/sync/worlds/{worldID}", s.handleUpdateSyncWorld)
+	r.With(s.requireAdmin).Delete("/sync/worlds/{worldID}", s.handleDeleteSyncWorld)
+	r.With(s.requirePermission(store.PermSync)).Post("/sync/worlds/{worldID}/checkout", s.asUser(s.syncCheckout))
+	r.With(s.requirePermission(store.PermSync)).Post("/sync/worlds/{worldID}/claim", s.asUser(s.syncClaim))
+	r.With(s.requirePermission(store.PermSync)).Delete("/sync/worlds/{worldID}/claim", s.asUser(s.syncUnclaim))
+	r.With(s.requirePermission(store.PermSync)).Get("/sync/worlds/{worldID}/versions/{versionID}/download", s.syncDownload)
+	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/release", s.handleSyncRelease)
+	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/head", s.handleSyncSetHead)
+	r.With(s.requirePermission(store.PermSync)).Post("/sync/sessions/{sessionID}/renew", s.syncRenew)
+	r.With(s.requirePermission(store.PermSync)).HandleFunc("/me/sync-token", s.handleMySyncToken)
+}
+
+// asUser lifts a handler that takes the acting user out of the context.
+func (s *Server) asUser(fn func(http.ResponseWriter, *http.Request, *store.User)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := userFromContext(r.Context())
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		fn(w, r, user)
+	}
+}
+
+func (s *Server) mountSyncUploads(r chi.Router) {
+	r.Group(func(r chi.Router) {
+		r.Use(s.requireAuth)
+		r.With(s.requirePermission(store.PermSync)).Post("/sync/sessions/{sessionID}/checkin", func(w http.ResponseWriter, r *http.Request) {
+			s.syncCheckin(w, r, store.SyncKindCheckin)
+		})
+		r.With(s.requirePermission(store.PermSync)).Post("/sync/sessions/{sessionID}/checkpoint", func(w http.ResponseWriter, r *http.Request) {
+			s.syncCheckin(w, r, store.SyncKindCheckpoint)
+		})
+		r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/import", s.handleSyncImport)
+	})
+
+	// The companion tier: token in the path is the whole credential.
+	// Same handlers as the cookie tier, user resolved from the token —
+	// including the downloads and status, so the companion needs exactly
+	// one base URL.
+	r.Route("/public/sync/{token}", func(r chi.Router) {
+		r.Get("/", s.handlePublicSyncStatus)
+		r.Post("/worlds/{worldID}/checkout", s.withSyncTokenUser(func(w http.ResponseWriter, r *http.Request) {
+			s.asUser(s.syncCheckout)(w, r)
+		}))
+		r.Post("/worlds/{worldID}/claim", s.withSyncTokenUser(func(w http.ResponseWriter, r *http.Request) {
+			s.asUser(s.syncClaim)(w, r)
+		}))
+		r.Delete("/worlds/{worldID}/claim", s.withSyncTokenUser(func(w http.ResponseWriter, r *http.Request) {
+			s.asUser(s.syncUnclaim)(w, r)
+		}))
+		r.Get("/worlds/{worldID}/versions/{versionID}/download", s.withSyncTokenUser(s.syncDownload))
+		r.Post("/sessions/{sessionID}/renew", s.withSyncTokenUser(s.syncRenew))
+		r.Post("/sessions/{sessionID}/checkin", s.withSyncTokenUser(func(w http.ResponseWriter, r *http.Request) {
+			s.syncCheckin(w, r, store.SyncKindCheckin)
+		}))
+		r.Post("/sessions/{sessionID}/checkpoint", s.withSyncTokenUser(func(w http.ResponseWriter, r *http.Request) {
+			s.syncCheckin(w, r, store.SyncKindCheckpoint)
+		}))
+	})
+}

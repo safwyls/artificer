@@ -26,11 +26,15 @@ const (
 	// file holds the admin/join passwords in the clear and a bad edit can
 	// stop the server booting.
 	PermSettings = "settings"
+	// PermSync holds and moves shared world saves (checkout, check-in,
+	// claim) — the grant that puts someone in the hosting rotation. World
+	// management itself stays admin.
+	PermSync = "savesync"
 )
 
 // AllPermissions is the set an admin implicitly holds, and the menu the
 // user-management UI offers.
-var AllPermissions = []string{PermPower, PermBroadcast, PermSave, PermModerate, PermShutdown, PermSettings}
+var AllPermissions = []string{PermPower, PermBroadcast, PermSave, PermModerate, PermShutdown, PermSettings, PermSync}
 
 const RoleAdmin = "admin"
 

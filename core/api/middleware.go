@@ -23,6 +23,12 @@ func userFromContext(ctx context.Context) (*store.User, bool) {
 	return v, ok
 }
 
+// contextWithUser places an already-authenticated user on the context —
+// how the sync-token tier reuses the cookie-tier handlers (savesync.go).
+func contextWithUser(ctx context.Context, user *store.User) context.Context {
+	return context.WithValue(ctx, userContextKey, user)
+}
+
 func sessionIsSSO(ctx context.Context) bool {
 	v, _ := ctx.Value(ssoContextKey).(bool)
 	return v
