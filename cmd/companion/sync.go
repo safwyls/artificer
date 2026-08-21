@@ -511,12 +511,26 @@ func (a *app) syncClaim(worldID int64) error {
 // linkWorld ties an existing world to a local save folder and reports
 // the game details to the service (metadata only; the service stores
 // what companions report, it never interprets it).
-func (a *app) linkWorld(worldID int64, gameTitle, dir, meta string) error {
+// checkSaveDir is the one gate a link cannot pass without. It is
+// separate so createWorld can run it *before* creating anything on the
+// service — see the note there.
+func checkSaveDir(dir string) error {
 	if dir == "" {
 		return errors.New("a link needs a save folder")
 	}
-	if _, err := os.Stat(dir); err != nil {
+	info, err := os.Stat(dir)
+	if err != nil {
 		return fmt.Errorf("save folder: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("save folder: %s is a file, not a folder", dir)
+	}
+	return nil
+}
+
+func (a *app) linkWorld(worldID int64, gameTitle, dir, meta string) error {
+	if err := checkSaveDir(dir); err != nil {
+		return err
 	}
 	if gameTitle != "" || meta != "" {
 		if err := a.syncDo(http.MethodPut, fmt.Sprintf("/worlds/%d/meta", worldID), map[string]string{
@@ -546,6 +560,15 @@ func (a *app) linkWorld(worldID int64, gameTitle, dir, meta string) error {
 func (a *app) createWorld(name, gameTitle, dir, meta string, seed bool) error {
 	if name == "" {
 		return errors.New("a world needs a name")
+	}
+	// Check the folder before creating anything on the service. The
+	// order used to be the other way round, so a link refused for a
+	// missing save folder — the one thing discovery genuinely cannot
+	// guess — still left a world behind on the service, with nothing
+	// linked to it here. An orphan world nobody asked for is worse than
+	// a refusal.
+	if err := checkSaveDir(dir); err != nil {
+		return err
 	}
 	var out struct {
 		Status struct {

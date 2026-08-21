@@ -46,6 +46,14 @@ relay still accepts pushes from old wkcompanion builds;
    Steam app id); it can create the world and seed it with the folder's
    current save in the same step. Any number of worlds can be linked.
    Any folder at all can be linked by hand, discovery or no discovery.
+
+   **The save folder is the one thing the form cannot guess**, so a game
+   discovery found no candidate for is a question, not a failure: the
+   form says so, refuses to submit without one, and reports whatever
+   went wrong inside the modal rather than on the status line behind it.
+   The check runs before anything reaches the service, too — creating
+   the world first and validating second left an orphan world on the
+   service whenever a link was refused (2026-08-21).
 3. **Moves the saves.** Checkout installs a world's head into its
    folder (tmp-extract-and-swap, one `.pre-checkout` copy kept);
    check-in packages the folder and returns the hold; mid-session

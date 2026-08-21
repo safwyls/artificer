@@ -394,3 +394,69 @@ func TestStateNeverMarshalsNullArrays(t *testing.T) {
 		t.Error("state carries no version; both UIs show it for bug reports")
 	}
 }
+
+// A link that cannot succeed must not leave a world behind.
+//
+// createWorld used to POST /worlds first and validate the save folder
+// second, so submitting the form without a folder — the one thing
+// discovery genuinely cannot guess — created a world on the service and
+// then failed locally. The page closed its modal and reported the
+// failure off-screen, so the result read as "nothing happened on either
+// end" while an orphan world sat on the service.
+func TestCreateWorldChecksTheFolderBeforeCreatingAnything(t *testing.T) {
+	var hits []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits = append(hits, r.Method+" "+r.URL.Path)
+		json.NewEncoder(w).Encode(map[string]any{
+			"accepted": true,
+			"status":   map[string]any{"world": map[string]any{"id": 1}},
+		})
+	}))
+	defer srv.Close()
+
+	a := newApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+
+	for _, tc := range []struct{ name, dir, want string }{
+		{"no folder at all", "", "a link needs a save folder"},
+		{"a folder that isn't there", filepath.Join(t.TempDir(), "nope"), "save folder:"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			hits = nil
+			err := a.createWorld("midgard", "Palworld", tc.dir, "", false)
+			if err == nil {
+				t.Fatal("createWorld succeeded with an unusable save folder")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error = %q, want it to mention %q", err, tc.want)
+			}
+			if len(hits) != 0 {
+				t.Errorf("the service was called %v; a refused link must create nothing", hits)
+			}
+			a.mu.Lock()
+			links := len(a.cfg.Links)
+			a.mu.Unlock()
+			if links != 0 {
+				t.Errorf("%d links recorded after a refused create", links)
+			}
+		})
+	}
+
+	// A real folder goes through, and only then is a world created.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "world.sav"), []byte("save"), 0o600); err != nil {
+		t.Fatalf("write save: %v", err)
+	}
+	hits = nil
+	if err := a.createWorld("midgard", "Palworld", dir, `{"appId":"1623730"}`, false); err != nil {
+		t.Fatalf("createWorld with a real folder: %v", err)
+	}
+	if len(hits) == 0 || hits[0] != "POST /api/public/sync/tok/worlds" {
+		t.Errorf("service calls = %v, want the world create first", hits)
+	}
+	a.mu.Lock()
+	links := append([]WorldLink(nil), a.cfg.Links...)
+	a.mu.Unlock()
+	if len(links) != 1 || links[0].Dir != dir || links[0].WorldID != 1 {
+		t.Errorf("links = %+v, want one link to the created world", links)
+	}
+}
