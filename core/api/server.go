@@ -91,9 +91,14 @@ type Server struct {
 	Roster RosterSource
 	// SaveSync, when set (assigned after New, like Provisioner), enables
 	// shared-world checkout/check-in custody — worlds, holds, versions
-	// (docs/save-sync-architecture.md). Nil means the console doesn't
-	// offer it and the routes are simply absent.
+	// (docs/save-sync-architecture.md). Set by the standalone vault
+	// service (VaultRoutes); nil in the consoles, where the routes are
+	// simply absent.
 	SaveSync *savesync.Service
+	// CompanionExe is the bundled Artificer Companion the vault's
+	// token-gated download hands out; empty answers with where to get
+	// one instead of a broken link (vault.go).
+	CompanionExe string
 	// GameRoutes, when set, mounts the game's own per-server endpoints
 	// (drift ledger seam 5) inside the authenticated /servers/{id} group.
 	// The game module builds the closure over this Server via its Routes

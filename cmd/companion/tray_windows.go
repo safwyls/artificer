@@ -12,9 +12,9 @@ import (
 //go:embed assets/icon.ico
 var trayIcon []byte
 
-// runUI parks the companion in the system tray: open the sheet, push on
-// demand, read the sharing state at a glance, quit. The character sheet
-// itself stays a browser page — the tray is the handle, not the UI.
+// runUI parks the companion in the system tray: open the page, sync on
+// demand, read the custody state at a glance, quit. The page is the UI —
+// the tray is the handle.
 func runUI(a *app, url string) {
 	// A console-subsystem build (plain `go build`) double-clicked from
 	// Explorer drags a console window along; close it once startup has
@@ -24,13 +24,13 @@ func runUI(a *app, url string) {
 		systray.SetIcon(trayIcon)
 		systray.SetTooltip("Artificer Companion")
 
-		open := systray.AddMenuItem("Open companion page", "Your characters and shared worlds, in the browser")
-		push := systray.AddMenuItem("Push to console now", "Send your character sheet immediately")
+		open := systray.AddMenuItem("Open companion page", "Your shared worlds, in the browser")
+		syncNow := systray.AddMenuItem("Sync now", "Poll the service and push any due checkpoints")
 		systray.AddSeparator()
-		status := systray.AddMenuItem("Starting…", "Sharing state")
+		status := systray.AddMenuItem("Starting…", "Custody state")
 		status.Disable()
 		systray.AddSeparator()
-		quit := systray.AddMenuItem("Quit", "Stop watching and sharing")
+		quit := systray.AddMenuItem("Quit", "Stop syncing")
 
 		// The status line follows the app state; a menu the player only
 		// glances at occasionally doesn't need to be fresher than this.
@@ -43,15 +43,17 @@ func runUI(a *app, url string) {
 				select {
 				case <-open.ClickedCh:
 					openBrowser(url)
-				case <-push.ClickedCh:
-					if !a.relayConfigured() {
-						// Nothing to push to: the settings live on the page.
-						openBrowser(url)
-						continue
-					}
+				case <-syncNow.ClickedCh:
 					go func() {
-						a.scan()
-						a.pushChanged(true)
+						if a.syncConfigured() {
+							a.syncRefresh()
+							for _, id := range a.linkedWorldIDs() {
+								a.adoptHandoff(id)
+								a.autoCheckpoint(id)
+							}
+						} else {
+							openBrowser(url) // nothing to sync: the setup lives on the page
+						}
 						update()
 					}()
 				case <-ticker.C:

@@ -1,0 +1,137 @@
+// Command reliquary is the standalone save-sync service: shared-world
+// checkout/check-in custody for any game, independent of the per-game
+// consoles (docs/save-sync-architecture.md — the option-B shape, chosen
+// once the feature outgrew a single console). It holds the canonical
+// versioned saves, the custody ledger, the friend group's accounts and
+// their companion tokens; the Artificer Companion (cmd/companion) is its
+// player-side client, and a dedicated server joins through a world's
+// agent link.
+//
+// Deliberately game-blind: it registers no game module, so save
+// verification is structural (well-formed bundle, non-empty, size
+// bounds) and game knowledge lives in the metadata companions report.
+// It holds no Docker rights and talks to nothing above it — the same
+// posture as anvil, one floor up.
+package main
+
+import (
+	"context"
+	"embed"
+	"errors"
+	"fmt"
+	"io/fs"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/safwyls/artificer/core/api"
+	"github.com/safwyls/artificer/core/cfaccess"
+	"github.com/safwyls/artificer/core/config"
+	"github.com/safwyls/artificer/core/crypto"
+	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/savesync"
+	"github.com/safwyls/artificer/core/store"
+)
+
+//go:embed ui
+var uiFS embed.FS
+
+func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	if err := run(logger); err != nil {
+		logger.Error("fatal", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run(logger *slog.Logger) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	for _, msg := range config.RetiredSettings() {
+		logger.Warn(msg)
+	}
+
+	sqlDB, err := db.Open(cfg.DBPath())
+	if err != nil {
+		return err
+	}
+	defer sqlDB.Close()
+
+	box, err := crypto.New(cfg.EncryptionKey)
+	if err != nil {
+		return err
+	}
+	st := store.New(sqlDB, box)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if err := api.BootstrapAdmin(ctx, st, cfg.AdminUsername, cfg.AdminPassword); err != nil {
+		return err
+	}
+
+	// World webhooks ride the shared notifier; there are no server rows
+	// here, so only the sync events ever fire.
+	notifier := notify.New(st, logger)
+
+	saveSync := savesync.New(st, notifier, logger, cfg.DataDir)
+	go saveSync.Run(ctx)
+
+	apiServer := api.New(st, cfg.JWTSecret, logger, nil, notifier, nil, nil, nil)
+	apiServer.SessionCookie = "reliquary_session"
+	apiServer.SaveSync = saveSync
+	apiServer.CookieSecure = cfg.CookieSecure
+	// The bundled companion the token-gated download hands out; the
+	// image build places it beside the binary, and GitHub releases carry
+	// the same exe for everyone else.
+	companionExe := os.Getenv("COMPANION_EXE")
+	if companionExe == "" {
+		if _, err := os.Stat("artificer-companion.exe"); err == nil {
+			companionExe = "artificer-companion.exe"
+		}
+	}
+	apiServer.CompanionExe = companionExe
+	if cfg.AccessEnabled() {
+		verifier, err := cfaccess.New(cfg.AccessTeamDomain, cfg.AccessAUD)
+		if err != nil {
+			return fmt.Errorf("configuring cloudflare access: %w", err)
+		}
+		apiServer.Access = verifier
+		apiServer.AccessAdminEmails = cfg.AccessAdminEmails
+		logger.Info("cloudflare access sign-in enabled", "issuer", verifier.Issuer())
+	}
+
+	ui, err := fs.Sub(uiFS, "ui")
+	if err != nil {
+		return err
+	}
+	httpServer := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           apiServer.VaultRoutes(ui),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		logger.Info("listening", "addr", cfg.HTTPAddr)
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		logger.Info("shutting down")
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+		return httpServer.Shutdown(shutdownCtx)
+	case err := <-errCh:
+		return err
+	}
+}

@@ -4,7 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"net/http"
-	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -22,107 +22,60 @@ func (a *app) routes() http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(data)
 	})
-	mux.HandleFunc("GET /data/", func(w http.ResponseWriter, r *http.Request) {
-		data, err := uiFS.ReadFile("ui" + r.URL.Path)
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
-	})
 	mux.HandleFunc("GET /api/state", a.handleState)
 	mux.HandleFunc("PUT /api/config", a.handleSetConfig)
-	mux.HandleFunc("POST /api/push", a.handlePushNow)
-	// Save-sync custody (sync.go). Local-only like everything here; the
-	// real authorization is the sync token these calls carry upstream.
-	mux.HandleFunc("PUT /api/sync/config", a.handleSyncConfig)
-	mux.HandleFunc("POST /api/sync/checkout", a.handleSyncCheckout)
-	mux.HandleFunc("POST /api/sync/checkin", a.handleSyncAction(func(a *app) error { return a.syncCheckin() }))
-	mux.HandleFunc("POST /api/sync/checkpoint", a.handleSyncAction(func(a *app) error { return a.syncCheckpointNow() }))
-	mux.HandleFunc("POST /api/sync/renew", a.handleSyncAction(func(a *app) error { return a.syncRenew() }))
-	mux.HandleFunc("POST /api/sync/claim", a.handleSyncClaim)
+	mux.HandleFunc("POST /api/discover", a.handleDiscover)
+	// World links and custody. Local-only like everything here; the real
+	// authorization is the sync token these calls carry upstream.
+	mux.HandleFunc("POST /api/links", a.handleAddLink)
+	mux.HandleFunc("POST /api/links/create", a.handleCreateWorld)
+	mux.HandleFunc("DELETE /api/links/{worldID}", a.linkAction(func(a *app, id int64) error { return a.unlink(id) }))
+	mux.HandleFunc("POST /api/links/{worldID}/checkout", a.handleCheckout)
+	mux.HandleFunc("POST /api/links/{worldID}/checkin", a.linkAction((*app).syncCheckin))
+	mux.HandleFunc("POST /api/links/{worldID}/checkpoint", a.linkAction((*app).syncCheckpointNow))
+	mux.HandleFunc("POST /api/links/{worldID}/renew", a.linkAction((*app).syncRenew))
+	mux.HandleFunc("POST /api/links/{worldID}/claim", a.linkAction((*app).syncClaim))
 	return mux
 }
 
-func (a *app) handleSyncAction(fn func(*app) error) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !a.syncConfigured() {
-			writeJSON(w, map[string]any{"ok": false, "error": "world sync is not configured"})
-			return
-		}
-		if err := fn(a); err != nil {
-			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
-			return
-		}
-		writeJSON(w, map[string]any{"ok": true})
+func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	st := a.worldSync
+	st.Configured = a.cfg.configured()
+	links := append([]WorldLink(nil), a.cfg.Links...)
+	discovered := append([]discoveredGame(nil), a.discovered...)
+	out := map[string]any{
+		"config": map[string]any{
+			"serverUrl": a.cfg.ServerURL,
+			"tokenSet":  a.cfg.Token != "",
+		},
+		"links":      links,
+		"discovered": discovered,
+		"sync":       st,
 	}
+	a.mu.Unlock()
+	writeJSON(w, out)
 }
 
-func (a *app) handleSyncCheckout(w http.ResponseWriter, r *http.Request) {
+// handleSetConfig saves the connection and, when it is complete, proves
+// it with a status poll — a typo'd token should fail here, not silently
+// every minute forever. An empty token keeps the saved one.
+func (a *app) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		WorldID  int64 `json:"worldId"`
-		Takeover bool  `json:"takeover"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
-		return
-	}
-	if !a.syncConfigured() {
-		writeJSON(w, map[string]any{"ok": false, "error": "set the sync token and world folder first"})
-		return
-	}
-	if err := a.syncCheckout(in.WorldID, in.Takeover); err != nil {
-		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
-	writeJSON(w, map[string]any{"ok": true})
-}
-
-func (a *app) handleSyncClaim(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		WorldID int64 `json:"worldId"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
-		return
-	}
-	if !a.syncConfigured() {
-		writeJSON(w, map[string]any{"ok": false, "error": "world sync is not configured"})
-		return
-	}
-	if err := a.syncClaim(in.WorldID); err != nil {
-		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
-	writeJSON(w, map[string]any{"ok": true})
-}
-
-// handleSyncConfig saves the custody settings and, when they are
-// complete, proves them with a status poll — a typo'd token should fail
-// here, not silently every minute forever.
-func (a *app) handleSyncConfig(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Token    string `json:"token"`
-		WorldDir string `json:"worldDir"`
+		ServerURL string `json:"serverUrl"`
+		Token     string `json:"token"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
 		return
 	}
 	a.mu.Lock()
-	if in.Token != "" {
-		a.cfg.Sync.Token = in.Token
+	a.cfg.ServerURL = normalizeServerURL(in.ServerURL)
+	if strings.TrimSpace(in.Token) != "" {
+		a.cfg.Token = strings.TrimSpace(in.Token)
 	}
-	if in.Token == "" && a.cfg.Sync.Token != "" {
-		// An empty token in the form means "keep the saved one" unless
-		// the player never set one — the field is cleared after save like
-		// the relay token's.
-	}
-	a.cfg.Sync.WorldDir = strings.TrimSpace(in.WorldDir)
-	cfg, path := a.cfg, a.cfgPath
 	a.mu.Unlock()
-	if err := saveConfig(path, cfg); err != nil {
+	if err := a.saveCfg(); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "saving config: " + err.Error()})
 		return
 	}
@@ -135,88 +88,77 @@ func (a *app) handleSyncConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
+func (a *app) handleDiscover(w http.ResponseWriter, r *http.Request) {
+	games := discoverGames()
 	a.mu.Lock()
-	chars := make([]*character, 0, len(a.characters))
-	for _, c := range a.characters {
-		chars = append(chars, c)
-	}
-	sort.Slice(chars, func(i, j int) bool { return chars[i].File < chars[j].File })
-	worldSync := a.worldSync
-	worldSync.Configured = a.cfg.ConsoleURL != "" && a.cfg.Sync.configured()
-	worldSync.WorldID = a.cfg.Sync.WorldID
-	worldSync.WorldDir = a.cfg.Sync.WorldDir
-	worldSync.SessionID = a.cfg.Sync.SessionID
-	out := map[string]any{
-		"characters": chars,
-		"config": map[string]any{
-			"consoleUrl":   a.cfg.ConsoleURL,
-			"tokenSet":     a.cfg.Token != "",
-			"saveDir":      a.cfg.SaveDir,
-			"detectedDir":  a.cfg.resolveSaveDir(),
-			"syncTokenSet": a.cfg.Sync.Token != "",
-		},
-		"relay":   a.relay,
-		"scanErr": a.scanErr,
-		"sync":    worldSync,
-	}
+	a.discovered = games
 	a.mu.Unlock()
-	writeJSON(w, out)
+	writeJSON(w, map[string]any{"ok": true, "found": len(games)})
 }
 
-func (a *app) handleSetConfig(w http.ResponseWriter, r *http.Request) {
+func (a *app) handleAddLink(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		ConsoleURL string `json:"consoleUrl"`
-		Token      string `json:"token"`
-		SaveDir    string `json:"saveDir"`
+		WorldID   int64  `json:"worldId"`
+		GameTitle string `json:"gameTitle"`
+		Dir       string `json:"dir"`
+		Meta      string `json:"meta"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.WorldID == 0 {
+		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
 		return
 	}
-	in.ConsoleURL = normalizeConsoleURL(in.ConsoleURL)
+	if err := a.linkWorld(in.WorldID, in.GameTitle, strings.TrimSpace(in.Dir), in.Meta); err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
 
-	// A configured relay is verified before it is saved: a typo'd token
-	// should fail here, not silently every 15 seconds forever.
-	server := ""
-	if in.ConsoleURL != "" && in.Token != "" {
-		var err error
-		if server, err = a.ping(in.ConsoleURL, in.Token); err != nil {
+func (a *app) handleCreateWorld(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Name      string `json:"name"`
+		GameTitle string `json:"gameTitle"`
+		Dir       string `json:"dir"`
+		Meta      string `json:"meta"`
+		Seed      bool   `json:"seed"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
+		return
+	}
+	if err := a.createWorld(strings.TrimSpace(in.Name), in.GameTitle, strings.TrimSpace(in.Dir), in.Meta, in.Seed); err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+func (a *app) handleCheckout(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Takeover bool `json:"takeover"`
+	}
+	json.NewDecoder(r.Body).Decode(&in) // an empty body is a plain checkout
+	a.linkAction(func(a *app, id int64) error { return a.syncCheckout(id, in.Takeover) })(w, r)
+}
+
+// linkAction adapts a per-world verb into a local handler.
+func (a *app) linkAction(fn func(*app, int64) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("worldID"), 10, 64)
+		if err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": "invalid world id"})
+			return
+		}
+		if !a.syncConfigured() {
+			writeJSON(w, map[string]any{"ok": false, "error": "set the server URL and token first"})
+			return
+		}
+		if err := fn(a, id); err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
+		writeJSON(w, map[string]any{"ok": true})
 	}
-
-	a.mu.Lock()
-	a.cfg.ConsoleURL = in.ConsoleURL
-	a.cfg.Token = in.Token
-	a.cfg.SaveDir = in.SaveDir
-	a.relay = relayStatus{Configured: in.ConsoleURL != "" && in.Token != "", Server: server}
-	// Sharing turned off or retargeted: what was pushed no longer counts.
-	for _, c := range a.characters {
-		c.PushedAt = nil
-	}
-	cfg, path := a.cfg, a.cfgPath
-	a.mu.Unlock()
-
-	if err := saveConfig(path, cfg); err != nil {
-		writeJSON(w, map[string]any{"ok": false, "error": "saving config: " + err.Error()})
-		return
-	}
-	writeJSON(w, map[string]any{"ok": true, "server": server})
-}
-
-func (a *app) handlePushNow(w http.ResponseWriter, r *http.Request) {
-	if !a.relayConfigured() {
-		writeJSON(w, map[string]any{"ok": false, "error": "no console configured"})
-		return
-	}
-	a.scan()
-	ok := a.pushChanged(true)
-	a.mu.Lock()
-	rs := a.relay
-	a.mu.Unlock()
-	writeJSON(w, map[string]any{"ok": ok, "relay": rs})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

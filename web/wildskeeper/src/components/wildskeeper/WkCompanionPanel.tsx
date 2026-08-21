@@ -36,10 +36,10 @@ export function WkCompanionPanel({ serverId }: { serverId: number }) {
     >
       <p className="text-sm text-wk-mist">
         This console reads a character's sheet from the world save while that player is connected, and
-        remembers it afterwards. The <b className="text-wk-parchment">Artificer Companion</b> app covers the
-        rest: it keeps a player's sheet current without them logging in, carries adventurers this console has
-        never seen online, and gives each player a character sheet on their own machine. Optional — hand
-        players the download link, this console's address, and the token below.
+        remembers it afterwards. Sharing covers the rest: a player running the old{" "}
+        <b className="text-wk-parchment">wkcompanion</b> relay keeps their sheet current without logging in.
+        The current Artificer Companion focuses on world save sync and no longer relays character data, so
+        this tier matters mainly for players still running the older app.
       </p>
       {state?.enabled && (
         <>
@@ -75,8 +75,8 @@ export function WkCompanionPanel({ serverId }: { serverId: number }) {
             </button>
           </div>
           <p className="mt-2 text-xs text-wk-mist">
-            Give players the download link — the console serves the app itself — plus this console's address
-            and the token for the app's settings.
+            The download serves a relay-capable build only when this deployment bundles one (COMPANION_EXE);
+            players already running wkcompanion keep working with this console's address and the token.
           </p>
         </>
       )}

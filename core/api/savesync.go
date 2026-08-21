@@ -105,14 +105,10 @@ func writeSyncError(w http.ResponseWriter, err error) {
 	}
 }
 
-// syncAudit records custody actions on the linked server's audit trail
-// when the world has one; a world without a server has no audit page to
-// land on, and the session/version history is itself the custody record.
+// syncAudit logs custody actions. Worlds are not servers, so there is no
+// per-server audit page for these to land on; the session and version
+// history is itself the custody record, and the log carries the rest.
 func (s *Server) syncAudit(r *http.Request, w *store.SyncWorld, action, detail string) {
-	if w.ServerID != nil {
-		s.audit(r, *w.ServerID, action, detail)
-		return
-	}
 	username := "unknown"
 	if user, ok := userFromContext(r.Context()); ok {
 		username = user.Username
@@ -179,12 +175,24 @@ func (s *Server) handleListSyncWorlds(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"worlds": out})
 }
 
+// handleCreateSyncWorld makes a world. PermSync rather than admin: the
+// companion's "link this installed game" flow creates worlds, and the
+// custody grant is the trust boundary — an admin can always delete.
+// Game metadata may ride along at creation (the companion's discovery
+// report); size caps below match the meta endpoint's.
 func (s *Server) handleCreateSyncWorld(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Name string `json:"name"`
+		Name      string `json:"name"`
+		GameTitle string `json:"gameTitle"`
+		SaveHint  string `json:"saveHint"`
+		GameMeta  string `json:"gameMeta"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" {
 		writeError(w, http.StatusBadRequest, "a world needs a name")
+		return
+	}
+	if err := validSyncGameInfo(in.GameTitle, in.SaveHint, in.GameMeta); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	id, err := s.store.CreateSyncWorld(r.Context(), in.Name, time.Now())
@@ -192,13 +200,64 @@ func (s *Server) handleCreateSyncWorld(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if in.GameTitle != "" || in.SaveHint != "" || in.GameMeta != "" {
+		if err := s.store.SetSyncWorldGameInfo(r.Context(), id, in.GameTitle, in.SaveHint, in.GameMeta); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	world, err := s.store.GetSyncWorld(r.Context(), id)
 	if err != nil {
 		writeSyncError(w, err)
 		return
 	}
 	s.syncAudit(r, world, "sync-world-create", in.Name)
-	writeJSON(w, http.StatusCreated, s.syncStatus(r, world))
+	writeJSON(w, http.StatusCreated, map[string]any{"accepted": true, "status": s.syncStatus(r, world)})
+}
+
+// validSyncGameInfo bounds companion-reported metadata: stored and shown
+// verbatim, so the only rule is that it stays small and, for the meta
+// blob, is actually JSON.
+func validSyncGameInfo(title, hint, meta string) error {
+	if len(title) > 200 || len(hint) > 500 {
+		return errors.New("game title or save hint is unreasonably long")
+	}
+	if len(meta) > 4096 {
+		return errors.New("game metadata is capped at 4 KB")
+	}
+	if meta != "" && !json.Valid([]byte(meta)) {
+		return errors.New("game metadata must be JSON")
+	}
+	return nil
+}
+
+// handleSyncWorldMeta stores a companion's discovery report about the
+// game behind a world. Metadata only — custody and policy are out of its
+// reach by construction (SetSyncWorldGameInfo touches nothing else).
+func (s *Server) handleSyncWorldMeta(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		GameTitle string `json:"gameTitle"`
+		SaveHint  string `json:"saveHint"`
+		GameMeta  string `json:"gameMeta"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := validSyncGameInfo(in.GameTitle, in.SaveHint, in.GameMeta); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.store.SetSyncWorldGameInfo(r.Context(), world.ID, in.GameTitle, in.SaveHint, in.GameMeta); err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	s.syncAudit(r, world, "sync-world-meta", in.GameTitle)
+	writeJSON(w, http.StatusOK, map[string]any{"accepted": true})
 }
 
 func (s *Server) handleGetSyncWorld(w http.ResponseWriter, r *http.Request) {
@@ -237,12 +296,16 @@ func (s *Server) handleUpdateSyncWorld(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Name         string `json:"name"`
-		ServerID     *int64 `json:"serverId"`
 		LeaseHours   int    `json:"leaseHours"`
 		MaxBytes     int64  `json:"maxBytes"`
 		KeepVersions int    `json:"keepVersions"`
 		Checkpoints  bool   `json:"checkpoints"`
 		WebhookURL   string `json:"webhookUrl"`
+		// The optional dedicated-server agent for the give/take flows.
+		// An empty token keeps the stored one; clearing the URL clears
+		// the credential with it.
+		AgentURL   string `json:"agentUrl"`
+		AgentToken string `json:"agentToken"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -270,13 +333,7 @@ func (s *Server) handleUpdateSyncWorld(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if in.ServerID != nil {
-		if _, err := s.store.GetServer(r.Context(), *in.ServerID); err != nil {
-			writeError(w, http.StatusBadRequest, "linked server does not exist")
-			return
-		}
-	}
-	if err := s.store.UpdateSyncWorldSettings(r.Context(), world.ID, in.Name, in.ServerID, in.LeaseHours, in.MaxBytes, in.KeepVersions, in.Checkpoints, in.WebhookURL); err != nil {
+	if err := s.store.UpdateSyncWorldSettings(r.Context(), world.ID, in.Name, in.LeaseHours, in.MaxBytes, in.KeepVersions, in.Checkpoints, in.WebhookURL, in.AgentURL, in.AgentToken); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -573,12 +630,15 @@ func (s *Server) handlePublicSyncStatus(w http.ResponseWriter, r *http.Request) 
 // from Routes() — the small-verb group and the upload group carry
 // different body caps, so the routes arrive in two pieces.
 func (s *Server) mountSyncSmall(r chi.Router) {
-	// Reading custody state: any signed-in user. Holding: PermSync.
-	// Managing worlds: admin.
+	// Reading custody state: any signed-in user. Holding, creating and
+	// annotating worlds: PermSync — the custody grant is the trust
+	// boundary, and the companion's link-a-game flow creates worlds.
+	// Settings, deletion and the destructive verbs: admin.
 	r.Get("/sync/worlds", s.handleListSyncWorlds)
-	r.With(s.requireAdmin).Post("/sync/worlds", s.handleCreateSyncWorld)
+	r.With(s.requirePermission(store.PermSync)).Post("/sync/worlds", s.handleCreateSyncWorld)
 	r.Get("/sync/worlds/{worldID}", s.handleGetSyncWorld)
 	r.With(s.requireAdmin).Put("/sync/worlds/{worldID}", s.handleUpdateSyncWorld)
+	r.With(s.requirePermission(store.PermSync)).Put("/sync/worlds/{worldID}/meta", s.handleSyncWorldMeta)
 	r.With(s.requireAdmin).Delete("/sync/worlds/{worldID}", s.handleDeleteSyncWorld)
 	r.With(s.requirePermission(store.PermSync)).Post("/sync/worlds/{worldID}/checkout", s.asUser(s.syncCheckout))
 	r.With(s.requirePermission(store.PermSync)).Post("/sync/worlds/{worldID}/claim", s.asUser(s.syncClaim))
@@ -616,7 +676,10 @@ func (s *Server) mountSyncUploads(r chi.Router) {
 		r.With(s.requirePermission(store.PermSync)).Post("/sync/sessions/{sessionID}/checkpoint", func(w http.ResponseWriter, r *http.Request) {
 			s.syncCheckin(w, r, store.SyncKindCheckpoint)
 		})
-		r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/import", s.handleSyncImport)
+		// Import is PermSync, not admin: seeding a fresh world with the
+		// current save is the second half of the companion's link flow,
+		// and it is already refused while anyone holds the world.
+		r.With(s.requirePermission(store.PermSync)).Post("/sync/worlds/{worldID}/import", s.handleSyncImport)
 	})
 
 	// The companion tier: token in the path is the whole credential.
@@ -625,6 +688,10 @@ func (s *Server) mountSyncUploads(r chi.Router) {
 	// one base URL.
 	r.Route("/public/sync/{token}", func(r chi.Router) {
 		r.Get("/", s.handlePublicSyncStatus)
+		r.Get("/companion/download", s.withSyncTokenUser(s.handleSyncCompanionDownload))
+		r.Post("/worlds", s.withSyncTokenUser(s.handleCreateSyncWorld))
+		r.Put("/worlds/{worldID}/meta", s.withSyncTokenUser(s.handleSyncWorldMeta))
+		r.Post("/worlds/{worldID}/import", s.withSyncTokenUser(s.handleSyncImport))
 		r.Post("/worlds/{worldID}/checkout", s.withSyncTokenUser(func(w http.ResponseWriter, r *http.Request) {
 			s.asUser(s.syncCheckout)(w, r)
 		}))

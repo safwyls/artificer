@@ -494,18 +494,14 @@ func (s *Service) stageAndVerify(ctx context.Context, w *store.SyncWorld, body i
 	return staged, bytes, sum, nil
 }
 
-// layoutFor resolves the save layout that judges this world's uploads:
-// the linked server's game when one is linked, else the console's own
-// game. Zero value (the permissive defaults) when the game declares
-// none.
+// layoutFor resolves the save layout that judges this world's uploads.
+// The standalone service registers no game, so this is usually the zero
+// value — the permissive structural checks. A game-specific layout comes
+// back only where a game module is registered in the hosting binary; the
+// generic service cannot know game formats, and pretending otherwise
+// would be an invented rule that rejects legitimate saves.
 func (s *Service) layoutFor(ctx context.Context, w *store.SyncWorld) game.SaveLayout {
-	gameID := game.DefaultID
-	if w.ServerID != nil {
-		if srv, err := s.store.GetServer(ctx, *w.ServerID); err == nil && srv.Game != "" {
-			gameID = srv.Game
-		}
-	}
-	if def, ok := game.Get(gameID); ok && def.Save != nil {
+	if def, ok := game.Get(game.DefaultID); ok && def.Save != nil {
 		return *def.Save
 	}
 	return game.SaveLayout{}

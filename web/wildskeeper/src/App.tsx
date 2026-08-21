@@ -5,7 +5,6 @@ import { EmptyState } from "./pages/EmptyState";
 import { Host } from "./pages/Host";
 import { Users } from "./pages/Users";
 import { ServerAutomation } from "./pages/ServerAutomation";
-import { Worlds } from "./pages/Worlds";
 import { ServerActivity } from "./pages/ServerActivity";
 import { PublicStatus } from "./pages/PublicStatus";
 import { WkOverview } from "./pages/wildskeeper/WkOverview";
@@ -49,9 +48,6 @@ export function App() {
           }
         >
           <Route path="/" element={<EmptyState />} />
-          {/* Shared-world custody: console-level like Users and Host, but
-              readable by anyone signed in — the API gates the verbs. */}
-          <Route path="/worlds" element={<Worlds />} />
           <Route
             path="/users"
             element={

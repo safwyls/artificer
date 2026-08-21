@@ -39,14 +39,26 @@ var ErrWorldHeld = errors.New("this world is already checked out")
 type SyncWorld struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
-	// ServerID links the dedicated server that can also hold this world;
-	// nil for a purely peer-hosted world.
-	ServerID     *int64 `json:"serverId,omitempty"`
-	LeaseHours   int    `json:"leaseHours"`
-	MaxBytes     int64  `json:"maxBytes"`
-	KeepVersions int    `json:"keepVersions"`
-	Checkpoints  bool   `json:"checkpoints"`
-	WebhookURL   string `json:"webhookUrl"`
+	// Game metadata, reported by the companion app that discovered the
+	// game: a display title, where the save lived on the reporter's
+	// machine (a setup hint for the next player, never followed blindly),
+	// and free-form JSON the reporter shaped (Steam app id, install
+	// name). The server stores and shows these; it never interprets them.
+	GameTitle string `json:"gameTitle"`
+	SaveHint  string `json:"saveHint"`
+	GameMeta  string `json:"gameMeta"`
+	// The sidecar agent that can also hold this world (the give/take
+	// flows), when the game has a dedicated server. The token is
+	// decrypted here, encrypted at rest, and never serialized.
+	AgentURL   string `json:"agentUrl"`
+	AgentToken string `json:"-"`
+	// HasAgentToken is what the UI may know about the credential.
+	HasAgentToken bool   `json:"hasAgentToken"`
+	LeaseHours    int    `json:"leaseHours"`
+	MaxBytes      int64  `json:"maxBytes"`
+	KeepVersions  int    `json:"keepVersions"`
+	Checkpoints   bool   `json:"checkpoints"`
+	WebhookURL    string `json:"webhookUrl"`
 	// HeadVersion is the canonical current version; nil until something
 	// is checked in or imported.
 	HeadVersion *int64 `json:"headVersion,omitempty"`
@@ -117,19 +129,26 @@ func nullInt(p *int64) any {
 
 // --- worlds ---
 
-const syncWorldColumns = `id, name, server_id, lease_hours, max_bytes, keep_versions, checkpoints, webhook_url, head_version, next_holder, created_at`
+// sync_worlds.server_id predates the standalone service and is no
+// longer read: a world's dedicated server is its own agent link now.
+const syncWorldColumns = `id, name, game_title, save_hint, game_meta, agent_url, agent_token_enc, lease_hours, max_bytes, keep_versions, checkpoints, webhook_url, head_version, next_holder, created_at`
 
-func scanSyncWorld(scan func(...any) error) (*SyncWorld, error) {
+func (s *Store) scanSyncWorld(scan func(...any) error) (*SyncWorld, error) {
 	var w SyncWorld
-	var serverID, head, next sql.NullInt64
+	var head, next sql.NullInt64
 	var checkpoints int
-	var created string
-	if err := scan(&w.ID, &w.Name, &serverID, &w.LeaseHours, &w.MaxBytes, &w.KeepVersions, &checkpoints, &w.WebhookURL, &head, &next, &created); err != nil {
+	var created, tokenEnc string
+	if err := scan(&w.ID, &w.Name, &w.GameTitle, &w.SaveHint, &w.GameMeta, &w.AgentURL, &tokenEnc, &w.LeaseHours, &w.MaxBytes, &w.KeepVersions, &checkpoints, &w.WebhookURL, &head, &next, &created); err != nil {
 		return nil, err
 	}
-	if serverID.Valid {
-		w.ServerID = &serverID.Int64
+	if tokenEnc != "" {
+		token, err := s.box.Decrypt(tokenEnc)
+		if err != nil {
+			return nil, err
+		}
+		w.AgentToken = token
 	}
+	w.HasAgentToken = w.AgentToken != ""
 	if head.Valid {
 		w.HeadVersion = &head.Int64
 	}
@@ -155,7 +174,7 @@ func (s *Store) CreateSyncWorld(ctx context.Context, name string, now time.Time)
 
 func (s *Store) GetSyncWorld(ctx context.Context, id int64) (*SyncWorld, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT `+syncWorldColumns+` FROM sync_worlds WHERE id = ?`, id)
-	w, err := scanSyncWorld(row.Scan)
+	w, err := s.scanSyncWorld(row.Scan)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -170,7 +189,7 @@ func (s *Store) ListSyncWorlds(ctx context.Context) ([]*SyncWorld, error) {
 	defer rows.Close()
 	out := []*SyncWorld{}
 	for rows.Next() {
-		w, err := scanSyncWorld(rows.Scan)
+		w, err := s.scanSyncWorld(rows.Scan)
 		if err != nil {
 			return nil, err
 		}
@@ -179,17 +198,50 @@ func (s *Store) ListSyncWorlds(ctx context.Context) ([]*SyncWorld, error) {
 	return out, rows.Err()
 }
 
-// UpdateSyncWorldSettings changes the policy knobs. Custody state (head,
-// next holder) is deliberately not here — a settings form save must never
-// move the head.
-func (s *Store) UpdateSyncWorldSettings(ctx context.Context, id int64, name string, serverID *int64, leaseHours int, maxBytes int64, keepVersions int, checkpoints bool, webhookURL string) error {
+// UpdateSyncWorldSettings changes the policy knobs and the agent link.
+// Custody state (head, next holder) is deliberately not here — a
+// settings form save must never move the head. An empty agentToken keeps
+// the stored one (the password-update pattern); clearing the URL clears
+// the credential with it.
+func (s *Store) UpdateSyncWorldSettings(ctx context.Context, id int64, name string, leaseHours int, maxBytes int64, keepVersions int, checkpoints bool, webhookURL, agentURL, agentToken string) error {
+	tokenSQL := ""
+	args := []any{name, leaseHours, maxBytes, keepVersions, boolToInt(checkpoints), webhookURL, agentURL}
+	switch {
+	case agentURL == "":
+		tokenSQL = ", agent_token_enc = ''"
+	case agentToken != "":
+		enc, err := s.box.Encrypt(agentToken)
+		if err != nil {
+			return err
+		}
+		tokenSQL = ", agent_token_enc = ?"
+		args = append(args, enc)
+	}
+	args = append(args, id)
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE sync_worlds SET name = ?, server_id = ?, lease_hours = ?, max_bytes = ?, keep_versions = ?, checkpoints = ?, webhook_url = ? WHERE id = ?`,
-		name, nullInt(serverID), leaseHours, maxBytes, keepVersions, boolToInt(checkpoints), webhookURL, id)
+		`UPDATE sync_worlds SET name = ?, lease_hours = ?, max_bytes = ?, keep_versions = ?, checkpoints = ?, webhook_url = ?, agent_url = ?`+tokenSQL+` WHERE id = ?`,
+		args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return fmt.Errorf("a world named %q already exists", name)
 		}
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetSyncWorldGameInfo stores what a companion reported about the game
+// behind a world. Metadata only — custody and policy stay untouched, so
+// a companion can never move a head or widen a size cap.
+func (s *Store) SetSyncWorldGameInfo(ctx context.Context, id int64, title, saveHint, meta string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE sync_worlds SET game_title = ?, save_hint = ?, game_meta = ? WHERE id = ?`,
+		title, saveHint, meta, id)
+	if err != nil {
 		return err
 	}
 	n, err := res.RowsAffected()

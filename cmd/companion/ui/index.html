@@ -5,334 +5,232 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Artificer Companion</title>
 <style>
-  /* One deliberate dark look, kin to the wildskeeper console. */
+  /* One deliberate dark look, kin to the reliquary vault. */
   :root {
-    --ink: #0d1117; --panel: #161c24; --edge: #2a3340;
-    --parchment: #e8dcc3; --mist: #8b93a1; --brass: #c9a860;
-    --rune: #7fb4c4; --ok: #7fc46a; --ember: #d4735e;
+    --ink: #100d17; --panel: #1a1524; --edge: #2f2740;
+    --parchment: #e8e0cf; --mist: #948da3; --gold: #c9a860; --goldhi: #e3c67f;
+    --ok: #7fc46a; --ember: #d4735e; --rune: #9d7fc4;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--ink); color: var(--parchment);
-    font: 15px/1.5 Georgia, 'Times New Roman', serif;
-  }
+  body { margin: 0; background: var(--ink); color: var(--parchment); font: 15px/1.5 Georgia, 'Times New Roman', serif; }
   .wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
-  h1 { font-size: 22px; letter-spacing: .04em; color: var(--brass); margin: 0 0 2px; }
+  h1 { font-size: 22px; letter-spacing: .05em; color: var(--gold); margin: 0 0 2px; }
   .sub { color: var(--mist); font-size: 13px; margin-bottom: 20px; }
-  .panel {
-    background: var(--panel); border: 1px solid var(--edge); border-radius: 6px;
-    padding: 14px 16px; margin-bottom: 14px;
-  }
-  .panel h2 {
-    font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
-    color: var(--brass); margin: 0 0 10px; font-weight: 600;
-  }
-  .facts { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 6px 0 2px; }
-  .fact b { display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--mist); font-weight: 500; }
-  .charname { font-size: 19px; font-weight: 700; }
-  .guid { font-family: ui-monospace, monospace; font-size: 11px; color: var(--mist); letter-spacing: .05em; }
-  .skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 22px; margin-top: 10px; }
-  .skill { border-top: 1px solid var(--edge); padding-top: 4px; font-size: 13px; }
-  .skill .row { display: flex; justify-content: space-between; }
-  .skill span { color: var(--mist); }
-  .skill b { font-family: ui-monospace, monospace; font-weight: 600; }
-  .meter { height: 4px; border-radius: 2px; background: var(--ink); overflow: hidden; margin-top: 4px; }
-  .meter i { display: block; height: 100%; background: linear-gradient(90deg, #47707c, var(--rune)); }
-  .meter.warm i { background: linear-gradient(90deg, #6e5a2a, var(--brass)); }
-  .vitals { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 12px; }
-  .vital { flex: 1; min-width: 110px; }
-  .vital .row { display: flex; justify-content: space-between; font-size: 12px; }
-  .vital .row span { color: var(--mist); letter-spacing: .1em; text-transform: uppercase; font-size: 10px; }
-  .progline { margin-top: 12px; background: var(--ink); border-radius: 4px; padding: 6px 10px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--mist); }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
-  th { text-align: left; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mist); font-weight: 500; padding: 2px 8px; }
-  td { border-top: 1px solid var(--edge); padding: 4px 8px; }
-  td.num { text-align: right; font-family: ui-monospace, monospace; color: var(--mist); }
+  .panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; padding: 14px 16px; margin-bottom: 14px; }
+  .panel h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); margin: 0 0 10px; font-weight: 600; }
+  .worldname { font-size: 17px; font-weight: 700; }
+  .gametag { color: var(--rune); font-size: 12px; margin-left: 8px; }
   .mono { font-family: ui-monospace, monospace; font-size: 12px; color: var(--mist); }
+  .note { font-size: 12px; color: var(--mist); font-style: italic; margin-top: 8px; }
+  .line { font-size: 14px; margin: 3px 0; }
+  .free { color: var(--ok); } .warn { color: var(--ember); }
   label { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mist); margin: 10px 0 3px; }
-  input {
-    width: 100%; background: var(--ink); color: var(--parchment);
-    border: 1px solid var(--edge); border-radius: 4px; padding: 7px 9px; font: inherit; font-size: 14px;
-  }
-  button {
-    margin-top: 12px; background: linear-gradient(#2a2416, #1e1a10); color: var(--brass);
-    border: 1px solid var(--brass); border-radius: 4px; padding: 7px 18px;
-    font: inherit; font-weight: 700; letter-spacing: .05em; cursor: pointer;
-  }
+  input, select { width: 100%; background: var(--ink); color: var(--parchment); border: 1px solid var(--edge); border-radius: 4px; padding: 7px 9px; font: inherit; font-size: 14px; }
+  button { margin: 10px 8px 0 0; background: linear-gradient(#2a2416, #1e1a10); color: var(--gold); border: 1px solid var(--gold); border-radius: 4px; padding: 6px 16px; font: inherit; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
   button:hover { filter: brightness(1.25); }
-  button.quiet { border-color: var(--edge); color: var(--mist); font-weight: 400; margin-left: 8px; }
+  button.quiet { border-color: var(--edge); color: var(--mist); font-weight: 400; }
+  .game { border-top: 1px solid var(--edge); padding: 8px 0; }
+  .game:first-of-type { border-top: 0; }
+  .linked { border-top: 1px solid var(--edge); padding: 10px 0; }
+  .linked:first-of-type { border-top: 0; padding-top: 0; }
   .status-ok { color: var(--ok); } .status-err { color: var(--ember); } .status-idle { color: var(--mist); }
-  .note { font-size: 12px; color: var(--mist); font-style: italic; margin-top: 10px; }
-  details summary { cursor: pointer; color: var(--mist); font-size: 13px; margin-top: 10px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Artificer Companion</h1>
-  <div class="sub">Your Dragonwilds characters, read from this computer — the game keeps them here, not on the server.</div>
-
-  <div id="characters"></div>
-  <div class="panel" id="empty" style="display:none">
-    <h2>No characters found</h2>
-    <p id="emptyReason" class="note"></p>
-  </div>
+  <div class="sub">Shared world saves, synced between the players who host them.</div>
 
   <div class="panel">
-    <h2>Shared worlds</h2>
-    <p class="note" style="margin-top:0">
-      Optional. With your personal sync token from the console's Worlds page, this app checks a shared world out
-      to this computer so you can host it, pushes safety checkpoints while you play, and checks it back in when
-      you're done.
-    </p>
-    <div id="worlds"></div>
-    <label>Your sync token (from the console's Worlds page)</label>
-    <input id="syncToken" placeholder="paste your personal sync token">
-    <label>World save folder on this computer (where the game keeps the hosted world)</label>
-    <input id="worldDir" placeholder="e.g. C:\Users\you\AppData\Local\RSDragonwilds\Saved\SaveGames\...">
-    <div>
-      <button onclick="saveSyncCfg()">Save &amp; connect</button>
-      <span id="syncStatus" class="mono"></span>
-    </div>
+    <h2>Your worlds</h2>
+    <div id="links"></div>
     <div class="note" id="syncLine"></div>
   </div>
 
   <div class="panel">
-    <h2>Share with your server's console</h2>
+    <h2>Link an installed game</h2>
     <p class="note" style="margin-top:0">
-      Optional. With a console URL and the companion token your server admin hands out, this app relays your
-      character sheet so it appears on the server's Adventurers page. Nothing is sent until both are set,
-      and clearing them stops it.
+      Games found in this machine's Steam libraries. Save folders are best guesses — check the path before linking;
+      linking tells the sync service which game a world belongs to and where its save lives here.
     </p>
-    <label>Console URL</label>
-    <input id="consoleUrl" placeholder="https://your-console.example.com">
-    <label>Companion token</label>
-    <input id="token" placeholder="paste the token from the console's Adventurers page">
-    <label>SaveCharacters folder (leave empty to auto-detect)</label>
-    <input id="saveDir" placeholder="">
+    <div id="discovered"></div>
+    <button class="quiet" onclick="rescan()">Rescan</button>
+    <div id="linkForm"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Connection</h2>
+    <label>Save-sync service URL</label>
+    <input id="serverUrl" placeholder="https://vault.example.com">
+    <label>Your sync token <span id="tokenState"></span></label>
+    <input id="token" placeholder="paste the token from the service's page">
     <div>
-      <button onclick="saveCfg()">Save &amp; test</button>
-      <button class="quiet" onclick="pushNow()">Push now</button>
+      <button onclick="saveCfg()">Save &amp; connect</button>
       <span id="cfgStatus" class="mono"></span>
     </div>
-    <div class="note" id="relayLine"></div>
   </div>
 </div>
 
 <script>
-let ITEMS = {}, SKILLS = {};
-// The game's own curve — the classic RuneScape formula with the divisor
-// changed to 10, calibrated against a real character's in-game skill
-// panel (twelve exact XP→level pairs, 2026-08-20). The exact XP always
-// rides in the title attribute.
-const XP_TABLE = (() => {
-  const t = [0, 0]; let pts = 0;
-  for (let l = 1; l < 99; l++) { pts += Math.floor(l + 300 * Math.pow(2, l / 7)); t.push(Math.floor(pts / 10)); }
-  return t;
-})();
-const levelFor = xp => { for (let l = 99; l >= 2; l--) if (xp >= XP_TABLE[l]) return l; return 1; };
+let ST = null, LINK_TARGET = null;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const itemName = id => ITEMS[id] || id;
-const skillName = id => SKILLS[id] || id;
+const fmtTime = t => new Date(t).toLocaleString();
 
-function itemRows(items, kind) {
-  return items.map(it => `<tr>
-    <td class="mono">${kind}</td>
-    <td>${ITEMS[it.id] ? esc(itemName(it.id)) : `<span class="mono">${esc(it.id)}</span>`}</td>
-    <td class="num">${it.count > 1 ? "×" + it.count : ""}</td>
-    <td class="num">${it.durability !== undefined ? Math.round(it.durability).toLocaleString() : ""}</td>
-  </tr>`).join("");
+async function call(method, path, body) {
+  const out = await (await fetch(path, { method, body: body !== undefined ? JSON.stringify(body) : undefined })).json();
+  if (!out.ok && out.error) throw new Error(out.error);
+  return out;
 }
-
-const vital = (label, v, warm) => v === undefined ? "" :
-  `<div class="vital"><div class="row"><span>${label}</span><b>${Math.round(v)}</b></div>
-   <div class="meter${warm ? " warm" : ""}"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div></div>`;
-
-function skillRow(s) {
-  const level = levelFor(s.xp);
-  const floor = XP_TABLE[level], ceil = XP_TABLE[Math.min(99, level + 1)];
-  const pct = level >= 99 ? 100 : ((s.xp - floor) / Math.max(1, ceil - floor)) * 100;
-  const hint = level >= 99 ? "maxed" : `${(ceil - s.xp).toLocaleString()} to ${level + 1}`;
-  return `<div class="skill" title="${s.xp.toLocaleString()} XP — ${hint}">
-    <div class="row"><span>${esc(skillName(s.id))}</span><b>${level}</b></div>
-    <div class="meter"><i style="width:${pct}%"></i></div></div>`;
+function say(msg, ok) {
+  const el = document.getElementById("cfgStatus");
+  el.textContent = msg; el.className = "mono " + (ok ? "status-ok" : "status-err");
 }
-
-function renderCharacter(c) {
-  const p = c.player;
-  const skills = [...(p.skills || [])].sort((a, b) => b.xp - a.xp);
-  const inv = p.inventory || [], eq = p.equipment || [];
-  const pushed = c.pushedAt ? `shared ${new Date(c.pushedAt).toLocaleTimeString()}` : "";
-  const pr = p.progression;
-  return `<div class="panel">
-    <h2>${esc(c.file)} <span class="status-ok" style="float:right;font-weight:400">${pushed}</span></h2>
-    <div class="charname">${esc(p.charName || "Unnamed")}</div>
-    <div class="guid">${esc(p.charGuid)}</div>
-    <div class="facts">
-      <div class="fact"><b>Playtime</b>${p.playtimeHours ? p.playtimeHours.toFixed(1) + " h" : "—"}</div>
-      <div class="fact"><b>Saves</b>${p.saveCount}</div>
-    </div>
-    <div class="vitals">
-      ${vital("Health", p.health, true)}${vital("Stamina", p.stamina, true)}
-      ${vital("Sustenance", p.sustenance)}${vital("Hydration", p.hydration)}${vital("Endurance", p.endurance)}
-    </div>
-    <div class="skills">${skills.map(skillRow).join("")}</div>
-    ${pr ? `<div class="progline">quests ${pr.questsCompleted} done · ${pr.questsInProgress} underway ·
-      recipes ${pr.recipes} · spells ${pr.spells} · buildings ${pr.buildings} · journal ${pr.journal}</div>` : ""}
-    ${inv.length + eq.length ? `<details><summary>Carried items (${inv.length + eq.length})</summary>
-      <table><tr><th>Where</th><th>Item</th><th>Count</th><th>Durability</th></tr>
-      ${itemRows(eq, "Worn")}${itemRows(inv, "Pack")}</table></details>` : ""}
-  </div>`;
-}
-
-function worldRow(w, st) {
-  const me = st.sync.username;
-  const h = w.holder;
-  let line, actions = [];
-  const btn = (label, call, quiet) =>
-    `<button class="${quiet ? "quiet" : ""}" style="margin-top:6px" onclick="${call}">${label}</button>`;
-  if (!h) {
-    line = w.claimedBy ? `Free · next claim: ${esc(w.claimedBy)}` : "Free — nobody holds this world";
-    actions.push(btn("Check out & host", `syncCheckout(${w.world.id}, false)`));
-  } else if (h.username === me) {
-    line = `You hold this world until ${new Date(h.expiresAt).toLocaleString()}`;
-    if (st.sync.sessionId === h.sessionId) {
-      actions.push(btn("Check in", `syncCheckin()`));
-      actions.push(btn("Checkpoint now", `syncCall('/api/sync/checkpoint', 'checkpoint pushed')`, true));
-      actions.push(btn("Renew hold", `syncCall('/api/sync/renew', 'hold renewed')`, true));
-    } else {
-      line += " — fetching it to this machine…";
-    }
-  } else {
-    line = `Held by ${esc(h.username)} until ${new Date(h.expiresAt).toLocaleString()}`;
-    if (h.claimable) {
-      line = `Held by ${esc(h.username)} — the hold expired`;
-      actions.push(btn("Take over expired hold", `syncCheckout(${w.world.id}, true)`));
-    }
-    if (!w.claimedBy) actions.push(btn("Claim next", `syncClaim(${w.world.id})`, true));
-    else if (w.claimedBy === me) line += ` · you're next`;
-  }
-  const head = w.head ? ` · latest version ${new Date(w.head.createdAt).toLocaleString()}` : " · no versions yet";
-  return `<div style="border-top:1px solid var(--edge);padding:8px 0">
-    <b>${esc(w.world.name)}</b><span class="mono">${head}</span><br>
-    <span class="note">${line}</span><br>${actions.join(" ")}
-  </div>`;
-}
-
-async function syncCall(path, okMsg, body) {
-  const status = document.getElementById("syncStatus");
-  status.textContent = "working…"; status.className = "mono status-idle";
-  const out = await (await fetch(path, { method: path.endsWith("config") ? "PUT" : "POST", body: JSON.stringify(body || {}) })).json();
-  status.textContent = out.ok ? okMsg : out.error;
-  status.className = "mono " + (out.ok ? "status-ok" : "status-err");
+async function act(fn, okMsg) {
+  try { await fn(); if (okMsg) say(okMsg, true); } catch (e) { say(e.message, false); }
   refresh();
-  return out.ok;
 }
-const syncCheckout = (worldId, takeover) => {
-  if (takeover && !confirm("Take over the expired hold? The old holder's late check-in will be kept and flagged, not lost.")) return;
-  syncCall("/api/sync/checkout", "world checked out to this machine", { worldId, takeover });
-};
-const syncCheckin = () => syncCall("/api/sync/checkin", "checked in — the world is free");
-const syncClaim = worldId => syncCall("/api/sync/claim", "you're next — the world downloads automatically when it frees up", { worldId });
-async function saveSyncCfg() {
-  const ok = await syncCall("/api/sync/config", "connected", {
-    token: document.getElementById("syncToken").value,
-    worldDir: document.getElementById("worldDir").value,
-  });
-  if (ok) {
-    document.getElementById("syncToken").value = "";
-    for (const id of ["syncToken", "worldDir"]) delete document.getElementById(id).dataset.dirty;
+
+function worldFor(id) { return (ST.sync.worlds || []).find(w => w.world.id === id); }
+
+function linkedRow(l) {
+  const w = worldFor(l.worldId);
+  const me = ST.sync.username;
+  let line = `<span class="mono">world #${l.worldId}</span>`, actions = [];
+  const btn = (label, call, quiet) => actions.push(`<button class="${quiet ? "quiet" : ""}" onclick="${call}">${label}</button>`);
+  if (w) {
+    const h = w.holder;
+    if (!h) {
+      line = `<span class="free">Free</span>` + (w.claimedBy ? ` · next claim: ${esc(w.claimedBy)}` : "");
+      btn("Check out & host", `act(() => call('POST', '/api/links/${l.worldId}/checkout', {takeover:false}), 'checked out — the save is on this machine')`);
+    } else if (h.username === me && l.sessionId === h.sessionId) {
+      line = `You hold this world until ${fmtTime(h.expiresAt)}`;
+      btn("Check in", `act(() => call('POST', '/api/links/${l.worldId}/checkin'), 'checked in — the world is free')`);
+      btn("Checkpoint now", `act(() => call('POST', '/api/links/${l.worldId}/checkpoint'), 'checkpoint pushed')`, true);
+      btn("Renew hold", `act(() => call('POST', '/api/links/${l.worldId}/renew'), 'hold renewed')`, true);
+    } else if (h.username === me) {
+      line = `You hold this world — fetching it to this machine…`;
+    } else {
+      line = `Held by ${esc(h.username)} until ${fmtTime(h.expiresAt)}`;
+      if (h.claimable) {
+        line = `Held by ${esc(h.username)} — <span class="warn">the hold expired</span>`;
+        btn("Take over expired hold", `confirm('Take over the expired hold? The old holder\\'s late check-in is kept and flagged, not lost.') && act(() => call('POST', '/api/links/${l.worldId}/checkout', {takeover:true}), 'world taken over')`);
+      }
+      if (!w.claimedBy) btn("Claim next", `act(() => call('POST', '/api/links/${l.worldId}/claim'), \`you're next — the world downloads automatically when it frees up\`)`, true);
+      else if (w.claimedBy === me) line += " · you're next";
+    }
+  } else if (ST.sync.configured) {
+    line = `<span class="warn">world #${l.worldId} is not on the service any more</span>`;
   }
+  btn("Unlink", `confirm('Unlink this world from its folder? Nothing is deleted.') && act(() => call('DELETE', '/api/links/${l.worldId}'))`, true);
+  return `<div class="linked">
+    <span class="worldname">${w ? esc(w.world.name) : "world #" + l.worldId}</span>
+    ${l.gameTitle ? `<span class="gametag">${esc(l.gameTitle)}</span>` : ""}<br>
+    <span class="line">${line}</span><br>
+    <span class="mono">${esc(l.dir)}</span><br>
+    ${actions.join(" ")}
+  </div>`;
+}
+
+function renderLinks() {
+  const box = document.getElementById("links");
+  if (!ST.links.length) {
+    box.innerHTML = `<p class="note" style="margin:0">Nothing linked yet — link an installed game below, or ask whoever runs your sync service which world to join.</p>`;
+    return;
+  }
+  box.innerHTML = ST.links.map(linkedRow).join("");
+}
+
+function renderDiscovered() {
+  const box = document.getElementById("discovered");
+  const linked = new Set(ST.links.map(l => l.gameTitle));
+  const games = (ST.discovered || []).filter(g => g.saveDirs && g.saveDirs.length);
+  const rest = (ST.discovered || []).filter(g => !g.saveDirs || !g.saveDirs.length);
+  if (!games.length && !rest.length) {
+    box.innerHTML = `<p class="note">No Steam games found on this machine.</p>`;
+    return;
+  }
+  box.innerHTML = games.map(g => `<div class="game">
+      <b>${esc(g.name)}</b> ${linked.has(g.name) ? '<span class="mono">· linked</span>' : ""}<br>
+      <span class="mono">${esc(g.saveDirs[0])}</span><br>
+      <button class="quiet" style="margin-top:6px" onclick='openLinkForm(${JSON.stringify(g).replace(/'/g, "&#39;")})'>Link…</button>
+    </div>`).join("") +
+    (rest.length ? `<p class="note">Also installed, no save folder found (link by hand with a pasted path): ${rest.map(g => esc(g.name)).join(", ")}</p>` : "");
+}
+
+function openLinkForm(g) {
+  LINK_TARGET = g || { name: "", saveDirs: [] };
+  const worlds = (ST.sync.worlds || []).filter(w => !ST.links.some(l => l.worldId === w.world.id));
+  document.getElementById("linkForm").innerHTML = `
+    <div style="border-top:1px solid var(--edge);margin-top:10px">
+      <label>Game</label><input id="lf-game" value="${esc(LINK_TARGET.name)}">
+      <label>Save folder on this machine (check it — discovery guesses)</label>
+      <input id="lf-dir" value="${esc(LINK_TARGET.saveDirs[0] || "")}">
+      <label>World on the service</label>
+      <select id="lf-world">
+        <option value="">— create a new world —</option>
+        ${worlds.map(w => `<option value="${w.world.id}">${esc(w.world.name)}${w.world.gameTitle ? " · " + esc(w.world.gameTitle) : ""}</option>`).join("")}
+      </select>
+      <div id="lf-newrow"><label>New world's name</label><input id="lf-name" value="${esc(LINK_TARGET.name)}"></div>
+      <label style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--parchment)">
+        <input type="checkbox" id="lf-seed" checked style="width:auto"> upload the folder's current save as the first version (new worlds)
+      </label>
+      <button onclick="submitLink()">Link</button>
+      <button class="quiet" onclick="document.getElementById('linkForm').innerHTML=''">Cancel</button>
+    </div>`;
+  document.getElementById("lf-world").onchange = e =>
+    document.getElementById("lf-newrow").style.display = e.target.value ? "none" : "";
+}
+
+async function submitLink() {
+  const g = LINK_TARGET;
+  const gameTitle = document.getElementById("lf-game").value.trim();
+  const dir = document.getElementById("lf-dir").value.trim();
+  const worldId = Number(document.getElementById("lf-world").value);
+  const meta = JSON.stringify({ appId: g.appId || "", installDir: g.installDir || "" });
+  if (worldId) {
+    await act(() => call("POST", "/api/links", { worldId, gameTitle, dir, meta }), "linked");
+  } else {
+    const name = document.getElementById("lf-name").value.trim();
+    const seed = document.getElementById("lf-seed").checked;
+    await act(() => call("POST", "/api/links/create", { name, gameTitle, dir, meta, seed }),
+      seed ? "world created and seeded with the current save" : "world created and linked");
+  }
+  document.getElementById("linkForm").innerHTML = "";
+}
+
+async function rescan() { await act(() => call("POST", "/api/discover"), "rescanned"); }
+
+async function saveCfg() {
+  say("connecting…", true);
+  await act(() => call("PUT", "/api/config", {
+    serverUrl: document.getElementById("serverUrl").value,
+    token: document.getElementById("token").value,
+  }), "connected");
+  document.getElementById("token").value = "";
 }
 
 async function refresh() {
-  const st = await (await fetch("/api/state")).json();
-  const box = document.getElementById("characters");
-  const empty = document.getElementById("empty");
-  if (!st.characters.length) {
-    box.innerHTML = "";
-    empty.style.display = "";
-    document.getElementById("emptyReason").textContent =
-      st.scanErr || `Watching ${st.config.detectedDir || "(no folder)"} — create or play a character and it appears here.`;
+  ST = await (await fetch("/api/state")).json();
+  renderLinks();
+  renderDiscovered();
+  const urlEl = document.getElementById("serverUrl");
+  if (document.activeElement !== urlEl && !urlEl.dataset.dirty) urlEl.value = ST.config.serverUrl || "";
+  document.getElementById("tokenState").textContent = ST.config.tokenSet ? "(saved — paste to replace)" : "";
+  const line = document.getElementById("syncLine");
+  if (ST.sync.configured) {
+    line.innerHTML = `Connected as <b>${esc(ST.sync.username || "…")}</b>` +
+      (ST.sync.busy ? " · transfer in progress…" : "") +
+      (ST.sync.lastAction ? ` · ${esc(ST.sync.lastAction)}` : "") +
+      (ST.sync.lastError ? ` · <span class="status-err">${esc(ST.sync.lastError)}</span>` : "");
   } else {
-    empty.style.display = "none";
-    box.innerHTML = st.characters.map(renderCharacter).join("");
-  }
-  // Settings fields: only fill when untouched, so typing isn't clobbered.
-  for (const [id, val] of [["consoleUrl", st.config.consoleUrl], ["saveDir", st.config.saveDir]]) {
-    const el = document.getElementById(id);
-    if (document.activeElement !== el && !el.dataset.dirty) el.value = val || "";
-  }
-  const line = document.getElementById("relayLine");
-  if (st.relay.configured) {
-    line.innerHTML = `Sharing with <b>${esc(st.relay.server || "console")}</b>` +
-      (st.relay.lastPushAt ? ` · last push ${new Date(st.relay.lastPushAt).toLocaleTimeString()}` : "") +
-      (st.relay.lastError ? ` · <span class="status-err">${esc(st.relay.lastError)}</span>` : "");
-  } else {
-    line.textContent = "Local-only: nothing leaves this computer.";
-  }
-
-  const sync = st.sync || {};
-  const worldsBox = document.getElementById("worlds");
-  if (sync.configured && (sync.worlds || []).length) {
-    worldsBox.innerHTML = sync.worlds.map(w => worldRow(w, st)).join("");
-  } else if (sync.configured) {
-    worldsBox.innerHTML = `<p class="note">Connected as ${esc(sync.username || "…")} — the console lists no shared worlds yet.</p>`;
-  } else {
-    worldsBox.innerHTML = "";
-  }
-  const dirEl = document.getElementById("worldDir");
-  if (document.activeElement !== dirEl && !dirEl.dataset.dirty) dirEl.value = sync.worldDir || "";
-  const syncLine = document.getElementById("syncLine");
-  if (sync.configured) {
-    syncLine.innerHTML = `Connected as <b>${esc(sync.username || "…")}</b>` +
-      (sync.busy ? " · transfer in progress…" : "") +
-      (sync.lastAction ? ` · ${esc(sync.lastAction)}` : "") +
-      (sync.lastError ? ` · <span class="status-err">${esc(sync.lastError)}</span>` : "");
-  } else {
-    syncLine.textContent = "World sync is off until a token and world folder are set.";
+    line.textContent = "Not connected — set the service URL and your token below. Nothing leaves this machine until then.";
   }
 }
-
-for (const id of ["consoleUrl", "token", "saveDir", "syncToken", "worldDir"])
+for (const id of ["serverUrl", "token"])
   document.getElementById(id).addEventListener("input", e => e.target.dataset.dirty = "1");
 
-async function saveCfg() {
-  const status = document.getElementById("cfgStatus");
-  status.textContent = "testing…"; status.className = "mono status-idle";
-  const body = {
-    consoleUrl: document.getElementById("consoleUrl").value,
-    token: document.getElementById("token").value,
-    saveDir: document.getElementById("saveDir").value,
-  };
-  const out = await (await fetch("/api/config", { method: "PUT", body: JSON.stringify(body) })).json();
-  if (out.ok) {
-    status.textContent = out.server ? `connected to ${out.server}` : "saved (local-only)";
-    status.className = "mono status-ok";
-    document.getElementById("token").value = "";
-    for (const id of ["consoleUrl", "token", "saveDir"]) delete document.getElementById(id).dataset.dirty;
-  } else {
-    status.textContent = out.error; status.className = "mono status-err";
-  }
-  refresh();
-}
-
-async function pushNow() {
-  const status = document.getElementById("cfgStatus");
-  status.textContent = "pushing…"; status.className = "mono status-idle";
-  const out = await (await fetch("/api/push", { method: "POST" })).json();
-  status.textContent = out.ok ? "pushed" : (out.error || out.relay?.lastError || "push failed");
-  status.className = "mono " + (out.ok ? "status-ok" : "status-err");
-  refresh();
-}
-
-(async () => {
-  [ITEMS, SKILLS] = await Promise.all([
-    fetch("/data/itemNames.json").then(r => r.json()),
-    fetch("/data/skillNames.json").then(r => r.json()),
-  ]);
-  await refresh();
-  setInterval(refresh, 5000);
-})();
+refresh();
+setInterval(refresh, 5000);
 </script>
 </body>
 </html>

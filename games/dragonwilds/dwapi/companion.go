@@ -156,7 +156,7 @@ func (h *handlers) handleCompanionDownload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if h.companionExe == "" {
-		api.WriteError(w, http.StatusNotFound, "this deployment ships without the companion app — build it with: GOOS=windows GOARCH=amd64 go build ./cmd/companion")
+		api.WriteError(w, http.StatusNotFound, "no relay companion is bundled — current Artificer Companion builds no longer relay character data (the console reads sheets from the world save itself); point COMPANION_EXE at an older wkcompanion build to keep handing one out")
 		return
 	}
 	f, err := os.Open(h.companionExe)
