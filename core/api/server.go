@@ -102,8 +102,16 @@ type Server struct {
 	CompanionExe string
 	// Artwork, when set, resolves game cover art through IGDB for the
 	// vault and the companions it serves (savesync_live.go). Nil simply
-	// means no covers — artwork is decoration, never a dependency.
+	// means no covers — artwork is decoration, never a dependency. Set
+	// it through UseEnvArtwork/LoadStoredArtwork (artwork.go) rather
+	// than by hand, so the admin panel's two sources stay resolvable.
 	Artwork *igdb.Client
+	// The environment's IGDB pair, remembered so removing the UI-saved
+	// one falls back to it instead of to nothing.
+	artworkEnvID, artworkEnvSecret string
+	// Version is the build this binary came from, stamped at link time
+	// and shown in the UI. Empty reads as "dev" to whoever asks.
+	Version string
 	// GameRoutes, when set, mounts the game's own per-server endpoints
 	// (drift ledger seam 5) inside the authenticated /servers/{id} group.
 	// The game module builds the closure over this Server via its Routes

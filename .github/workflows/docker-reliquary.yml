@@ -34,6 +34,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # The build stamp both UIs show. A tag names itself; main names the
+      # commit, short enough to read back over a chat message.
+      - id: version
+        run: echo "value=${{ github.ref_type == 'tag' && github.ref_name || format('main-{0}', github.sha) }}" | cut -c1-25 >> "$GITHUB_OUTPUT"
+
       - id: meta
         uses: docker/metadata-action@v6
         with:
@@ -50,6 +55,8 @@ jobs:
           context: .
           file: deploy/reliquary/Dockerfile
           platforms: linux/amd64
+          build-args: |
+            VERSION=${{ steps.version.outputs.value }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

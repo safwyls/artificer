@@ -54,6 +54,7 @@ func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
 		"links":      links,
 		"discovered": discovered,
 		"sync":       st,
+		"version":    version,
 	}
 	a.mu.Unlock()
 	writeJSON(w, out)

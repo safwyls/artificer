@@ -8,13 +8,17 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /out/reliquary ./cmd/reliquary
+# The build this image came from, stamped into both binaries and shown
+# in both UIs — so a save-sync report can name which service talked to
+# which companion. A plain `go build` leaves it "dev".
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -ldflags="-X main.version=${VERSION}" -o /out/reliquary ./cmd/reliquary
 # The Artificer Companion, cross-compiled for the machines players
 # actually run (docs/companion.md). Shipped inside the image so the
 # service hands it out itself — each player's token-gated download link.
 # GitHub releases carry the same exe for everyone else.
 RUN CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
-    go build -ldflags="-H windowsgui" -o /out/artificer-companion.exe ./cmd/companion
+    go build -ldflags="-H windowsgui -X main.version=${VERSION}" -o /out/artificer-companion.exe ./cmd/companion
 
 # ---- runtime ----
 FROM docker.io/library/alpine:3.22

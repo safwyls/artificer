@@ -623,6 +623,9 @@ func (s *Server) handlePublicSyncStatus(w http.ResponseWriter, r *http.Request) 
 		"accepted": true,
 		"username": user.Username,
 		"worlds":   out,
+		// The companion shows this beside its own build, so a mismatched
+		// pair is visible without asking anyone to check a container.
+		"serverVersion": s.version(),
 	})
 }
 
@@ -657,6 +660,13 @@ func (s *Server) mountSyncSmall(r chi.Router) {
 	// (savesync_live.go).
 	r.Get("/sync/events", s.handleSyncEvents)
 	r.Post("/sync/artwork", s.handleSyncArtwork)
+	// The IGDB credential pair and its diagnostics (artwork.go). Admin:
+	// it is a shared credential, and its status names the deployment's
+	// own configuration.
+	r.With(s.requireAdmin).Get("/sync/artwork/settings", s.handleArtworkSettings)
+	r.With(s.requireAdmin).Put("/sync/artwork/settings", s.handleSetArtworkSettings)
+	r.With(s.requireAdmin).Delete("/sync/artwork/settings", s.handleDeleteArtworkSettings)
+	r.With(s.requireAdmin).Post("/sync/artwork/test", s.handleTestArtwork)
 }
 
 // asUser lifts a handler that takes the acting user out of the context.
