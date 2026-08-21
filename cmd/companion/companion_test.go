@@ -74,12 +74,15 @@ func TestSteamDiscovery(t *testing.T) {
 }`), 0o644)
 
 	t.Setenv("STEAM_ROOT", root)
-	games := discoverGames()
-	if len(games) != 2 {
-		t.Fatalf("found %d games, want 2: %+v", len(games), games)
+	found := discoverGames(nil)
+	if len(found.Games) != 2 {
+		t.Fatalf("found %d games, want 2: %+v", len(found.Games), found.Games)
+	}
+	if len(found.Libraries) != 2 {
+		t.Errorf("libraries = %v, want the root and the second drive", found.Libraries)
 	}
 	byName := map[string]discoveredGame{}
-	for _, g := range games {
+	for _, g := range found.Games {
 		byName[g.Name] = g
 	}
 	if g := byName["RuneScape: Dragonwilds"]; g.AppID != "1374490" || g.InstallDir != "RSDragonwilds" {
@@ -87,6 +90,24 @@ func TestSteamDiscovery(t *testing.T) {
 	}
 	if _, ok := byName["Some Other Game"]; !ok {
 		t.Error("second library's manifest not found")
+	}
+
+	// A manually configured folder replaces auto-detection entirely, and
+	// every spelling a player might paste lands on the same library: the
+	// Steam root, steamapps, or steamapps/common.
+	t.Setenv("STEAM_ROOT", t.TempDir()) // an empty root: auto-detection finds nothing
+	if found := discoverGames(nil); len(found.Games) != 0 {
+		t.Fatalf("empty root still found %d games", len(found.Games))
+	}
+	for _, spelling := range []string{
+		root,
+		filepath.Join(root, "steamapps"),
+		filepath.Join(root, "steamapps", "common"),
+	} {
+		found := discoverGames([]string{spelling})
+		if len(found.Games) != 2 {
+			t.Errorf("manual dir %q found %d games, want 2", spelling, len(found.Games))
+		}
 	}
 }
 

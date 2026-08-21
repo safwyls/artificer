@@ -54,7 +54,13 @@
       linking tells the sync service which game a world belongs to and where its save lives here.
     </p>
     <div id="discovered"></div>
+    <div class="mono" id="lookedIn" style="margin-top:8px"></div>
     <button class="quiet" onclick="rescan()">Rescan</button>
+    <button class="quiet" onclick="openLinkForm(null)">Link a folder by hand…</button>
+    <label>Steam folder (blank = auto-detect; paste the Steam root, steamapps, or steamapps\common — extra
+      libraries on other drives are found from it)</label>
+    <input id="steamDir" placeholder="e.g. D:\SteamLibrary or D:\Steam\steamapps\common">
+    <button class="quiet" onclick="saveSteamDir()">Save folder &amp; rescan</button>
     <div id="linkForm"></div>
   </div>
 
@@ -142,19 +148,28 @@ function renderLinks() {
 
 function renderDiscovered() {
   const box = document.getElementById("discovered");
+  const d = ST.discovered || {};
+  const all = d.games || [];
   const linked = new Set(ST.links.map(l => l.gameTitle));
-  const games = (ST.discovered || []).filter(g => g.saveDirs && g.saveDirs.length);
-  const rest = (ST.discovered || []).filter(g => !g.saveDirs || !g.saveDirs.length);
-  if (!games.length && !rest.length) {
-    box.innerHTML = `<p class="note">No Steam games found on this machine.</p>`;
-    return;
-  }
-  box.innerHTML = games.map(g => `<div class="game">
+  const gameRow = g => `<div class="game">
       <b>${esc(g.name)}</b> ${linked.has(g.name) ? '<span class="mono">· linked</span>' : ""}<br>
-      <span class="mono">${esc(g.saveDirs[0])}</span><br>
+      <span class="mono">${g.saveDirs && g.saveDirs.length ? esc(g.saveDirs[0]) : "no save folder found — paste one in the link form"}</span><br>
       <button class="quiet" style="margin-top:6px" onclick='openLinkForm(${JSON.stringify(g).replace(/'/g, "&#39;")})'>Link…</button>
-    </div>`).join("") +
-    (rest.length ? `<p class="note">Also installed, no save folder found (link by hand with a pasted path): ${rest.map(g => esc(g.name)).join(", ")}</p>` : "");
+    </div>`;
+  box.innerHTML = all.length
+    ? all.map(gameRow).join("")
+    : `<p class="note">No Steam games found. If Steam lives somewhere unusual, set its folder below — or link any
+       save folder by hand.</p>`;
+  const libs = d.libraries || [];
+  document.getElementById("lookedIn").textContent = libs.length
+    ? "looked in: " + libs.join(" · ")
+    : "no Steam library found on this machine — set the folder below";
+}
+
+async function saveSteamDir() {
+  const dir = document.getElementById("steamDir").value.trim();
+  await act(() => call("PUT", "/api/config", { steamDirs: dir ? [dir] : [] }),
+    dir ? "folder saved — rescanned" : "override cleared — rescanned");
 }
 
 function openLinkForm(g) {
@@ -215,6 +230,8 @@ async function refresh() {
   renderDiscovered();
   const urlEl = document.getElementById("serverUrl");
   if (document.activeElement !== urlEl && !urlEl.dataset.dirty) urlEl.value = ST.config.serverUrl || "";
+  const steamEl = document.getElementById("steamDir");
+  if (document.activeElement !== steamEl && !steamEl.dataset.dirty) steamEl.value = (ST.config.steamDirs || [])[0] || "";
   document.getElementById("tokenState").textContent = ST.config.tokenSet ? "(saved — paste to replace)" : "";
   const line = document.getElementById("syncLine");
   if (ST.sync.configured) {
@@ -226,7 +243,7 @@ async function refresh() {
     line.textContent = "Not connected — set the service URL and your token below. Nothing leaves this machine until then.";
   }
 }
-for (const id of ["serverUrl", "token"])
+for (const id of ["serverUrl", "token", "steamDir"])
   document.getElementById(id).addEventListener("input", e => e.target.dataset.dirty = "1");
 
 refresh();

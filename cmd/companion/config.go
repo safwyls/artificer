@@ -21,6 +21,12 @@ type Config struct {
 	// Links are the worlds this machine syncs — one per linked game save
 	// folder.
 	Links []WorldLink `json:"links,omitempty"`
+	// SteamDirs are extra places discovery looks for Steam libraries —
+	// each entry may be a Steam root, a steamapps folder, or
+	// steamapps/common, whatever spelling the player pasted
+	// (discover.go normalizes). For the machines the registry and the
+	// default locations miss.
+	SteamDirs []string `json:"steamDirs,omitempty"`
 }
 
 // WorldLink ties one world on the service to one save folder here, and

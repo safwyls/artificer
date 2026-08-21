@@ -20,7 +20,18 @@ type app struct {
 	lastCheckpoint map[int64]time.Time
 	// discovered is the installed-games scan (discover.go), refreshed on
 	// demand — a filesystem walk, not something to run every tick.
-	discovered []discoveredGame
+	discovered discovery
+}
+
+// rescan re-runs game discovery with the configured Steam folders.
+func (a *app) rescan() {
+	a.mu.Lock()
+	extra := append([]string(nil), a.cfg.SteamDirs...)
+	a.mu.Unlock()
+	found := discoverGames(extra)
+	a.mu.Lock()
+	a.discovered = found
+	a.mu.Unlock()
 }
 
 func newApp(cfg Config, cfgPath string) *app {
