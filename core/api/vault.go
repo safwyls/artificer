@@ -88,5 +88,18 @@ func (s *Server) handleSyncCompanionDownload(w http.ResponseWriter, r *http.Requ
 	}
 	w.Header().Set("Content-Type", "application/vnd.microsoft.portable-executable")
 	w.Header().Set("Content-Disposition", `attachment; filename="artificer-companion.exe"`)
+	// The URL is stable by design — every player holds the same link
+	// forever — so the only thing distinguishing one build from the next
+	// is the bytes. That makes an intermediary's cache a real hazard:
+	// .exe sits in Cloudflare's default-cached extension list, and a
+	// browser will happily re-serve a same-named download it already
+	// has. Both would hand out a companion the service stopped
+	// shipping. Nothing here is worth caching: the file is local and the
+	// download is rare.
+	w.Header().Set("Cache-Control", "no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	// Which build this is, readable without running it — the answer to
+	// "did my download actually update?".
+	w.Header().Set("X-Companion-Version", s.version())
 	http.ServeContent(w, r, "artificer-companion.exe", fi.ModTime(), f)
 }

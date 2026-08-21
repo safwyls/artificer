@@ -32,7 +32,7 @@ jobs:
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
             go build -ldflags="-H windowsgui -X main.version=${GITHUB_SHA::12}" -o artificer-companion.exe ./cmd/companion
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
-            go build -o artificer-companion-linux ./cmd/companion
+            go build -ldflags="-X main.version=${GITHUB_SHA::12}" -o artificer-companion-linux ./cmd/companion
       - name: Rolling companion-latest release (main)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2

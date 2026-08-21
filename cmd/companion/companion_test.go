@@ -348,3 +348,49 @@ func TestArtworkFailureIsRecorded(t *testing.T) {
 		t.Error("a failed artwork lookup left no explanation for the page to show")
 	}
 }
+
+// The state the page reads never carries a JSON null where an array
+// belongs.
+//
+// This is the whole bug, in one assertion. A nil Go slice marshals to
+// null; the page did ST.links.length on it and threw — before the shelf,
+// the scan trail, the version line or the artwork fetch had run. A fresh
+// companion with nothing linked yet therefore showed no games at all,
+// and it read as three unrelated faults rather than one.
+func TestStateNeverMarshalsNullArrays(t *testing.T) {
+	a := newApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
+	rec := httptest.NewRecorder()
+	a.handleState(rec, httptest.NewRequest("GET", "/api/state", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("state: %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	var out struct {
+		Links      []WorldLink `json:"links"`
+		Discovered struct {
+			Games  []discoveredGame `json:"games"`
+			Probes []probe          `json:"probes"`
+		} `json:"discovered"`
+		Config struct {
+			SteamDirs []string `json:"steamDirs"`
+		} `json:"config"`
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatalf("decode state: %v", err)
+	}
+	// Decoding is not the test — null decodes to a nil slice quite
+	// happily. The wire form is.
+	for _, null := range []string{`"links":null`, `"games":null`, `"probes":null`, `"steamDirs":null`} {
+		if strings.Contains(body, null) {
+			t.Errorf("state carries %s; the page reads it as an array", null)
+		}
+	}
+	if out.Links == nil || out.Discovered.Games == nil || out.Discovered.Probes == nil || out.Config.SteamDirs == nil {
+		t.Errorf("state decoded a nil slice somewhere: %+v", out)
+	}
+	if out.Version == "" {
+		t.Error("state carries no version; both UIs show it for bug reports")
+	}
+}
