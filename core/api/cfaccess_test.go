@@ -261,3 +261,47 @@ func TestCloudflareLoginRejectsAnInvalidAssertion(t *testing.T) {
 		t.Errorf("users = %d, want only the bootstrap admin", n)
 	}
 }
+
+// A deployment can say what an Access identity is worth on arrival.
+//
+// The console default is nothing, and the test above pins that. The
+// vault sets the custody grant instead: its Access policy already names
+// exactly the people meant to hold worlds, so making each of them wait
+// for a second approval is ceremony rather than safety. Both are the
+// same code path with a different list.
+func TestCloudflareLoginAppliesTheConfiguredGrants(t *testing.T) {
+	app, _ := newTestAppWithAdmin(t)
+	withAccess(app, "ember@example.com")
+	app.api.AccessGrants = []string{store.PermSync}
+
+	if rec := app.ssoLogin(t, "assertion"); rec.Code != http.StatusOK {
+		t.Fatalf("sso login: %d %s", rec.Code, rec.Body)
+	}
+	user, err := app.store.GetUserByUsername(context.Background(), "ember@example.com")
+	if err != nil {
+		t.Fatalf("the account was not created: %v", err)
+	}
+	if !user.Can(store.PermSync) {
+		t.Errorf("account = %+v, want the configured grant", user)
+	}
+	if user.IsAdmin() {
+		t.Error("the grant list must not confer admin")
+	}
+
+	// The grants are a starting point, not a policy re-applied on every
+	// sign-in: an admin who revokes custody must have that stick, or
+	// revocation would be undone by the next visit.
+	if err := app.store.UpdateUser(context.Background(), user.ID, "user", nil, false); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	if rec := app.ssoLogin(t, "assertion"); rec.Code != http.StatusOK {
+		t.Fatalf("second sso login: %d %s", rec.Code, rec.Body)
+	}
+	user, err = app.store.GetUserByUsername(context.Background(), "ember@example.com")
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if user.Can(store.PermSync) {
+		t.Error("signing in again restored a grant an admin had revoked")
+	}
+}

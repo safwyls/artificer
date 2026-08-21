@@ -83,5 +83,13 @@ services:
       # CF_ACCESS_TEAM_DOMAIN: "yourteam.cloudflareaccess.com"
       # CF_ACCESS_AUD: "the-application-audience-tag"
       # CF_ACCESS_ADMIN_EMAILS: "you@example.com"
+      # Accounts created by an Access sign-in arrive with the
+      # world-custody grant: your Access policy already names the friend
+      # group, so a second approval per person is ceremony rather than
+      # safety. Set to "0" for the console default, where an SSO
+      # identity confers nothing until an admin grants it in the Users
+      # panel. Revoking custody there always sticks — this is a starting
+      # point, not a policy re-applied on every sign-in.
+      # ACCESS_GRANT_CUSTODY: "0"
     volumes:
       - /mnt/tank/apps/reliquary:/data

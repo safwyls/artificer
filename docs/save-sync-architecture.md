@@ -57,9 +57,12 @@ store schema and client survived the move.
   It is granted per account from the vault's Users panel, and it is the
   first thing to check when someone "can't see anything": an account
   created by signing in through Cloudflare Access arrives with **no**
-  permissions on purpose (Access says who someone is, never what they
-  may do here), so every SSO player needs the grant after their first
-  sign-in.
+  permissions on purpose in the consoles (Access says who someone is,
+  never what they may do there). The vault inverts that — its Access
+  policy already names exactly the friend group, so an Access sign-in
+  arrives holding custody (`ACCESS_GRANT_CUSTODY=0` restores the
+  console default). It is a starting point, not a policy: revoking
+  custody in the Users panel sticks across later sign-ins.
 - **The consoles are out of the custody business**: wildskeeper's
   Worlds page, savesync wiring and companion bundling are removed; the
   per-server backup restore button stays, since that is console
