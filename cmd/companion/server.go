@@ -43,11 +43,12 @@ func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
 	st := a.worldSync
 	st.Configured = a.cfg.configured()
 	links := append([]WorldLink(nil), a.cfg.Links...)
-	discovered := append([]discoveredGame(nil), a.discovered...)
+	discovered := a.discovered
 	out := map[string]any{
 		"config": map[string]any{
 			"serverUrl": a.cfg.ServerURL,
 			"tokenSet":  a.cfg.Token != "",
+			"steamDirs": append([]string(nil), a.cfg.SteamDirs...),
 		},
 		"links":      links,
 		"discovered": discovered,
@@ -57,29 +58,48 @@ func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, out)
 }
 
-// handleSetConfig saves the connection and, when it is complete, proves
-// it with a status poll — a typo'd token should fail here, not silently
-// every minute forever. An empty token keeps the saved one.
+// handleSetConfig saves whichever settings the request carries — the
+// connection panel and the discovery panel post independently, so absent
+// fields keep their stored values (pointers make absent distinguishable
+// from cleared). A completed connection is proven with a status poll —
+// a typo'd token should fail here, not silently every minute forever;
+// an empty token keeps the saved one. New Steam folders trigger a
+// rescan.
 func (a *app) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		ServerURL string `json:"serverUrl"`
-		Token     string `json:"token"`
+		ServerURL *string   `json:"serverUrl"`
+		Token     string    `json:"token"`
+		SteamDirs *[]string `json:"steamDirs"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
 		return
 	}
 	a.mu.Lock()
-	a.cfg.ServerURL = normalizeServerURL(in.ServerURL)
+	if in.ServerURL != nil {
+		a.cfg.ServerURL = normalizeServerURL(*in.ServerURL)
+	}
 	if strings.TrimSpace(in.Token) != "" {
 		a.cfg.Token = strings.TrimSpace(in.Token)
+	}
+	if in.SteamDirs != nil {
+		dirs := make([]string, 0, len(*in.SteamDirs))
+		for _, d := range *in.SteamDirs {
+			if d = strings.TrimSpace(d); d != "" {
+				dirs = append(dirs, d)
+			}
+		}
+		a.cfg.SteamDirs = dirs
 	}
 	a.mu.Unlock()
 	if err := a.saveCfg(); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "saving config: " + err.Error()})
 		return
 	}
-	if a.syncConfigured() {
+	if in.SteamDirs != nil {
+		a.rescan()
+	}
+	if in.ServerURL != nil && a.syncConfigured() {
 		if err := a.syncRefresh(); err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
@@ -89,11 +109,11 @@ func (a *app) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleDiscover(w http.ResponseWriter, r *http.Request) {
-	games := discoverGames()
+	a.rescan()
 	a.mu.Lock()
-	a.discovered = games
+	found := len(a.discovered.Games)
 	a.mu.Unlock()
-	writeJSON(w, map[string]any{"ok": true, "found": len(games)})
+	writeJSON(w, map[string]any{"ok": true, "found": found})
 }
 
 func (a *app) handleAddLink(w http.ResponseWriter, r *http.Request) {

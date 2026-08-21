@@ -131,21 +131,35 @@ async function act(fn, okMsg) {
 }
 
 // --- auth ---
+function showApp() {
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  document.getElementById("whoami").textContent = ME.username;
+  const canSync = ME.isAdmin || (ME.permissions || []).includes("savesync");
+  document.getElementById("createPanel").classList.toggle("hidden", !canSync);
+  document.getElementById("tokenPanel").classList.toggle("hidden", !canSync);
+  document.getElementById("usersPanel").classList.toggle("hidden", !ME.isAdmin);
+  refresh();
+}
 async function boot() {
   try {
     ME = await j("GET", "/me");
-    document.getElementById("login").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    document.getElementById("whoami").textContent = ME.username;
-    const canSync = ME.isAdmin || (ME.permissions || []).includes("savesync");
-    document.getElementById("createPanel").classList.toggle("hidden", !canSync);
-    document.getElementById("tokenPanel").classList.toggle("hidden", !canSync);
-    document.getElementById("usersPanel").classList.toggle("hidden", !ME.isAdmin);
-    refresh();
-  } catch {
-    document.getElementById("app").classList.add("hidden");
-    document.getElementById("login").classList.remove("hidden");
-  }
+    showApp();
+    return;
+  } catch {}
+  // Someone already signed in at Cloudflare Access shouldn't sign in
+  // twice: the assertion riding the request is the credential, and this
+  // attempt is silent — a 404 means Access isn't configured, a 401 means
+  // the request didn't come through the tunnel, and either way the
+  // password form is simply next.
+  try {
+    await j("POST", "/login/cloudflare");
+    ME = await j("GET", "/me");
+    showApp();
+    return;
+  } catch {}
+  document.getElementById("app").classList.add("hidden");
+  document.getElementById("login").classList.remove("hidden");
 }
 async function login() {
   try {
@@ -153,7 +167,15 @@ async function login() {
     boot();
   } catch (e) { document.getElementById("loginErr").textContent = e.message; document.getElementById("loginErr").className = "mono status-err"; }
 }
-async function logout() { await j("POST", "/logout").catch(() => {}); location.reload(); }
+async function logout() {
+  const ssoLogout = ME && ME.ssoLogoutURL;
+  await j("POST", "/logout").catch(() => {});
+  // A session that began at Access has to end there too — clearing only
+  // this cookie would leave the next person at the browser holding the
+  // previous identity.
+  if (ssoLogout) { location.href = ssoLogout; return; }
+  location.reload();
+}
 
 // --- worlds ---
 function holderLine(st) {

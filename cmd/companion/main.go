@@ -72,7 +72,7 @@ func main() {
 	url := fmt.Sprintf("http://%s/", ln.Addr())
 
 	app := newApp(cfg, cfgPath)
-	app.discovered = discoverGames()
+	app.rescan()
 	go app.watchLoop()
 	go func() {
 		if err := http.Serve(ln, app.routes()); err != nil {
