@@ -61,16 +61,21 @@ ways that mattered.
   SPUD object layer below the world header is byte-mapped too, verified
   against a real 4 MB played save (recon, 2026-08-19): on current game
   builds the world save carries each character's guid and last position
-  as binary transform records, which `dwsave` parses, while names,
-  skills and inventories live client-side on each player's own machine —
-  the dedicated server never holds them (operator-verified 2026-08-19),
-  which is the honest ceiling of save-derived player data. Names come
-  back through the disconnect log line's guid↔name pairing, which
-  `dwlog` learns and the world endpoint overlays; full character sheets
-  come back only by the player's own choice, via the Artificer Companion app (`cmd/companion`, born wkcompanion)
-  running on their machine (`games/dragonwilds/docs/companion.md`). The
-  JSON character records older builds embedded are still read and
-  merged by guid when a save carries them.
+  as binary transform records for every character who has played, and a
+  **full JSON sheet for whoever is connected at that moment** — the
+  server caches a player's record while they are on and drops it at
+  logout (corrected 2026-08-20; the earlier "the server never holds
+  it" came from one snapshot taken with nobody online). `dwsave` reads
+  both; `dwapi`'s record memory keeps an offline player's sheet on
+  screen, stamped with when it was true, and persists what it read from
+  the save (core's neutral `game_state` table) so a console restart
+  does not empty the view. Names come back through the
+  disconnect log line's guid↔name pairing, which `dwlog` learns and the
+  world endpoint overlays. The Artificer Companion app (`cmd/companion`,
+  born wkcompanion — `games/dragonwilds/docs/companion.md`) is now the
+  supplement rather than the only path: it keeps a sheet current for a
+  player who has not logged in, covers characters this console never saw
+  online, and gives each player a local view.
 - Enshrouded: the log vocabulary, the readiness marker and the config
   schema, all confirmed 2026-08-15. Saves on shutdown plus a 10-minute
   autosave; graceful stop is SIGINT; one UDP port carries both game traffic

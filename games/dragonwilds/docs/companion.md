@@ -9,11 +9,16 @@ retired-name warning) beside the new `COMPANION_EXE`.
 
 The character relay, its first job: the game stores each character's
 record — name, skills, inventory, vitals — on the player's own machine,
-in the same `SaveCharacters/` store the client uses for solo play
-(recon, "Where player state lives", 2026-08-19). A dedicated server
-never holds it, so wildskeeper's save-derived character view tops out
-at guid + position. The companion runs where the data actually is and
-closes that gap **by the player's own choice**.
+in the same `SaveCharacters/` store the client uses for solo play, and
+the server caches a copy only while that player is connected (recon,
+"Where player state lives", corrected 2026-08-20). So the console reads
+a full sheet from the world save for whoever is online, remembers it
+after they log off (`dwapi/records.go`), and is left with guid +
+position for anyone it has never seen online. The companion runs where
+the data always is and closes the rest of the gap **by the player's own
+choice**: it keeps a sheet current for a player who has not logged in,
+covers characters this console never observed, and gives each player a
+character sheet on their own machine that involves no server at all.
 
 Its second job is world custody: checking a shared world out of the
 console's Worlds page to host it from this machine, pushing mid-session
@@ -96,13 +101,19 @@ give players a direct/LAN address for the console.
 - The **companion token** is minted per server by a console admin
   (Adventurers page → Companion sharing) and is the entire credential,
   the same shape as the public status token but write-scoped. Disabling
-  sharing revokes it and drops everything it delivered; re-enabling
-  mints a fresh token.
+  sharing revokes it and forgets everything it delivered — including
+  shared sheets already folded into the console's record memory, which
+  tracks each sheet's provenance for exactly this reason; sheets the
+  console read from the world save itself are its own and stay.
+  Re-enabling mints a fresh token.
 - The console-side inbox is **in-memory and bounded** (16 records per
   server — a world holds 6 players). Nothing a player shared outlives
   the console process unless they are still running the app that shares
   it; the heartbeat re-fills the inbox within minutes of a console
-  restart.
+  restart. Shared sheets are deliberately never written to the console's
+  database — only sheets it read from the world save itself are
+  persisted (`dwapi/records.go`), so a revoke cannot be undone by a
+  later restart reloading a row.
 - The pushed record is validated by the same `dwsave` parser the
   companion itself uses (`dwsave.ParseCharacterRecord`) — one parser to
   be wrong in — and junk is refused with the reason.
@@ -116,6 +127,7 @@ give players a direct/LAN address for the console.
 | Route | Auth | Purpose |
 |---|---|---|
 | `GET /api/public/companion/{token}` | token | config check; answers the server's name |
+| `GET /api/public/companion/{token}/download` | token | the bundled `wkcompanion.exe` |
 | `POST /api/public/companion/{token}/character` | token | push one raw character record (≤256 KB) |
 | `GET /api/servers/{id}/companion` | admin | sharing state: enabled, token, shared count |
 | `PUT /api/servers/{id}/companion` | admin | enable (mints token) / disable (revokes + drops) |

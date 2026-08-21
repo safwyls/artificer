@@ -36,6 +36,10 @@ type handlers struct {
 	// companionExe is the path of the bundled artificer-companion.exe the console
 	// hands out (companion.go); empty when this deployment ships none.
 	companionExe string
+	// records remembers character sheets seen while their players were
+	// connected, so a sheet survives the logout that drops it from the
+	// save — see records.go.
+	records *recordMemory
 }
 
 // API is Dragonwilds' contributed route sets: the authenticated
@@ -50,7 +54,11 @@ type API struct {
 // log-derived identity lookup (dragonwilds.CharacterNames), nil when a
 // caller has none.
 func New(s *api.Server, worlds *savecache.Cache[dwsave.World], charNames func(agentURL string) map[string]string) *API {
-	return &API{h: &handlers{s: s, worlds: worlds, charNames: charNames, companion: newCompanionInbox()}}
+	return &API{h: &handlers{
+		s: s, worlds: worlds, charNames: charNames,
+		companion: newCompanionInbox(),
+		records:   newRecordMemory(s.StoreHandle(), s.LoggerHandle()),
+	}}
 }
 
 // Routes mounts the authenticated per-server endpoints
@@ -131,7 +139,7 @@ func (h *handlers) handleServerWorld(w http.ResponseWriter, r *http.Request) {
 		api.WriteError(w, http.StatusInternalServerError, "reading world save: "+err.Error())
 		return
 	}
-	enriched := h.withCompanionRecords(srv, h.withCharNames(srv, world))
+	enriched := h.withKnownRecords(r.Context(), srv, h.withCharNames(srv, world))
 	api.WriteJSON(w, http.StatusOK, map[string]any{"available": true, "world": enriched})
 }
 

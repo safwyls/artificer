@@ -680,10 +680,14 @@ export interface SaveCharacter {
   /** The transform record's freshness stamp on the game's own clock
    * (seconds, game epoch); 0/absent when the save holds no transform. */
   lastUpdated?: number;
-  /** When a companion app last relayed this character's full record.
-   * Absent on save-derived records — skills and inventory can only
-   * arrive by a player sharing them (the game stores them client-side). */
+  /** When a companion app last relayed this character's full record. */
   sharedAt?: string;
+  /** When this sheet was last true, for a sheet the console remembers
+   * rather than one the current save carries. The game caches a
+   * character's record only while that player is connected, so an
+   * offline player's sheet is a remembered snapshot; absent means the
+   * save in hand carries it (the player was on as of that save). */
+  seenAt?: string;
   /** Raw XP per skill — no level: the game's XP curve is its own and
    * version-dependent, so the console shows XP rather than guessing. */
   skills: { id: string; xp: number }[];

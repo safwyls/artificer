@@ -1,9 +1,14 @@
 // The companion inbox: character records relayed by the Artificer
-// Companion app (born wkcompanion) running on players' own machines. The game stores character data
-// client-side (recon, "Where player state lives"), so skills, inventories
-// and names structurally cannot come from anything on the host — a player
-// choosing to share them is the only source, and this file is where those
-// shares land.
+// Companion app (born wkcompanion) running on players' own machines.
+//
+// The game keeps each character's record on that player's machine and
+// caches it server-side only while they are connected (recon, "Where
+// player state lives"), so the world save carries a full sheet for
+// whoever is online and nothing for whoever is not. The console covers
+// the gap two ways: it remembers the sheets it saw (records.go), and it
+// accepts what players choose to share here — which is the only source
+// for a character who has not been on since this console started, or who
+// plays elsewhere entirely.
 //
 // The inbox is in-memory by design: the companion re-pushes on every
 // change and on a steady heartbeat, so a console restart heals itself
@@ -21,14 +26,12 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"sort"
 	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/safwyls/artificer/core/api"
-	"github.com/safwyls/artificer/core/store"
 	"github.com/safwyls/artificer/games/dragonwilds/dwsave"
 )
 
@@ -226,6 +229,9 @@ func (h *handlers) handleSetCompanion(w http.ResponseWriter, r *http.Request) {
 	}
 	if !in.Enabled {
 		h.companion.drop(srv.ID)
+		// Revoking sharing forgets what players shared, including sheets
+		// already folded into the console's memory (records.go).
+		h.records.forgetCompanionSourced(srv.ID)
 	}
 	detail := "off"
 	if in.Enabled {
@@ -233,55 +239,4 @@ func (h *handlers) handleSetCompanion(w http.ResponseWriter, r *http.Request) {
 	}
 	h.s.Audit(r, srv.ID, "companion-sharing", detail)
 	api.WriteJSON(w, http.StatusOK, map[string]any{"enabled": in.Enabled, "token": token})
-}
-
-// withCompanionRecords overlays shared character records onto the world's
-// players. A shared record is the game's own data from the player's
-// machine, so its fields win over everything except the world save's
-// transform position, which is host-fresh. Characters the save has never
-// seen (a player yet to appear in a transform record) are appended.
-func (h *handlers) withCompanionRecords(srv *store.Server, world *dwsave.World) *dwsave.World {
-	if h.companion == nil || world == nil {
-		return world
-	}
-	recs := h.companion.snapshot(srv.ID)
-	if len(recs) == 0 {
-		return world
-	}
-	out := *world
-	out.Players = make([]dwsave.PlayerCharacter, len(world.Players))
-	copy(out.Players, world.Players)
-
-	index := make(map[string]int, len(out.Players))
-	for i, p := range out.Players {
-		index[dwsave.CanonicalGuid(p.CharGuid)] = i
-	}
-	// Deterministic order for appended records.
-	guids := make([]string, 0, len(recs))
-	for g := range recs {
-		guids = append(guids, g)
-	}
-	sort.Strings(guids)
-
-	for _, guid := range guids {
-		rec := recs[guid]
-		p, err := dwsave.ParseCharacterRecord(rec.raw, world.SaveGuid)
-		if err != nil {
-			continue // validated at push time; a failure here is a bug, not a 500
-		}
-		shared := rec.receivedAt
-		p.SharedAt = &shared
-		if i, ok := index[guid]; ok {
-			// The world save's own position and freshness outrank the
-			// shared record's last-accessible location.
-			if out.Players[i].Position != nil {
-				p.Position = out.Players[i].Position
-			}
-			p.LastUpdated = out.Players[i].LastUpdated
-			out.Players[i] = *p
-			continue
-		}
-		out.Players = append(out.Players, *p)
-	}
-	return &out
 }

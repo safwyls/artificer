@@ -88,6 +88,23 @@ describe("WkCharacters", () => {
     expect(screen.queryByText("Saves")).not.toBeInTheDocument();
   });
 
+  it("marks a remembered sheet with when it was true", () => {
+    // The server caches a sheet only while its player is connected, so an
+    // offline adventurer's sheet is a memory — said plainly, beside a
+    // position that is still current.
+    renderWithProviders(
+      <WkCharacters
+        players={[{ ...aldra, sharedAt: undefined, seenAt: new Date(Date.now() - 3_600_000).toISOString() }]}
+        available
+        loading={false}
+      />,
+    );
+    expect(screen.getByText(/sheet as of/)).toBeInTheDocument();
+    // The sheet itself is still shown in full.
+    expect(screen.getByText("Woodcutting")).toBeInTheDocument();
+    expect(screen.getByText("-962, -33 m")).toBeInTheDocument();
+  });
+
   it("tells the empty world honestly", () => {
     renderWithProviders(<WkCharacters players={[]} available loading={false} />);
     expect(screen.getByText(/nobody has joined this world/)).toBeInTheDocument();
