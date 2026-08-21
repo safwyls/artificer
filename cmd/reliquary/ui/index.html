@@ -102,6 +102,7 @@
   <label>Password</label><input id="loginPass" type="password" onkeydown="if(event.key==='Enter')login()">
   <button onclick="login()">Sign in</button>
   <div class="mono" id="loginErr"></div>
+  <div class="note" id="ssoHint"></div>
 </div>
 
 <script>
@@ -118,7 +119,11 @@ async function j(method, path, body) {
   });
   if (res.status === 204) return {};
   const out = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(out.error || res.statusText);
+  if (!res.ok) {
+    const err = new Error(out.error || res.statusText);
+    err.status = res.status;
+    throw err;
+  }
   return out;
 }
 function say(msg, ok) {
@@ -148,19 +153,32 @@ async function boot() {
     return;
   } catch {}
   // Someone already signed in at Cloudflare Access shouldn't sign in
-  // twice: the assertion riding the request is the credential, and this
-  // attempt is silent — a 404 means Access isn't configured, a 401 means
-  // the request didn't come through the tunnel, and either way the
-  // password form is simply next.
+  // twice: the assertion riding the request is the credential. When that
+  // doesn't land, SAY WHY on the login page — a silent fall-through to
+  // the password box is indistinguishable from SSO being broken, and
+  // the two usual causes have different fixes.
   try {
     await j("POST", "/login/cloudflare");
     ME = await j("GET", "/me");
     showApp();
     return;
-  } catch {}
+  } catch (e) {
+    const hint = document.getElementById("ssoHint");
+    if (e.status === 404) {
+      hint.innerHTML = "Cloudflare Access sign-in is <b>not configured on this server</b>. " +
+        "Even with Access in front of the tunnel, reliquary needs CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD " +
+        "set in its environment to accept the assertion — until then, sign in with a password.";
+    } else if (e.status === 401) {
+      hint.innerHTML = "This request didn't arrive with a Cloudflare Access assertion — you're reaching reliquary " +
+        "directly (LAN address, or a tunnel that strips the header) rather than through Access. Sign in with a password.";
+    } else if (e.status) {
+      hint.textContent = "Cloudflare Access sign-in failed: " + e.message;
+    }
+  }
   document.getElementById("app").classList.add("hidden");
   document.getElementById("login").classList.remove("hidden");
 }
+
 async function login() {
   try {
     await j("POST", "/login", { username: document.getElementById("loginUser").value, password: document.getElementById("loginPass").value });
