@@ -69,6 +69,26 @@
   .askfor { margin: 10px 0 0; border-left: 3px solid var(--gold); padding: 8px 10px;
             background: rgba(201,168,96,.10); font-size: 13px; color: var(--parchment); }
   .req { color: var(--gold); }
+  /* A world's own cover, beside its row — the same art the shelf shows,
+     so a list of world names becomes a list of games. */
+  .worldrow { display: flex; gap: 12px; align-items: flex-start; }
+  .thumb { width: 52px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 4px; border: 1px solid var(--edge); flex: none; }
+  .thumb.none { display: flex; align-items: center; justify-content: center; font-size: 9px; text-align: center;
+                color: var(--mist); background: linear-gradient(160deg, #221b2e, #14101d); padding: 3px; }
+  .worldbody { flex: 1; min-width: 0; }
+  .worldbody .mono { overflow-wrap: anywhere; }
+  /* The folder browser, inside the link modal rather than over it. */
+  .browser { margin-top: 10px; border: 1px solid var(--edge); border-radius: 4px; background: var(--ink); }
+  .browser .crumbs { padding: 6px 9px; border-bottom: 1px solid var(--edge); font-family: ui-monospace, monospace;
+                     font-size: 11px; color: var(--mist); overflow-wrap: anywhere; }
+  .browser .list { max-height: 210px; overflow-y: auto; }
+  .browser .row2 { padding: 5px 9px; cursor: pointer; font-size: 13px; border-top: 1px solid rgba(47,39,64,.5); }
+  .browser .row2:hover { background: rgba(201,168,96,.10); }
+  .browser .row2.saveish { color: var(--goldhi); }
+  .browser .shortcuts { padding: 6px 9px; border-top: 1px solid var(--edge); display: flex; flex-wrap: wrap; gap: 6px; }
+  .browser .shortcuts button { margin: 0; padding: 2px 8px; font-size: 11px; font-weight: 400; }
+  .shelfnote { grid-column: 1 / -1; font-size: 12px; color: var(--mist); font-style: italic; }
+  .shelfnote a { color: var(--gold); cursor: pointer; }
   .hidden { display: none !important; }
   .modalx { float: right; margin: 0; padding: 2px 10px; }
 </style>
@@ -123,6 +143,12 @@
 <script>
 let ST = null, LINK_TARGET = null, UNLINK_TARGET = null, ART = {};
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// jsattr embeds a value as a JS literal inside a double-quoted HTML
+// attribute. JSON.stringify alone is not enough: its quotes close the
+// attribute, so onclick="f("app:123")" reaches the parser as f( — and
+// the handler silently never runs. Every path here that carries a path
+// or a key into an inline handler goes through this.
+const jsattr = v => esc(JSON.stringify(v));
 const fmtTime = t => new Date(t).toLocaleString();
 
 async function call(method, path, body) {
@@ -171,12 +197,16 @@ function linkedRow(l) {
     line = `<span class="warn">world #${l.worldId} is not on the service any more</span>`;
   }
   btn("Unlink", `confirm('Unlink this world from its folder? Nothing is deleted.') && act(() => call('DELETE', '/api/links/${l.worldId}'))`, true);
+  const title = l.gameTitle || (w ? w.world.name : "");
   return `<div class="worldrow">
-    <span class="worldname">${w ? esc(w.world.name) : "world #" + l.worldId}</span>
-    ${l.gameTitle ? `<span class="gametag">${esc(l.gameTitle)}</span>` : ""}<br>
-    <span class="line">${line}</span><br>
-    <span class="mono">${esc(l.dir)}</span><br>
-    ${actions.join(" ")}
+    ${coverHTML(artFor({ appId: l.appId, name: title }), title, "thumb")}
+    <div class="worldbody">
+      <span class="worldname">${w ? esc(w.world.name) : "world #" + l.worldId}</span>
+      ${l.gameTitle ? `<span class="gametag">${esc(l.gameTitle)}</span>` : ""}<br>
+      <span class="line">${line}</span><br>
+      <span class="mono">${esc(l.dir)}</span><br>
+      ${actions.join(" ")}
+    </div>
   </div>`;
 }
 
@@ -189,8 +219,27 @@ function renderLinks() {
   box.innerHTML = (ST.links || []).map(linkedRow).join("");
 }
 
-// gameKey matches the server's artwork map key.
+// gameKey matches the server's artwork map key, and the companion's own
+// hidden-list key. One identity for a game, used by all three.
 const gameKey = g => g.appId ? "app:" + g.appId : "name:" + String(g.name || "").toLowerCase().trim();
+
+// artFor resolves a cover for anything that can name a game: a
+// discovered game, or a link that remembers which one it came from. A
+// link made before app ids were recorded still matches by title.
+function artFor(g) {
+  const art = ART || {};
+  return art[gameKey(g)] || (g.name ? art["name:" + String(g.name).toLowerCase().trim()] : null) || {};
+}
+
+// coverHTML is the one place a cover is drawn, so the shelf tile and the
+// world row cannot drift apart. A broken image falls back to the name
+// rather than the browser's torn-page icon.
+function coverHTML(art, name, cls) {
+  const label = esc(name || "");
+  if (!art.cover) return `<div class="${cls} none">${label}</div>`;
+  return `<img class="${cls}" src="${esc(art.cover)}" alt="" loading="lazy"
+    onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'${cls} none',textContent:${jsattr(name || "")}}))">`;
+}
 
 // linkFor finds the link covering a discovered game: by the title we
 // recorded when linking, else by a save folder that matches one of its
@@ -202,21 +251,28 @@ function linkFor(g) {
 }
 
 function tileHTML(g, i) {
-  const art = (ART || {})[gameKey(g)] || {};
+  const art = artFor(g);
   const link = linkFor(g);
   const w = link ? worldFor(link.worldId) : null;
   const open = LINK_TARGET && LINK_TARGET.name === g.name;
-  const cover = art.cover
-    ? `<img class="cover" src="${esc(art.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noart',textContent:${JSON.stringify(g.name)}}))">`
-    : `<div class="noart">${esc(g.name)}</div>`;
   const state = link
     ? `<span class="state on">${w ? esc(w.world.name) : "linked"}</span>`
-    : `<span class="state">not linked</span>`;
+    : `<span class="state">${g.hidden ? "hidden" : "not linked"}</span>`;
   return `<div class="tile ${link ? "linked" : "unlinked"} ${open ? "active" : ""}" onclick="tileClick(${i})"
       title="${esc(art.name || g.name)}${g.saveDirs && g.saveDirs.length ? " — " + esc(g.saveDirs[0].path) : ""}">
-    ${cover}
+    ${coverHTML(art, g.name, "cover")}
     <div class="cap"><b>${esc(art.name || g.name)}</b>${state}</div>
   </div>`;
+}
+
+// hide/show one shelf entry. Local and reversible: it never touches a
+// link, a world, or the service.
+async function setHidden(key, hidden) {
+  try { await call("POST", "/api/hide", { key, hidden }); }
+  catch (e) { say(e.message, false); }
+  closeModal();
+  SHELF_SIG = null;
+  refresh();
 }
 
 function tileClick(i) {
@@ -254,23 +310,38 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal()
 // renderShelf draws the tiles, and only when something about them
 // actually changed: rebuilding identical markup every five seconds makes
 // every cover flicker as the images reload.
-let SHELF_SIG = null;
+let SHELF_SIG = null, SHOW_HIDDEN = false;
+function toggleHidden() { SHOW_HIDDEN = !SHOW_HIDDEN; SHELF_SIG = null; renderShelf(); }
+
 function renderShelf() {
   if (!ST) return;
   const box = document.getElementById("discovered");
   const all = (ST.discovered || {}).games || [];
+  const hiddenCount = all.filter(g => g.hidden).length;
+  // A hidden entry keeps its index in the full list, because that index
+  // is what a tile's click handler carries.
+  const shown = all.map((g, i) => [g, i]).filter(([g]) => SHOW_HIDDEN || !g.hidden);
   const sig = JSON.stringify([
-    all.map(g => [g.name, g.appId, (g.saveDirs || []).map(c => c.path)]),
+    all.map(g => [g.name, g.appId, g.hidden, (g.saveDirs || []).map(c => c.path)]),
     (ST.links || []).map(l => [l.worldId, l.gameTitle, l.dir]),
     Object.keys(ART || {}).sort(),
-    LINK_TARGET && LINK_TARGET.name, UNLINK_TARGET,
+    LINK_TARGET && LINK_TARGET.name, UNLINK_TARGET, SHOW_HIDDEN,
   ]);
   if (sig === SHELF_SIG) return;
   SHELF_SIG = sig;
-  box.innerHTML = all.length
-    ? all.map(tileHTML).join("")
-    : `<p class="note" style="grid-column:1/-1">No games found. The scan trail below says where it looked —
-      if your Steam folder is missing or was rejected, set it there. Any save folder can also be linked by hand.</p>`;
+
+  const tiles = shown.map(([g, i]) => tileHTML(g, i)).join("");
+  const note = hiddenCount
+    ? `<div class="shelfnote">${hiddenCount} ${hiddenCount === 1 ? "entry" : "entries"} hidden — Steam's own
+       redistributables, runtimes and controller configs start out this way.
+       <a onclick="toggleHidden()">${SHOW_HIDDEN ? "hide them again" : "show them"}</a></div>`
+    : "";
+  box.innerHTML = (shown.length
+    ? tiles
+    : `<p class="note" style="grid-column:1/-1">${all.length
+        ? "Every game found here is hidden."
+        : `No games found. The scan trail below says where it looked — if your Steam folder is missing or was
+           rejected, set it there. Any save folder can also be linked by hand.`}</p>`) + note;
 }
 
 // The scan trail: every path tried, what it resolved to, and why a miss
@@ -318,7 +389,18 @@ function linkedPanelHTML(g, link) {
       <b>Your worlds</b> at the top of this page.</div>
     <span class="mono">${esc(link.dir)}</span><br>
     <button class="quiet" onclick="confirm('Unlink this game? Nothing is deleted.') && (closeModal(), act(() => call('DELETE', '/api/links/${link.worldId}'), 'unlinked'))">Unlink</button>
+    ${hideButton(g)}
     <button class="quiet" onclick="closeModal()">Close</button>`;
+}
+
+// hideButton is offered wherever a shelf entry is open, because the
+// entries worth hiding are exactly the ones you only notice by clicking
+// them and finding they are not a game.
+function hideButton(g) {
+  const key = g.key || gameKey(g);
+  return g.hidden
+    ? `<button class="quiet" onclick="setHidden(${jsattr(key)}, false)">Show on shelf</button>`
+    : `<button class="quiet" onclick="setHidden(${jsattr(key)}, true)">Hide from shelf</button>`;
 }
 
 function linkFormHTML(g) {
@@ -336,6 +418,8 @@ function linkFormHTML(g) {
          usually under %LOCALAPPDATA%, Documents\\My Games, or Saved Games. Nothing is linked until you do.</p>`}
     <label>Save folder <span class="req">(required)</span></label>
     <input id="lf-dir" value="${esc(cands.length ? cands[0].path : "")}" placeholder="C:\\Users\\you\\AppData\\Local\\Game\\Saved\\SaveGames">
+    <button class="quiet" onclick="toggleBrowse()" id="lf-browsebtn">Browse this computer…</button>
+    <div class="browser hidden" id="lf-browse"></div>
     <label>World on the service</label>
     <select id="lf-world">
       <option value="">— create a new world —</option>
@@ -347,6 +431,7 @@ function linkFormHTML(g) {
     </label>
     <button onclick="submitLink()">Link</button>
     <button class="quiet" onclick="closeModal()">Cancel</button>
+    ${g.byHand ? "" : hideButton(g)}
     <div class="modalerr" id="lf-error"></div>`;
 }
 
@@ -359,6 +444,48 @@ function linkError(msg, focusID) {
   const el = focusID && document.getElementById(focusID);
   if (el) { el.focus(); if (el.scrollIntoView) el.scrollIntoView({ block: "nearest" }); }
   return false;
+}
+
+// --- the folder browser ---
+// Typing a Windows path into a text box is where the last mile went
+// wrong most often: the wrong slash, a quoted "Copy as path", a folder
+// one level off. Browsing removes the transcription. It lives inside the
+// link form rather than over it, so the folder you pick and the world
+// you are linking it to stay on screen together.
+async function toggleBrowse() {
+  const box = document.getElementById("lf-browse");
+  if (!box) return;
+  if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  await browseTo(document.getElementById("lf-dir").value.trim());
+}
+async function browseTo(path) {
+  const box = document.getElementById("lf-browse");
+  if (!box) return;
+  let b;
+  try { b = (await call("GET", "/api/browse?path=" + encodeURIComponent(path || ""))).browse; }
+  catch (e) { box.innerHTML = `<div class="crumbs status-err">${esc(e.message)}</div>`; return; }
+  const row = (label, target, cls) =>
+    `<div class="row2 ${cls || ""}" onclick="browseTo(${jsattr(target)})">${label}</div>`;
+  box.innerHTML =
+    `<div class="crumbs">${esc(b.path)}${b.error ? ` — <span class="status-err">${esc(b.error)}</span>` : ""}</div>
+     <div class="list">
+       ${b.parent ? row("↑ up one folder", b.parent) : ""}
+       ${(b.entries || []).map(e => row(esc(e.name), e.path, e.saveish ? "saveish" : "")).join("")}
+       ${!(b.entries || []).length && !b.error ? `<div class="row2" style="cursor:default;color:var(--mist)">no folders here</div>` : ""}
+     </div>
+     <div class="shortcuts">
+       <button onclick="useBrowsed(${jsattr(b.path)})">Use this folder</button>
+       ${(b.roots || []).map(r => `<button class="quiet" onclick="browseTo(${jsattr(r.path)})">${esc(r.label)}</button>`).join("")}
+     </div>`;
+}
+function useBrowsed(path) {
+  const dir = document.getElementById("lf-dir");
+  if (dir) { dir.value = path; dir.dispatchEvent(new Event("input")); }
+  const box = document.getElementById("lf-browse");
+  if (box) box.classList.add("hidden");
+  const err = document.getElementById("lf-error");
+  if (err) err.classList.remove("on");
 }
 
 // wireLinkForm connects the bits that need behaviour rather than markup:
@@ -403,7 +530,8 @@ async function submitLink() {
   const gameTitle = (g.name || document.getElementById("lf-name")?.value || "").trim();
   const dir = document.getElementById("lf-dir").value.trim();
   const worldId = Number(document.getElementById("lf-world").value);
-  const meta = JSON.stringify({ appId: g.appId || "", installDir: g.installDir || "" });
+  const appId = g.appId || "";
+  const meta = JSON.stringify({ appId, installDir: g.installDir || "" });
   const errBox = document.getElementById("lf-error");
   if (errBox) errBox.classList.remove("on");
 
@@ -415,8 +543,8 @@ async function submitLink() {
 
   const seed = !worldId && document.getElementById("lf-seed").checked;
   try {
-    if (worldId) await call("POST", "/api/links", { worldId, gameTitle, dir, meta });
-    else await call("POST", "/api/links/create", { name, gameTitle, dir, meta, seed });
+    if (worldId) await call("POST", "/api/links", { worldId, gameTitle, dir, meta, appId });
+    else await call("POST", "/api/links/create", { name, gameTitle, dir, meta, appId, seed });
   } catch (e) {
     return linkError(e.message, "lf-dir");
   }

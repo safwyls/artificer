@@ -26,6 +26,10 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("PUT /api/config", a.handleSetConfig)
 	mux.HandleFunc("POST /api/discover", a.handleDiscover)
 	mux.HandleFunc("GET /api/artwork", a.handleArtwork)
+	// Shelf housekeeping: browsing this machine for a save folder, and
+	// putting non-game entries away (browse.go, hidden.go).
+	mux.HandleFunc("GET /api/browse", a.handleBrowse)
+	mux.HandleFunc("POST /api/hide", a.handleHide)
 	// World links and custody. Local-only like everything here; the real
 	// authorization is the sync token these calls carry upstream.
 	mux.HandleFunc("POST /api/links", a.handleAddLink)
@@ -50,9 +54,16 @@ func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
 	// no version, and looked like three separate bugs.
 	links := append([]WorldLink{}, a.cfg.Links...)
 	discovered := a.discovered
-	if discovered.Games == nil {
-		discovered.Games = []discoveredGame{}
+	// Hidden is resolved here rather than in the scan: the page needs
+	// the whole library to offer "show hidden", and unhiding must not
+	// cost a filesystem walk.
+	games := make([]discoveredGame, 0, len(discovered.Games))
+	for _, g := range discovered.Games {
+		g.Hidden = a.cfg.isHidden(g)
+		g.Key = gameKey(g)
+		games = append(games, g)
 	}
+	discovered.Games = games
 	if discovered.Probes == nil {
 		discovered.Probes = []probe{}
 	}
@@ -145,12 +156,13 @@ func (a *app) handleAddLink(w http.ResponseWriter, r *http.Request) {
 		GameTitle string `json:"gameTitle"`
 		Dir       string `json:"dir"`
 		Meta      string `json:"meta"`
+		AppID     string `json:"appId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.WorldID == 0 {
 		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
 		return
 	}
-	if err := a.linkWorld(in.WorldID, in.GameTitle, strings.TrimSpace(in.Dir), in.Meta); err != nil {
+	if err := a.linkWorld(in.WorldID, in.GameTitle, strings.TrimSpace(in.Dir), in.Meta, in.AppID); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
@@ -163,13 +175,14 @@ func (a *app) handleCreateWorld(w http.ResponseWriter, r *http.Request) {
 		GameTitle string `json:"gameTitle"`
 		Dir       string `json:"dir"`
 		Meta      string `json:"meta"`
+		AppID     string `json:"appId"`
 		Seed      bool   `json:"seed"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
 		return
 	}
-	if err := a.createWorld(strings.TrimSpace(in.Name), in.GameTitle, strings.TrimSpace(in.Dir), in.Meta, in.Seed); err != nil {
+	if err := a.createWorld(strings.TrimSpace(in.Name), in.GameTitle, strings.TrimSpace(in.Dir), in.Meta, in.AppID, in.Seed); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}

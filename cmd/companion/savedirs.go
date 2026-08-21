@@ -41,6 +41,19 @@ var saveSubdirs = []string{
 	"Saved Games", "savedata", "SaveData", "storage", "profiles", "PlayerData",
 }
 
+// looksLikeSaveFolder reports a folder name that games use for saves —
+// the same vocabulary as saveSubdirs, matched loosely so the browser can
+// point at the likely next click.
+func looksLikeSaveFolder(name string) bool {
+	n := normalizeTitle(name)
+	for _, sub := range saveSubdirs {
+		if n == normalizeTitle(sub) {
+			return true
+		}
+	}
+	return n == "save" || n == "saves" || n == "saved" || n == "savegame" || n == "savegames" || n == "savedata"
+}
+
 // normalizeTitle folds a game name or folder name to letters and digits
 // so "RuneScape: Dragonwilds", "RSDragonwilds" and "runescape dragonwilds"
 // can be compared.

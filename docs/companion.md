@@ -72,7 +72,9 @@ admin panel or `IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET`) and answers
 `/artwork` for a whole batch, so one deployment looks each game up once
 for everyone and no player's machine ever holds a credential. A service
 without artwork configured yields names, which costs nothing but the
-pictures.
+pictures. Covers appear in both places a game is named — the shelf tile
+and the world's own row in "Your worlds" — drawn by one shared renderer,
+so the two cannot drift.
 
 Covers are fetched whenever the discovered game set changes, not once at
 page load. The boot-time-only fetch was a real defect, found on
