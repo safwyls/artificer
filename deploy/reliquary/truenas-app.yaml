@@ -44,6 +44,14 @@ services:
       # Behind TLS (a tunnel, a reverse proxy with certs): mark session
       # cookies Secure. Leave unset for plain-HTTP LAN use.
       # COOKIE_SECURE: "true"
+      # Cover art for the game shelf, via IGDB. The credentials are a
+      # Twitch application's client id and secret (IGDB authenticates
+      # through Twitch): create one at dev.twitch.tv/console/apps. They
+      # live here and nowhere else — companions ask this service, so no
+      # player's machine ever holds them. Without both, games show as
+      # names, which costs nothing but the pictures.
+      # IGDB_CLIENT_ID: "your-twitch-client-id"
+      # IGDB_CLIENT_SECRET: "your-twitch-client-secret"
       # Cloudflare Access SSO. Putting Access in front of the tunnel is
       # NOT enough on its own: without these, reliquary cannot read the
       # assertion, so you authenticate at Cloudflare and then meet the

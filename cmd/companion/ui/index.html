@@ -29,11 +29,30 @@
   button { margin: 10px 8px 0 0; background: linear-gradient(#2a2416, #1e1a10); color: var(--gold); border: 1px solid var(--gold); border-radius: 4px; padding: 6px 16px; font: inherit; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
   button:hover { filter: brightness(1.25); }
   button.quiet { border-color: var(--edge); color: var(--mist); font-weight: 400; }
-  .game { border-top: 1px solid var(--edge); padding: 8px 0; }
-  .game:first-of-type { border-top: 0; }
-  .linked { border-top: 1px solid var(--edge); padding: 10px 0; }
-  .linked:first-of-type { border-top: 0; padding-top: 0; }
+  .worldrow { border-top: 1px solid var(--edge); padding: 10px 0; }
+  .worldrow:first-of-type { border-top: 0; padding-top: 0; }
   .status-ok { color: var(--ok); } .status-err { color: var(--ember); } .status-idle { color: var(--mist); }
+  /* The shelf: covers where IGDB has them, names where it doesn't.
+     Linked games are in colour, unlinked are greyed — the whole point
+     is telling the two apart at a glance. */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; margin: 12px 0 4px; }
+  .tile { border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; background: var(--ink); cursor: pointer;
+          transition: filter .15s, border-color .15s, transform .1s; display: flex; flex-direction: column; }
+  .tile:hover { transform: translateY(-2px); border-color: var(--gold); }
+  .tile.unlinked { filter: grayscale(1) brightness(.72); }
+  .tile.unlinked:hover { filter: grayscale(.25) brightness(1); }
+  .tile.linked { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(201,168,96,.25) inset; }
+  .tile.active { border-color: var(--goldhi); }
+  .cover { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; }
+  .noart { width: 100%; aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center;
+           text-align: center; padding: 8px; font-size: 12px; color: var(--mist);
+           background: linear-gradient(160deg, #221b2e, #14101d); }
+  .cap { padding: 6px 7px 8px; font-size: 12px; line-height: 1.3; }
+  .cap b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .state { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mist); }
+  .state.on { color: var(--gold); }
+  .inlineform { grid-column: 1 / -1; border: 1px solid var(--gold); border-radius: 6px; padding: 10px 14px 14px; background: var(--panel); }
+  .inlineform h3 { margin: 4px 0 0; font-size: 15px; color: var(--goldhi); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -53,7 +72,7 @@
       Games found in this machine's Steam libraries. Save folders are best guesses — check the path before linking;
       linking tells the sync service which game a world belongs to and where its save lives here.
     </p>
-    <div id="discovered"></div>
+    <div id="discovered" class="grid"></div>
     <div class="mono" id="lookedIn" style="margin-top:8px"></div>
     <button class="quiet" onclick="rescan()">Rescan</button>
     <button class="quiet" onclick="openLinkForm(null)">Link a folder by hand…</button>
@@ -61,7 +80,6 @@
       libraries on other drives are found from it)</label>
     <input id="steamDir" placeholder="e.g. D:\SteamLibrary or D:\Steam\steamapps\common">
     <button class="quiet" onclick="saveSteamDir()">Save folder &amp; rescan</button>
-    <div id="linkForm"></div>
   </div>
 
   <div class="panel">
@@ -78,7 +96,7 @@
 </div>
 
 <script>
-let ST = null, LINK_TARGET = null;
+let ST = null, LINK_TARGET = null, UNLINK_TARGET = null, ART = {};
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtTime = t => new Date(t).toLocaleString();
 
@@ -128,7 +146,7 @@ function linkedRow(l) {
     line = `<span class="warn">world #${l.worldId} is not on the service any more</span>`;
   }
   btn("Unlink", `confirm('Unlink this world from its folder? Nothing is deleted.') && act(() => call('DELETE', '/api/links/${l.worldId}'))`, true);
-  return `<div class="linked">
+  return `<div class="worldrow">
     <span class="worldname">${w ? esc(w.world.name) : "world #" + l.worldId}</span>
     ${l.gameTitle ? `<span class="gametag">${esc(l.gameTitle)}</span>` : ""}<br>
     <span class="line">${line}</span><br>
@@ -146,20 +164,70 @@ function renderLinks() {
   box.innerHTML = ST.links.map(linkedRow).join("");
 }
 
-function renderDiscovered() {
+// gameKey matches the server's artwork map key.
+const gameKey = g => g.appId ? "app:" + g.appId : "name:" + String(g.name || "").toLowerCase().trim();
+
+// linkFor finds the link covering a discovered game: by the title we
+// recorded when linking, else by a save folder that matches one of its
+// candidates.
+function linkFor(g) {
+  return (ST.links || []).find(l =>
+    (l.gameTitle && l.gameTitle === g.name) ||
+    (g.saveDirs || []).some(c => c.path === l.dir));
+}
+
+function tileHTML(g, i) {
+  const art = (ART || {})[gameKey(g)] || {};
+  const link = linkFor(g);
+  const w = link ? worldFor(link.worldId) : null;
+  const open = LINK_TARGET && LINK_TARGET.name === g.name;
+  const cover = art.cover
+    ? `<img class="cover" src="${esc(art.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noart',textContent:${JSON.stringify(g.name)}}))">`
+    : `<div class="noart">${esc(g.name)}</div>`;
+  const state = link
+    ? `<span class="state on">${w ? esc(w.world.name) : "linked"}</span>`
+    : `<span class="state">not linked</span>`;
+  return `<div class="tile ${link ? "linked" : "unlinked"} ${open ? "active" : ""}" onclick="tileClick(${i})"
+      title="${esc(art.name || g.name)}${g.saveDirs && g.saveDirs.length ? " — " + esc(g.saveDirs[0].path) : ""}">
+    ${cover}
+    <div class="cap"><b>${esc(art.name || g.name)}</b>${state}</div>
+  </div>`;
+}
+
+function tileClick(i) {
+  const g = (ST.discovered.games || [])[i];
+  if (!g) return;
+  const link = linkFor(g);
+  if (link) { UNLINK_TARGET = UNLINK_TARGET === link.worldId ? null : link.worldId; LINK_TARGET = null; }
+  else { LINK_TARGET = (LINK_TARGET && LINK_TARGET.name === g.name) ? null : g; UNLINK_TARGET = null; }
+  renderDiscovered(true);
+}
+
+function renderDiscovered(force) {
+  // The background poll must not rebuild the shelf while a link form is
+  // open: it would drop focus and whatever the player had typed. Only a
+  // click (or an explicit refresh after one) redraws it then.
+  if (!force && document.getElementById("lf-dir")) return;
   const box = document.getElementById("discovered");
   const d = ST.discovered || {};
   const all = d.games || [];
-  const linked = new Set(ST.links.map(l => l.gameTitle));
-  const gameRow = g => `<div class="game">
-      <b>${esc(g.name)}</b> ${linked.has(g.name) ? '<span class="mono">· linked</span>' : ""}<br>
-      <span class="mono">${g.saveDirs && g.saveDirs.length ? esc(g.saveDirs[0]) : "no save folder guessed — paste one in the link form"}</span><br>
-      <button class="quiet" style="margin-top:6px" onclick='openLinkForm(${JSON.stringify(g).replace(/'/g, "&#39;")})'>Link…</button>
-    </div>`;
-  box.innerHTML = all.length
-    ? all.map(gameRow).join("")
-    : `<p class="note">No games found. The scan trail below says where it looked — if your Steam folder is missing
-       or was rejected, set it there. Any save folder can also be linked by hand.</p>`;
+  if (!all.length) {
+    box.innerHTML = `<p class="note" style="grid-column:1/-1">No games found. The scan trail below says where it looked —
+      if your Steam folder is missing or was rejected, set it there. Any save folder can also be linked by hand.</p>`;
+  } else {
+    // The form is a full-width grid item placed straight after its tile,
+    // so it opens directly under the game being linked rather than at
+    // the bottom of the page.
+    const parts = [];
+    all.forEach((g, i) => {
+      parts.push(tileHTML(g, i));
+      const link = linkFor(g);
+      if (LINK_TARGET && LINK_TARGET.name === g.name) parts.push(linkFormHTML(g));
+      else if (link && UNLINK_TARGET === link.worldId) parts.push(linkedPanelHTML(g, link));
+    });
+    box.innerHTML = parts.join("");
+    wireLinkForm();
+  }
 
   // The scan trail: every path tried, what it resolved to, and why a
   // miss missed. This is the whole answer to "why no games".
@@ -176,39 +244,87 @@ function renderDiscovered() {
     : "";
 }
 
+// linkedPanelHTML is what a linked tile opens: what it points at, and
+// the way out. Custody itself lives in "Your worlds" above.
+function linkedPanelHTML(g, link) {
+  const w = worldFor(link.worldId);
+  return `<div class="inlineform">
+    <h3>${esc(g.name)}</h3>
+    <div class="line">Linked to <b>${w ? esc(w.world.name) : "world #" + link.worldId}</b> — check it out and in from
+      <b>Your worlds</b> at the top of this page.</div>
+    <span class="mono">${esc(link.dir)}</span><br>
+    <button class="quiet" onclick="event.stopPropagation();confirm('Unlink this game? Nothing is deleted.') && act(() => call('DELETE', '/api/links/${link.worldId}'), 'unlinked')">Unlink</button>
+    <button class="quiet" onclick="event.stopPropagation();UNLINK_TARGET=null;renderDiscovered(true)">Close</button>
+  </div>`;
+}
+
+function linkFormHTML(g) {
+  const worlds = (ST.sync.worlds || []).filter(w => !(ST.links || []).some(l => l.worldId === w.world.id));
+  const cands = g.saveDirs || [];
+  return `<div class="inlineform" onclick="event.stopPropagation()">
+    <h3>Link ${esc(g.name)}</h3>
+    ${cands.length
+      ? `<label>Save folder found on this machine</label>
+         <select id="lf-cand">${cands.map((c, i) =>
+            `<option value="${esc(c.path)}">${esc(c.path)} — ${esc(c.why)}</option>`).join("")}
+          <option value="">— type a different folder —</option>
+         </select>`
+      : `<p class="note" style="margin-top:6px">No save folder was found for this game. Point at it yourself — it is
+         usually under %LOCALAPPDATA%, Documents\\My Games, or Saved Games.</p>`}
+    <label>Save folder</label>
+    <input id="lf-dir" value="${esc(cands.length ? cands[0].path : "")}" placeholder="C:\\Users\\you\\AppData\\Local\\Game\\Saved\\SaveGames">
+    <label>World on the service</label>
+    <select id="lf-world">
+      <option value="">— create a new world —</option>
+      ${worlds.map(w => `<option value="${w.world.id}">${esc(w.world.name)}${w.world.gameTitle ? " · " + esc(w.world.gameTitle) : ""}</option>`).join("")}
+    </select>
+    <div id="lf-newrow"><label>New world's name</label><input id="lf-name" value="${esc(g.name)}"></div>
+    <label style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--parchment)">
+      <input type="checkbox" id="lf-seed" checked style="width:auto"> upload this folder's current save as the world's first version
+    </label>
+    <button onclick="submitLink()">Link</button>
+    <button class="quiet" onclick="LINK_TARGET=null;renderDiscovered(true)">Cancel</button>
+  </div>`;
+}
+
+// wireLinkForm connects the bits that need behaviour rather than markup:
+// picking a found folder fills the path, and choosing an existing world
+// hides the new-world name.
+function wireLinkForm() {
+  const cand = document.getElementById("lf-cand");
+  const dir = document.getElementById("lf-dir");
+  if (cand && dir) cand.onchange = e => { if (e.target.value) dir.value = e.target.value; };
+  const world = document.getElementById("lf-world");
+  if (world) world.onchange = e => {
+    const row = document.getElementById("lf-newrow");
+    if (row) row.style.display = e.target.value ? "none" : "";
+  };
+}
+
 async function saveSteamDir() {
   const dir = document.getElementById("steamDir").value.trim();
   await act(() => call("PUT", "/api/config", { steamDirs: dir ? [dir] : [] }),
     dir ? "folder saved — rescanned" : "override cleared — rescanned");
 }
 
+// openLinkForm(null) is the by-hand path: a blank form for any folder,
+// rendered at the end of the shelf.
 function openLinkForm(g) {
-  LINK_TARGET = g || { name: "", saveDirs: [] };
-  const worlds = (ST.sync.worlds || []).filter(w => !ST.links.some(l => l.worldId === w.world.id));
-  document.getElementById("linkForm").innerHTML = `
-    <div style="border-top:1px solid var(--edge);margin-top:10px">
-      <label>Game</label><input id="lf-game" value="${esc(LINK_TARGET.name)}">
-      <label>Save folder on this machine (check it — discovery guesses)</label>
-      <input id="lf-dir" value="${esc(LINK_TARGET.saveDirs[0] || "")}">
-      <label>World on the service</label>
-      <select id="lf-world">
-        <option value="">— create a new world —</option>
-        ${worlds.map(w => `<option value="${w.world.id}">${esc(w.world.name)}${w.world.gameTitle ? " · " + esc(w.world.gameTitle) : ""}</option>`).join("")}
-      </select>
-      <div id="lf-newrow"><label>New world's name</label><input id="lf-name" value="${esc(LINK_TARGET.name)}"></div>
-      <label style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--parchment)">
-        <input type="checkbox" id="lf-seed" checked style="width:auto"> upload the folder's current save as the first version (new worlds)
-      </label>
-      <button onclick="submitLink()">Link</button>
-      <button class="quiet" onclick="document.getElementById('linkForm').innerHTML=''">Cancel</button>
-    </div>`;
-  document.getElementById("lf-world").onchange = e =>
-    document.getElementById("lf-newrow").style.display = e.target.value ? "none" : "";
+  LINK_TARGET = g || { name: "", appId: "", installDir: "", saveDirs: [], byHand: true };
+  UNLINK_TARGET = null;
+  renderDiscovered(true);
+  if (LINK_TARGET.byHand) {
+    const box = document.getElementById("discovered");
+    box.insertAdjacentHTML("beforeend", linkFormHTML(LINK_TARGET));
+    wireLinkForm();
+    const name = document.getElementById("lf-name");
+    if (name) { name.value = ""; name.focus(); }
+  }
 }
 
 async function submitLink() {
-  const g = LINK_TARGET;
-  const gameTitle = document.getElementById("lf-game").value.trim();
+  const g = LINK_TARGET || { name: "", appId: "", installDir: "" };
+  const gameTitle = (g.name || document.getElementById("lf-name")?.value || "").trim();
   const dir = document.getElementById("lf-dir").value.trim();
   const worldId = Number(document.getElementById("lf-world").value);
   const meta = JSON.stringify({ appId: g.appId || "", installDir: g.installDir || "" });
@@ -220,7 +336,8 @@ async function submitLink() {
     await act(() => call("POST", "/api/links/create", { name, gameTitle, dir, meta, seed }),
       seed ? "world created and seeded with the current save" : "world created and linked");
   }
-  document.getElementById("linkForm").innerHTML = "";
+  LINK_TARGET = null;
+  renderDiscovered(true);
 }
 
 async function rescan() { await act(() => call("POST", "/api/discover"), "rescanned"); }
@@ -232,6 +349,13 @@ async function saveCfg() {
     token: document.getElementById("token").value,
   }), "connected");
   document.getElementById("token").value = "";
+}
+
+async function loadArt() {
+  try {
+    const out = await (await fetch("/api/artwork")).json();
+    if (out.art) { ART = out.art; renderDiscovered(); }
+  } catch { /* covers are decoration; a failure changes nothing */ }
 }
 
 async function refresh() {
@@ -256,7 +380,7 @@ async function refresh() {
 for (const id of ["serverUrl", "token", "steamDir"])
   document.getElementById(id).addEventListener("input", e => e.target.dataset.dirty = "1");
 
-refresh();
+refresh().then(loadArt);
 setInterval(refresh, 5000);
 </script>
 </body>

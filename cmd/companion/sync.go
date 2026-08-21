@@ -760,3 +760,77 @@ func newestModTime(dir string) (time.Time, error) {
 	}
 	return newest, nil
 }
+
+// --- cover art ---
+
+// gameArt mirrors the service's artwork answer. The companion holds no
+// IGDB credentials of its own: the vault looks art up once for everyone
+// and this side just renders what comes back, so a service without
+// artwork configured simply yields names.
+type gameArt struct {
+	Name    string `json:"name,omitempty"`
+	Cover   string `json:"cover,omitempty"`
+	Summary string `json:"summary,omitempty"`
+}
+
+type artQuery struct {
+	AppID string `json:"appId,omitempty"`
+	Name  string `json:"name,omitempty"`
+}
+
+func artKey(q artQuery) string {
+	if q.AppID != "" {
+		return "app:" + q.AppID
+	}
+	return "name:" + strings.ToLower(strings.TrimSpace(q.Name))
+}
+
+// artwork resolves covers for the discovered games, asking the service
+// only for what isn't already cached here. Failures are silent by
+// design — a shelf without covers is still a shelf.
+func (a *app) artwork() map[string]gameArt {
+	a.mu.Lock()
+	games := append([]discoveredGame(nil), a.discovered.Games...)
+	if a.art == nil {
+		a.art = map[string]gameArt{}
+	}
+	out := map[string]gameArt{}
+	var need []artQuery
+	for _, g := range games {
+		q := artQuery{AppID: g.AppID, Name: g.Name}
+		key := artKey(q)
+		if hit, ok := a.art[key]; ok {
+			if hit.Name != "" || hit.Cover != "" {
+				out[key] = hit
+			}
+			continue
+		}
+		need = append(need, q)
+	}
+	configured := a.cfg.configured()
+	a.mu.Unlock()
+
+	if len(need) == 0 || !configured {
+		return out
+	}
+	var resp struct {
+		Art map[string]gameArt `json:"art"`
+	}
+	if err := a.syncDo(http.MethodPost, "/artwork", map[string]any{"games": need}, &resp); err != nil {
+		// Not worth surfacing: artwork is decoration, and the sync error
+		// surface is for things that block custody.
+		log.Printf("artwork lookup: %v", err)
+		return out
+	}
+	a.mu.Lock()
+	for _, q := range need {
+		key := artKey(q)
+		hit := resp.Art[key] // a miss caches as empty, so it isn't re-asked every rescan
+		a.art[key] = hit
+		if hit.Name != "" || hit.Cover != "" {
+			out[key] = hit
+		}
+	}
+	a.mu.Unlock()
+	return out
+}

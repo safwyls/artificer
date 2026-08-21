@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -192,5 +193,63 @@ func TestBundleRoundTrip(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dst, "Backups")); !os.IsNotExist(err) {
 		t.Error("rolling backup folder was packaged")
+	}
+}
+
+// The save finder against the shapes games actually use: Steam Cloud
+// keyed by app id (exact), an Unreal-style folder under LOCALAPPDATA, a
+// publisher folder two levels down, and a name that only matches after
+// normalization.
+func TestSaveCandidates(t *testing.T) {
+	steam := t.TempDir()
+	home := t.TempDir()
+	local := filepath.Join(home, "AppData", "Local")
+	lib := filepath.Join(steam, "steamapps")
+	t.Setenv("LOCALAPPDATA", local)
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// Steam Cloud: userdata/<account>/<appid>/remote, non-empty.
+	cloud := filepath.Join(steam, "userdata", "1234567", "1623730", "remote")
+	os.MkdirAll(cloud, 0o755)
+	os.WriteFile(filepath.Join(cloud, "world.sav"), []byte("x"), 0o644)
+
+	// Unreal shape: %LOCALAPPDATA%\<InstallDir>\Saved\SaveGames
+	unreal := filepath.Join(local, "Palworld", "Saved", "SaveGames")
+	os.MkdirAll(unreal, 0o755)
+
+	got := saveCandidatesFor(discoveredGame{Name: "Palworld", AppID: "1623730", InstallDir: "Palworld"}, []string{lib})
+	if len(got) < 2 {
+		t.Fatalf("found %d candidates, want the cloud save and the Unreal folder: %+v", len(got), got)
+	}
+	if got[0].Path != cloud {
+		t.Errorf("strongest candidate = %q, want the Steam Cloud save %q", got[0].Path, cloud)
+	}
+	if !strings.Contains(got[0].Why, "Steam Cloud") {
+		t.Errorf("cloud candidate reason = %q", got[0].Why)
+	}
+	found := false
+	for _, c := range got {
+		if c.Path == unreal {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the Unreal Saved/SaveGames folder was missed: %+v", got)
+	}
+
+	// A publisher folder in between, and a name that needs normalizing:
+	// "RuneScape: Dragonwilds" living under Jagex\RSDragonwilds.
+	pub := filepath.Join(home, "Documents", "My Games", "Jagex", "RSDragonwilds", "Saved")
+	os.MkdirAll(pub, 0o755)
+	got = saveCandidatesFor(discoveredGame{Name: "RuneScape: Dragonwilds", InstallDir: "RSDragonwilds"}, nil)
+	if len(got) == 0 || got[0].Path != pub {
+		t.Errorf("publisher-nested save missed: %+v", got)
+	}
+
+	// A game with nothing anywhere gets nothing — no false positives.
+	if got := saveCandidatesFor(discoveredGame{Name: "Some Game Nobody Installed", InstallDir: "NopeNopeNope"}, nil); len(got) != 0 {
+		t.Errorf("invented candidates for an absent game: %+v", got)
 	}
 }

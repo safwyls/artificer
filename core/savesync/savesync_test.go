@@ -561,3 +561,59 @@ func TestRenewAndExpiryWarning(t *testing.T) {
 		t.Errorf("renew expiry = %v, want ~48h out", got.ExpiresAt)
 	}
 }
+
+// The event bus: custody changes reach subscribers, an unsubscribed
+// reader stops receiving, and a subscriber that stops reading is dropped
+// rather than blocking the operation that produced the event.
+func TestEventBus(t *testing.T) {
+	svc, st, _ := newTestService(t)
+	ctx := context.Background()
+	alice := makeUser(t, st, "alice", "")
+	wid := makeWorld(t, st, "midgard")
+
+	events, unsubscribe := svc.Subscribe()
+	ss, err := svc.Checkout(ctx, wid, alice, false, false)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	select {
+	case ev := <-events:
+		if ev.WorldID != wid || ev.Kind != EventCheckout {
+			t.Errorf("event = %+v, want a checkout for world %d", ev, wid)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("checkout published no event")
+	}
+
+	if _, err := svc.Checkin(ctx, ss, alice, goodWorld(t), store.SyncKindCheckin); err != nil {
+		t.Fatalf("checkin: %v", err)
+	}
+	select {
+	case ev := <-events:
+		if ev.Kind != EventCheckin {
+			t.Errorf("event kind = %q, want checkin", ev.Kind)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("checkin published no event")
+	}
+
+	// Unsubscribing closes the channel and stops delivery.
+	unsubscribe()
+	if _, ok := <-events; ok {
+		t.Error("the channel should be closed after unsubscribing")
+	}
+
+	// A subscriber that never reads must not wedge custody: fill its
+	// buffer well past capacity and check the operations still complete.
+	_, stop := svc.Subscribe()
+	defer stop()
+	for i := 0; i < 50; i++ {
+		s2, err := svc.Checkout(ctx, wid, alice, false, false)
+		if err != nil {
+			t.Fatalf("checkout %d with a full subscriber: %v", i, err)
+		}
+		if _, err := svc.Checkin(ctx, s2, alice, goodWorld(t), store.SyncKindCheckin); err != nil {
+			t.Fatalf("checkin %d with a full subscriber: %v", i, err)
+		}
+	}
+}

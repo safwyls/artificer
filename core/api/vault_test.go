@@ -6,12 +6,16 @@ package api_test
 // re-merged by accident.
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/safwyls/artificer/core/api"
 	"github.com/safwyls/artificer/core/crypto"
@@ -94,5 +98,51 @@ func TestVaultSurface(t *testing.T) {
 	rec = app.do(t, "GET", "/anything", nil, nil)
 	if rec.Code != http.StatusOK || rec.Body.String() != "<html>vault</html>" {
 		t.Errorf("spa fallback: %d %q", rec.Code, rec.Body.String())
+	}
+}
+
+// Artwork and live events are additive: with no IGDB credentials the
+// lookup answers "not available" rather than failing, and the event
+// stream opens and reports itself ready.
+func TestVaultArtworkAndEvents(t *testing.T) {
+	app, admin := newVaultApp(t)
+
+	rec := app.do(t, "POST", "/api/sync/artwork", map[string]any{
+		"games": []map[string]string{{"appId": "1623730", "name": "Palworld"}},
+	}, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("artwork: got %d (body %s)", rec.Code, rec.Body)
+	}
+	out := decodeMap(t, rec)
+	if out["available"] != false {
+		t.Errorf("artwork available = %v with no credentials, want false", out["available"])
+	}
+	if _, ok := out["art"]; !ok {
+		t.Error("artwork answer carries no art map")
+	}
+
+	// The stream opens, announces itself and stays open until the request
+	// context ends — which is what the page's EventSource relies on.
+	req := httptest.NewRequest("GET", "/api/sync/events", nil)
+	for _, c := range admin {
+		req.AddCookie(c)
+	}
+	ctx, cancel := context.WithCancel(req.Context())
+	req = req.WithContext(ctx)
+	streamed := make(chan string, 1)
+	go func() {
+		w := httptest.NewRecorder()
+		app.handler.ServeHTTP(w, req)
+		streamed <- w.Body.String()
+	}()
+	time.Sleep(150 * time.Millisecond)
+	cancel()
+	select {
+	case body := <-streamed:
+		if !strings.Contains(body, "event: ready") {
+			t.Errorf("event stream opened with %q, want a ready frame", body)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("the event stream did not return after its context ended")
 	}
 }

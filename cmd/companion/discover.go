@@ -35,8 +35,9 @@ type discoveredGame struct {
 	AppID      string `json:"appId,omitempty"`
 	InstallDir string `json:"installDir,omitempty"`
 	// SaveDirs are candidate save folders that actually exist on this
-	// machine, best guess first. Heuristic, always — the player confirms.
-	SaveDirs []string `json:"saveDirs,omitempty"`
+	// machine, strongest first, each carrying why it was offered. A
+	// Steam Cloud hit is exact; the rest are guesses the player confirms.
+	SaveDirs []saveCandidate `json:"saveDirs,omitempty"`
 }
 
 // probe is one place the scan looked and what it found there, so an
@@ -233,7 +234,7 @@ func discoverGames(extraDirs []string) discovery {
 			if g.Name == "" {
 				continue
 			}
-			g.SaveDirs = saveCandidates(g, lib)
+			g.SaveDirs = saveCandidatesFor(g, libs)
 			out.Games = append(out.Games, g)
 			byInstallDir[strings.ToLower(g.InstallDir)] = true
 			found++
@@ -248,7 +249,7 @@ func discoverGames(extraDirs []string) discovery {
 					continue
 				}
 				g := discoveredGame{Name: e.Name(), InstallDir: e.Name()}
-				g.SaveDirs = saveCandidates(g, lib)
+				g.SaveDirs = saveCandidatesFor(g, libs)
 				out.Games = append(out.Games, g)
 				byInstallDir[strings.ToLower(e.Name())] = true
 				extra++
@@ -294,39 +295,3 @@ var knownSaveDirs = map[string][]func() string{
 }
 
 func localAppData() string { return os.Getenv("LOCALAPPDATA") }
-
-// saveCandidates probes where this game's saves might live and returns
-// the folders that exist: catalog entries, then the Unreal and My Games
-// conventions, then a Saved/ folder inside the install itself (portable
-// installs keep saves beside the game).
-func saveCandidates(g discoveredGame, lib string) []string {
-	var candidates []string
-	for _, fn := range knownSaveDirs[g.InstallDir] {
-		candidates = append(candidates, fn())
-	}
-	if local := localAppData(); local != "" && g.InstallDir != "" {
-		candidates = append(candidates,
-			filepath.Join(local, g.InstallDir, "Saved", "SaveGames"),
-			filepath.Join(local, g.InstallDir, "Saved"))
-	}
-	if home, err := os.UserHomeDir(); err == nil && g.Name != "" {
-		candidates = append(candidates,
-			filepath.Join(home, "Documents", "My Games", g.Name),
-			filepath.Join(home, "Documents", "My Games", g.Name, "Saved", "SaveGames"))
-	}
-	if lib != "" && g.InstallDir != "" {
-		candidates = append(candidates, filepath.Join(lib, "common", g.InstallDir, "Saved", "SaveGames"))
-	}
-	seen := map[string]bool{}
-	var out []string
-	for _, c := range candidates {
-		if c == "" || seen[c] {
-			continue
-		}
-		seen[c] = true
-		if info, err := os.Stat(c); err == nil && info.IsDir() {
-			out = append(out, c)
-		}
-	}
-	return out
-}

@@ -653,6 +653,10 @@ func (s *Server) mountSyncSmall(r chi.Router) {
 	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/server/take", s.handleSyncServerTake)
 	r.With(s.requirePermission(store.PermSync)).Post("/sync/sessions/{sessionID}/renew", s.syncRenew)
 	r.With(s.requirePermission(store.PermSync)).HandleFunc("/me/sync-token", s.handleMySyncToken)
+	// Live custody updates, and cover art for the game shelf
+	// (savesync_live.go).
+	r.Get("/sync/events", s.handleSyncEvents)
+	r.Post("/sync/artwork", s.handleSyncArtwork)
 }
 
 // asUser lifts a handler that takes the acting user out of the context.
@@ -689,6 +693,7 @@ func (s *Server) mountSyncUploads(r chi.Router) {
 	r.Route("/public/sync/{token}", func(r chi.Router) {
 		r.Get("/", s.handlePublicSyncStatus)
 		r.Get("/companion/download", s.withSyncTokenUser(s.handleSyncCompanionDownload))
+		r.Post("/artwork", s.withSyncTokenUser(s.handleSyncArtwork))
 		r.Post("/worlds", s.withSyncTokenUser(s.handleCreateSyncWorld))
 		r.Put("/worlds/{worldID}/meta", s.withSyncTokenUser(s.handleSyncWorldMeta))
 		r.Post("/worlds/{worldID}/import", s.withSyncTokenUser(s.handleSyncImport))
