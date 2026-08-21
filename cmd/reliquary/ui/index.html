@@ -21,6 +21,15 @@
   .panel h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); margin: 0 0 10px; font-weight: 600; }
   .panel h2 .meta { float: right; color: var(--mist); text-transform: none; letter-spacing: 0; font-weight: 400; }
   .worldname { font-size: 18px; font-weight: 700; }
+  /* A world's cover, beside its panel — the same art the companion's
+     shelf shows, so the two views of one world look like one world. */
+  .worldhead { display: flex; gap: 14px; align-items: flex-start; }
+  .worldbody { flex: 1; min-width: 0; }
+  .cover { width: 68px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 4px;
+           border: 1px solid var(--edge); flex: none; }
+  .cover.none { display: flex; align-items: center; justify-content: center; text-align: center;
+                font-size: 10px; line-height: 1.2; padding: 4px; color: var(--mist);
+                background: linear-gradient(160deg, #221b2e, #14101d); }
   .gametag { color: var(--rune); font-size: 12px; margin-left: 8px; }
   .mono { font-family: ui-monospace, monospace; font-size: 12px; color: var(--mist); }
   .note { font-size: 12px; color: var(--mist); font-style: italic; margin-top: 8px; }
@@ -143,6 +152,54 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 // quotes, so onclick="f(["savesync"])" reaches the parser as f([ — the
 // handler never runs, silently. Any user with a permission hit this.
 const jsattr = v => esc(JSON.stringify(v));
+
+// --- cover art ---
+// Keyed exactly as the service's artwork map and the companion's shelf
+// are, so one game has one identity across all three.
+let ART = {}, ART_SIG = null, ART_BUSY = false;
+const gameKey = g => g.appId ? "app:" + g.appId : "name:" + String(g.name || "").toLowerCase().trim();
+
+// appIdOf digs the Steam app id out of the free-form metadata the
+// companion reported. The server stores that blob without interpreting
+// it, so this is the one place that looks inside — defensively, since
+// anything at all may be in there.
+function appIdOf(w) {
+  try {
+    const meta = JSON.parse(w.gameMeta || "{}");
+    return meta && meta.appId ? String(meta.appId) : "";
+  } catch { return ""; }
+}
+const artQueryFor = w => ({ appId: appIdOf(w), name: w.gameTitle || w.name || "" });
+function artFor(w) {
+  const q = artQueryFor(w);
+  return ART[gameKey(q)] || (q.name ? ART["name:" + q.name.toLowerCase().trim()] : null) || {};
+}
+function coverHTML(w) {
+  const art = artFor(w);
+  const label = w.gameTitle || w.name || "";
+  if (!art.cover) return `<div class="cover none">${esc(label)}</div>`;
+  return `<img class="cover" src="${esc(art.cover)}" alt="" loading="lazy"
+    onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'cover none',textContent:${jsattr(label)}}))">`;
+}
+
+// Covers are fetched when the set of worlds changes, never on the
+// refresh timer — the same discipline the companion needed. Asking on
+// every poll would be a lookup every twenty seconds for a list that
+// changes about once a week.
+async function maybeLoadArt(worlds) {
+  if (ART_BUSY) return;
+  const games = worlds.map(w => gameKey(artQueryFor(w.world))).sort();
+  if (!games.length) return;
+  const sig = JSON.stringify(games);
+  if (sig === ART_SIG) return;
+  ART_SIG = sig;
+  ART_BUSY = true;
+  try {
+    const out = await j("POST", "/sync/artwork", { games: worlds.map(w => artQueryFor(w.world)) });
+    if (out.art && Object.keys(out.art).length) { ART = { ...ART, ...out.art }; renderWorlds(); }
+  } catch { /* covers are decoration; a failure changes nothing */ }
+  finally { ART_BUSY = false; }
+}
 const fmtBytes = b => b >= 1<<30 ? (b/(1<<30)).toFixed(1)+" GB" : b >= 1<<20 ? (b/(1<<20)).toFixed(1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
 const fmtTime = t => new Date(t).toLocaleString();
 
@@ -330,17 +387,25 @@ async function renderWorlds() {
   for (const st of out.worlds) {
     const w = st.world;
     let block = `<div class="panel">
-      <h2><span class="worldname">${esc(w.name)}</span>${w.gameTitle ? `<span class="gametag">${esc(w.gameTitle)}</span>` : ""}
-        <span class="meta">${st.head ? `head v${st.head.id} · ${fmtBytes(st.head.bytes)} · ${fmtTime(st.head.createdAt)}` : "no versions yet"}</span></h2>
-      <div class="line">${holderLine(st)}</div>
-      ${st.holder && st.claimedBy ? `<div class="mono">next claim: ${esc(st.claimedBy)}</div>` : ""}
-      ${w.saveHint ? `<div class="mono" title="where the companion that linked this game found its save">save location: ${esc(w.saveHint)}</div>` : ""}
-      <div>${worldActions(st)}</div>`;
+      <div class="worldhead">
+        ${coverHTML(w)}
+        <div class="worldbody">
+          <h2><span class="worldname">${esc(w.name)}</span>${w.gameTitle ? `<span class="gametag">${esc(w.gameTitle)}</span>` : ""}
+            <span class="meta">${st.head ? `head v${st.head.id} · ${fmtBytes(st.head.bytes)} · ${fmtTime(st.head.createdAt)}` : "no versions yet"}</span></h2>
+          <div class="line">${holderLine(st)}</div>
+          ${st.holder && st.claimedBy ? `<div class="mono">next claim: ${esc(st.claimedBy)}</div>` : ""}
+          ${w.saveHint ? `<div class="mono" title="where the companion that linked this game found its save">save location: ${esc(w.saveHint)}</div>` : ""}
+          <div>${worldActions(st)}</div>
+        </div>
+      </div>`;
+    // Settings and history sit below the head, full width: a form beside
+    // a cover would be a column two thirds as wide for no reason.
     if (OPEN_SETTINGS[w.id] && ME.isAdmin) block += settingsForm(w);
     if (OPEN_HISTORY[w.id]) block += await historyBlock(w.id).catch(e => `<div class="note">${esc(e.message)}</div>`);
     parts.push(block + `</div>`);
   }
   box.innerHTML = parts.join("");
+  maybeLoadArt(out.worlds);
 }
 
 async function createWorld() {
