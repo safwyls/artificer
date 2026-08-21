@@ -95,13 +95,13 @@ func (s *Server) handleSyncArtwork(w http.ResponseWriter, r *http.Request) {
 	if len(in.Games) > 500 {
 		in.Games = in.Games[:500]
 	}
-	art := map[string]igdb.Game{}
-	if s.Artwork != nil {
-		art = s.Artwork.Lookup(r.Context(), in.Games)
+	art := s.Artwork.Lookup(r.Context(), in.Games)
+	if art == nil {
+		art = map[string]igdb.Game{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"accepted":  true,
-		"available": s.Artwork != nil,
+		"available": s.Artwork.Configured(),
 		"art":       art,
 	})
 }

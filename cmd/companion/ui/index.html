@@ -51,8 +51,16 @@
   .cap b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .state { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mist); }
   .state.on { color: var(--gold); }
-  .inlineform { grid-column: 1 / -1; border: 1px solid var(--gold); border-radius: 6px; padding: 10px 14px 14px; background: var(--panel); }
-  .inlineform h3 { margin: 4px 0 0; font-size: 15px; color: var(--goldhi); font-weight: 700; }
+  /* Linking happens in a modal rather than inline in the grid: a form
+     wedged between tiles reflows the shelf around it, and on a wide
+     window it lands far from the tile that opened it. */
+  .modalback { position: fixed; inset: 0; background: rgba(8,6,12,.72); display: flex;
+               align-items: flex-start; justify-content: center; padding: 6vh 16px 24px; overflow-y: auto; z-index: 50; }
+  .modalbox { background: var(--panel); border: 1px solid var(--gold); border-radius: 6px;
+              padding: 14px 18px 18px; width: min(520px, 100%); box-shadow: 0 18px 48px rgba(0,0,0,.55); }
+  .modalbox h3 { margin: 2px 0 0; font-size: 17px; color: var(--goldhi); font-weight: 700; }
+  .hidden { display: none !important; }
+  .modalx { float: right; margin: 0; padding: 2px 10px; }
 </style>
 </head>
 <body>
@@ -93,6 +101,12 @@
       <span id="cfgStatus" class="mono"></span>
     </div>
   </div>
+
+  <div class="note" id="versionLine"></div>
+</div>
+
+<div class="modalback hidden" id="modal" onclick="closeModal(event)">
+  <div class="modalbox" id="modalBox" onclick="event.stopPropagation()"></div>
 </div>
 
 <script>
@@ -198,71 +212,109 @@ function tileClick(i) {
   const g = (ST.discovered.games || [])[i];
   if (!g) return;
   const link = linkFor(g);
-  if (link) { UNLINK_TARGET = UNLINK_TARGET === link.worldId ? null : link.worldId; LINK_TARGET = null; }
-  else { LINK_TARGET = (LINK_TARGET && LINK_TARGET.name === g.name) ? null : g; UNLINK_TARGET = null; }
-  renderDiscovered(true);
+  if (link) { UNLINK_TARGET = link.worldId; LINK_TARGET = null; openModal(linkedPanelHTML(g, link)); }
+  else { LINK_TARGET = g; UNLINK_TARGET = null; openModal(linkFormHTML(g)); }
 }
 
-function renderDiscovered(force) {
-  // The background poll must not rebuild the shelf while a link form is
-  // open: it would drop focus and whatever the player had typed. Only a
-  // click (or an explicit refresh after one) redraws it then.
-  if (!force && document.getElementById("lf-dir")) return;
+// --- the modal ---
+// Opening one is the only thing that puts a form on this page, so the
+// 5-second poll can rebuild the shelf whenever it likes without ever
+// touching what the player is typing.
+function openModal(html) {
+  const box = document.getElementById("modalBox");
+  box.innerHTML = html;
+  document.getElementById("modal").classList.remove("hidden");
+  wireLinkForm();
+  const first = box.querySelector("input, select");
+  if (first) first.focus();
+  renderShelf();
+}
+function closeModal(e) {
+  // The backdrop closes; a click inside the box does not (the box stops
+  // its own propagation).
+  if (e && e.type === "click" && e.target.id !== "modal") return;
+  document.getElementById("modal").classList.add("hidden");
+  document.getElementById("modalBox").innerHTML = "";
+  LINK_TARGET = null; UNLINK_TARGET = null;
+  renderShelf();
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+// renderShelf draws the tiles, and only when something about them
+// actually changed: rebuilding identical markup every five seconds makes
+// every cover flicker as the images reload.
+let SHELF_SIG = null;
+function renderShelf() {
+  if (!ST) return;
   const box = document.getElementById("discovered");
-  const d = ST.discovered || {};
-  const all = d.games || [];
-  if (!all.length) {
-    box.innerHTML = `<p class="note" style="grid-column:1/-1">No games found. The scan trail below says where it looked —
+  const all = (ST.discovered || {}).games || [];
+  const sig = JSON.stringify([
+    all.map(g => [g.name, g.appId, (g.saveDirs || []).map(c => c.path)]),
+    (ST.links || []).map(l => [l.worldId, l.gameTitle, l.dir]),
+    Object.keys(ART || {}).sort(),
+    LINK_TARGET && LINK_TARGET.name, UNLINK_TARGET,
+  ]);
+  if (sig === SHELF_SIG) return;
+  SHELF_SIG = sig;
+  box.innerHTML = all.length
+    ? all.map(tileHTML).join("")
+    : `<p class="note" style="grid-column:1/-1">No games found. The scan trail below says where it looked —
       if your Steam folder is missing or was rejected, set it there. Any save folder can also be linked by hand.</p>`;
-  } else {
-    // The form is a full-width grid item placed straight after its tile,
-    // so it opens directly under the game being linked rather than at
-    // the bottom of the page.
-    const parts = [];
-    all.forEach((g, i) => {
-      parts.push(tileHTML(g, i));
-      const link = linkFor(g);
-      if (LINK_TARGET && LINK_TARGET.name === g.name) parts.push(linkFormHTML(g));
-      else if (link && UNLINK_TARGET === link.worldId) parts.push(linkedPanelHTML(g, link));
-    });
-    box.innerHTML = parts.join("");
-    wireLinkForm();
-  }
-
-  // The scan trail: every path tried, what it resolved to, and why a
-  // miss missed. This is the whole answer to "why no games".
-  const probes = d.probes || [];
-  const hits = probes.filter(p => p.resolved);
-  document.getElementById("lookedIn").innerHTML = probes.length
-    ? `<details ${hits.length ? "" : "open"}><summary>scan trail — ${hits.length} librar${hits.length === 1 ? "y" : "ies"} found, ${probes.length} path${probes.length === 1 ? "" : "s"} tried</summary>` +
-      probes.map(p => `<div style="padding:2px 0">
-        <span style="color:var(--${p.resolved ? "ok" : "mist"})">${p.resolved ? "✓" : "·"}</span>
-        <b>${esc(p.source)}</b> ${esc(p.path)}
-        ${p.resolved && p.resolved !== p.path ? `<br><span style="padding-left:16px">→ ${esc(p.resolved)}</span>` : ""}
-        ${p.note ? `<br><span style="padding-left:16px;color:var(--${p.resolved ? "mist" : "ember"})">${esc(p.note)}</span>` : ""}
-      </div>`).join("") + `</details>`
-    : "";
 }
+
+// The scan trail: every path tried, what it resolved to, and why a miss
+// missed. This is the whole answer to "why no games" — so it must stay
+// open once opened. Rewriting its markup on every poll was what snapped
+// it shut two seconds after anyone expanded it; now the markup is only
+// rebuilt when the probes themselves change, and the open state is the
+// player's, remembered across those rebuilds.
+let TRAIL_SIG = null, TRAIL_OPEN = null;
+function renderTrail() {
+  if (!ST) return;
+  const box = document.getElementById("lookedIn");
+  const probes = (ST.discovered || {}).probes || [];
+  const sig = JSON.stringify(probes);
+  if (sig === TRAIL_SIG) return;
+  const fresh = TRAIL_SIG !== null;
+  TRAIL_SIG = sig;
+  if (!probes.length) { box.innerHTML = ""; return; }
+  const hits = probes.filter(p => p.resolved);
+  // A new scan that found nothing opens itself; otherwise the player's
+  // last choice stands, and a first render defaults to closed-on-success.
+  if (fresh) TRAIL_OPEN = hits.length ? TRAIL_OPEN : true;
+  const open = TRAIL_OPEN === null ? !hits.length : TRAIL_OPEN;
+  box.innerHTML =
+    `<details ${open ? "open" : ""}><summary>scan trail — ${hits.length} librar${hits.length === 1 ? "y" : "ies"} found, ${probes.length} path${probes.length === 1 ? "" : "s"} tried</summary>` +
+    probes.map(p => `<div style="padding:2px 0">
+      <span style="color:var(--${p.resolved ? "ok" : "mist"})">${p.resolved ? "✓" : "·"}</span>
+      <b>${esc(p.source)}</b> ${esc(p.path)}
+      ${p.resolved && p.resolved !== p.path ? `<br><span style="padding-left:16px">→ ${esc(p.resolved)}</span>` : ""}
+      ${p.note ? `<br><span style="padding-left:16px;color:var(--${p.resolved ? "mist" : "ember"})">${esc(p.note)}</span>` : ""}
+    </div>`).join("") + `</details>`;
+  const det = box.querySelector("details");
+  if (det) det.ontoggle = () => { TRAIL_OPEN = det.open; };
+}
+
+function renderDiscovered() { renderShelf(); renderTrail(); }
 
 // linkedPanelHTML is what a linked tile opens: what it points at, and
 // the way out. Custody itself lives in "Your worlds" above.
 function linkedPanelHTML(g, link) {
   const w = worldFor(link.worldId);
-  return `<div class="inlineform">
+  return `<button class="quiet modalx" onclick="closeModal()">✕</button>
     <h3>${esc(g.name)}</h3>
     <div class="line">Linked to <b>${w ? esc(w.world.name) : "world #" + link.worldId}</b> — check it out and in from
       <b>Your worlds</b> at the top of this page.</div>
     <span class="mono">${esc(link.dir)}</span><br>
-    <button class="quiet" onclick="event.stopPropagation();confirm('Unlink this game? Nothing is deleted.') && act(() => call('DELETE', '/api/links/${link.worldId}'), 'unlinked')">Unlink</button>
-    <button class="quiet" onclick="event.stopPropagation();UNLINK_TARGET=null;renderDiscovered(true)">Close</button>
-  </div>`;
+    <button class="quiet" onclick="confirm('Unlink this game? Nothing is deleted.') && (closeModal(), act(() => call('DELETE', '/api/links/${link.worldId}'), 'unlinked'))">Unlink</button>
+    <button class="quiet" onclick="closeModal()">Close</button>`;
 }
 
 function linkFormHTML(g) {
   const worlds = (ST.sync.worlds || []).filter(w => !(ST.links || []).some(l => l.worldId === w.world.id));
   const cands = g.saveDirs || [];
-  return `<div class="inlineform" onclick="event.stopPropagation()">
-    <h3>Link ${esc(g.name)}</h3>
+  return `<button class="quiet modalx" onclick="closeModal()">✕</button>
+    <h3>Link ${esc(g.name) || "a folder"}</h3>
     ${cands.length
       ? `<label>Save folder found on this machine</label>
          <select id="lf-cand">${cands.map((c, i) =>
@@ -283,8 +335,7 @@ function linkFormHTML(g) {
       <input type="checkbox" id="lf-seed" checked style="width:auto"> upload this folder's current save as the world's first version
     </label>
     <button onclick="submitLink()">Link</button>
-    <button class="quiet" onclick="LINK_TARGET=null;renderDiscovered(true)">Cancel</button>
-  </div>`;
+    <button class="quiet" onclick="closeModal()">Cancel</button>`;
 }
 
 // wireLinkForm connects the bits that need behaviour rather than markup:
@@ -307,16 +358,13 @@ async function saveSteamDir() {
     dir ? "folder saved — rescanned" : "override cleared — rescanned");
 }
 
-// openLinkForm(null) is the by-hand path: a blank form for any folder,
-// rendered at the end of the shelf.
+// openLinkForm(null) is the by-hand path: the same modal over a blank
+// game, for a folder discovery never found.
 function openLinkForm(g) {
   LINK_TARGET = g || { name: "", appId: "", installDir: "", saveDirs: [], byHand: true };
   UNLINK_TARGET = null;
-  renderDiscovered(true);
+  openModal(linkFormHTML(LINK_TARGET));
   if (LINK_TARGET.byHand) {
-    const box = document.getElementById("discovered");
-    box.insertAdjacentHTML("beforeend", linkFormHTML(LINK_TARGET));
-    wireLinkForm();
     const name = document.getElementById("lf-name");
     if (name) { name.value = ""; name.focus(); }
   }
@@ -336,8 +384,7 @@ async function submitLink() {
     await act(() => call("POST", "/api/links/create", { name, gameTitle, dir, meta, seed }),
       seed ? "world created and seeded with the current save" : "world created and linked");
   }
-  LINK_TARGET = null;
-  renderDiscovered(true);
+  closeModal();
 }
 
 async function rescan() { await act(() => call("POST", "/api/discover"), "rescanned"); }
@@ -354,14 +401,25 @@ async function saveCfg() {
 async function loadArt() {
   try {
     const out = await (await fetch("/api/artwork")).json();
-    if (out.art) { ART = out.art; renderDiscovered(); }
+    if (out.art) { ART = out.art; renderShelf(); }
   } catch { /* covers are decoration; a failure changes nothing */ }
+}
+
+// Both builds, side by side: which companion, and which service it is
+// talking to. A save-sync report that names one half names nothing.
+function renderVersion() {
+  if (!ST) return;
+  const el = document.getElementById("versionLine");
+  const server = ST.sync && ST.sync.serverVersion;
+  el.textContent = `companion ${ST.version || "dev"}` +
+    (server ? ` · service ${server}` : ST.sync && ST.sync.configured ? " · service version unknown" : "");
 }
 
 async function refresh() {
   ST = await (await fetch("/api/state")).json();
   renderLinks();
   renderDiscovered();
+  renderVersion();
   const urlEl = document.getElementById("serverUrl");
   if (document.activeElement !== urlEl && !urlEl.dataset.dirty) urlEl.value = ST.config.serverUrl || "";
   const steamEl = document.getElementById("steamDir");

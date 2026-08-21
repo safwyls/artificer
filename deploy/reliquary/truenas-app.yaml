@@ -50,6 +50,11 @@ services:
       # live here and nowhere else — companions ask this service, so no
       # player's machine ever holds them. Without both, games show as
       # names, which costs nothing but the pictures.
+      #
+      # Optional here: an admin can paste the pair into the vault's
+      # "Cover art" panel instead, which stores it encrypted, proves it
+      # with one real call, and wins over these. Setting them here keeps
+      # covers working across a fresh database.
       # IGDB_CLIENT_ID: "your-twitch-client-id"
       # IGDB_CLIENT_SECRET: "your-twitch-client-secret"
       # Cloudflare Access SSO. Putting Access in front of the tunnel is

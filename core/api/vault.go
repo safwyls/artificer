@@ -46,6 +46,7 @@ func (s *Server) VaultRoutes(staticFS fs.FS) http.Handler {
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(maxBodyBytes(1 << 20))
+			r.Get("/version", s.handleVersion)
 			r.Post("/login", s.handleLogin)
 			r.Post("/login/cloudflare", s.handleCloudflareLogin)
 			r.Group(func(r chi.Router) {

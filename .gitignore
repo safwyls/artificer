@@ -9,6 +9,7 @@
 /artificer-companion.exe
 /companion
 /anvil-bin
+/reliquary
 web/*/dist/
 web/*/dist-demo/
 web/*/node_modules/

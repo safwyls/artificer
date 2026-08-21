@@ -137,3 +137,56 @@ func (s *Store) DeleteUserAdvisorKey(ctx context.Context, userID int64) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM user_advisor_keys WHERE user_id = ?`, userID)
 	return err
 }
+
+// IGDB credentials, submitted through the vault's admin UI. A Twitch
+// application's client id and secret, stored together as encrypted JSON
+// for the same reason the advisor key is: half a credential pair is
+// useless, so they live or die together.
+const settingIGDBCredentials = "igdb_credentials"
+
+type IGDBCredentials struct {
+	ClientID     string `json:"clientId"`
+	ClientSecret string `json:"clientSecret"`
+}
+
+// IGDBCredentials returns the stored pair, or nil when none is saved (in
+// which case the environment's, if any, stands).
+func (s *Store) IGDBCredentials(ctx context.Context) (*IGDBCredentials, error) {
+	var enc string
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM app_settings WHERE key = ?`, settingIGDBCredentials).Scan(&enc)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	plain, err := s.box.Decrypt(enc)
+	if err != nil {
+		return nil, fmt.Errorf("decrypting igdb credentials: %w", err)
+	}
+	var c IGDBCredentials
+	if err := json.Unmarshal([]byte(plain), &c); err != nil {
+		return nil, fmt.Errorf("decoding igdb credentials: %w", err)
+	}
+	return &c, nil
+}
+
+func (s *Store) SetIGDBCredentials(ctx context.Context, c IGDBCredentials) error {
+	plain, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	enc, err := s.box.Encrypt(string(plain))
+	if err != nil {
+		return fmt.Errorf("encrypting igdb credentials: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+		settingIGDBCredentials, enc)
+	return err
+}
+
+func (s *Store) DeleteIGDBCredentials(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM app_settings WHERE key = ?`, settingIGDBCredentials)
+	return err
+}

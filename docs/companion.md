@@ -36,8 +36,11 @@ relay still accepts pushes from old wkcompanion builds;
    inside a match. Every candidate says where it came from, and the
    player confirms it — nothing syncs a guessed path unseen.
 2. **Links games to worlds.** Click a tile: unlinked games open a link
-   form directly beneath their own tile, linked ones (shown in colour,
-   against the greyed-out rest) open what they point at. Linking tells
+   form in a modal over the shelf, linked ones (shown in colour, against
+   the greyed-out rest) open what they point at. (The form was inline
+   under its tile first; a full-width row wedged into the grid reflowed
+   the shelf around it and, on a wide window, landed nowhere near the
+   tile that opened it.) Linking tells
    the service which game a world belongs to and where its save lives
    here (`game_title`, `save_hint`, and a free-form JSON blob with the
    Steam app id); it can create the world and seed it with the folder's
@@ -56,11 +59,34 @@ The credential is the player's personal sync token from the service's
 page. Nothing leaves the machine until a service URL and token are set.
 
 **Cover art** is resolved by the service, not here: reliquary holds the
-IGDB credentials (`IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET`, a Twitch app's
-pair) and answers `/artwork` for a whole batch, so one deployment looks
-each game up once for everyone and no player's machine ever holds a
-credential. A service without artwork configured yields names, which
-costs nothing but the pictures.
+IGDB credentials (a Twitch app's client id and secret, from the vault's
+admin panel or `IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET`) and answers
+`/artwork` for a whole batch, so one deployment looks each game up once
+for everyone and no player's machine ever holds a credential. A service
+without artwork configured yields names, which costs nothing but the
+pictures.
+
+Artwork degrades quietly, but it does not fail invisibly — a distinction
+the first cut missed. Every IGDB error was swallowed, so a wrong secret
+and a game IGDB has never heard of produced the same blank tile. The
+vault's **Cover art** panel now reports the credential's source, the last
+error in IGDB's own words, the hit/miss counts, and a **Test** button
+that makes one real call. Two failures it exists to name:
+
+- **The Steam-id filter.** IGDB has spelled "this external id is a Steam
+  app id" as both `category = 1` and `external_game_source = 1`. A
+  rejected filter is a 400, not an empty result, and the first cut read
+  it as "no such game" — for every game at once. The client now tries
+  both and remembers which one answered (`status.filter` shows it).
+- **A game with no Steam record.** IGDB carries plenty of games it has no
+  `external_games` row for. Those now fall back to a name search under
+  the same key, so the tile still gets its cover.
+
+**Versions.** Both binaries are stamped at link time (`-X main.version`)
+and show it: the companion's footer reads `companion <build> · service
+<build>`, taking the service's from its own status call, and the vault's
+page footer and login box show reliquary's. A report about a transfer
+that names one half names nothing.
 
 ## Getting it
 

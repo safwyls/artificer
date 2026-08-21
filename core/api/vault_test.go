@@ -20,6 +20,7 @@ import (
 	"github.com/safwyls/artificer/core/api"
 	"github.com/safwyls/artificer/core/crypto"
 	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/igdb"
 	"github.com/safwyls/artificer/core/notify"
 	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/store"
@@ -144,5 +145,115 @@ func TestVaultArtworkAndEvents(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Error("the event stream did not return after its context ended")
+	}
+}
+
+// The admin artwork surface: credentials in, diagnostics out. The point
+// is that a deployment's owner can tell "no credentials" from "these
+// credentials don't work" without reading the service log — the
+// distinction the first cut swallowed.
+func TestVaultArtworkSettings(t *testing.T) {
+	app, admin := newVaultApp(t)
+
+	// A stand-in for Twitch and IGDB, so saving a credential proves
+	// itself without the internet.
+	var reject bool
+	igdbSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if reject {
+			w.WriteHeader(http.StatusUnauthorized)
+			io.WriteString(w, `{"message":"invalid client secret"}`)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/token") {
+			io.WriteString(w, `{"access_token":"tok","expires_in":3600}`)
+			return
+		}
+		io.WriteString(w, `[{"id":1}]`)
+	}))
+	defer igdbSrv.Close()
+	app.api.Artwork = igdb.New("", "")
+	app.api.Artwork.UseEndpoints(igdbSrv.URL+"/token", igdbSrv.URL+"/v4")
+
+	rec := app.do(t, "GET", "/api/sync/artwork/settings", nil, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("artwork settings: %d (body %s)", rec.Code, rec.Body)
+	}
+	out := decodeMap(t, rec)
+	if out["status"].(map[string]any)["configured"] != false || out["stored"] != false {
+		t.Errorf("fresh vault reports %v, want unconfigured and nothing stored", out)
+	}
+
+	// Half a pair is refused: IGDB authenticates through Twitch, and one
+	// half cannot.
+	rec = app.do(t, "PUT", "/api/sync/artwork/settings", map[string]string{"clientId": "abc"}, admin)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("half a credential pair: %d, want 400", rec.Code)
+	}
+
+	rec = app.do(t, "PUT", "/api/sync/artwork/settings", map[string]string{
+		"clientId": "abc", "clientSecret": "shh",
+	}, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("saving credentials: %d (body %s)", rec.Code, rec.Body)
+	}
+	out = decodeMap(t, rec)
+	if out["test"].(map[string]any)["ok"] != true {
+		t.Errorf("save reported test %v, want a proven credential", out["test"])
+	}
+	if out["stored"] != true || out["status"].(map[string]any)["configured"] != true {
+		t.Errorf("after saving: %v, want stored and configured", out)
+	}
+	if id := out["status"].(map[string]any)["clientId"]; id != "abc" {
+		t.Errorf("status client id = %v, want the saved one", id)
+	}
+	// The secret never comes back out.
+	if strings.Contains(rec.Body.String(), "shh") {
+		t.Error("the artwork status echoed the client secret")
+	}
+
+	// A credential IGDB rejects is a 200 that says so, not an HTTP error:
+	// the caller asked whether it works.
+	reject = true
+	rec = app.do(t, "POST", "/api/sync/artwork/test", nil, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("artwork test: %d (body %s)", rec.Code, rec.Body)
+	}
+	test := decodeMap(t, rec)["test"].(map[string]any)
+	if test["ok"] != false || !strings.Contains(test["error"].(string), "invalid client secret") {
+		t.Errorf("test result = %v, want a named failure", test)
+	}
+
+	rec = app.do(t, "DELETE", "/api/sync/artwork/settings", nil, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("removing credentials: %d (body %s)", rec.Code, rec.Body)
+	}
+	if decodeMap(t, rec)["stored"] != false {
+		t.Error("credentials still stored after removal")
+	}
+
+	// A player with the custody grant is not an admin: shared credentials
+	// are the admin's business.
+	app.createUser(t, admin, "bob", "bobpassword12", "user", []string{store.PermSync})
+	bob := app.login(t, "bob", "bobpassword12")
+	if rec := app.do(t, "GET", "/api/sync/artwork/settings", nil, bob); rec.Code != http.StatusForbidden {
+		t.Errorf("non-admin reading artwork settings: %d, want 403", rec.Code)
+	}
+}
+
+// The build is reported without a session: the login page shows it too,
+// and a version is not a secret.
+func TestVaultVersion(t *testing.T) {
+	app, _ := newVaultApp(t)
+	rec := app.do(t, "GET", "/api/version", nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("version: %d (body %s)", rec.Code, rec.Body)
+	}
+	if v := decodeMap(t, rec)["version"]; v != "dev" {
+		t.Errorf("version = %v on an unstamped build, want \"dev\"", v)
+	}
+	app.api.Version = "main-abc123"
+	rec = app.do(t, "GET", "/api/version", nil, nil)
+	if v := decodeMap(t, rec)["version"]; v != "main-abc123" {
+		t.Errorf("version = %v, want the stamped build", v)
 	}
 }

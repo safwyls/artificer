@@ -92,7 +92,23 @@
     <div class="note">New users get the world-custody grant; admins additionally manage worlds, users and rollbacks.</div>
   </div>
 
+  <div class="panel hidden" id="artworkPanel">
+    <h2>Cover art (IGDB)</h2>
+    <div id="artworkBody"></div>
+    <div class="row">
+      <div><label>Twitch client id</label><input id="igdbId" placeholder="from dev.twitch.tv/console/apps"></div>
+      <div><label>Twitch client secret</label><input id="igdbSecret" type="password" placeholder="never shown again once saved"></div>
+    </div>
+    <button onclick="saveArtwork()">Save &amp; test</button>
+    <button class="quiet" onclick="testArtwork()">Test</button>
+    <button class="quiet danger" onclick="clearArtwork()">Remove saved</button>
+    <div class="note">IGDB authenticates through a Twitch application, so the pair is a Twitch client id and secret.
+      Saved here it is encrypted at rest and wins over IGDB_CLIENT_ID/IGDB_CLIENT_SECRET in the environment; removing
+      it falls back to those. Companions never hold it — they ask this service for covers.</div>
+  </div>
+
   <div class="mono" id="statusLine"></div>
+  <div class="note" id="versionLine"></div>
 </div>
 
 <div class="wrap panel hidden" id="login">
@@ -103,6 +119,7 @@
   <button onclick="login()">Sign in</button>
   <div class="mono" id="loginErr"></div>
   <div class="note" id="ssoHint"></div>
+  <div class="note" id="loginVersion"></div>
 </div>
 
 <script>
@@ -144,6 +161,7 @@ function showApp() {
   document.getElementById("createPanel").classList.toggle("hidden", !canSync);
   document.getElementById("tokenPanel").classList.toggle("hidden", !canSync);
   document.getElementById("usersPanel").classList.toggle("hidden", !ME.isAdmin);
+  document.getElementById("artworkPanel").classList.toggle("hidden", !ME.isAdmin);
   refresh();
   watchCustody();
 }
@@ -374,9 +392,67 @@ async function createUser() {
   document.getElementById("newUser").value = ""; document.getElementById("newPass").value = "";
 }
 
+// --- cover art (admin) ---
+// The panel exists to answer one question the shelf cannot: when a game
+// has no cover, is that IGDB not knowing it, or this deployment's
+// credentials not working? lastError is the difference.
+let ART_TEST = null;
+async function renderArtwork() {
+  if (!ME.isAdmin) return;
+  const a = await j("GET", "/sync/artwork/settings");
+  const st = a.status || {};
+  const source = st.configured ? (a.stored ? "saved here" : "from the environment") : "not configured";
+  const rows = [
+    ["Credentials", esc(source) + (st.clientId ? ` · client id <span class="mono">${esc(st.clientId)}</span>` : "")],
+    ["Fallback", a.envConfigured ? "IGDB_CLIENT_ID/SECRET are set in the environment" : "nothing in the environment"],
+  ];
+  if (st.lastOkAt) rows.push(["Last success", fmtTime(st.lastOkAt)]);
+  if (st.lastError) rows.push(["Last error", `<span class="status-err">${esc(st.lastError)}</span>`]);
+  if (st.configured) rows.push(["Lookups", `${st.lookups || 0} asked · ${st.hits || 0} matched · ${st.misses || 0} unknown · ${st.cached || 0} cached`]);
+  if (st.filter) rows.push(["Steam filter", `<span class="mono">${esc(st.filter)}</span>`]);
+  if (ART_TEST) rows.push(["Test", ART_TEST.ok ? '<span class="status-ok">IGDB answered</span>' : `<span class="status-err">${esc(ART_TEST.error)}</span>`]);
+  document.getElementById("artworkBody").innerHTML =
+    `<table>${rows.map(([k, v]) => `<tr><th style="width:9em">${k}</th><td>${v}</td></tr>`).join("")}</table>`;
+}
+async function saveArtwork() {
+  const clientId = document.getElementById("igdbId").value.trim();
+  const clientSecret = document.getElementById("igdbSecret").value.trim();
+  try {
+    const out = await j("PUT", "/sync/artwork/settings", { clientId, clientSecret });
+    ART_TEST = out.test || null;
+    document.getElementById("igdbSecret").value = "";
+    say(ART_TEST && ART_TEST.ok ? "credentials saved; IGDB answered" : "credentials saved, but IGDB did not answer", !!(ART_TEST && ART_TEST.ok));
+  } catch (e) { say(e.message, false); }
+  refresh();
+}
+async function testArtwork() {
+  try { ART_TEST = (await j("POST", "/sync/artwork/test")).test || null; }
+  catch (e) { ART_TEST = { ok: false, error: e.message }; }
+  say(ART_TEST.ok ? "IGDB answered" : "IGDB did not answer", ART_TEST.ok);
+  refresh();
+}
+async function clearArtwork() {
+  if (!confirm("Remove the saved IGDB credentials? The environment's, if any, take over.")) return;
+  ART_TEST = null;
+  await act(() => j("DELETE", "/sync/artwork/settings"), "saved credentials removed");
+}
+
+// --- version ---
+// Shown on both the signed-in page and the login box: a bug report about
+// save sync should be able to name the build without anyone opening a
+// container.
+async function renderVersion() {
+  let v = "unknown";
+  try { v = (await j("GET", "/version")).version; } catch {}
+  for (const id of ["versionLine", "loginVersion"]) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = "reliquary " + v;
+  }
+}
+
 async function refresh() {
   if (!ME) return;
-  await Promise.all([renderWorlds(), renderToken(), renderUsers()]).catch(e => say(e.message, false));
+  await Promise.all([renderWorlds(), renderToken(), renderUsers(), renderArtwork()]).catch(e => say(e.message, false));
 }
 
 // Live custody updates: the stream says "world N changed", the page
@@ -400,6 +476,7 @@ function watchCustody() {
   };
 }
 
+renderVersion();
 boot();
 setInterval(() => refresh(), 20000);
 </script>

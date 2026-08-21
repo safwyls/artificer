@@ -32,7 +32,6 @@ import (
 	"github.com/safwyls/artificer/core/config"
 	"github.com/safwyls/artificer/core/crypto"
 	"github.com/safwyls/artificer/core/db"
-	"github.com/safwyls/artificer/core/igdb"
 	"github.com/safwyls/artificer/core/notify"
 	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/store"
@@ -40,6 +39,12 @@ import (
 
 //go:embed ui
 var uiFS embed.FS
+
+// version is stamped by the image build (-X main.version=<sha or tag>);
+// a plain `go build` leaves it "dev". The vault page shows it, and the
+// companion shows it beside its own, so a report about save sync can
+// name both halves.
+var version = "dev"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -98,12 +103,23 @@ func run(logger *slog.Logger) error {
 		}
 	}
 	apiServer.CompanionExe = companionExe
+	apiServer.Version = version
 	// Cover art for the game shelf. Credentials are a Twitch client id
 	// and secret (IGDB's auth); without both, artwork is simply absent
-	// and every surface degrades to names — never an error.
-	if art := igdb.New(os.Getenv("IGDB_CLIENT_ID"), os.Getenv("IGDB_CLIENT_SECRET")); art != nil {
-		apiServer.Artwork = art
-		logger.Info("igdb artwork enabled")
+	// and every surface degrades to names — never an error. Two sources:
+	// the environment here, and a pair saved through the admin panel,
+	// which wins. Either can be set without the other existing.
+	apiServer.UseEnvArtwork(os.Getenv("IGDB_CLIENT_ID"), os.Getenv("IGDB_CLIENT_SECRET"))
+	stored, err := apiServer.LoadStoredArtwork(ctx)
+	if err != nil {
+		// A pair that will not decrypt (a rotated ENCRYPTION_KEY) costs
+		// covers, not the service.
+		logger.Error("reading saved igdb credentials", "error", err)
+	}
+	if apiServer.Artwork.Configured() {
+		logger.Info("igdb artwork enabled", "source", map[bool]string{true: "settings", false: "env"}[stored])
+	} else {
+		logger.Info("igdb artwork not configured; the shelf will show names without covers")
 	}
 	if cfg.AccessEnabled() {
 		verifier, err := cfaccess.New(cfg.AccessTeamDomain, cfg.AccessAUD)

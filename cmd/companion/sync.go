@@ -74,6 +74,10 @@ type syncState struct {
 	LastError  string         `json:"lastError,omitempty"`
 	LastAction string         `json:"lastAction,omitempty"`
 	PolledAt   *time.Time     `json:"polledAt,omitempty"`
+	// ServerVersion is the service's own build, reported by its status
+	// call. Shown beside this app's version so a bug report about a
+	// transfer can name both halves rather than one.
+	ServerVersion string `json:"serverVersion,omitempty"`
 }
 
 func (a *app) syncConfigured() bool {
@@ -156,8 +160,9 @@ func (a *app) syncDo(method, path string, body any, out any) error {
 // syncRefresh polls the service's custody status.
 func (a *app) syncRefresh() error {
 	var out struct {
-		Username string         `json:"username"`
-		Worlds   []syncWorldDTO `json:"worlds"`
+		Username      string         `json:"username"`
+		Worlds        []syncWorldDTO `json:"worlds"`
+		ServerVersion string         `json:"serverVersion"`
 	}
 	if err := a.syncDo(http.MethodGet, "", nil, &out); err != nil {
 		a.setSyncErr(err)
@@ -167,6 +172,7 @@ func (a *app) syncRefresh() error {
 	a.mu.Lock()
 	a.worldSync.Username = out.Username
 	a.worldSync.Worlds = out.Worlds
+	a.worldSync.ServerVersion = out.ServerVersion
 	a.worldSync.PolledAt = &now
 	a.worldSync.LastError = ""
 	a.mu.Unlock()
