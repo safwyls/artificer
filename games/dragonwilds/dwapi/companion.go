@@ -1,5 +1,5 @@
-// The companion inbox: character records relayed by the wkcompanion app
-// running on players' own machines. The game stores character data
+// The companion inbox: character records relayed by the Artificer
+// Companion app (born wkcompanion) running on players' own machines. The game stores character data
 // client-side (recon, "Where player state lives"), so skills, inventories
 // and names structurally cannot come from anything on the host — a player
 // choosing to share them is the only source, and this file is where those
@@ -142,9 +142,9 @@ func (h *handlers) handleCompanionPush(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCompanionDownload hands out the companion app itself. The console
-// image cross-compiles wkcompanion.exe at build time and ships it beside
-// the console binary, so the admin's "give players this link" is the whole
-// distribution story. Token-gated like the rest of the tier — the exe
+// image cross-compiles artificer-companion.exe at build time and ships it
+// beside the console binary, so the admin's "give players this link" is
+// the whole distribution story. Token-gated like the rest of the tier — the exe
 // isn't a secret, but an open path invites scraping and the token link is
 // the one players are handed anyway.
 func (h *handlers) handleCompanionDownload(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +153,7 @@ func (h *handlers) handleCompanionDownload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if h.companionExe == "" {
-		api.WriteError(w, http.StatusNotFound, "this deployment ships without the companion app — build it with: GOOS=windows GOARCH=amd64 go build ./cmd/wkcompanion")
+		api.WriteError(w, http.StatusNotFound, "this deployment ships without the companion app — build it with: GOOS=windows GOARCH=amd64 go build ./cmd/companion")
 		return
 	}
 	f, err := os.Open(h.companionExe)
@@ -168,8 +168,8 @@ func (h *handlers) handleCompanionDownload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.microsoft.portable-executable")
-	w.Header().Set("Content-Disposition", `attachment; filename="wkcompanion.exe"`)
-	http.ServeContent(w, r, "wkcompanion.exe", fi.ModTime(), f)
+	w.Header().Set("Content-Disposition", `attachment; filename="artificer-companion.exe"`)
+	http.ServeContent(w, r, "artificer-companion.exe", fi.ModTime(), f)
 }
 
 // handleCompanionPing lets a companion app verify its configuration

@@ -146,10 +146,26 @@ func run(logger *slog.Logger) error {
 	dwAPI := dwapi.New(apiServer, worlds, dragonwilds.CharacterNames)
 	// The bundled player-side companion the console hands out — the image
 	// build places it beside the binary; a source checkout usually has
-	// none, and the endpoint says so instead of 500ing.
-	companionExe := os.Getenv("WKCOMPANION_EXE")
+	// none, and the endpoint says so instead of 500ing. The app was
+	// renamed wkcompanion → Artificer Companion; the old env var and the
+	// old bundled filename keep working (frozen API: a rename is a
+	// migration, not an edit).
+	companionExe := os.Getenv("COMPANION_EXE")
 	if companionExe == "" {
-		companionExe = "wkcompanion.exe"
+		if legacy := os.Getenv("WKCOMPANION_EXE"); legacy != "" {
+			logger.Warn("WKCOMPANION_EXE is the retired name for COMPANION_EXE; it still works, but rename it")
+			companionExe = legacy
+		}
+	}
+	if companionExe == "" {
+		companionExe = "artificer-companion.exe"
+		if _, err := os.Stat(companionExe); err != nil {
+			// A wkcompanion-era image ships the exe under its old name;
+			// keep that deployment's download link working.
+			if _, err := os.Stat("wkcompanion.exe"); err == nil {
+				companionExe = "wkcompanion.exe"
+			}
+		}
 	}
 	dwAPI.SetCompanionExe(companionExe)
 	apiServer.GameRoutes = dwAPI.Routes()

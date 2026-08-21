@@ -17,12 +17,12 @@ RUN go mod download
 COPY . .
 COPY --from=frontend /app/web/dist ./web/wildskeeper/dist
 RUN CGO_ENABLED=0 go build -o /out/wildskeeper ./cmd/wildskeeper
-# The player-side companion, cross-compiled for the machines players
-# actually run (games/dragonwilds/docs/companion.md). Shipped inside the
-# console image so the console can hand it out itself — the Adventurers
-# page serves it behind the companion token.
+# The player-side Artificer Companion, cross-compiled for the machines
+# players actually run (games/dragonwilds/docs/companion.md). Shipped
+# inside the console image so the console can hand it out itself — the
+# Adventurers page serves it behind the companion token.
 RUN CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
-    go build -ldflags="-H windowsgui" -o /out/wkcompanion.exe ./cmd/wkcompanion
+    go build -ldflags="-H windowsgui" -o /out/artificer-companion.exe ./cmd/companion
 
 # ---- runtime ----
 FROM docker.io/library/alpine:3.22
@@ -38,7 +38,7 @@ ARG GID=1000
 RUN addgroup -g "$GID" wildskeeper && adduser -D -u "$UID" -G wildskeeper wildskeeper
 WORKDIR /app
 COPY --from=backend /out/wildskeeper ./wildskeeper
-COPY --from=backend /out/wkcompanion.exe ./wkcompanion.exe
+COPY --from=backend /out/artificer-companion.exe ./artificer-companion.exe
 RUN mkdir -p /data && chown wildskeeper:wildskeeper /data
 USER wildskeeper
 # The app otherwise defaults to ./data, which this non-root user can't

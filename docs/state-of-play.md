@@ -67,7 +67,7 @@ ways that mattered.
   which is the honest ceiling of save-derived player data. Names come
   back through the disconnect log line's guid↔name pairing, which
   `dwlog` learns and the world endpoint overlays; full character sheets
-  come back only by the player's own choice, via the `wkcompanion` app
+  come back only by the player's own choice, via the Artificer Companion app (`cmd/companion`, born wkcompanion)
   running on their machine (`games/dragonwilds/docs/companion.md`). The
   JSON character records older builds embedded are still read and
   merged by guid when a save carries them.

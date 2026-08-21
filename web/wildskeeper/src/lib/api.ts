@@ -1201,7 +1201,7 @@ export const api = {
   // The world as its save file tells it — admin-only, like the vault it sits above.
   getWorld: (id: number) => request<WorldResult>(`/servers/${id}/world`),
 
-  // Companion sharing: the token players paste into the wkcompanion app so
+  // Companion sharing: the token players paste into the Artificer Companion app so
   // their character sheets (stored on their own machines) reach this console.
   getCompanion: (id: number) => request<CompanionState>(`/servers/${id}/companion`),
   setCompanion: (id: number, enabled: boolean) =>

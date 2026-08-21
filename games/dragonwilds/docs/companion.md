@@ -1,16 +1,31 @@
-# wkcompanion — the player-side character relay
+# The Artificer Companion — the player-side app
 
-The game stores each character's record — name, skills, inventory,
-vitals — on the player's own machine, in the same `SaveCharacters/`
-store the client uses for solo play (recon, "Where player state lives",
-2026-08-19). A dedicated server never holds it, so wildskeeper's
-save-derived character view tops out at guid + position. `wkcompanion`
-runs where the data actually is and closes that gap **by the player's
-own choice**.
+Born `wkcompanion`, the Dragonwilds character relay; renamed when save
+sync widened its scope to "the Artificer app on a player's machine"
+(docs/save-sync-architecture.md). The rename is a migration, not an
+edit: the binary reads a `wkcompanion/` config dir when its own doesn't
+exist yet, and the console honors `WKCOMPANION_EXE` (with a
+retired-name warning) beside the new `COMPANION_EXE`.
+
+The character relay, its first job: the game stores each character's
+record — name, skills, inventory, vitals — on the player's own machine,
+in the same `SaveCharacters/` store the client uses for solo play
+(recon, "Where player state lives", 2026-08-19). A dedicated server
+never holds it, so wildskeeper's save-derived character view tops out
+at guid + position. The companion runs where the data actually is and
+closes that gap **by the player's own choice**.
+
+Its second job is world custody: checking a shared world out of the
+console's Worlds page to host it from this machine, pushing mid-session
+checkpoints, and checking it back in — authenticated by the player's
+personal sync token, not the shared companion token below. The custody
+rules live in docs/save-sync-architecture.md; `cmd/companion/sync.go`
+is the client side.
 
 ## What it is
 
-One Go binary (`cmd/wkcompanion`), no installer, no service:
+One Go binary (`cmd/companion`, shipped as `artificer-companion.exe`),
+no installer, no service:
 
 1. It watches the local `SaveCharacters/` directory
    (`%LOCALAPPDATA%\RSDragonwilds\Saved\SaveCharacters` on Windows,
@@ -38,20 +53,20 @@ has no console, logs go to `companion.log` beside the config file.
 ## Getting the app to players
 
 **The console hands it out itself.** The wildskeeper image build
-cross-compiles `wkcompanion.exe` (deploy/wildskeeper/Dockerfile) and
-ships it beside the console binary; with sharing enabled, the
+cross-compiles `artificer-companion.exe` (deploy/wildskeeper/Dockerfile)
+and ships it beside the console binary; with sharing enabled, the
 Adventurers panel shows a **download link** —
 `/api/public/companion/<token>/download`, token-gated like the rest of
 the tier — that an admin copies and gives players along with the
 console address and token. A deployment without the bundle (a source
 checkout, an older image) answers the link with the build command
-instead of a broken download; `WKCOMPANION_EXE` overrides the bundled
-path when needed.
+instead of a broken download; `COMPANION_EXE` (or the retired
+`WKCOMPANION_EXE`) overrides the bundled path when needed.
 
 Building by hand instead:
 
 ```sh
-GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" ./cmd/wkcompanion
+GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" ./cmd/companion
 ```
 
 (`-H windowsgui` is what suppresses the console window entirely. A plain
@@ -112,7 +127,7 @@ for exactly this trust tier (unauthenticated, token-gated, mounted under
 ## Vendored names
 
 The companion page resolves item and skill ids through
-`cmd/wkcompanion/ui/data/{itemNames,skillNames}.json` — byte-for-byte
+`cmd/companion/ui/data/{itemNames,skillNames}.json` — byte-for-byte
 mirrors of the wildskeeper frontend's maps. The refresh chore in
 `games/dragonwilds/docs/vendored-game-data.md` covers both copies:
 regenerate them together.

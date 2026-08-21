@@ -42,6 +42,10 @@ type app struct {
 	characters map[string]*character // keyed by file basename
 	relay      relayStatus
 	scanErr    string
+	// Save-sync custody state (sync.go): the console's world roster and
+	// this machine's part in it.
+	worldSync      syncState
+	lastCheckpoint time.Time
 }
 
 func newApp(cfg Config, cfgPath string) *app {

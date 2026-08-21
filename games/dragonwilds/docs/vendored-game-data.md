@@ -14,7 +14,7 @@ crash or a wrong name. Keep it that way when regenerating.
 ## What's vendored, and from where
 
 Both files live in `web/wildskeeper/src/data/`, with byte-for-byte
-mirrors in `cmd/wkcompanion/ui/data/` for the companion app's local page
+mirrors in `cmd/companion/ui/data/` for the companion app's local page
 (`games/dragonwilds/docs/companion.md`) — regenerate the two locations
 together:
 
