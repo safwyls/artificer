@@ -102,9 +102,14 @@ admin panel or `IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET`) and answers
 `/artwork` for a whole batch, so one deployment looks each game up once
 for everyone and no player's machine ever holds a credential. A service
 without artwork configured yields names, which costs nothing but the
-pictures. Covers appear in both places a game is named — the shelf tile
-and the world's own row in "Your worlds" — drawn by one shared renderer,
-so the two cannot drift.
+pictures. Covers appear everywhere a game is named — the companion's
+shelf tile, its "Your worlds" row, and the vault's own world panels — so
+the same world looks like the same world from either side. The vault
+reads the Steam app id out of the `game_meta` blob the companion
+reported, which is the one place anything interprets that field; the
+service otherwise stores it without looking inside. Each page asks for
+covers only when its set of games or worlds changes, never on its
+refresh timer.
 
 Covers are fetched whenever the discovered game set changes, not once at
 page load. The boot-time-only fetch was a real defect, found on
