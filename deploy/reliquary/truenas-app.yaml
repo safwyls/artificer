@@ -30,6 +30,12 @@ services:
   reliquary:
     image: ghcr.io/safwyls/reliquary:latest
     restart: unless-stopped
+    # :latest tracks main, so an update is a re-pull — without this,
+    # saving the app re-creates the container from the image already on
+    # the host and nothing changes. Hit for real on 2026-08-21: a merged
+    # feature was invisible in the UI until the policy was flipped. Pin a
+    # version tag instead if you would rather update deliberately.
+    pull_policy: always
     # Match the dataset owner. 568:568 is TrueNAS's apps user; the binary
     # needs nothing beyond a writable /data, so any owner works as long
     # as the two agree.
