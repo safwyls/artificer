@@ -138,6 +138,23 @@ func TestAppIDFilterFallback(t *testing.T) {
 	}
 }
 
+// The cover URL is built here, not handed over by IGDB, so its exact
+// shape is this package's responsibility. The path is
+// /igdb/image/upload/<size>/<id>.jpg — dropping the "image" segment
+// produces a URL that looks right and 404s on every cover, which is how
+// it shipped once. Assert the whole string; a substring check on the
+// image id passes either way and proved nothing.
+func TestCoverURLShape(t *testing.T) {
+	f := newFakeIGDB(t, "external_game_source = 1")
+	c := newClient(t, f)
+
+	got := c.Lookup(context.Background(), []igdb.Query{{AppID: "111"}})["app:111"]
+	const want = "https://images.igdb.com/igdb/image/upload/t_cover_big/co1.jpg"
+	if got.Cover != want {
+		t.Errorf("cover URL =\n  %s\nwant\n  %s", got.Cover, want)
+	}
+}
+
 // The same works the other way round, so a deployment on the older API
 // is not broken by preferring the newer spelling.
 func TestAppIDFilterFallbackReversed(t *testing.T) {

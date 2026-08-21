@@ -59,6 +59,16 @@
   .modalbox { background: var(--panel); border: 1px solid var(--gold); border-radius: 6px;
               padding: 14px 18px 18px; width: min(520px, 100%); box-shadow: 0 18px 48px rgba(0,0,0,.55); }
   .modalbox h3 { margin: 2px 0 0; font-size: 17px; color: var(--goldhi); font-weight: 700; }
+  /* Whatever went wrong belongs next to the button that caused it. The
+     shared status line lives in the Connection panel, off-screen behind
+     the modal — an error there is an error nobody reads. */
+  .modalerr { display: none; margin-top: 10px; border-left: 3px solid var(--ember); padding: 6px 10px;
+              background: rgba(212,115,94,.10); color: var(--ember); font-size: 13px; }
+  .modalerr.on { display: block; }
+  /* "No save folder found" is a job for the player, not a footnote. */
+  .askfor { margin: 10px 0 0; border-left: 3px solid var(--gold); padding: 8px 10px;
+            background: rgba(201,168,96,.10); font-size: 13px; color: var(--parchment); }
+  .req { color: var(--gold); }
   .hidden { display: none !important; }
   .modalx { float: right; margin: 0; padding: 2px 10px; }
 </style>
@@ -322,9 +332,9 @@ function linkFormHTML(g) {
             `<option value="${esc(c.path)}">${esc(c.path)} — ${esc(c.why)}</option>`).join("")}
           <option value="">— type a different folder —</option>
          </select>`
-      : `<p class="note" style="margin-top:6px">No save folder was found for this game. Point at it yourself — it is
-         usually under %LOCALAPPDATA%, Documents\\My Games, or Saved Games.</p>`}
-    <label>Save folder</label>
+      : `<p class="askfor"><b>No save folder was found for this game.</b> Paste the path below to link it — it is
+         usually under %LOCALAPPDATA%, Documents\\My Games, or Saved Games. Nothing is linked until you do.</p>`}
+    <label>Save folder <span class="req">(required)</span></label>
     <input id="lf-dir" value="${esc(cands.length ? cands[0].path : "")}" placeholder="C:\\Users\\you\\AppData\\Local\\Game\\Saved\\SaveGames">
     <label>World on the service</label>
     <select id="lf-world">
@@ -336,7 +346,19 @@ function linkFormHTML(g) {
       <input type="checkbox" id="lf-seed" checked style="width:auto"> upload this folder's current save as the world's first version
     </label>
     <button onclick="submitLink()">Link</button>
-    <button class="quiet" onclick="closeModal()">Cancel</button>`;
+    <button class="quiet" onclick="closeModal()">Cancel</button>
+    <div class="modalerr" id="lf-error"></div>`;
+}
+
+// linkError reports inside the modal and keeps it open. Anything that
+// stops a link is the player's next action, so it has to be where they
+// are looking — and the form has to survive to be corrected.
+function linkError(msg, focusID) {
+  const box = document.getElementById("lf-error");
+  if (box) { box.textContent = msg; box.classList.add("on"); }
+  const el = focusID && document.getElementById(focusID);
+  if (el) { el.focus(); if (el.scrollIntoView) el.scrollIntoView({ block: "nearest" }); }
+  return false;
 }
 
 // wireLinkForm connects the bits that need behaviour rather than markup:
@@ -371,21 +393,36 @@ function openLinkForm(g) {
   }
 }
 
+// submitLink closes the modal only when the link actually happened.
+// It used to close unconditionally and report failures to the status
+// line in the Connection panel — which sits off-screen behind the modal,
+// so a refused link (most often: no save folder, the one thing the form
+// cannot guess) looked exactly like a successful one that did nothing.
 async function submitLink() {
   const g = LINK_TARGET || { name: "", appId: "", installDir: "" };
   const gameTitle = (g.name || document.getElementById("lf-name")?.value || "").trim();
   const dir = document.getElementById("lf-dir").value.trim();
   const worldId = Number(document.getElementById("lf-world").value);
   const meta = JSON.stringify({ appId: g.appId || "", installDir: g.installDir || "" });
-  if (worldId) {
-    await act(() => call("POST", "/api/links", { worldId, gameTitle, dir, meta }), "linked");
-  } else {
-    const name = document.getElementById("lf-name").value.trim();
-    const seed = document.getElementById("lf-seed").checked;
-    await act(() => call("POST", "/api/links/create", { name, gameTitle, dir, meta, seed }),
-      seed ? "world created and seeded with the current save" : "world created and linked");
+  const errBox = document.getElementById("lf-error");
+  if (errBox) errBox.classList.remove("on");
+
+  // Caught here rather than at the service: the answer is a folder the
+  // player has to supply, and the round trip only delays the ask.
+  if (!dir) return linkError("This needs the game's save folder before it can link. Paste the folder that holds the save files.", "lf-dir");
+  const name = worldId ? "" : (document.getElementById("lf-name")?.value || "").trim();
+  if (!worldId && !name) return linkError("A new world needs a name.", "lf-name");
+
+  const seed = !worldId && document.getElementById("lf-seed").checked;
+  try {
+    if (worldId) await call("POST", "/api/links", { worldId, gameTitle, dir, meta });
+    else await call("POST", "/api/links/create", { name, gameTitle, dir, meta, seed });
+  } catch (e) {
+    return linkError(e.message, "lf-dir");
   }
+  say(worldId ? "linked" : seed ? "world created and seeded with the current save" : "world created and linked", true);
   closeModal();
+  refresh();
 }
 
 async function rescan() { await act(() => call("POST", "/api/discover"), "rescanned"); }
