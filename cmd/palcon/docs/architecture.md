@@ -477,8 +477,9 @@ arbitrary path parameter), bearer-token auth (constant-time compare,
 16-char minimum), long work modelled as **jobs** — POST returns
 immediately, palcon polls, and `/v1/health` reports the current-or-last
 job so palcon rediscovers in-flight work after its own restart. `/v1/health`
-also reports `apiVersion` (3: 1 = steam verbs, 2 = file verbs, 3 =
-supervisor), so an old agent keeps working with a new palcon.
+also reports `apiVersion` (4: 1 = steam verbs, 2 = file verbs, 3 =
+supervisor, 4 = the save restore pair), so an old agent keeps working with
+a new palcon.
 
 | Mode | Owns | Power control | Typical use |
 |---|---|---|---|
