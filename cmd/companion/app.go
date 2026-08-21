@@ -24,6 +24,14 @@ type app struct {
 	// art caches cover lookups the service answered, misses included, so
 	// a rescan doesn't re-ask for games IGDB has never heard of.
 	art map[string]gameArt
+	// artError is why the last lookup failed, shown under the shelf.
+	// Artwork is decoration and never blocks custody, but a shelf with
+	// no covers should still be able to say what went wrong — a silent
+	// failure here is what made a working IGDB credential look broken.
+	artError string
+	// artAsked counts games actually sent to the service, so "nothing
+	// was ever asked" is distinguishable from "asked, got nothing".
+	artAsked int
 }
 
 // rescan re-runs game discovery with the configured Steam folders.

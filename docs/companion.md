@@ -66,12 +66,23 @@ for everyone and no player's machine ever holds a credential. A service
 without artwork configured yields names, which costs nothing but the
 pictures.
 
+Covers are fetched whenever the discovered game set changes, not once at
+page load. The boot-time-only fetch was a real defect, found on
+2026-08-21: discovery is a filesystem walk that finishes *after* the
+first render, so the single call always saw an empty shelf, asked for
+nothing, and never ran again. The service's own counter read "0 asked"
+while its credentials tested fine — no cover ever appeared, and nothing
+anywhere said why.
+
 Artwork degrades quietly, but it does not fail invisibly — a distinction
 the first cut missed. Every IGDB error was swallowed, so a wrong secret
 and a game IGDB has never heard of produced the same blank tile. The
 vault's **Cover art** panel now reports the credential's source, the last
 error in IGDB's own words, the hit/miss counts, and a **Test** button
-that makes one real call. Two failures it exists to name:
+that makes one real call; the companion shows its own last lookup error
+under the shelf. Between them, "0 asked" on the service and a bare shelf
+on the client are no longer the same picture. Two failures the panel
+exists to name:
 
 - **The Steam-id filter.** IGDB has spelled "this external id is a Steam
   app id" as both `category = 1` and `external_game_source = 1`. A
