@@ -127,6 +127,11 @@
 <script>
 let ME = null, TOKEN = "", OPEN_HISTORY = {};
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// jsattr embeds a value as a JS literal inside a double-quoted HTML
+// attribute. JSON.stringify alone closes the attribute on its own
+// quotes, so onclick="f(["savesync"])" reaches the parser as f([ — the
+// handler never runs, silently. Any user with a permission hit this.
+const jsattr = v => esc(JSON.stringify(v));
 const fmtBytes = b => b >= 1<<30 ? (b/(1<<30)).toFixed(1)+" GB" : b >= 1<<20 ? (b/(1<<20)).toFixed(1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
 const fmtTime = t => new Date(t).toLocaleString();
 
@@ -382,7 +387,7 @@ async function renderUsers() {
     users.map(u => `<tr><td>${esc(u.username)}${u.disabled ? ' <span class="badge conflictb">disabled</span>' : ""}</td>
       <td class="mono">${u.role === "admin" ? "admin" : (u.permissions || []).join(", ") || "—"}</td>
       <td style="text-align:right">
-        <button class="quiet" style="margin:0" onclick="act(() => j('PUT', '/users/${u.id}', {role: '${u.role}', permissions: ${JSON.stringify(u.permissions || [])}, disabled: ${!u.disabled}}))">${u.disabled ? "Enable" : "Disable"}</button>
+        <button class="quiet" style="margin:0" onclick="act(() => j('PUT', '/users/${u.id}', {role: '${u.role}', permissions: ${jsattr(u.permissions || [])}, disabled: ${!u.disabled}}))">${u.disabled ? "Enable" : "Disable"}</button>
         <button class="quiet danger" style="margin:0" onclick="confirm('Delete ${esc(u.username)}?') && act(() => j('DELETE', '/users/${u.id}'), 'deleted')">Delete</button>
       </td></tr>`).join("") + `</table>`;
 }

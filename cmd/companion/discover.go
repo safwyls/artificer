@@ -38,6 +38,11 @@ type discoveredGame struct {
 	// machine, strongest first, each carrying why it was offered. A
 	// Steam Cloud hit is exact; the rest are guesses the player confirms.
 	SaveDirs []saveCandidate `json:"saveDirs,omitempty"`
+	// Key and Hidden are filled in when the state is served, not by the
+	// scan: they are the page's view of this game, not a property of the
+	// install (hidden.go).
+	Key    string `json:"key,omitempty"`
+	Hidden bool   `json:"hidden,omitempty"`
 }
 
 // probe is one place the scan looked and what it found there, so an

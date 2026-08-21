@@ -422,7 +422,7 @@ func TestCreateWorldChecksTheFolderBeforeCreatingAnything(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			hits = nil
-			err := a.createWorld("midgard", "Palworld", tc.dir, "", false)
+			err := a.createWorld("midgard", "Palworld", tc.dir, "", "", false)
 			if err == nil {
 				t.Fatal("createWorld succeeded with an unusable save folder")
 			}
@@ -447,7 +447,7 @@ func TestCreateWorldChecksTheFolderBeforeCreatingAnything(t *testing.T) {
 		t.Fatalf("write save: %v", err)
 	}
 	hits = nil
-	if err := a.createWorld("midgard", "Palworld", dir, `{"appId":"1623730"}`, false); err != nil {
+	if err := a.createWorld("midgard", "Palworld", dir, `{"appId":"1623730"}`, "1623730", false); err != nil {
 		t.Fatalf("createWorld with a real folder: %v", err)
 	}
 	if len(hits) == 0 || hits[0] != "POST /api/public/sync/tok/worlds" {
@@ -458,5 +458,102 @@ func TestCreateWorldChecksTheFolderBeforeCreatingAnything(t *testing.T) {
 	a.mu.Unlock()
 	if len(links) != 1 || links[0].Dir != dir || links[0].WorldID != 1 {
 		t.Errorf("links = %+v, want one link to the created world", links)
+	}
+	// The app id rides along so the worlds list can show the same cover
+	// the shelf does.
+	if links[0].AppID != "1623730" {
+		t.Errorf("link app id = %q, want the discovered game's", links[0].AppID)
+	}
+}
+
+// A Steam library is not a list of games, and the shelf says so.
+func TestHiddenShelfEntries(t *testing.T) {
+	junk := []discoveredGame{
+		{Name: "Steamworks Common Redistributables", AppID: "228980"},
+		{Name: "Steam Controller Configs", AppID: "241100"},
+		{Name: "Proton 9.0", AppID: "2805730"}, // by name: the app id changes every release
+		{Name: "Steam Linux Runtime 3.0 (sniper)", AppID: "1628350"},
+	}
+	game := discoveredGame{Name: "Palworld", AppID: "1623730"}
+
+	var cfg Config
+	for _, g := range junk {
+		if !cfg.isHidden(g) {
+			t.Errorf("%q (%s) shows on a fresh shelf; it is not a game", g.Name, g.AppID)
+		}
+	}
+	if cfg.isHidden(game) {
+		t.Errorf("%q is hidden by default; only Steam's own non-games should be", game.Name)
+	}
+
+	// The player's choice wins in both directions, and unhiding a
+	// default sticks rather than reverting on the next read.
+	cfg.setHidden(gameKey(game), true)
+	if !cfg.isHidden(game) {
+		t.Error("hiding a game did not take")
+	}
+	cfg.setHidden(gameKey(game), false)
+	if cfg.isHidden(game) {
+		t.Error("unhiding a game did not take")
+	}
+	cfg.setHidden(gameKey(junk[0]), false)
+	if cfg.isHidden(junk[0]) {
+		t.Error("unhiding a default-hidden entry did not stick")
+	}
+	// Flipping a decision replaces it rather than stacking entries.
+	for i := 0; i < 4; i++ {
+		cfg.setHidden(gameKey(game), i%2 == 0)
+	}
+	if len(cfg.Hidden) != 2 {
+		t.Errorf("hidden list = %v; a repeated decision should replace, not accumulate", cfg.Hidden)
+	}
+}
+
+// Browsing lists folders, points at the likely one, and reports an
+// unreadable folder rather than dying on it.
+func TestBrowse(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"Saved Games", "Config", ".hidden", "Logs"} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "readme.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	res := browse(root)
+	var names []string
+	saveish := map[string]bool{}
+	for _, e := range res.Entries {
+		names = append(names, e.Name)
+		saveish[e.Name] = e.Saveish
+	}
+	if strings.Join(names, ",") != "Config,Logs,Saved Games" {
+		t.Errorf("entries = %v; want the folders, sorted, without dotfiles or files", names)
+	}
+	if !saveish["Saved Games"] || saveish["Config"] {
+		t.Errorf("saveish flags = %v; want only the save-shaped folder marked", saveish)
+	}
+	if res.Parent == "" || res.Path != filepath.Clean(root) {
+		t.Errorf("path/parent = %q/%q", res.Path, res.Parent)
+	}
+	if len(res.Roots) == 0 {
+		t.Error("no shortcuts offered; the browser should open near where saves live")
+	}
+
+	// A path to a file browses its folder — pasting the full path to a
+	// save file is a natural mistake with an obvious intent.
+	if got := browse(filepath.Join(root, "readme.txt")); got.Path != filepath.Clean(root) {
+		t.Errorf("browsing a file landed at %q, want its folder", got.Path)
+	}
+	// A quoted path (Windows "Copy as path") is cleaned, not rejected.
+	if got := browse(`"` + root + `"`); got.Path != filepath.Clean(root) {
+		t.Errorf("browsing a quoted path landed at %q, want %q", got.Path, root)
+	}
+	// A folder that isn't there explains itself instead of erroring out.
+	missing := browse(filepath.Join(root, "nope"))
+	if missing.Error == "" {
+		t.Error("browsing a missing folder said nothing")
 	}
 }

@@ -27,6 +27,13 @@ type Config struct {
 	// (discover.go normalizes). For the machines the registry and the
 	// default locations miss.
 	SteamDirs []string `json:"steamDirs,omitempty"`
+	// Hidden are shelf entries the player has put away, by the same key
+	// the artwork map uses ("app:<id>" or "name:<lowercased>"). A Steam
+	// library is full of things that are not games — redistributables,
+	// runtimes, controller configs — and a shelf that shows them all is
+	// a shelf nobody scans. Hiding is reversible and local: it never
+	// touches a link or the service.
+	Hidden []string `json:"hidden,omitempty"`
 }
 
 // WorldLink ties one world on the service to one save folder here, and
@@ -36,6 +43,11 @@ type WorldLink struct {
 	WorldID   int64  `json:"worldId"`
 	GameTitle string `json:"gameTitle,omitempty"`
 	Dir       string `json:"dir"`
+	// AppID is the Steam app id this link came from, when it came from a
+	// discovered game. It is what lets the worlds list show the same
+	// cover the shelf does; without it a linked world can still be
+	// matched by title, which is why it stays optional.
+	AppID string `json:"appId,omitempty"`
 	// SessionID is the hold this machine has on the world (0 = none);
 	// BaseVersion the version it delivered.
 	SessionID   int64 `json:"sessionId,omitempty"`

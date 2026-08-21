@@ -528,7 +528,7 @@ func checkSaveDir(dir string) error {
 	return nil
 }
 
-func (a *app) linkWorld(worldID int64, gameTitle, dir, meta string) error {
+func (a *app) linkWorld(worldID int64, gameTitle, dir, meta, appID string) error {
 	if err := checkSaveDir(dir); err != nil {
 		return err
 	}
@@ -543,8 +543,11 @@ func (a *app) linkWorld(worldID int64, gameTitle, dir, meta string) error {
 	a.mu.Lock()
 	if l := a.cfg.link(worldID); l != nil {
 		l.GameTitle, l.Dir = gameTitle, dir
+		if appID != "" {
+			l.AppID = appID
+		}
 	} else {
-		a.cfg.Links = append(a.cfg.Links, WorldLink{WorldID: worldID, GameTitle: gameTitle, Dir: dir})
+		a.cfg.Links = append(a.cfg.Links, WorldLink{WorldID: worldID, GameTitle: gameTitle, Dir: dir, AppID: appID})
 	}
 	a.mu.Unlock()
 	if err := a.saveCfg(); err != nil {
@@ -557,7 +560,7 @@ func (a *app) linkWorld(worldID int64, gameTitle, dir, meta string) error {
 
 // createWorld makes a world on the service from a discovered game, links
 // it, and optionally seeds it with the folder's current save.
-func (a *app) createWorld(name, gameTitle, dir, meta string, seed bool) error {
+func (a *app) createWorld(name, gameTitle, dir, meta, appID string, seed bool) error {
 	if name == "" {
 		return errors.New("a world needs a name")
 	}
@@ -584,7 +587,7 @@ func (a *app) createWorld(name, gameTitle, dir, meta string, seed bool) error {
 		return err
 	}
 	worldID := out.Status.World.ID
-	if err := a.linkWorld(worldID, gameTitle, dir, meta); err != nil {
+	if err := a.linkWorld(worldID, gameTitle, dir, meta, appID); err != nil {
 		return err
 	}
 	if seed {
