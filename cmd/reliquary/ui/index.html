@@ -56,7 +56,7 @@
       <h1>Reliquary</h1>
       <div class="sub">Shared world saves: one holder at a time, every check-in a kept version.</div>
     </div>
-    <div class="mono"><span id="whoami"></span> · <a href="#" onclick="logout();return false">sign out</a></div>
+    <div class="mono"><span id="whoami"></span> · <span id="liveDot" class="mono"></span> · <a href="#" onclick="logout();return false">sign out</a></div>
   </div>
 
   <div id="worlds"></div>
@@ -145,6 +145,7 @@ function showApp() {
   document.getElementById("tokenPanel").classList.toggle("hidden", !canSync);
   document.getElementById("usersPanel").classList.toggle("hidden", !ME.isAdmin);
   refresh();
+  watchCustody();
 }
 async function boot() {
   try {
@@ -376,6 +377,27 @@ async function createUser() {
 async function refresh() {
   if (!ME) return;
   await Promise.all([renderWorlds(), renderToken(), renderUsers()]).catch(e => say(e.message, false));
+}
+
+// Live custody updates: the stream says "world N changed", the page
+// re-reads the truth. A dropped frame costs one stale render at most,
+// and the slow poll underneath is the belt to that suspenders — it also
+// covers a proxy that eats event streams entirely.
+function watchCustody() {
+  let es;
+  try { es = new EventSource("/api/sync/events"); } catch { return; }
+  const live = on => {
+    const el = document.getElementById("liveDot");
+    if (el) { el.textContent = on ? "live" : "reconnecting…"; el.className = "mono " + (on ? "status-ok" : "status-idle"); }
+  };
+  es.addEventListener("ready", () => live(true));
+  es.addEventListener("custody", () => { live(true); refresh(); });
+  es.onerror = () => {
+    live(false);
+    // EventSource reconnects on its own; if the connection is gone for
+    // good (server restart, tunnel drop) a fresh one is cheap.
+    if (es.readyState === 2) { es.close(); setTimeout(watchCustody, 5000); }
+  };
 }
 
 boot();

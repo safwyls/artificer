@@ -18,6 +18,7 @@ import (
 	"github.com/safwyls/artificer/core/backup"
 	"github.com/safwyls/artificer/core/cfaccess"
 	"github.com/safwyls/artificer/core/dockerctl"
+	"github.com/safwyls/artificer/core/igdb"
 	"github.com/safwyls/artificer/core/notify"
 	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/store"
@@ -99,6 +100,10 @@ type Server struct {
 	// token-gated download hands out; empty answers with where to get
 	// one instead of a broken link (vault.go).
 	CompanionExe string
+	// Artwork, when set, resolves game cover art through IGDB for the
+	// vault and the companions it serves (savesync_live.go). Nil simply
+	// means no covers — artwork is decoration, never a dependency.
+	Artwork *igdb.Client
 	// GameRoutes, when set, mounts the game's own per-server endpoints
 	// (drift ledger seam 5) inside the authenticated /servers/{id} group.
 	// The game module builds the closure over this Server via its Routes

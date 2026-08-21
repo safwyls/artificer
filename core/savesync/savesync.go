@@ -70,6 +70,9 @@ type Service struct {
 	// mu serializes custody decisions (head moves, session ends, prunes).
 	// Transfers stream outside it; only the commit step takes it.
 	mu sync.Mutex
+	// subscribers is the live-event bus (events.go): custody changes are
+	// announced so a watching page needn't poll.
+	subscribers
 }
 
 func New(st *store.Store, notifier *notify.Notifier, logger *slog.Logger, dataDir string) *Service {
@@ -186,6 +189,7 @@ func (s *Service) checkoutLocked(ctx context.Context, worldID int64, user *store
 	if s.notifier != nil {
 		s.notifier.SyncCheckedOut(ctx, w.WebhookURL, w.Name, user.Username, ss.ExpiresAt)
 	}
+	s.publish(worldID, EventCheckout)
 	return ss, nil
 }
 
@@ -206,6 +210,7 @@ func (s *Service) Renew(ctx context.Context, ss *store.SyncSession) (time.Time, 
 	if err := s.store.RenewSyncSession(ctx, ss.ID, until); err != nil {
 		return time.Time{}, err
 	}
+	s.publish(ss.WorldID, EventCheckout)
 	return until, nil
 }
 
@@ -226,6 +231,7 @@ func (s *Service) Claim(ctx context.Context, worldID int64, user *store.User) er
 	if w.NextHolder != nil && *w.NextHolder != user.ID {
 		return ErrReserved
 	}
+	defer s.publish(worldID, EventClaim)
 	return s.store.SetSyncWorldNextHolder(ctx, worldID, &user.ID)
 }
 
@@ -243,6 +249,7 @@ func (s *Service) Unclaim(ctx context.Context, worldID int64, user *store.User) 
 	if *w.NextHolder != user.ID && !user.IsAdmin() {
 		return ErrReserved
 	}
+	defer s.publish(worldID, EventClaim)
 	return s.store.SetSyncWorldNextHolder(ctx, worldID, nil)
 }
 
@@ -261,6 +268,7 @@ func (s *Service) Release(ctx context.Context, ss *store.SyncSession, admin *sto
 	// A release frees the world the same way a check-in does, so a queued
 	// claimant gets the same automatic handoff.
 	s.handoffToClaimant(ctx, ss.WorldID)
+	s.publish(ss.WorldID, EventRelease)
 	return nil
 }
 
@@ -358,6 +366,11 @@ func (s *Service) Checkin(ctx context.Context, ss *store.SyncSession, user *stor
 		s.handoffToClaimant(ctx, w.ID)
 	}
 	s.pruneLocked(ctx, w.ID)
+	if kind == store.SyncKindCheckpoint {
+		s.publish(w.ID, EventCheckpoint)
+	} else {
+		s.publish(w.ID, EventCheckin)
+	}
 	return v, nil
 }
 
@@ -434,6 +447,7 @@ func (s *Service) Import(ctx context.Context, worldID int64, user *store.User, b
 		return nil, err
 	}
 	s.pruneLocked(ctx, w.ID)
+	s.publish(w.ID, EventImport)
 	return v, nil
 }
 
@@ -463,6 +477,7 @@ func (s *Service) SetHead(ctx context.Context, worldID, versionID int64) error {
 		return err
 	}
 	s.pruneLocked(ctx, worldID)
+	s.publish(worldID, EventHead)
 	return nil
 }
 
@@ -538,6 +553,7 @@ func (s *Service) DeleteWorld(ctx context.Context, worldID int64) error {
 	if err := os.RemoveAll(filepath.Join(s.root, fmt.Sprintf("%d", worldID))); err != nil {
 		s.logger.Error("savesync: removing world archives", "world", worldID, "error", err)
 	}
+	s.publish(worldID, EventWorld)
 	return nil
 }
 

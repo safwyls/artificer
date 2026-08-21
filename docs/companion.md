@@ -17,16 +17,32 @@ relay still accepts pushes from old wkcompanion builds;
 
 ## What it does
 
-1. **Finds installed games.** Steam's own metadata is the ground truth
-   (`libraryfolders.vdf` → `appmanifest_*.acf`); save locations are
-   heuristics — Unreal's `Saved/SaveGames` convention plus a small
-   catalog — and every candidate is confirmed by the player, never
-   followed blindly. `STEAM_ROOT` overrides odd installs.
-2. **Links games to worlds.** Linking tells the service which game a
-   world belongs to and where its save lives here (`game_title`,
-   `save_hint`, and a free-form JSON blob with the Steam app id); it
-   can create the world and seed it with the folder's current save in
-   the same step. Any number of worlds can be linked.
+1. **Finds installed games**, and shows them as a shelf of covers (art
+   from IGDB, resolved by the service — see below). Steam's own metadata
+   is the ground truth for what is installed (`libraryfolders.vdf` →
+   `appmanifest_*.acf`, with `steamapps/common` folder names as the
+   fallback when manifests are missing). Steam itself is found through
+   the configured folder, then the Windows registry, then `STEAM_ROOT`,
+   then the default install paths; the page shows the whole scan trail,
+   so "no games found" names its own cause.
+
+   **Save folders** come from three sources, strongest first:
+   `<steam>/userdata/<account>/<appid>/remote` (Steam Cloud — keyed by
+   the app id from the game's own manifest, so not a guess at all), a
+   small catalog of verified locations, and a name search across
+   `Saved Games`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%Low`, `%APPDATA%` and
+   `Documents\My Games` (OneDrive-redirected Documents included), one
+   and two levels deep, preferring a `Saved`/`SaveGames`-style subfolder
+   inside a match. Every candidate says where it came from, and the
+   player confirms it — nothing syncs a guessed path unseen.
+2. **Links games to worlds.** Click a tile: unlinked games open a link
+   form directly beneath their own tile, linked ones (shown in colour,
+   against the greyed-out rest) open what they point at. Linking tells
+   the service which game a world belongs to and where its save lives
+   here (`game_title`, `save_hint`, and a free-form JSON blob with the
+   Steam app id); it can create the world and seed it with the folder's
+   current save in the same step. Any number of worlds can be linked.
+   Any folder at all can be linked by hand, discovery or no discovery.
 3. **Moves the saves.** Checkout installs a world's head into its
    folder (tmp-extract-and-swap, one `.pre-checkout` copy kept);
    check-in packages the folder and returns the hold; mid-session
@@ -38,6 +54,13 @@ relay still accepts pushes from old wkcompanion builds;
 
 The credential is the player's personal sync token from the service's
 page. Nothing leaves the machine until a service URL and token are set.
+
+**Cover art** is resolved by the service, not here: reliquary holds the
+IGDB credentials (`IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET`, a Twitch app's
+pair) and answers `/artwork` for a whole batch, so one deployment looks
+each game up once for everyone and no player's machine ever holds a
+credential. A service without artwork configured yields names, which
+costs nothing but the pictures.
 
 ## Getting it
 

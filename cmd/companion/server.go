@@ -25,6 +25,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("GET /api/state", a.handleState)
 	mux.HandleFunc("PUT /api/config", a.handleSetConfig)
 	mux.HandleFunc("POST /api/discover", a.handleDiscover)
+	mux.HandleFunc("GET /api/artwork", a.handleArtwork)
 	// World links and custody. Local-only like everything here; the real
 	// authorization is the sync token these calls carry upstream.
 	mux.HandleFunc("POST /api/links", a.handleAddLink)
@@ -114,6 +115,12 @@ func (a *app) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	found := len(a.discovered.Games)
 	a.mu.Unlock()
 	writeJSON(w, map[string]any{"ok": true, "found": found})
+}
+
+// handleArtwork answers cover art for the discovered games, resolved
+// through the sync service (which holds the IGDB credentials).
+func (a *app) handleArtwork(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]any{"ok": true, "art": a.artwork()})
 }
 
 func (a *app) handleAddLink(w http.ResponseWriter, r *http.Request) {

@@ -32,6 +32,7 @@ import (
 	"github.com/safwyls/artificer/core/config"
 	"github.com/safwyls/artificer/core/crypto"
 	"github.com/safwyls/artificer/core/db"
+	"github.com/safwyls/artificer/core/igdb"
 	"github.com/safwyls/artificer/core/notify"
 	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/store"
@@ -97,6 +98,13 @@ func run(logger *slog.Logger) error {
 		}
 	}
 	apiServer.CompanionExe = companionExe
+	// Cover art for the game shelf. Credentials are a Twitch client id
+	// and secret (IGDB's auth); without both, artwork is simply absent
+	// and every surface degrades to names — never an error.
+	if art := igdb.New(os.Getenv("IGDB_CLIENT_ID"), os.Getenv("IGDB_CLIENT_SECRET")); art != nil {
+		apiServer.Artwork = art
+		logger.Info("igdb artwork enabled")
+	}
 	if cfg.AccessEnabled() {
 		verifier, err := cfaccess.New(cfg.AccessTeamDomain, cfg.AccessAUD)
 		if err != nil {
