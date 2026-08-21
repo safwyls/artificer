@@ -279,16 +279,37 @@ Three tables in the console store, migrations in the usual sequence:
 ```
 checkout ──► active ──► returned            (check-in, base == head: fast-forward)
                 │
-                ├─ expires_at passes ──► expired (warning pinged before; still
-                │                        checkin-able — lands as branch if head moved)
-                ├─ next holder claims ──► reclaimed (previous holder notified)
+                ├─ renew ──► active          (expires_at extended; same session)
+                ├─ expires_at passes ──► still active, now *claimable*
+                │                        (warning pinged before; check-in still
+                │                         works normally until someone claims)
+                ├─ claimant takes over ──► reclaimed (previous holder notified)
                 └─ admin force-release ─► released (audited)
 ```
 
+"Expired" is deliberately not a stored state: it is the active session
+past its `expires_at`, which changes what *others* may do (claim it),
+not what the holder may do. Two verbs keep the common cases free of
+ceremony:
+
+- **Renew** — "still holding, extend." The same person hosting again
+  tomorrow costs zero transfers; checkout is "I am the host this
+  stretch", not per-play-session, and checkpoints keep the canonical
+  copy fresh across a long hold.
+- **Claim-next** — one queued claimant per world, set while the world
+  is held. The moment the holder checks in (or the hold becomes
+  claimable and the claimant confirms), the claimant's checkout happens
+  automatically and they are pinged "the world is yours" — the live
+  handoff needs nobody to notice the world went free.
+
 Rules that make it safe: server-authoritative time only; expiry is
-permission to claim, never an overwrite; a check-in against a moved
-head is stored, flagged `conflict`, exempt from pruning, and resolved
-only by an explicit human pick.
+permission to claim, never an overwrite; and **only the active session
+may move the head**, and only when its base is the head. A check-in
+from any ended session — reclaimed, released, or racing a claim — is
+stored, flagged `conflict`, exempt from pruning, and resolved only by
+an explicit human pick. (Letting a late check-in fast-forward just
+because the head hadn't moved yet would move it under the new holder's
+feet and guarantee *their* honest check-in flags as the conflict.)
 
 ### Transfer protocol
 
@@ -299,6 +320,9 @@ Player client ↔ console, all HTTPS, per-player token, JSON acks only
 - `POST /worlds/{id}/checkout` — acquires the session or answers 409
   with who holds it and until when; response carries the download URL
   and `base_version`.
+- `POST /worlds/{id}/claim` / `DELETE …/claim` — queue as (or step
+  down as) the world's next holder.
+- `POST /sessions/{id}/renew` — extend the active hold.
 - `GET  /worlds/{id}/versions/{v}/bundle` — the tar bundle, ETag'd.
 - `POST /sessions/{id}/checkin` — opens a staged upload; the client
   PUTs the bundle (single request in v1 — these saves are megabytes,
@@ -332,19 +356,33 @@ it replaced. This verb is roadmap Shared item 2 ("backup restore")
 delivered — the console's backup page gets its restore button from the
 same mechanism save sync uses.
 
-### The player client
+### The player client: the Artificer Companion
 
-Generalize the `wkcompanion` chassis (tray app, single instance,
-config-dir state, ack-sniffing HTTP, save-dir autodetect) into a small
-kit in core; each game supplies a spec (paths, process name, verify).
-For Dragonwilds specifically, don't ship a second tray app: **extend
-wkcompanion** — the machine, the token plumbing, and the tray are
-already there, and one app that shows your character *and* holds the
-world checkout is the product the friend group actually wants. A
-Dragonwilds bonus worth stating: characters are client-side (recon,
+`wkcompanion` becomes the **Artificer Companion** (`cmd/companion`,
+shipping as `artificer-companion.exe`): its scope is no longer "the
+Dragonwilds character relay" but "the Artificer app that runs on a
+player's machine", and save sync is its second job. Deliberately *one
+app for all games*, not a kit spawning one tray binary per game — a
+`cmd` binary may import game modules (the checkbounds rules constrain
+core and agents, not commands), so each game contributes a client-side
+spec (save locations, process name for quiesce, verify) to the same
+binary, exactly the way consoles get game modules contributed.
+Dragonwilds' spec carries the existing character relay; the tray, the
+token plumbing, and the ack-sniffing HTTP layer are shared.
+
+The rename is a frozen-API event and travels as a migration, not an
+edit: `WKCOMPANION_EXE` stays honored (with the retired-name warning
+`core/config` uses for such cases) beside the new `COMPANION_EXE`, and
+the new binary reads its config from the old `wkcompanion/` config
+directory when the new one doesn't exist yet — players' pasted tokens
+must survive the upgrade.
+
+A Dragonwilds bonus worth stating: characters are client-side (recon,
 2026-08-19), so the world hand-off carries no character data — each
 player brings their own. That makes Dragonwilds the *easy* case, not
-the general one.
+the general one. The player-hosted world save's location is a phase 0
+recon item; until it is verified the companion asks for the directory
+instead of guessing one.
 
 ### Front ends
 
@@ -411,8 +449,9 @@ Each phase lands green on the full gate (`go build/vet/test`,
   token tier), notify events, the world/holder/versions console page
   in wildskeeper's web app. At the end of this phase the feature is
   usable browser-only: check out, download, upload, check in.
-- **Phase 3 — the player client.** Extract the companion chassis into
-  a kit; wkcompanion grows checkout/check-in/checkpoint for
+- **Phase 3 — the player client.** `wkcompanion` becomes the Artificer
+  Companion (`cmd/companion`, with the config-dir and env-var
+  migrations above) and grows checkout/check-in/checkpoint for
   Dragonwilds. The CF-Access ack rule and torn-save guards live here.
 - **Phase 4 — the server as a holder.** The agent `PUT
   /v1/files/save` verb with its three gates; the console flows for
