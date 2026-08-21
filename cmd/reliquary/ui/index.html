@@ -75,7 +75,9 @@
     <div id="tokenBody"></div>
     <div class="note">The Artificer Companion runs on your gaming machine: it finds installed games, links their save
       folders to worlds here, and moves the saves for you. The token is yours alone — minting a new one revokes the
-      old everywhere.</div>
+      old everywhere. The download hands out the build this service ships, <span id="bundledVersion">…</span> — the
+      companion shows its own version in its footer, so you can tell whether a download actually replaced the old
+      one.</div>
   </div>
 
   <div class="panel hidden" id="usersPanel">
@@ -448,6 +450,10 @@ async function renderVersion() {
     const el = document.getElementById(id);
     if (el) el.textContent = "reliquary " + v;
   }
+  // The image builds service and companion together, so one build stamp
+  // covers both.
+  const bundled = document.getElementById("bundledVersion");
+  if (bundled) bundled.textContent = v;
 }
 
 async function refresh() {

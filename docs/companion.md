@@ -105,6 +105,17 @@ that names one half names nothing.
   rolling `companion-latest` release
   (`.github/workflows/release-companion.yml`); version tags attach it
   to their own releases.
+
+Both routes keep the **same file name at the same URL** for every build,
+which is what makes the download link worth handing to a player once —
+and also what makes a stale copy easy to end up with. The service's
+download sends `Cache-Control: no-store` and an `X-Companion-Version`
+header for that reason (`.exe` is in Cloudflare's default-cached
+extension list, and browsers re-serve same-named downloads). GitHub's
+release assets are outside that control: if `companion-latest` looks a
+build behind, hard-reload the release page, and check what you actually
+got — the companion's footer names its own build, and the vault's
+companion panel names the one it ships.
 - **The service hands it out**: the reliquary image bundles the exe and
   serves it behind each player's token
   (`/api/public/sync/{token}/companion/download`).

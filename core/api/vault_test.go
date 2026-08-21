@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -237,6 +238,43 @@ func TestVaultArtworkSettings(t *testing.T) {
 	bob := app.login(t, "bob", "bobpassword12")
 	if rec := app.do(t, "GET", "/api/sync/artwork/settings", nil, bob); rec.Code != http.StatusForbidden {
 		t.Errorf("non-admin reading artwork settings: %d, want 403", rec.Code)
+	}
+}
+
+// The companion download is never cached by anything in the path, and
+// says which build it is.
+//
+// The URL is stable for every player forever, so the bytes are the only
+// thing that changes between builds — which makes an intermediary's
+// cache a real hazard: .exe is in Cloudflare's default-cached extension
+// list, and a browser re-serves a same-named download it already has.
+// Either one hands out a companion this service stopped shipping.
+func TestCompanionDownloadIsNotCacheable(t *testing.T) {
+	app, admin := newVaultApp(t)
+	app.api.Version = "main-abc123"
+	exe := filepath.Join(t.TempDir(), "artificer-companion.exe")
+	if err := os.WriteFile(exe, []byte("MZ fake companion"), 0o600); err != nil {
+		t.Fatalf("write exe: %v", err)
+	}
+	app.api.CompanionExe = exe
+
+	app.createUser(t, admin, "carol", "carolpassword", "user", []string{store.PermSync})
+	carol := app.login(t, "carol", "carolpassword")
+	rec := app.do(t, "POST", "/api/me/sync-token", nil, carol)
+	token := decodeMap(t, rec)["token"].(string)
+
+	rec = app.do(t, "GET", "/api/public/sync/"+token+"/companion/download", nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("download: %d (body %s)", rec.Code, rec.Body)
+	}
+	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "no-store") {
+		t.Errorf("Cache-Control = %q, want no-store — a cached exe outlives the build it came from", cc)
+	}
+	if v := rec.Header().Get("X-Companion-Version"); v != "main-abc123" {
+		t.Errorf("X-Companion-Version = %q, want the service's build", v)
+	}
+	if rec.Body.String() != "MZ fake companion" {
+		t.Errorf("download body = %q, want the bundled exe", rec.Body.String())
 	}
 }
 

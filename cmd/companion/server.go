@@ -43,13 +43,24 @@ func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	st := a.worldSync
 	st.Configured = a.cfg.configured()
-	links := append([]WorldLink(nil), a.cfg.Links...)
+	// Empty, not absent: a nil slice marshals to JSON null, and the page
+	// reads these as arrays. Getting that wrong cost a whole page —
+	// `ST.links.length` on null threw before anything else rendered, so
+	// a companion with no links yet showed no games, no scan trail and
+	// no version, and looked like three separate bugs.
+	links := append([]WorldLink{}, a.cfg.Links...)
 	discovered := a.discovered
+	if discovered.Games == nil {
+		discovered.Games = []discoveredGame{}
+	}
+	if discovered.Probes == nil {
+		discovered.Probes = []probe{}
+	}
 	out := map[string]any{
 		"config": map[string]any{
 			"serverUrl": a.cfg.ServerURL,
 			"tokenSet":  a.cfg.Token != "",
-			"steamDirs": append([]string(nil), a.cfg.SteamDirs...),
+			"steamDirs": append([]string{}, a.cfg.SteamDirs...),
 		},
 		"links":      links,
 		"discovered": discovered,

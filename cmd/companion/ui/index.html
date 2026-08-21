@@ -172,11 +172,11 @@ function linkedRow(l) {
 
 function renderLinks() {
   const box = document.getElementById("links");
-  if (!ST.links.length) {
+  if (!(ST.links || []).length) {
     box.innerHTML = `<p class="note" style="margin:0">Nothing linked yet — link an installed game below, or ask whoever runs your sync service which world to join.</p>`;
     return;
   }
-  box.innerHTML = ST.links.map(linkedRow).join("");
+  box.innerHTML = (ST.links || []).map(linkedRow).join("");
 }
 
 // gameKey matches the server's artwork map key.
@@ -442,10 +442,18 @@ function renderVersion() {
 
 async function refresh() {
   ST = await (await fetch("/api/state")).json();
-  renderLinks();
-  renderDiscovered();
-  renderVersion();
-  maybeLoadArt();
+  // Each panel renders independently. One of these throwing used to
+  // take the whole page with it — the shelf, the scan trail and the
+  // version line all sat downstream of a single unguarded read, so one
+  // null turned into three bugs that looked unrelated. A panel that
+  // fails now fails alone, and says so.
+  for (const [name, render] of [
+    ["worlds", renderLinks], ["shelf", renderDiscovered],
+    ["version", renderVersion], ["artwork", maybeLoadArt],
+  ]) {
+    try { await render(); }
+    catch (e) { console.error(name + " panel:", e); say(name + " panel failed: " + e.message, false); }
+  }
   const urlEl = document.getElementById("serverUrl");
   if (document.activeElement !== urlEl && !urlEl.dataset.dirty) urlEl.value = ST.config.serverUrl || "";
   const steamEl = document.getElementById("steamDir");
