@@ -55,10 +55,13 @@ func (c *Client) raw(ctx context.Context, method, path string, header http.Heade
 		switch {
 		case resp.StatusCode == http.StatusUnauthorized:
 			return nil, nil, fmt.Errorf("%w: the agent rejected the token — re-check it on both sides", ErrRejected)
-		case resp.StatusCode == http.StatusNotFound && msg == "":
-			// A JSON-less 404 is the router, not a handler: the agent
-			// predates this verb.
-			return nil, nil, fmt.Errorf("%w: the agent does not support this operation — update the agent image", ErrRejected)
+		case unsupportedVerb(resp.StatusCode, msg):
+			// The router answering, not a handler: the agent predates
+			// this verb. 405 is the shape that matters for the restore
+			// pair — /v1/files/save has served GET since the first
+			// agent, so an agent without HEAD and PUT on it answers
+			// "method not allowed", never 404.
+			return nil, nil, fmt.Errorf("%w: %w", ErrRejected, ErrUnsupported)
 		case resp.StatusCode == http.StatusNotFound, resp.StatusCode == http.StatusBadRequest:
 			return nil, nil, fmt.Errorf("%w: %s", ErrRejected, msg)
 		case resp.StatusCode == http.StatusPreconditionFailed:

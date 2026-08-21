@@ -91,7 +91,7 @@ func (s *Server) handleSyncServerGive(w http.ResponseWriter, r *http.Request) {
 	}
 	etag, err := client.SaveETag(r.Context())
 	if err != nil {
-		fail(http.StatusBadGateway, "asking the agent for its save state: "+err.Error())
+		fail(agentRestoreStatus(err), agentRestoreMessage("asking the agent for its save state", err))
 		return
 	}
 	f, err := os.Open(path)
@@ -101,7 +101,7 @@ func (s *Server) handleSyncServerGive(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	if err := client.RestoreSave(r.Context(), f, etag); err != nil {
-		fail(http.StatusBadGateway, "restoring onto the server: "+err.Error())
+		fail(agentRestoreStatus(err), agentRestoreMessage("restoring onto the server", err))
 		return
 	}
 	s.syncAudit(r, world, "sync-server-give", fmt.Sprintf("version %d", *world.HeadVersion))
@@ -139,7 +139,7 @@ func (s *Server) handleSyncServerTake(w http.ResponseWriter, r *http.Request) {
 	}
 	body, _, cancel, err := client.OpenSave(r.Context())
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "reading the server's save: "+err.Error())
+		writeAgentRestoreError(w, "reading the server's save", err)
 		return
 	}
 	defer cancel()
@@ -177,6 +177,37 @@ func (s *Server) serverStoppedForRestore(ctx context.Context, srv *store.Server)
 	return errors.New("cannot verify the server is stopped (no supervisor agent and no docker control)")
 }
 
+// agentRestoreStatus and agentRestoreMessage translate a failure on the
+// agent's restore pair into what the console should say, because "restore
+// refused" plus a bare status code is a dead end for the operator.
+//
+// Two causes are not gateway failures and must not read like one: an agent
+// that predates the verb needs its image updated, and a save that moved
+// under the caller needs another look. Both are things the operator can
+// act on, so both are 409s naming the act. Everything else keeps the 502 —
+// the agent is there and broke.
+func agentRestoreStatus(err error) int {
+	if errors.Is(err, agentctl.ErrUnsupported) || errors.Is(err, agentctl.ErrSaveChanged) {
+		return http.StatusConflict
+	}
+	return http.StatusBadGateway
+}
+
+func agentRestoreMessage(doing string, err error) string {
+	switch {
+	case errors.Is(err, agentctl.ErrUnsupported):
+		return "this server's sidecar agent predates the restore verb — update its agent image, then try again"
+	case errors.Is(err, agentctl.ErrSaveChanged):
+		return "the server's save changed since it was read — reload the page and choose again"
+	default:
+		return doing + ": " + err.Error()
+	}
+}
+
+func writeAgentRestoreError(w http.ResponseWriter, doing string, err error) {
+	writeError(w, agentRestoreStatus(err), agentRestoreMessage(doing, err))
+}
+
 // handleRestoreBackup places a snapshot back onto the server — the
 // restore verb the backups page was waiting for (roadmap, Shared 2).
 // Admin-only like the rest of the backup surface; server stopped;
@@ -211,15 +242,18 @@ func (s *Server) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	etag, err := client.SaveETag(r.Context())
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "asking the agent for its save state: "+err.Error())
+		writeAgentRestoreError(w, "asking the agent for its save state", err)
 		return
 	}
 	// Snapshots are zips (core/backup); the agent speaks tar bundles.
 	// Convert in flight rather than storing a second format.
 	pr, pw := io.Pipe()
 	go func() { pw.CloseWithError(zipToBundle(path, pw)) }()
+	// The converter needs no unwinding on a refusal: an *io.PipeReader is
+	// an io.ReadCloser, so the transport closes it when the agent answers
+	// early, and the pending write fails rather than parking forever.
 	if err := client.RestoreSave(r.Context(), pr, etag); err != nil {
-		writeError(w, http.StatusBadGateway, "restoring the snapshot: "+err.Error())
+		writeAgentRestoreError(w, "restoring the snapshot", err)
 		return
 	}
 	s.audit(r, srv.ID, "backup-restore", name)

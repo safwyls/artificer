@@ -14,10 +14,22 @@ import (
 	"time"
 )
 
-// APIVersion is the protocol version an agent reports in Health. The
-// console tolerates older agents per-route (a 404 is "agent too old for
-// this verb", not an error); this number is how it can tell at a glance.
-const APIVersion = 3
+// APIVersion is the protocol version an agent reports in Health, one rung
+// per batch of verbs: 1 = steam, 2 = file, 3 = supervisor, 4 = the restore
+// pair (HEAD/PUT on /v1/files/save).
+//
+// The console tolerates older agents per-route rather than refusing them
+// outright, and the shape of "too old for this verb" is *either* a 404 or a
+// 405 — 405 whenever the path already exists for another method, which is
+// what an agent below rung 4 answers for the restore pair, since GET on
+// /v1/files/save has been there since rung 2. Watching only for 404 is what
+// once turned "your agent predates this" into a bare "agent returned 405:"
+// (agentctl.ErrUnsupported).
+//
+// So: a batch of verbs that ships without moving this number is a batch the
+// console cannot tell an old agent from a new one by, which is the whole
+// point of the number.
+const APIVersion = 4
 
 // Job is the API view of one unit of background work. Fields are value
 // copies — handlers never hand out a pointer into the runner's mutable

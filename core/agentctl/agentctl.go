@@ -37,6 +37,29 @@ var ErrBusy = errors.New("the agent is already running a job")
 // unable to tell a finished job from a forbidden one.
 var ErrNotFound = errors.New("the agent has no such thing")
 
+// ErrUnsupported is an agent that predates the verb being asked for.
+//
+// It rides along with ErrRejected — an old agent is still a configuration
+// problem rather than a gateway failure — but names the one refusal with a
+// concrete next step, so callers can say "update the agent image" instead
+// of relaying a bare status code.
+//
+// Two shapes mean the same thing on the wire, and getting only one of them
+// is what made the restore verb fail mutely: chi answers a body-less 404
+// when it has never heard of the path, but 405 when the path exists for
+// other methods. /v1/files/save has served GET since the first agent, so
+// an agent without the restore pair answers 405 to HEAD and PUT — never
+// the 404 the taxonomy was watching for.
+var ErrUnsupported = errors.New("the agent does not support this operation — update the agent image")
+
+// unsupportedVerb reports whether an agent's 4xx is "I have never heard of
+// this verb" rather than a refusal with something to say. A 404 carrying
+// the agent's own JSON error is a handler answering about a missing thing;
+// one without is the router.
+func unsupportedVerb(status int, msg string) bool {
+	return status == http.StatusMethodNotAllowed || (status == http.StatusNotFound && msg == "")
+}
+
 // Job and Health mirror the agent's wire types; the agent package owns
 // them so the two binaries can't drift.
 type (
@@ -108,14 +131,16 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any, tim
 		if json.NewDecoder(resp.Body).Decode(&parsed) == nil {
 			msg = parsed.Error
 		}
-		switch resp.StatusCode {
-		case http.StatusUnauthorized:
+		switch {
+		case resp.StatusCode == http.StatusUnauthorized:
 			return fmt.Errorf("%w: the agent rejected the token — re-check it on both sides", ErrRejected)
-		case http.StatusConflict:
+		case unsupportedVerb(resp.StatusCode, msg):
+			return fmt.Errorf("%w: %w", ErrRejected, ErrUnsupported)
+		case resp.StatusCode == http.StatusConflict:
 			return fmt.Errorf("%w: %s", ErrBusy, msg)
-		case http.StatusNotFound:
+		case resp.StatusCode == http.StatusNotFound:
 			return fmt.Errorf("%w: %s", ErrNotFound, msg)
-		case http.StatusBadRequest:
+		case resp.StatusCode == http.StatusBadRequest:
 			return fmt.Errorf("%w: %s", ErrRejected, msg)
 		}
 		return fmt.Errorf("agent returned %d: %s", resp.StatusCode, msg)
