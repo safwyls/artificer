@@ -32,6 +32,9 @@ import (
 const (
 	tokenURL = "https://id.twitch.tv/oauth2/token"
 	apiURL   = "https://api.igdb.com/v4"
+	// imageBase is the CDN root for cover art. Note the "image" segment —
+	// the whole path is /igdb/image/upload/<size>/<id>.jpg.
+	imageBase = "https://images.igdb.com/igdb/image/upload"
 	// coverSize is IGDB's 264x374 cover; big enough for a grid tile at
 	// 2x without pulling full-size art.
 	coverSize = "t_cover_big"
@@ -421,11 +424,17 @@ func (c *Client) doQuery(ctx context.Context, endpoint, body string, out any) er
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
+// coverURL builds the CDN URL for an image id. The path segments are
+// fixed by IGDB and easy to get subtly wrong: it is
+// /igdb/image/upload/<size>/<id>.jpg, and dropping the "image" segment
+// yields a URL that looks entirely plausible and 404s every time. Hit
+// for real on 2026-08-21, which is why imageBase is a named constant
+// with a test on the whole string rather than a fragment spliced inline.
 func coverURL(imageID string) string {
 	if imageID == "" {
 		return ""
 	}
-	return "https://images.igdb.com/igdb/upload/" + coverSize + "/" + imageID + ".jpg"
+	return imageBase + "/" + coverSize + "/" + imageID + ".jpg"
 }
 
 type externalRow struct {
