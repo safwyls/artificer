@@ -28,6 +28,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("GET /api/artwork", a.handleArtwork)
 	// Shelf housekeeping: browsing this machine for a save folder, and
 	// putting non-game entries away (browse.go, hidden.go).
+	mux.HandleFunc("GET /api/savehints", a.handleSaveHints)
 	mux.HandleFunc("GET /api/browse", a.handleBrowse)
 	mux.HandleFunc("POST /api/hide", a.handleHide)
 	// World links and custody. Local-only like everything here; the real
@@ -148,6 +149,23 @@ func (a *app) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	failure, asked := a.artError, a.artAsked
 	a.mu.Unlock()
 	writeJSON(w, map[string]any{"ok": true, "art": art, "asked": asked, "error": failure})
+}
+
+// handleSaveHints asks the service for the catalogue's locations and
+// folds them into the discovered games' candidates. Driven by the page
+// when the game set changes, like artwork.
+func (a *app) handleSaveHints(w http.ResponseWriter, r *http.Request) {
+	a.saveHints()
+	a.mu.Lock()
+	failure, available := a.hintsError, a.hintsAvailable
+	known := 0
+	for _, locs := range a.hints {
+		if len(locs) > 0 {
+			known++
+		}
+	}
+	a.mu.Unlock()
+	writeJSON(w, map[string]any{"ok": true, "available": available, "known": known, "error": failure})
 }
 
 func (a *app) handleAddLink(w http.ResponseWriter, r *http.Request) {

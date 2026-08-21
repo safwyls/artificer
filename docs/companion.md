@@ -26,15 +26,45 @@ relay still accepts pushes from old wkcompanion builds;
    then the default install paths; the page shows the whole scan trail,
    so "no games found" names its own cause.
 
-   **Save folders** come from three sources, strongest first:
-   `<steam>/userdata/<account>/<appid>/remote` (Steam Cloud — keyed by
-   the app id from the game's own manifest, so not a guess at all), a
-   small catalog of verified locations, and a name search across
-   `Saved Games`, `%LOCALAPPDATA%`, `%LOCALAPPDATA%Low`, `%APPDATA%` and
-   `Documents\My Games` (OneDrive-redirected Documents included), one
-   and two levels deep, preferring a `Saved`/`SaveGames`-style subfolder
-   inside a match. Every candidate says where it came from, and the
-   player confirms it — nothing syncs a guessed path unseen.
+   **Save folders** come from four sources, strongest first:
+
+   1. **The save-location catalogue** — the [Ludusavi
+      manifest](https://github.com/mtkennerly/ludusavi-manifest) (MIT),
+      ~13,000 games with known save paths, largely from PCGamingWiki.
+      Curated per-game knowledge beats any shape that usually works, so
+      it leads. The service holds it (`core/savedb`) and answers
+      `/savehints` in batches; what travels is a path *template* in the
+      manifest's placeholder vocabulary, because only the player's
+      machine can resolve `<winLocalAppData>` or `<storeUserId>`.
+      Expansion happens in the companion (`expand.go`): placeholders
+      become paths, `<storeUserId>` becomes a wildcard (a machine can
+      hold several Steam accounts and the manifest does not say which),
+      and only folders that actually exist are offered. A placeholder
+      this build does not know refuses the whole template rather than
+      resolving half of it — half a path is a wrong path. Entries for
+      another OS or another store are dropped, which is the Palworld
+      trap: its Microsoft Store path is real on disk and wrong for a
+      Steam install.
+   2. `<steam>/userdata/<account>/<appid>/remote` (Steam Cloud — keyed by
+      the app id from the game's own manifest, so not a guess at all,
+      though plenty of games never write a save into it).
+   3. A small built-in catalog of verified locations.
+   4. A name search across `Saved Games`, `%LOCALAPPDATA%`,
+      `%LOCALAPPDATA%Low`, `%APPDATA%` and `Documents\My Games`
+      (OneDrive-redirected Documents included), one and two levels deep,
+      preferring a `Saved`/`SaveGames`-style subfolder inside a match.
+
+   Within that order, a folder holding files outranks an empty one — a
+   game that has never been played leaves its save folder empty, and a
+   game that has been played leaves the *wrong* one empty. Every
+   candidate says where it came from, and the player confirms it —
+   nothing syncs a guessed path unseen.
+
+   The catalogue is optional in both directions: a deployment that
+   cannot reach it (or sets `SAVEDB_DISABLED=1`) falls back to sources
+   2–4, exactly as the companion worked before. `SAVEDB_URL` overrides
+   the source. The vault's **Save-location catalogue** panel shows what
+   loaded, when, and what failed, with a refresh button.
 2. **Links games to worlds.** Click a tile: unlinked games open a link
    form in a modal over the shelf, linked ones (shown in colour, against
    the greyed-out rest) open what they point at. (The form was inline

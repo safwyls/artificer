@@ -63,6 +63,16 @@ services:
       # covers working across a fresh database.
       # IGDB_CLIENT_ID: "your-twitch-client-id"
       # IGDB_CLIENT_SECRET: "your-twitch-client-secret"
+      # The save-location catalogue: the Ludusavi manifest (MIT), a
+      # community list of where ~13,000 games keep their saves. Fetched
+      # here once a week (about 17 MB) so no player's machine pulls it,
+      # and companions ask this service. Needs outbound HTTPS to
+      # raw.githubusercontent.com; without it companions fall back to
+      # Steam Cloud paths and a folder search, which is how they worked
+      # before. Set SAVEDB_DISABLED to "1" to turn it off, or SAVEDB_URL
+      # to point at your own mirror.
+      # SAVEDB_DISABLED: "1"
+      # SAVEDB_URL: "https://example.com/manifest.yaml"
       # Cloudflare Access SSO. Putting Access in front of the tunnel is
       # NOT enough on its own: without these, reliquary cannot read the
       # assertion, so you authenticate at Cloudflare and then meet the

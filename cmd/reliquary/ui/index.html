@@ -109,6 +109,17 @@
       it falls back to those. Companions never hold it — they ask this service for covers.</div>
   </div>
 
+  <div class="panel hidden" id="saveDbPanel">
+    <h2>Save-location catalogue</h2>
+    <div id="saveDbBody"></div>
+    <button class="quiet" onclick="refreshSaveDb()">Refresh now</button>
+    <div class="note">Companions ask this service where a game keeps its saves, so no player's machine pulls the
+      17&nbsp;MB catalogue. Data from the
+      <a href="https://github.com/mtkennerly/ludusavi-manifest" target="_blank" rel="noreferrer">Ludusavi manifest</a>
+      (MIT), refreshed weekly. Without it, companions fall back to Steam Cloud paths and a folder search — fewer
+      games get a suggested folder, and nothing else changes.</div>
+  </div>
+
   <div class="mono" id="statusLine"></div>
   <div class="note" id="versionLine"></div>
 </div>
@@ -169,6 +180,7 @@ function showApp() {
   document.getElementById("tokenPanel").classList.toggle("hidden", !canSync);
   document.getElementById("usersPanel").classList.toggle("hidden", !ME.isAdmin);
   document.getElementById("artworkPanel").classList.toggle("hidden", !ME.isAdmin);
+  document.getElementById("saveDbPanel").classList.toggle("hidden", !ME.isAdmin);
   refresh();
   watchCustody();
 }
@@ -444,6 +456,30 @@ async function clearArtwork() {
   await act(() => j("DELETE", "/sync/artwork/settings"), "saved credentials removed");
 }
 
+// --- save-location catalogue (admin) ---
+async function renderSaveDb() {
+  if (!ME.isAdmin) return;
+  const st = (await j("GET", "/sync/savehints/status")).status || {};
+  const rows = [
+    ["Catalogue", st.loaded
+      ? `<span class="status-ok">${st.games.toLocaleString()} games</span> · ${st.steamIds.toLocaleString()} Steam ids`
+      : st.refreshing ? "loading…" : '<span class="status-idle">not loaded</span>'],
+  ];
+  if (st.fetchedAt) rows.push(["Fetched", fmtTime(st.fetchedAt)]);
+  if (st.lastError) rows.push(["Last error", `<span class="status-err">${esc(st.lastError)}</span>`]);
+  if (st.url) rows.push(["Source", `<span class="mono">${esc(st.url)}</span>`]);
+  document.getElementById("saveDbBody").innerHTML =
+    `<table>${rows.map(([k, v]) => `<tr><th style="width:9em">${k}</th><td>${v}</td></tr>`).join("")}</table>`;
+}
+async function refreshSaveDb() {
+  say("fetching the save-location catalogue — this pulls about 17 MB…", true);
+  try {
+    const out = await j("POST", "/sync/savehints/refresh");
+    say(out.refreshed ? `catalogue refreshed: ${out.status.games.toLocaleString()} games` : "refresh failed: " + out.error, !!out.refreshed);
+  } catch (e) { say(e.message, false); }
+  refresh();
+}
+
 // --- version ---
 // Shown on both the signed-in page and the login box: a bug report about
 // save sync should be able to name the build without anyone opening a
@@ -463,7 +499,8 @@ async function renderVersion() {
 
 async function refresh() {
   if (!ME) return;
-  await Promise.all([renderWorlds(), renderToken(), renderUsers(), renderArtwork()]).catch(e => say(e.message, false));
+  await Promise.all([renderWorlds(), renderToken(), renderUsers(), renderArtwork(), renderSaveDb()])
+    .catch(e => say(e.message, false));
 }
 
 // Live custody updates: the stream says "world N changed", the page

@@ -20,6 +20,7 @@ import (
 	"github.com/safwyls/artificer/core/dockerctl"
 	"github.com/safwyls/artificer/core/igdb"
 	"github.com/safwyls/artificer/core/notify"
+	"github.com/safwyls/artificer/core/savedb"
 	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/store"
 )
@@ -109,6 +110,10 @@ type Server struct {
 	// The environment's IGDB pair, remembered so removing the UI-saved
 	// one falls back to it instead of to nothing.
 	artworkEnvID, artworkEnvSecret string
+	// SaveDB, when set, answers "where does this game keep its saves"
+	// from the Ludusavi manifest (savedirs.go). Nil means the companion
+	// falls back to its own heuristics, which is how it worked before.
+	SaveDB *savedb.Client
 	// Version is the build this binary came from, stamped at link time
 	// and shown in the UI. Empty reads as "dev" to whoever asks.
 	Version string

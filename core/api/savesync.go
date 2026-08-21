@@ -667,6 +667,12 @@ func (s *Server) mountSyncSmall(r chi.Router) {
 	r.With(s.requireAdmin).Put("/sync/artwork/settings", s.handleSetArtworkSettings)
 	r.With(s.requireAdmin).Delete("/sync/artwork/settings", s.handleDeleteArtworkSettings)
 	r.With(s.requireAdmin).Post("/sync/artwork/test", s.handleTestArtwork)
+	// Save locations from the Ludusavi manifest (savedirs.go). Reading
+	// is PermSync like the rest of the companion's surface; refreshing
+	// the catalogue is admin.
+	r.With(s.requirePermission(store.PermSync)).Post("/sync/savehints", s.handleSyncSaveHints)
+	r.With(s.requireAdmin).Get("/sync/savehints/status", s.handleSaveHintsStatus)
+	r.With(s.requireAdmin).Post("/sync/savehints/refresh", s.handleRefreshSaveHints)
 }
 
 // asUser lifts a handler that takes the acting user out of the context.
@@ -704,6 +710,7 @@ func (s *Server) mountSyncUploads(r chi.Router) {
 		r.Get("/", s.handlePublicSyncStatus)
 		r.Get("/companion/download", s.withSyncTokenUser(s.handleSyncCompanionDownload))
 		r.Post("/artwork", s.withSyncTokenUser(s.handleSyncArtwork))
+		r.Post("/savehints", s.withSyncTokenUser(s.handleSyncSaveHints))
 		r.Post("/worlds", s.withSyncTokenUser(s.handleCreateSyncWorld))
 		r.Put("/worlds/{worldID}/meta", s.withSyncTokenUser(s.handleSyncWorldMeta))
 		r.Post("/worlds/{worldID}/import", s.withSyncTokenUser(s.handleSyncImport))

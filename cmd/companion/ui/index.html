@@ -112,6 +112,7 @@
     </p>
     <div id="discovered" class="grid"></div>
     <div class="note" id="artNote"></div>
+    <div class="note" id="hintNote"></div>
     <div class="mono" id="lookedIn" style="margin-top:8px"></div>
     <button class="quiet" onclick="rescan()">Rescan</button>
     <button class="quiet" onclick="openLinkForm(null)">Link a folder by hand…</button>
@@ -570,7 +571,7 @@ async function saveCfg() {
 // after the first render, so the one boot-time call always found an
 // empty shelf, asked for nothing, and never ran again; the service's own
 // counter read "0 asked" while its credentials tested fine.
-let ART_SIG = null, ART_BUSY = false;
+let ART_SIG = null, ART_BUSY = false, HINT_SIG = null, HINT_BUSY = false;
 async function maybeLoadArt() {
   if (ART_BUSY) return;
   const games = ((ST.discovered || {}).games || []).map(gameKey).sort();
@@ -580,6 +581,38 @@ async function maybeLoadArt() {
   ART_SIG = sig;
   ART_BUSY = true;
   try { await loadArt(); } finally { ART_BUSY = false; }
+}
+
+// Save-location hints, on the same trigger as covers: ask when the game
+// set changes, never on a timer. The answer changes what folders the
+// link form offers, so the next state poll picks it up.
+async function maybeLoadHints() {
+  if (HINT_BUSY) return;
+  const games = ((ST.discovered || {}).games || []).map(gameKey).sort();
+  if (!games.length || !(ST.sync || {}).configured) return;
+  const sig = JSON.stringify(games);
+  if (sig === HINT_SIG) return;
+  HINT_SIG = sig;
+  HINT_BUSY = true;
+  try {
+    const out = await (await fetch("/api/savehints")).json();
+    const note = document.getElementById("hintNote");
+    if (note) {
+      note.className = out.error ? "note status-err" : "note";
+      note.textContent = out.error
+        ? "Save-location catalogue unavailable: " + out.error
+        : out.available
+          ? `Save locations known for ${out.known} of these games (Ludusavi manifest, via the sync service).`
+          : "The sync service has no save-location catalogue loaded — folders are found by search alone.";
+    }
+    // Pull the state directly rather than re-entering refresh(): this
+    // runs inside refresh's own loop, and a nested call there is a
+    // recursion waiting for an off-by-one.
+    ST = await (await fetch("/api/state")).json();
+    SHELF_SIG = null;
+    renderShelf();
+  } catch { /* hints are an improvement, not a dependency */ }
+  finally { HINT_BUSY = false; }
 }
 async function loadArt() {
   try {
@@ -615,6 +648,7 @@ async function refresh() {
   for (const [name, render] of [
     ["worlds", renderLinks], ["shelf", renderDiscovered],
     ["version", renderVersion], ["artwork", maybeLoadArt],
+    ["save locations", maybeLoadHints],
   ]) {
     try { await render(); }
     catch (e) { console.error(name + " panel:", e); say(name + " panel failed: " + e.message, false); }

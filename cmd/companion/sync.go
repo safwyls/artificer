@@ -875,3 +875,92 @@ func (a *app) artwork() map[string]gameArt {
 	a.mu.Unlock()
 	return out
 }
+
+// --- save-location hints (expand.go) ---
+
+// saveHints asks the service for the catalogue's save locations for
+// every discovered game, expands them here, and folds the results into
+// the games' candidate lists.
+//
+// Same shape as artwork(): the catalogue lives on the service, this side
+// asks in one batch and caches, misses included, so a rescan does not
+// re-ask about games the manifest has never carried. Unlike artwork this
+// changes what the player is offered, so the expansion — and the
+// decision about which template applies to this machine — happens here,
+// where the placeholders actually mean something.
+func (a *app) saveHints() {
+	a.mu.Lock()
+	games := append([]discoveredGame(nil), a.discovered.Games...)
+	libs := append([]string(nil), a.discovered.Libraries...)
+	if a.hints == nil {
+		a.hints = map[string][]location{}
+	}
+	var need []savehintQuery
+	for _, g := range games {
+		key := gameKey(g)
+		if _, ok := a.hints[key]; ok {
+			continue
+		}
+		need = append(need, savehintQuery{AppID: g.AppID, Name: g.Name, InstallDir: g.InstallDir})
+	}
+	configured := a.cfg.configured()
+	a.mu.Unlock()
+
+	if len(need) > 0 && configured {
+		var resp struct {
+			Available bool                  `json:"available"`
+			Locations map[string][]location `json:"locations"`
+		}
+		if err := a.syncDo(http.MethodPost, "/savehints", map[string]any{"games": need}, &resp); err != nil {
+			log.Printf("save-location lookup: %v", err)
+			a.mu.Lock()
+			a.hintsError = err.Error()
+			a.mu.Unlock()
+			return
+		}
+		a.mu.Lock()
+		a.hintsError = ""
+		a.hintsAvailable = resp.Available
+		for _, q := range need {
+			// A miss caches as an empty list, so it is not re-asked on
+			// every rescan.
+			a.hints[q.Key()] = resp.Locations[q.Key()]
+		}
+		a.mu.Unlock()
+	}
+	a.applyHints(libs)
+}
+
+// savehintQuery mirrors core/savedb.Query on the wire.
+type savehintQuery struct {
+	AppID      string `json:"appId,omitempty"`
+	Name       string `json:"name,omitempty"`
+	InstallDir string `json:"installDir,omitempty"`
+}
+
+func (q savehintQuery) Key() string {
+	if q.AppID != "" {
+		return "app:" + q.AppID
+	}
+	return "name:" + strings.ToLower(strings.TrimSpace(q.Name))
+}
+
+// applyHints recomputes each game's candidates with whatever the
+// catalogue offered. Recomputed rather than appended, so the ordering
+// rules in saveCandidatesFor apply to the whole set and a second call
+// cannot stack duplicates.
+func (a *app) applyHints(libs []string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(libs) == 0 {
+		libs = a.discovered.Libraries
+	}
+	for i := range a.discovered.Games {
+		g := a.discovered.Games[i]
+		locs := a.hints[gameKey(g)]
+		if len(locs) == 0 {
+			continue
+		}
+		a.discovered.Games[i].SaveDirs = saveCandidatesFor(g, libs, manifestCandidates(g, locs, libs))
+	}
+}
