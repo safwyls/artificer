@@ -68,6 +68,13 @@
     <div class="mono"><span id="whoami"></span> · <span id="liveDot" class="mono"></span> · <a href="#" onclick="logout();return false">sign out</a></div>
   </div>
 
+  <div class="panel hidden" id="noCustodyPanel">
+    <h2>Read-only account</h2>
+    <p class="note" style="margin-top:0">Your account can see these worlds and download a version, but not check one
+      out, check one in, or run the Artificer Companion — that needs the <b>world custody</b> grant. Ask whoever
+      administers this vault to grant it to you; it takes them one click on the Users panel.</p>
+  </div>
+
   <div id="worlds"></div>
 
   <div class="panel" id="createPanel">
@@ -100,7 +107,11 @@
       <input type="checkbox" id="newAdmin" style="width:auto"> admin
     </label>
     <br><button onclick="createUser()">Add user</button>
-    <div class="note">New users get the world-custody grant; admins additionally manage worlds, users and rollbacks.</div>
+    <div class="note">World custody is the grant that lets someone check a world out, check it back in, and hold a
+      companion token — without it an account can see the worlds and download a version, nothing more. New accounts
+      made here get it. Accounts created by signing in through Cloudflare Access <b>do not</b>: Access says who
+      someone is, never what they may do here, so grant custody below after their first sign-in. Admins have it
+      implicitly, and additionally manage worlds, users and rollbacks.</div>
   </div>
 
   <div class="panel hidden" id="artworkPanel">
@@ -233,6 +244,7 @@ function showApp() {
   document.getElementById("app").classList.remove("hidden");
   document.getElementById("whoami").textContent = ME.username;
   const canSync = ME.isAdmin || (ME.permissions || []).includes("savesync");
+  document.getElementById("noCustodyPanel").classList.toggle("hidden", canSync);
   document.getElementById("createPanel").classList.toggle("hidden", !canSync);
   document.getElementById("tokenPanel").classList.toggle("hidden", !canSync);
   document.getElementById("usersPanel").classList.toggle("hidden", !ME.isAdmin);
@@ -457,16 +469,83 @@ async function renderToken() {
 }
 
 // --- users (admin) ---
+// Every change here goes through saveUser, which reads the row it is
+// changing out of USERS and sends the whole record back. The update API
+// replaces role, permissions and disabled together, so a button that
+// sent only its own field would quietly clear the other two — which is
+// how "Disable" used to be written, with the permissions array spliced
+// into an onclick attribute.
+let USERS = [];
+
+// SYNC_PERM is the grant that separates an account that can hold a world
+// from one that can only look at it.
+const SYNC_PERM = "savesync";
+const hasSync = u => (u.permissions || []).includes(SYNC_PERM);
+
 async function renderUsers() {
   if (!ME.isAdmin) return;
-  const users = await j("GET", "/users");
-  document.getElementById("usersBody").innerHTML = `<table><tr><th>User</th><th>Role</th><th></th></tr>` +
-    users.map(u => `<tr><td>${esc(u.username)}${u.disabled ? ' <span class="badge conflictb">disabled</span>' : ""}</td>
-      <td class="mono">${u.role === "admin" ? "admin" : (u.permissions || []).join(", ") || "—"}</td>
-      <td style="text-align:right">
-        <button class="quiet" style="margin:0" onclick="act(() => j('PUT', '/users/${u.id}', {role: '${u.role}', permissions: ${jsattr(u.permissions || [])}, disabled: ${!u.disabled}}))">${u.disabled ? "Enable" : "Disable"}</button>
-        <button class="quiet danger" style="margin:0" onclick="confirm('Delete ${esc(u.username)}?') && act(() => j('DELETE', '/users/${u.id}'), 'deleted')">Delete</button>
-      </td></tr>`).join("") + `</table>`;
+  USERS = await j("GET", "/users");
+  const row = u => {
+    const custody = u.role === "admin"
+      ? `<span class="badge">via admin</span>`
+      : hasSync(u)
+        ? `<span class="status-ok">yes</span>`
+        : `<span class="status-idle">no</span>`;
+    const buttons = [];
+    if (u.role !== "admin") {
+      buttons.push(`<button class="quiet" style="margin:0" onclick="setCustody(${u.id}, ${!hasSync(u)})">${hasSync(u) ? "Revoke custody" : "Grant custody"}</button>`);
+    }
+    buttons.push(`<button class="quiet" style="margin:0" onclick="setAdmin(${u.id}, ${u.role !== "admin"})">${u.role === "admin" ? "Make ordinary user" : "Make admin"}</button>`);
+    buttons.push(`<button class="quiet" style="margin:0" onclick="setDisabled(${u.id}, ${!u.disabled})">${u.disabled ? "Enable" : "Disable"}</button>`);
+    buttons.push(`<button class="quiet danger" style="margin:0" onclick="removeUser(${u.id})">Delete</button>`);
+    return `<tr>
+      <td>${esc(u.username)}${u.disabled ? ' <span class="badge conflictb">disabled</span>' : ""}</td>
+      <td class="mono">${u.role === "admin" ? "admin" : "user"}</td>
+      <td class="mono">${custody}</td>
+      <td style="text-align:right">${buttons.join(" ")}</td>
+    </tr>`;
+  };
+  document.getElementById("usersBody").innerHTML =
+    `<table><tr><th>User</th><th>Role</th><th>World custody</th><th></th></tr>` +
+    USERS.map(row).join("") + `</table>`;
+}
+
+const userByID = id => USERS.find(u => u.id === id);
+
+// saveUser sends the user's whole record with one field changed, because
+// that is what the API replaces.
+async function saveUser(id, changes, okMsg) {
+  const u = userByID(id);
+  if (!u) return;
+  const perms = new Set(u.permissions || []);
+  if (changes.sync === true) perms.add(SYNC_PERM);
+  if (changes.sync === false) perms.delete(SYNC_PERM);
+  await act(() => j("PUT", `/users/${id}`, {
+    role: changes.role !== undefined ? changes.role : u.role,
+    permissions: [...perms],
+    disabled: changes.disabled !== undefined ? changes.disabled : !!u.disabled,
+  }), okMsg);
+}
+
+function setCustody(id, grant) {
+  const u = userByID(id);
+  saveUser(id, { sync: grant }, `${u ? u.username : "user"} ${grant ? "can now hold worlds" : "can no longer hold worlds"}`);
+}
+// Promotion carries the custody grant with it, so an admin demoted back
+// to an ordinary user keeps being able to do what they were just doing.
+function setAdmin(id, promote) {
+  const u = userByID(id);
+  if (!promote && !confirm(`Make ${u ? u.username : "this user"} an ordinary user? They keep world custody.`)) return;
+  saveUser(id, { role: promote ? "admin" : "user", sync: true },
+    `${u ? u.username : "user"} is now ${promote ? "an admin" : "an ordinary user"}`);
+}
+function setDisabled(id, disabled) {
+  saveUser(id, { disabled }, disabled ? "signed out and blocked" : "enabled");
+}
+function removeUser(id) {
+  const u = userByID(id);
+  if (!confirm(`Delete ${u ? u.username : "this user"}? Their worlds and versions stay.`)) return;
+  act(() => j("DELETE", `/users/${id}`), "deleted");
 }
 async function createUser() {
   const username = document.getElementById("newUser").value.trim();

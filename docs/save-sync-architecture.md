@@ -50,6 +50,16 @@ store schema and client survived the move.
   admin: the companion's link flow is the onboarding path, and the
   custody grant is the trust boundary. Settings, deletion, release,
   rollback and give/take stay admin.
+- **PermSync (`savesync`) is what an account needs to take part at
+  all**: checkout, check-in, claim, import, world creation, and a
+  companion token. Without it an account can list worlds and download a
+  version — nothing else, and no companion. Admins have it implicitly.
+  It is granted per account from the vault's Users panel, and it is the
+  first thing to check when someone "can't see anything": an account
+  created by signing in through Cloudflare Access arrives with **no**
+  permissions on purpose (Access says who someone is, never what they
+  may do here), so every SSO player needs the grant after their first
+  sign-in.
 - **The consoles are out of the custody business**: wildskeeper's
   Worlds page, savesync wiring and companion bundling are removed; the
   per-server backup restore button stays, since that is console
