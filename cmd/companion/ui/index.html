@@ -153,17 +153,27 @@ function renderDiscovered() {
   const linked = new Set(ST.links.map(l => l.gameTitle));
   const gameRow = g => `<div class="game">
       <b>${esc(g.name)}</b> ${linked.has(g.name) ? '<span class="mono">· linked</span>' : ""}<br>
-      <span class="mono">${g.saveDirs && g.saveDirs.length ? esc(g.saveDirs[0]) : "no save folder found — paste one in the link form"}</span><br>
+      <span class="mono">${g.saveDirs && g.saveDirs.length ? esc(g.saveDirs[0]) : "no save folder guessed — paste one in the link form"}</span><br>
       <button class="quiet" style="margin-top:6px" onclick='openLinkForm(${JSON.stringify(g).replace(/'/g, "&#39;")})'>Link…</button>
     </div>`;
   box.innerHTML = all.length
     ? all.map(gameRow).join("")
-    : `<p class="note">No Steam games found. If Steam lives somewhere unusual, set its folder below — or link any
-       save folder by hand.</p>`;
-  const libs = d.libraries || [];
-  document.getElementById("lookedIn").textContent = libs.length
-    ? "looked in: " + libs.join(" · ")
-    : "no Steam library found on this machine — set the folder below";
+    : `<p class="note">No games found. The scan trail below says where it looked — if your Steam folder is missing
+       or was rejected, set it there. Any save folder can also be linked by hand.</p>`;
+
+  // The scan trail: every path tried, what it resolved to, and why a
+  // miss missed. This is the whole answer to "why no games".
+  const probes = d.probes || [];
+  const hits = probes.filter(p => p.resolved);
+  document.getElementById("lookedIn").innerHTML = probes.length
+    ? `<details ${hits.length ? "" : "open"}><summary>scan trail — ${hits.length} librar${hits.length === 1 ? "y" : "ies"} found, ${probes.length} path${probes.length === 1 ? "" : "s"} tried</summary>` +
+      probes.map(p => `<div style="padding:2px 0">
+        <span style="color:var(--${p.resolved ? "ok" : "mist"})">${p.resolved ? "✓" : "·"}</span>
+        <b>${esc(p.source)}</b> ${esc(p.path)}
+        ${p.resolved && p.resolved !== p.path ? `<br><span style="padding-left:16px">→ ${esc(p.resolved)}</span>` : ""}
+        ${p.note ? `<br><span style="padding-left:16px;color:var(--${p.resolved ? "mist" : "ember"})">${esc(p.note)}</span>` : ""}
+      </div>`).join("") + `</details>`
+    : "";
 }
 
 async function saveSteamDir() {

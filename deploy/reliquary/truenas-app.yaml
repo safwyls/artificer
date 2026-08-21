@@ -44,7 +44,11 @@ services:
       # Behind TLS (a tunnel, a reverse proxy with certs): mark session
       # cookies Secure. Leave unset for plain-HTTP LAN use.
       # COOKIE_SECURE: "true"
-      # Cloudflare Access SSO, both required to enable it — see
+      # Cloudflare Access SSO. Putting Access in front of the tunnel is
+      # NOT enough on its own: without these, reliquary cannot read the
+      # assertion, so you authenticate at Cloudflare and then meet the
+      # password form anyway (the login page says so when it happens).
+      # Both the team domain and the AUD are required to enable it — see
       # docs/cloudflare-access.md. The admin list is anti-lockout,
       # re-applied on every sign-in.
       # CF_ACCESS_TEAM_DOMAIN: "yourteam.cloudflareaccess.com"

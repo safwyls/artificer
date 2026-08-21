@@ -78,9 +78,6 @@ func TestSteamDiscovery(t *testing.T) {
 	if len(found.Games) != 2 {
 		t.Fatalf("found %d games, want 2: %+v", len(found.Games), found.Games)
 	}
-	if len(found.Libraries) != 2 {
-		t.Errorf("libraries = %v, want the root and the second drive", found.Libraries)
-	}
 	byName := map[string]discoveredGame{}
 	for _, g := range found.Games {
 		byName[g.Name] = g
@@ -91,23 +88,81 @@ func TestSteamDiscovery(t *testing.T) {
 	if _, ok := byName["Some Other Game"]; !ok {
 		t.Error("second library's manifest not found")
 	}
-
-	// A manually configured folder replaces auto-detection entirely, and
-	// every spelling a player might paste lands on the same library: the
-	// Steam root, steamapps, or steamapps/common.
-	t.Setenv("STEAM_ROOT", t.TempDir()) // an empty root: auto-detection finds nothing
-	if found := discoverGames(nil); len(found.Games) != 0 {
-		t.Fatalf("empty root still found %d games", len(found.Games))
+	// The trail records both libraries as resolved hits.
+	hits := 0
+	for _, p := range found.Probes {
+		if p.Resolved != "" && p.Note != "already scanned" {
+			hits++
+		}
 	}
+	if hits != 2 {
+		t.Errorf("scan trail shows %d resolved libraries, want 2: %+v", hits, found.Probes)
+	}
+}
+
+// Whatever the player pastes should land on the same library — and when
+// it can't, the trail has to say why rather than dropping it silently.
+// The quoted case is Windows Explorer's "Copy as path", which is how a
+// pasted path most often arrives.
+func TestSteamDirSpellings(t *testing.T) {
+	root := t.TempDir()
+	main := filepath.Join(root, "steamapps")
+	os.MkdirAll(filepath.Join(main, "common", "Palworld"), 0o755)
+	os.WriteFile(filepath.Join(main, "appmanifest_1623730.acf"), []byte(`
+"AppState"
+{
+	"appid"		"1623730"
+	"name"		"Palworld"
+	"installdir"		"Palworld"
+}`), 0o644)
+	// An empty auto-detect root, so only the configured folder can find
+	// anything.
+	t.Setenv("STEAM_ROOT", t.TempDir())
+	if found := discoverGames(nil); len(found.Games) != 0 {
+		t.Fatalf("empty root found %d games", len(found.Games))
+	}
+
 	for _, spelling := range []string{
 		root,
-		filepath.Join(root, "steamapps"),
-		filepath.Join(root, "steamapps", "common"),
+		main,
+		filepath.Join(main, "common"),
+		filepath.Join(main, "common", "Palworld"),
+		`"` + root + `"`,
+		"  " + root + "  ",
+		root + string(filepath.Separator),
 	} {
 		found := discoverGames([]string{spelling})
-		if len(found.Games) != 2 {
-			t.Errorf("manual dir %q found %d games, want 2", spelling, len(found.Games))
+		if len(found.Games) != 1 || found.Games[0].Name != "Palworld" {
+			t.Errorf("configured %q found %+v, want Palworld", spelling, found.Games)
+			continue
 		}
+		if found.Probes[0].Resolved != main {
+			t.Errorf("configured %q resolved to %q, want %q", spelling, found.Probes[0].Resolved, main)
+		}
+	}
+
+	// A path that leads nowhere is reported, not dropped.
+	found := discoverGames([]string{filepath.Join(root, "nope")})
+	if len(found.Probes) == 0 || found.Probes[0].Resolved != "" || found.Probes[0].Note == "" {
+		t.Errorf("a bad path should be reported with a reason: %+v", found.Probes)
+	}
+}
+
+// A library whose manifests are missing still has games: the folders
+// under common/ are the fallback, so the panel is never empty beside a
+// library the player can see in Explorer.
+func TestGamesFromCommonWithoutManifests(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "steamapps", "common", "Witchspire"), 0o755)
+	os.MkdirAll(filepath.Join(root, "steamapps", "common", "Palworld"), 0o755)
+	t.Setenv("STEAM_ROOT", root)
+
+	found := discoverGames(nil)
+	if len(found.Games) != 2 {
+		t.Fatalf("found %d games from common/, want 2: %+v", len(found.Games), found.Games)
+	}
+	if found.Games[0].Name != "Palworld" || found.Games[1].Name != "Witchspire" {
+		t.Errorf("games = %+v, want them sorted", found.Games)
 	}
 }
 
