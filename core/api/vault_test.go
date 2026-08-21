@@ -7,6 +7,7 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -275,6 +276,74 @@ func TestCompanionDownloadIsNotCacheable(t *testing.T) {
 	}
 	if rec.Body.String() != "MZ fake companion" {
 		t.Errorf("download body = %q, want the bundled exe", rec.Body.String())
+	}
+}
+
+// The custody grant is what separates an account that can hold a world
+// from one that can only look at it — and it is grantable after the
+// fact, which matters because an account created by signing in through
+// Cloudflare Access arrives with no permissions at all by design.
+func TestGrantingCustodyAfterTheFact(t *testing.T) {
+	app, admin := newVaultApp(t)
+
+	// An account with nothing granted, the shape SSO sign-in creates.
+	app.createUser(t, admin, "friend", "friendpassword", "user", nil)
+	friend := app.login(t, "friend", "friendpassword")
+
+	// It can read, and that is all.
+	if rec := app.do(t, "GET", "/api/sync/worlds", nil, friend); rec.Code != http.StatusOK {
+		t.Errorf("reading worlds without custody: %d, want 200", rec.Code)
+	}
+	if rec := app.do(t, "POST", "/api/me/sync-token", nil, friend); rec.Code != http.StatusForbidden {
+		t.Errorf("minting a companion token without custody: %d, want 403", rec.Code)
+	}
+	rec := app.do(t, "POST", "/api/sync/worlds", map[string]string{"name": "midgard"}, friend)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("creating a world without custody: %d, want 403", rec.Code)
+	}
+
+	// The admin grants it. This is the whole request the users panel
+	// sends: the full record, with one field changed.
+	rec = app.do(t, "GET", "/api/users", nil, admin)
+	var users []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &users); err != nil {
+		t.Fatalf("decode users %q: %v", rec.Body, err)
+	}
+	var friendID int64
+	for _, u := range users {
+		if u["username"] == "friend" {
+			friendID = int64(u["id"].(float64))
+		}
+	}
+	if friendID == 0 {
+		t.Fatal("the friend account is not in the users list")
+	}
+	rec = app.do(t, "PUT", "/api/users/"+itoa(friendID), map[string]any{
+		"role": "user", "permissions": []string{store.PermSync}, "disabled": false,
+	}, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("granting custody: %d (body %s)", rec.Code, rec.Body)
+	}
+
+	// Now the same account can do the things the grant is for.
+	friend = app.login(t, "friend", "friendpassword")
+	if rec := app.do(t, "POST", "/api/me/sync-token", nil, friend); rec.Code != http.StatusOK {
+		t.Errorf("minting a companion token with custody: %d (body %s)", rec.Code, rec.Body)
+	}
+	if rec := app.do(t, "POST", "/api/sync/worlds", map[string]string{"name": "midgard"}, friend); rec.Code != http.StatusCreated {
+		t.Errorf("creating a world with custody: %d (body %s)", rec.Code, rec.Body)
+	}
+
+	// And revoking puts it back — the grant is not one-way.
+	rec = app.do(t, "PUT", "/api/users/"+itoa(friendID), map[string]any{
+		"role": "user", "permissions": []string{}, "disabled": false,
+	}, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("revoking custody: %d (body %s)", rec.Code, rec.Body)
+	}
+	friend = app.login(t, "friend", "friendpassword")
+	if rec := app.do(t, "POST", "/api/me/sync-token", nil, friend); rec.Code != http.StatusForbidden {
+		t.Errorf("minting a token after revocation: %d, want 403", rec.Code)
 	}
 }
 
