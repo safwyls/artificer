@@ -335,6 +335,22 @@ function WorldPanel({ status }: { status: SyncWorldStatus }) {
     },
     onError: onError("Delete failed"),
   });
+  const serverGive = useMutation({
+    mutationFn: () => api.syncServerGive(w.id),
+    onSuccess: () => {
+      toast.success("The dedicated server holds the world — start it when ready");
+      invalidate();
+    },
+    onError: onError("Could not hand the world to the server"),
+  });
+  const serverTake = useMutation({
+    mutationFn: () => api.syncServerTake(w.id),
+    onSuccess: () => {
+      toast.success("Taken back — the server's save is the new head");
+      invalidate();
+    },
+    onError: onError("Could not take the world back"),
+  });
 
   const mine = status.holder?.username === username;
   const claimedByMe = !!username && status.claimedBy === username;
@@ -411,6 +427,29 @@ function WorldPanel({ status }: { status: SyncWorldStatus }) {
                 disabled={importWorld.isPending}
                 onFile={(f) => importWorld.mutate(f)}
               />
+            )}
+            {w.serverId != null && !status.holder && status.head && (
+              <button
+                className={quietBtn}
+                disabled={serverGive.isPending}
+                title="Restore the head onto the linked dedicated server (stopped) and let it hold the world"
+                onClick={() => {
+                  if (confirm(`Hand ${w.name} to the dedicated server? Its current save is replaced (one .bak is kept).`))
+                    serverGive.mutate();
+                }}
+              >
+                {serverGive.isPending ? "Handing over…" : "Host on dedicated server"}
+              </button>
+            )}
+            {w.serverId != null && status.holder?.serverHeld && (
+              <button
+                className={quietBtn}
+                disabled={serverTake.isPending}
+                title="Commit the (stopped) server's save as the new head and free the world"
+                onClick={() => serverTake.mutate()}
+              >
+                {serverTake.isPending ? "Taking back…" : "Take back from server"}
+              </button>
             )}
             {status.holder && (
               <button

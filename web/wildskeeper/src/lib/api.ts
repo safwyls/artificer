@@ -1220,6 +1220,9 @@ export const api = {
   runBackup: (id: number) => request<void>(`/servers/${id}/backups/run`, { method: "POST" }),
   deleteBackup: (id: number, name: string) => request<void>(`/servers/${id}/backups/${name}`, { method: "DELETE" }),
   backupDownloadURL: (id: number, name: string) => `/api/servers/${id}/backups/${name}/download`,
+  /** Place a snapshot back onto the server via its agent (stopped only). */
+  restoreBackup: (id: number, name: string) =>
+    request<{ restored: string }>(`/servers/${id}/backups/${name}/restore`, { method: "POST" }),
 
   // Save-sync custody: worlds are console-level, not per-server. 404s
   // from every route mean the console runs without the engine.
@@ -1246,6 +1249,10 @@ export const api = {
     upload<{ version: SyncVersion }>(`/sync/sessions/${sessionId}/checkin`, file),
   syncImport: (worldId: number, file: Blob) => upload<{ version: SyncVersion }>(`/sync/worlds/${worldId}/import`, file),
   syncDownloadURL: (worldId: number, versionId: number) => `/api/sync/worlds/${worldId}/versions/${versionId}/download`,
+  /** Hand the world to its linked dedicated server (it becomes the holder). */
+  syncServerGive: (worldId: number) => request<unknown>(`/sync/worlds/${worldId}/server/give`, { method: "POST" }),
+  /** Commit the server's save as the new head and return its hold. */
+  syncServerTake: (worldId: number) => request<{ version: SyncVersion }>(`/sync/worlds/${worldId}/server/take`, { method: "POST" }),
   getSyncToken: () => request<{ token: string }>("/me/sync-token"),
   mintSyncToken: () => request<{ token: string }>("/me/sync-token", { method: "POST" }),
   revokeSyncToken: () => request<void>("/me/sync-token", { method: "DELETE" }),

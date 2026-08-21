@@ -586,6 +586,11 @@ func (s *Server) mountSyncSmall(r chi.Router) {
 	r.With(s.requirePermission(store.PermSync)).Get("/sync/worlds/{worldID}/versions/{versionID}/download", s.syncDownload)
 	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/release", s.handleSyncRelease)
 	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/head", s.handleSyncSetHead)
+	// The dedicated server as a holder (savesync_server.go): give the
+	// world to the linked server, take it back. Admin — these move a
+	// server's live save.
+	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/server/give", s.handleSyncServerGive)
+	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/server/take", s.handleSyncServerTake)
 	r.With(s.requirePermission(store.PermSync)).Post("/sync/sessions/{sessionID}/renew", s.syncRenew)
 	r.With(s.requirePermission(store.PermSync)).HandleFunc("/me/sync-token", s.handleMySyncToken)
 }

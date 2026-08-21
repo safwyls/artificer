@@ -42,6 +42,11 @@ type Game struct {
 	// location needs discovery (Dragonwilds globs two spellings). Nil
 	// means SaveDirName joined to the install root, required non-empty.
 	FindSaveDir func(installDir string) (string, error)
+	// VerifyRestore, when set, judges an uploaded save before it replaces
+	// the live one (the restore verb, files.go): the game's own "is this
+	// a world" check, run against the extracted bundle. Nil means only
+	// the structural checks (well-formed bundle, non-empty).
+	VerifyRestore func(saveDir string) error
 	// StopSignal is the graceful stop signal for the game's process
 	// group. Zero means SIGTERM; Enshrouded uses SIGINT, on which it
 	// saves the world.

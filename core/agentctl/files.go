@@ -61,6 +61,10 @@ func (c *Client) raw(ctx context.Context, method, path string, header http.Heade
 			return nil, nil, fmt.Errorf("%w: the agent does not support this operation — update the agent image", ErrRejected)
 		case resp.StatusCode == http.StatusNotFound, resp.StatusCode == http.StatusBadRequest:
 			return nil, nil, fmt.Errorf("%w: %s", ErrRejected, msg)
+		case resp.StatusCode == http.StatusPreconditionFailed:
+			// Only the restore verb states preconditions (If-Match on the
+			// save bundle); the sentinel lets callers offer "look again".
+			return nil, nil, fmt.Errorf("%w: %s", ErrSaveChanged, msg)
 		}
 		return nil, nil, fmt.Errorf("agent returned %d: %s", resp.StatusCode, msg)
 	}
@@ -171,6 +175,51 @@ func extractTar(r io.Reader, dir string) error {
 // mtimeFloor is the oldest bundle timestamp taken at face value; nothing
 // this console syncs was written before it.
 var mtimeFloor = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// ErrSaveChanged: the agent's save is not the one the caller believed
+// it was replacing (the restore precondition failed). Look again,
+// decide again.
+var ErrSaveChanged = errors.New("the server's save changed since it was last read")
+
+// SaveETag asks the agent for the current bundle ETag without the
+// bundle — the restore precondition's input. An agent that predates the
+// verb answers through raw()'s JSON-less-404 mapping.
+func (c *Client) SaveETag(ctx context.Context) (string, error) {
+	resp, cancel, err := c.raw(ctx, http.MethodHead, "/v1/files/save", nil, nil, 30*time.Second)
+	if err != nil {
+		return "", err
+	}
+	defer cancel()
+	resp.Body.Close()
+	return resp.Header.Get("ETag"), nil
+}
+
+// OpenSave streams the agent's save bundle — for callers that consume
+// the tar (the save-sync version store) rather than mirroring it to
+// disk like SyncSave. The caller owns closing the reader.
+func (c *Client) OpenSave(ctx context.Context) (io.ReadCloser, string, context.CancelFunc, error) {
+	resp, cancel, err := c.raw(ctx, http.MethodGet, "/v1/files/save", nil, nil, 10*time.Minute)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return resp.Body, resp.Header.Get("ETag"), cancel, nil
+}
+
+// RestoreSave replaces the agent's save with the bundle from r, on the
+// condition that the save is still the one ifMatch names. The agent
+// verifies, swaps atomically and keeps one .bak; a changed save answers
+// ErrSaveChanged rather than being clobbered.
+func (c *Client) RestoreSave(ctx context.Context, r io.Reader, ifMatch string) error {
+	header := http.Header{}
+	header.Set("If-Match", ifMatch)
+	resp, cancel, err := c.raw(ctx, http.MethodPut, "/v1/files/save", header, r, 10*time.Minute)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	resp.Body.Close()
+	return nil
+}
 
 // GetConfig fetches the raw DedicatedServer.ini.
 func (c *Client) GetConfig(ctx context.Context) ([]byte, error) {

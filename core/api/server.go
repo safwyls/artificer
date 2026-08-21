@@ -313,6 +313,10 @@ func (s *Server) mountAPI(r chi.Router) {
 			r.With(s.requireAdmin).Put("/backups/settings", s.handleUpdateBackupSettings)
 			r.With(s.requireAdmin).Post("/backups/run", s.handleRunBackup)
 			r.With(s.requireAdmin).Get("/backups/{name}/download", s.handleDownloadBackup)
+			// The restore verb the archive was waiting for: place a
+			// snapshot back via the agent, server stopped, If-Match
+			// gated (savesync_server.go).
+			r.With(s.requireAdmin).Post("/backups/{name}/restore", s.handleRestoreBackup)
 			r.With(s.requireAdmin).Delete("/backups/{name}", s.handleDeleteBackup)
 
 			// Player join/leave history is player-facing; the audit

@@ -227,6 +227,11 @@ func (a *Agent) Handler() http.Handler {
 		// Phase 2 file verbs — fixed locations only, never a path
 		// parameter (docs/sidecar-agent.md).
 		r.Get("/files/save", a.handleGetSave)
+		// The restore pair (docs/save-sync-architecture.md): HEAD states
+		// the current bundle ETag, PUT replaces the save behind an
+		// If-Match on it — still a fixed location, never a client path.
+		r.Head("/files/save", a.handleHeadSave)
+		r.Put("/files/save", a.handlePutSave)
 		r.Get("/files/config", a.handleGetConfig)
 		r.Put("/files/config", a.handlePutConfig)
 		// Phase 3 power verbs — supervisor mode only; companion agents
