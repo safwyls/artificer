@@ -35,8 +35,10 @@ describe("AppShell", () => {
       </Routes>,
     );
     // The shell renders its chrome twice — the phone header and the desktop
-    // sidebar — so identity and version each appear in both.
-    expect(await screen.findAllByText("reliquary v1.4.2")).toHaveLength(2);
+    // sidebar. The full "reliquary vX" string is the desktop footer's; the
+    // phone header carries the bare build beside the wordmark.
+    expect(await screen.findByText("reliquary v1.4.2")).toBeInTheDocument();
+    expect(screen.getByText("v1.4.2")).toBeInTheDocument();
     expect(screen.getAllByText("safwyl")).toHaveLength(2);
     expect(screen.getByText("live")).toBeInTheDocument();
   });

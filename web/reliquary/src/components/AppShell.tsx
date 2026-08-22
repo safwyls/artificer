@@ -39,12 +39,14 @@ export function AppShell() {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       {/* Mobile chrome: the sidebar's job in two slim rows — identity and
-          sign-out up top, the nav as one scrollable pill row beneath. The
-          version string only matters when filing a bug, so on a phone it
-          lives at the end of the pill row rather than costing a footer. */}
-      <header className="border-b border-edge bg-well md:hidden">
+          sign-out up top, the nav as one scrollable pill row beneath. Pinned:
+          the nav and the live dot are why the bar exists, and both are
+          useless once scrolled away. The build rides next to the wordmark —
+          name and build are one identity, as on the login page. */}
+      <header className="sticky top-0 z-40 border-b border-edge bg-well md:hidden">
         <div className="flex items-center gap-2.5 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <span className="text-[19px] tracking-[0.06em] text-gold">Reliquary</span>
+          <span className="font-mono text-[10px] text-mist">{version.data?.version ?? "…"}</span>
           {liveDot}
           <span className="ml-auto min-w-0 truncate text-[12px] text-mist">{username}</span>
           <button
@@ -73,9 +75,6 @@ export function AppShell() {
               <span>{item.label}</span>
             </NavLink>
           ))}
-          <span className="shrink-0 pl-1.5 font-mono text-[10px] text-mist">
-            reliquary {version.data?.version ?? "…"}
-          </span>
         </nav>
       </header>
       <nav className="hidden w-56 flex-none flex-col border-r border-edge bg-well py-6 md:flex">
