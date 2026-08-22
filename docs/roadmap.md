@@ -46,8 +46,10 @@ for the monorepo restated as a table of contents.
    location/format is unverified, so discovery marks its candidates as
    guesses and the player confirms — plus the Discord interactions
    endpoint (phase 5), the Witchspire catalog entry once its save
-   location is known (phase 6), and growing reliquary's deliberately
-   light embedded UI as use demands.
+   location is known (phase 6). Its UI is no longer the gap it was: the
+   React rebuild landed 2026-08-21 (`docs/reliquary-ui-rebuild.md`),
+   with the app shell, the world detail page and the admin panels the
+   single embedded page could not hold.
 
 ## Palworld (palcon)
 

@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The vault palette, verbatim from the design language in
+   docs/reliquary-ui-rebuild.md. These are the only colors in the app;
+   Tailwind names them (bg-panel, text-gold, border-edge, …). */
+:root {
+  --ink: 16 13 23; /* #100d17 — the page ground */
+  --panel: 26 21 36; /* #1a1524 — cards */
+  --well: 20 16 29; /* #14101d — the sidebar and inset strips */
+  --edge: 47 39 64; /* #2f2740 — borders */
+  --parchment: 232 224 207; /* #e8e0cf — text */
+  --mist: 148 141 163; /* #948da3 — secondary text */
+  --gold: 201 168 96; /* #c9a860 — accent and headings */
+  --goldhi: 227 198 127; /* #e3c67f */
+  --ok: 127 196 106; /* #7fc46a */
+  --ember: 212 115 94; /* #d4735e — danger and conflict */
+  --rune: 157 127 196; /* #9d7fc4 — game tags and info */
+  /* Native controls (scrollbars, the overscroll gutter, form widgets)
+     follow this; without it a dark page still gets light scrollbars. */
+  color-scheme: dark;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-ink font-serif text-[15px] leading-normal text-parchment antialiased;
+  }
+  /* Panel headings: uppercase, letterspaced, gold — the one heading
+     treatment, used everywhere a panel names itself. */
+  h1 {
+    @apply text-[22px] tracking-[0.05em] text-gold;
+  }
+  a {
+    @apply text-goldhi hover:text-gold;
+  }
+  /* Focus is visible in one style across the app; the gold ring is the
+     same accent the primary button carries. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-gold/60 ring-offset-2 ring-offset-ink;
+  }
+}
+
+@layer components {
+  /* The field label above every input: small caps in mist. */
+  .field-label {
+    @apply text-[11px] tracking-[0.1em] text-mist;
+  }
+}

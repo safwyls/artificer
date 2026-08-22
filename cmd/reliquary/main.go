@@ -16,10 +16,8 @@ package main
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -36,10 +34,8 @@ import (
 	"github.com/safwyls/artificer/core/savedb"
 	"github.com/safwyls/artificer/core/savesync"
 	"github.com/safwyls/artificer/core/store"
+	web "github.com/safwyls/artificer/web/reliquary"
 )
-
-//go:embed ui
-var uiFS embed.FS
 
 // version is stamped by the image build (-X main.version=<sha or tag>);
 // a plain `go build` leaves it "dev". The vault page shows it, and the
@@ -155,7 +151,9 @@ func run(logger *slog.Logger) error {
 		logger.Info("cloudflare access sign-in enabled", "issuer", verifier.Issuer())
 	}
 
-	ui, err := fs.Sub(uiFS, "ui")
+	// The React frontend, built by `npm run build` in web/reliquary and
+	// embedded there — the same pattern the three consoles use.
+	ui, err := web.Dist()
 	if err != nil {
 		return err
 	}
