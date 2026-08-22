@@ -1,0 +1,381 @@
+<!-- @dsCard group="Components" name="Buttons" subtitle="The same six, stone-toned, square corners" width="940" height="640" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flametender · Buttons</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Grenze+Gotisch:wght@500;600;700&family=Karla:ital,wght@0,400;0,500;0,700;1,400&display=swap" />
+    <style>
+      :root {
+        --background: 144 14% 7%; /* #101512 — ft.void — the moss-black ground */
+        --foreground: 47 24% 85%; /* #e2ded0 — ft.bone — body text */
+        --card: 144 15% 14%; /* #1e2822 — ft.panel — every terrace */
+        --card-foreground: 47 24% 85%; /* #e2ded0 — text on a terrace */
+        --popover: 144 15% 14%; /* #1e2822 — dialogs, menus, tooltips */
+        --popover-foreground: 47 24% 85%; /* #e2ded0 — text in an overlay */
+        --primary: 45 12% 54%; /* #98917c — ft.stone — the default button */
+        --primary-foreground: 144 14% 7%; /* #101512 — void, for text on stone */
+        --secondary: 141 13% 20%; /* #2d3b32 — ft.edge — the quiet button and the active pill */
+        --secondary-foreground: 47 24% 85%; /* #e2ded0 — text on the quiet button */
+        --muted: 137 13% 11%; /* #182019 — ft.fog — the shade the fog line is made of */
+        --muted-foreground: 98 8% 54%; /* #87947e — ft.lichen — secondary text and labels */
+        --accent: 44 23% 71%; /* #c6bda4 — ft.stonehi — panel titles, hover, warnings */
+        --accent-foreground: 144 14% 7%; /* #101512 — text on lit stone */
+        --destructive: 6 53% 54%; /* #c95a4d — ft.spore — danger */
+        --destructive-foreground: 47 24% 85%; /* #e2ded0 — text on spore */
+        --border: 141 13% 20%; /* #2d3b32 — every border */
+        --input: 141 13% 20%; /* #2d3b32 — field borders */
+        --ring: 204 79% 72%; /* #7fc3f0 — ft.flame — focus is live-state territory */
+        --ft-void: #101512; /* page ground */
+        --ft-fog: #182019; /* the Shroud pooled at the foot of the page */
+        --ft-panel: #1e2822; /* terraces */
+        --ft-edge: #2d3b32; /* borders */
+        --ft-stone: #98917c; /* structure and interaction */
+        --ft-stonehi: #c6bda4; /* lit stone — titles, hover, warnings */
+        --ft-flame: #7fc3f0; /* RESERVED: live and active state only */
+        --ft-flamehi: #d3ecff; /* the brightest flame, for a selection */
+        --ft-flamedim: #31536b; /* the dim end of a live meter */
+        --ft-spore: #c95a4d; /* danger and errors */
+        --ft-sporedim: #66312a; /* the dim end of a danger fill */
+        --ft-bone: #e2ded0; /* text */
+        --ft-lichen: #87947e; /* secondary text */
+        --ft-ok: #82b378; /* healthy, saved, running */
+        --font-display: 'Grenze Gotisch', serif;
+        --font-body: Karla, system-ui, sans-serif;
+        --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+        --live: var(--ft-flame);
+        --live-dim: var(--ft-flamedim);
+        --warm: var(--ft-stonehi);
+        --warm-dim: #5c5747;
+        --ok: var(--ft-ok);
+        --danger: var(--ft-spore);
+        --meter-track: var(--ft-void);
+        --log-bg: var(--ft-void);
+        --rail-bg: var(--ft-void);
+        --coin-idle-border: rgba(152, 145, 124, 0.6);
+        --coin-idle-bg: var(--ft-fog);
+        --coin-idle-fg: var(--ft-stonehi);
+        --coin-hi: var(--ft-stonehi);
+        --coin-glow: 0 0 8px rgba(127, 195, 240, 0.45);
+        --brand-mark: var(--ft-panel);
+        --brand-mark-fg: var(--ft-stonehi);
+        /* preview chrome */
+        --ds-bg: hsl(var(--background));
+        --ds-panel: hsl(var(--card));
+        --ds-raise: hsl(var(--muted));
+        --ds-line: hsl(var(--border));
+        --ds-fg: hsl(var(--foreground));
+        --ds-fg-soft: hsl(var(--foreground) / 0.85);
+        --ds-muted: hsl(var(--muted-foreground));
+        --ds-accent: hsl(var(--accent));
+        --ds-accent-hi: hsl(var(--accent));
+        --ds-body: var(--font-body);
+        --ds-mono: var(--font-mono);
+        color-scheme: dark;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+      
+      /* ---- preview chrome -------------------------------------------------- */
+      .ds-page {
+        margin: 0;
+        background: var(--ds-bg);
+        color: var(--ds-fg);
+        font-family: var(--ds-body);
+        font-size: 15px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .ds-head { border-bottom: 1px solid var(--ds-line); padding: 26px 32px 20px; }
+      .ds-eyebrow {
+        margin: 0; font-family: var(--ds-mono); font-size: 11px;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--ds-muted);
+      }
+      .ds-title { margin: 6px 0 0; font-size: 22px; font-weight: normal; letter-spacing: 0.05em; color: var(--ds-accent); }
+      .ds-sub { margin: 3px 0 0; font-size: 13px; color: var(--ds-muted); }
+      .ds-intent { margin: 14px 0 0; max-width: 70ch; font-size: 14px; color: var(--ds-fg-soft); }
+      .ds-body { display: flex; flex-direction: column; gap: 28px; padding: 24px 32px 44px; }
+      .ds-caption {
+        margin: 0 0 10px; font-family: var(--ds-mono); font-size: 10px;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--ds-muted);
+      }
+      .ds-stage { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      .ds-stage--block { display: block; }
+      .ds-stage--stack { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+      .ds-stage--well {
+        background: var(--ds-raise); border: 1px solid var(--ds-line);
+        border-radius: 8px; padding: 18px;
+      }
+      .ds-meta { border-top: 1px solid var(--ds-line); padding-top: 16px; }
+      .ds-meta-h {
+        margin: 0 0 8px; font-family: var(--ds-mono); font-size: 10px; font-weight: normal;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--ds-muted);
+      }
+      .ds-paths, .ds-rules { margin: 0; padding-left: 18px; }
+      .ds-paths li, .ds-rules li { font-size: 13px; color: var(--ds-fg-soft); margin-bottom: 4px; }
+      .ds-paths li { list-style: none; margin-left: -18px; }
+      code { font-family: var(--ds-mono); font-size: 12px; color: var(--ds-accent-hi); }
+      .ds-idx-group + .ds-idx-group { border-top: 1px solid var(--ds-line); padding-top: 20px; }
+      .ds-idx { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+      .ds-idx li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+      .ds-idx-link { color: var(--ds-accent-hi); text-decoration: none; font-size: 15px; }
+      .ds-idx-link:hover { color: var(--ds-accent); text-decoration: underline; }
+      .ds-idx-sub { font-size: 12px; color: var(--ds-muted); }
+      
+      /* ---- swatches -------------------------------------------------------- */
+      .ds-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+      .ds-swatch { border: 1px solid var(--ds-line); border-radius: 8px; overflow: hidden; background: var(--ds-panel); }
+      .ds-swatch-chip { height: 58px; border-bottom: 1px solid var(--ds-line); }
+      .ds-swatch-body { padding: 8px 10px 10px; }
+      .ds-swatch-name { font-family: var(--ds-mono); font-size: 12px; color: var(--ds-fg); }
+      .ds-swatch-hex { font-family: var(--ds-mono); font-size: 11px; color: var(--ds-muted); }
+      .ds-swatch-use { margin-top: 4px; font-size: 12px; color: var(--ds-muted); line-height: 1.35; }
+      
+      
+      .con-mono { font-family: var(--font-mono); }
+      .con-display { font-family: var(--font-display); }
+      
+      /* ---- controls -------------------------------------------------------- */
+      .con-btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        white-space: nowrap; border: 1px solid transparent; border-radius: calc(var(--radius) - 2px);
+        height: 36px; padding: 0 16px; font-family: var(--font-body); font-size: 14px;
+        font-weight: 500; cursor: pointer; background: none; transition: background-color 0.12s, color 0.12s;
+      }
+      .con-btn--default { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 1px 2px rgb(0 0 0 / 0.2); }
+      .con-btn--default:hover, .con-btn--default.is-hover { background: hsl(var(--primary) / 0.9); }
+      .con-btn--destructive { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); box-shadow: 0 1px 2px rgb(0 0 0 / 0.2); }
+      .con-btn--destructive:hover, .con-btn--destructive.is-hover { background: hsl(var(--destructive) / 0.9); }
+      .con-btn--outline { border-color: hsl(var(--input)); color: hsl(var(--foreground)); box-shadow: 0 1px 2px rgb(0 0 0 / 0.15); }
+      .con-btn--outline:hover, .con-btn--outline.is-hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+      .con-btn--secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); box-shadow: 0 1px 2px rgb(0 0 0 / 0.15); }
+      .con-btn--secondary:hover, .con-btn--secondary.is-hover { background: hsl(var(--secondary) / 0.8); }
+      .con-btn--ghost { color: hsl(var(--foreground)); }
+      .con-btn--ghost:hover, .con-btn--ghost.is-hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+      .con-btn--link { color: hsl(var(--primary)); text-underline-offset: 4px; }
+      .con-btn--link:hover, .con-btn--link.is-hover { text-decoration: underline; }
+      .con-btn--sm { height: 32px; padding: 0 12px; font-size: 12px; }
+      .con-btn--lg { height: 40px; padding: 0 32px; }
+      .con-btn--icon { height: 36px; width: 36px; padding: 0; }
+      .con-btn[disabled], .con-btn.is-disabled { opacity: 0.5; pointer-events: none; }
+      .con-btn svg { width: 16px; height: 16px; flex: none; }
+      
+      .con-input {
+        width: 100%; height: 36px; border: 1px solid hsl(var(--input)); border-radius: calc(var(--radius) - 2px);
+        background: transparent; padding: 0 12px; font-family: var(--font-body); font-size: 14px;
+        color: hsl(var(--foreground));
+      }
+      .con-input::placeholder { color: hsl(var(--muted-foreground)); }
+      .con-input:focus-visible, .con-btn:focus-visible {
+        outline: none; box-shadow: 0 0 0 1px hsl(var(--ring));
+      }
+      .con-label { display: block; font-size: 13px; font-weight: 500; color: hsl(var(--foreground)); }
+      
+      .con-badge {
+        display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid transparent;
+        padding: 2px 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+      }
+      .con-badge--default { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+      .con-badge--secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
+      .con-badge--outline { border-color: hsl(var(--border)); color: hsl(var(--foreground)); }
+      .con-badge--destructive { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+      
+      /* ---- surfaces -------------------------------------------------------- */
+      .con-card {
+        border: 1px solid hsl(var(--border)); background: hsl(var(--card)); color: hsl(var(--card-foreground));
+        border-radius: var(--radius); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+      }
+      .con-card-h { display: flex; flex-direction: column; gap: 6px; padding: 16px; }
+      .con-card-t { margin: 0; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: hsl(var(--muted-foreground)); }
+      .con-card-b { padding: 0 16px 16px; }
+      
+      .con-panel {
+        overflow: hidden; border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+        border-radius: calc(var(--radius) + 2px);
+      }
+      .con-panel-h {
+        display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+        border-bottom: 1px solid hsl(var(--border));
+        background: linear-gradient(to bottom, hsl(var(--accent) / 0.05), transparent);
+        padding: 12px 16px;
+      }
+      .con-panel-t { margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: hsl(var(--accent)); }
+      .con-panel-meta { font-size: 12px; color: hsl(var(--muted-foreground)); }
+      .con-panel-b { padding: 14px 16px; }
+      .con-note { margin: 10px 0 0; font-size: 12px; font-style: italic; color: hsl(var(--muted-foreground)); }
+      
+      .con-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+      .con-stat {
+        border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+        border-radius: calc(var(--radius) + 2px); padding: 14px 16px 12px;
+      }
+      .con-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: hsl(var(--muted-foreground)); }
+      .con-stat-value { margin-top: 6px; font-family: var(--font-display); font-size: 26px; font-weight: 600; line-height: 1.05; color: hsl(var(--foreground)); }
+      .con-stat-unit { margin-left: 4px; font-family: var(--font-body); font-size: 14px; font-weight: 400; color: hsl(var(--muted-foreground)); }
+      .con-stat-hint { margin-top: 2px; font-size: 12px; color: hsl(var(--muted-foreground)); }
+      .con-meter { margin-top: 10px; height: 5px; overflow: hidden; border-radius: 3px; background: var(--meter-track); }
+      .con-meter-f { display: block; height: 100%; background: linear-gradient(to right, var(--live-dim), var(--live)); }
+      .con-meter-f--warm { background: linear-gradient(to right, var(--warm-dim), var(--warm)); }
+      
+      /* ---- the rail and the sub-nav ---------------------------------------- */
+      .con-shell { display: flex; border: 1px solid hsl(var(--border)); border-radius: var(--radius); overflow: hidden; min-height: 320px; }
+      .con-rail {
+        display: flex; width: 72px; flex: none; flex-direction: column; align-items: center; gap: 12px;
+        border-right: 1px solid rgb(0 0 0 / 0.2); background: var(--rail-bg); padding: 16px 0;
+      }
+      .con-coin {
+        display: flex; height: 44px; width: 44px; align-items: center; justify-content: center;
+        border: 2px solid; border-radius: 999px; font-family: var(--font-display); font-size: 16px;
+        font-weight: 600; cursor: pointer; background: none; transition: border-color 0.12s, color 0.12s;
+      }
+      .con-coin--idle { border-color: var(--coin-idle-border); background: var(--coin-idle-bg); color: var(--coin-idle-fg); }
+      .con-coin--idle:hover { border-color: var(--coin-hi); color: hsl(var(--foreground)); }
+      .con-coin--active { border-color: var(--live); background: hsl(var(--card)); color: hsl(var(--foreground)); box-shadow: var(--coin-glow); }
+      .con-coin--add { border-style: dashed; border-color: rgb(255 255 255 / 0.2); color: var(--coin-idle-fg); background: none; }
+      .con-coin--brand { height: 36px; width: 36px; border: 0; background: var(--brand-mark); color: var(--brand-mark-fg); font-size: 14px; }
+      .con-rail-spacer { flex: 1; }
+      
+      .con-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+      .con-subnav { display: flex; gap: 4px; border-bottom: 1px solid hsl(var(--border)); padding: 10px 20px; overflow-x: auto; }
+      .con-subnav-item {
+        white-space: nowrap; border-radius: 999px; padding: 5px 14px; font-size: 13px;
+        color: hsl(var(--muted-foreground)); text-decoration: none; cursor: pointer;
+      }
+      .con-subnav-item.is-active { background: hsl(var(--secondary)); color: hsl(var(--foreground)); }
+      .con-body { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; }
+      
+      /* ---- logs, tables, dialogs ------------------------------------------- */
+      .con-log {
+        border: 1px solid hsl(var(--border)); background: var(--log-bg); border-radius: calc(var(--radius) - 2px);
+        padding: 10px 12px; font-family: var(--font-mono); font-size: 12px; line-height: 1.55;
+      }
+      .con-log-line { white-space: pre-wrap; word-break: break-all; color: hsl(var(--foreground) / 0.7); }
+      .con-log-line--error { color: var(--danger); }
+      .con-log-line--warn { color: hsl(var(--accent)); }
+      .con-log-line--join { color: var(--live); }
+      .con-log-line--save { color: var(--ok); }
+      
+      .con-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .con-table th {
+        text-align: left; padding: 8px 12px; border-bottom: 1px solid hsl(var(--border));
+        font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+        color: hsl(var(--muted-foreground));
+      }
+      .con-table td { padding: 9px 12px; border-bottom: 1px solid hsl(var(--border) / 0.6); }
+      .con-table tr:last-child td { border-bottom: 0; }
+      
+      .con-dialog {
+        position: relative; width: 100%; max-width: 30rem; border: 1px solid hsl(var(--border));
+        background: hsl(var(--popover)); color: hsl(var(--popover-foreground));
+        border-radius: var(--radius); padding: 22px; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+      }
+      .con-dialog-t { margin: 0; font-size: 17px; font-weight: 600; }
+      .con-dialog-b { margin: 8px 0 0; font-size: 14px; color: hsl(var(--muted-foreground)); }
+      .con-dialog-f { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+      
+      .con-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; }
+      .con-dot--live { background: var(--live); }
+      .con-dot--ok { background: var(--ok); }
+      .con-dot--down { background: hsl(var(--muted-foreground)); }
+      .con-dot--danger { background: var(--danger); }
+      
+      .con-type-row { display: flex; align-items: baseline; gap: 18px; border-bottom: 1px solid hsl(var(--border)); padding: 12px 0; }
+      .con-type-row:last-child { border-bottom: 0; }
+      .con-type-key { width: 200px; flex: none; font-family: var(--font-mono); font-size: 11px; color: hsl(var(--muted-foreground)); }
+      
+      /* ---- flametender flourishes ------------------------------------------ */
+      /* The terrace top-light: a 1px inset highlight — stone catching light from
+         above while the fog sits below. Panels and cards, never controls. */
+      .ft-toplight { box-shadow: inset 0 1px 0 rgba(226, 222, 208, 0.07); }
+      
+      /* The fog line: the Shroud pooled at the foot of the viewport, the one piece
+         of atmosphere on the page. Static by design. */
+      .ft-ground {
+        background-image:
+          linear-gradient(to top, rgba(24, 32, 25, 0.9), rgba(24, 32, 25, 0.45) 30%, transparent 55%),
+          radial-gradient(ellipse 1000px 420px at 50% 108%, rgba(52, 68, 55, 0.35), transparent);
+      }
+      
+      /* The horizon rule under the Overview hero: a stone line fading at both ends
+         — the page's single flourish outside the fog and the flame. */
+      .ft-horizon {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(152, 145, 124, 0.55) 12%, rgba(152, 145, 124, 0.55) 88%, transparent);
+      }
+      
+      /* The lit flame's breathing — slow enough to read as a flame at rest, not an
+         alert. Stilled for reduced motion. */
+      @keyframes ft-flicker {
+        0%, 100% { opacity: 0.65; transform: scale(1); }
+        38% { opacity: 1; transform: scale(1.04); }
+        62% { opacity: 0.82; transform: scale(0.985); }
+      }
+      .ft-flame-lit { animation: ft-flicker 3.6s ease-in-out infinite; transform-origin: 50% 80%; }
+      @media (prefers-reduced-motion: reduce) { .ft-flame-lit { animation: none; opacity: 0.9; } }
+      
+      .ft-sigil {
+        display: flex; height: 36px; width: 36px; align-items: center; justify-content: center;
+        border: 1px solid var(--ft-stone); border-radius: 999px; background: var(--ft-panel);
+        font-family: var(--font-display); font-size: 16px; color: var(--ft-stonehi);
+      }
+    </style>
+  </head>
+  <body class="ds-page">
+    <header class="ds-head">
+      <p class="ds-eyebrow">Flametender · Components</p>
+      <h1 class="ds-title">Buttons</h1>
+      <p class="ds-sub">The same six, stone-toned, square corners</p>
+      <p class="ds-intent">Identical to wildskeeper's component; the visible differences are entirely
+            token-deep. <code>default</code> is stone rather than brass, <code>destructive</code>
+            is spore rather than ember, focus is flame rather than rune, and the corner radius
+            is 4px rather than 6px with no notch anywhere.</p>
+    </header>
+    <main class="ds-body">
+      <section class="ds-specimen">
+<p class="ds-caption">Variants</p>
+        <div class="ds-stage">
+          <button class="con-btn con-btn--default">Start</button>
+          <button class="con-btn con-btn--secondary">Restart</button>
+          <button class="con-btn con-btn--outline">Logs</button>
+          <button class="con-btn con-btn--ghost">Cancel</button>
+          <button class="con-btn con-btn--destructive">Delete server</button>
+          <button class="con-btn con-btn--link">Open the wiki</button>
+        </div>
+      </section>
+      <section class="ds-specimen">
+<p class="ds-caption">Sizes, and the disabled state</p>
+        <div class="ds-stage">
+          <button class="con-btn con-btn--default con-btn--sm">Save</button>
+          <button class="con-btn con-btn--default">Save</button>
+          <button class="con-btn con-btn--default con-btn--lg">Save</button>
+          <button class="con-btn con-btn--default is-disabled">Saving…</button>
+        </div>
+      </section>
+      <section class="ds-specimen">
+<p class="ds-caption">Focus is flame, because focus is live state</p>
+        <div class="ds-stage">
+          <span style="display:inline-flex;box-shadow:0 0 0 1px hsl(var(--ring));border-radius:calc(var(--radius) - 2px)"><button class="con-btn con-btn--default">Start</button></span>
+          <span style="display:inline-flex;box-shadow:0 0 0 1px hsl(var(--ring));border-radius:calc(var(--radius) - 2px)"><button class="con-btn con-btn--outline">Logs</button></span>
+        </div>
+      </section>
+      <section class="ds-meta">
+        <h2 class="ds-meta-h">Rules</h2>
+        <ul class="ds-rules">
+            <li>No clipped corners. The notch is wildskeeper's signature and borrowing it blurs two themes that are otherwise distinguishable at a glance.</li>
+            <li><code>destructive</code> is for verbs that lose something unrecoverable. Restart is not destructive.</li>
+            <li>A feature Enshrouded cannot support answers with a 501 that names where the ability actually lives, rather than hiding the button.</li>
+        </ul>
+      </section>
+      <section class="ds-meta">
+        <h2 class="ds-meta-h">Implemented by</h2>
+        <ul class="ds-paths">
+            <li><code>web/flametender/src/components/ui/button.tsx</code></li>
+            <li><code>web/flametender/src/components/FeatureGate.tsx</code></li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

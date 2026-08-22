@@ -49,7 +49,9 @@ for (const dir of dirs) {
   }
   const declared = declaredVars(await readFile(cssPath, "utf8"));
   let bad = 0;
-  for (const t of system.tokens.colors) {
+
+  // Colors and scalars: both are `--name: value` in the app's own :root.
+  for (const t of [...system.tokens.colors, ...(system.tokens.scalars ?? [])]) {
     const have = declared.get(t.name);
     if (have === undefined) {
       console.error(`${dir}: --${t.name} is in the design system but not in ${system.source.css}`);
@@ -61,8 +63,39 @@ for (const dir of dirs) {
       bad++;
     }
   }
+
+  // The literal palette lives in the Tailwind config rather than the
+  // stylesheet, and its keys are nested by group (`brand.red`, `tier.slate`),
+  // so match on the value: a hex that is no longer anywhere in the config is
+  // a colour the design system is inventing.
+  const lits = system.tokens.literals;
+  if (lits) {
+    const twPath = join(repo, system.source.tailwind);
+    if (!existsSync(twPath)) {
+      console.error(`${dir}: Tailwind config ${system.source.tailwind} does not exist`);
+      bad++;
+    } else {
+      const tw = (await readFile(twPath, "utf8")).toLowerCase();
+      for (const t of lits.entries) {
+        if (!tw.includes(t.hex.toLowerCase())) {
+          console.error(
+            `${dir}: ${lits.prefix}.${t.name} = ${t.hex} is in the design system but not in ${system.source.tailwind}`,
+          );
+          bad++;
+        }
+      }
+    }
+  }
+
   if (bad) fail = 1;
-  else console.log(`${dir}: ${system.tokens.colors.length} tokens match ${system.source.css}`);
+  else {
+    const counts = [
+      `${system.tokens.colors.length} tokens`,
+      ...(system.tokens.scalars?.length ? [`${system.tokens.scalars.length} scalar${system.tokens.scalars.length === 1 ? "" : "s"}`] : []),
+    ].join(" + ");
+    const extra = lits ? `, ${lits.entries.length} ${lits.prefix}.* literals match ${system.source.tailwind}` : "";
+    console.log(`${dir}: ${counts} match ${system.source.css}${extra}`);
+  }
 }
 
 if (fail) {

@@ -1,0 +1,66 @@
+{
+  "app": "palcon",
+  "title": "Palcon",
+  "cards": [
+    {
+      "name": "Palette",
+      "path": "palette.html",
+      "subtitle": "Warm paper and ink, brand red and amber, a deeper alarm red",
+      "group": "Foundations",
+      "viewport": {
+        "width": 940,
+        "height": 1020
+      }
+    },
+    {
+      "name": "Type",
+      "path": "typography.html",
+      "subtitle": "Baloo 2 for identity, Manrope for prose, JetBrains Mono for facts",
+      "group": "Foundations",
+      "viewport": {
+        "width": 940,
+        "height": 740
+      }
+    },
+    {
+      "name": "Buttons",
+      "path": "buttons.html",
+      "subtitle": "Brand red primary, deeper red for loss, generous corners",
+      "group": "Components",
+      "viewport": {
+        "width": 940,
+        "height": 660
+      }
+    },
+    {
+      "name": "Panel and stats",
+      "path": "panel.html",
+      "subtitle": "The shared grammar, on paper",
+      "group": "Components",
+      "viewport": {
+        "width": 940,
+        "height": 800
+      }
+    },
+    {
+      "name": "Shell and Pal Spheres",
+      "path": "shell.html",
+      "subtitle": "A dark rail in a light app",
+      "group": "Components",
+      "viewport": {
+        "width": 1000,
+        "height": 640
+      }
+    },
+    {
+      "name": "Game data",
+      "path": "game-data.html",
+      "subtitle": "Passives, rarity and stats — colours sampled, not chosen",
+      "group": "Components",
+      "viewport": {
+        "width": 940,
+        "height": 820
+      }
+    }
+  ]
+}

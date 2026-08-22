@@ -1,0 +1,106 @@
+{
+  "app": "companion",
+  "title": "Artificer Companion",
+  "cards": [
+    {
+      "name": "Shared palette",
+      "path": "shared-palette.html",
+      "subtitle": "The same eleven tokens reliquary declares",
+      "group": "Foundations",
+      "viewport": {
+        "width": 900,
+        "height": 860
+      }
+    },
+    {
+      "name": "Type",
+      "path": "typography.html",
+      "subtitle": "Georgia, and mono for anything about this machine",
+      "group": "Foundations",
+      "viewport": {
+        "width": 900,
+        "height": 700
+      }
+    },
+    {
+      "name": "Buttons",
+      "path": "button.html",
+      "subtitle": "The vault's three, with the companion's verbs",
+      "group": "Actions",
+      "viewport": {
+        "width": 900,
+        "height": 700
+      }
+    },
+    {
+      "name": "Custody chip",
+      "path": "custody-chip.html",
+      "subtitle": "Six states — the service's three, plus this machine's",
+      "group": "Status",
+      "viewport": {
+        "width": 900,
+        "height": 640
+      }
+    },
+    {
+      "name": "Connection",
+      "path": "connection.html",
+      "subtitle": "Reachable, as whom, how fresh",
+      "group": "Status",
+      "viewport": {
+        "width": 940,
+        "height": 620
+      }
+    },
+    {
+      "name": "Section headers and panel failure",
+      "path": "panel-failure.html",
+      "subtitle": "A panel that fails, fails alone — and says which",
+      "group": "Status",
+      "viewport": {
+        "width": 900,
+        "height": 520
+      }
+    },
+    {
+      "name": "The shelf",
+      "path": "shelf.html",
+      "subtitle": "Linked in colour, unlinked greyed",
+      "group": "Patterns",
+      "viewport": {
+        "width": 940,
+        "height": 620
+      }
+    },
+    {
+      "name": "Linked world row",
+      "path": "world-row.html",
+      "subtitle": "The world, the folder, and one action",
+      "group": "Patterns",
+      "viewport": {
+        "width": 940,
+        "height": 760
+      }
+    },
+    {
+      "name": "Scan trail",
+      "path": "scan-trail.html",
+      "subtitle": "Where it looked, and what it found",
+      "group": "Patterns",
+      "viewport": {
+        "width": 940,
+        "height": 560
+      }
+    },
+    {
+      "name": "Update banner",
+      "path": "update-banner.html",
+      "subtitle": "A different build is available, and what it will do",
+      "group": "Patterns",
+      "viewport": {
+        "width": 940,
+        "height": 460
+      }
+    }
+  ]
+}

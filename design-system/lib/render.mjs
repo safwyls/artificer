@@ -10,15 +10,36 @@
 // The first line of every page is the `@dsCard` marker Claude Design's
 // Design System pane indexes by; see design-system/README.md for the sync.
 
-/** The color tokens as a `:root` block, in the app's own declaration form. */
+/**
+ * The `:root` block: the app's own tokens verbatim, then the literal palette
+ * its Tailwind config names, then the `--ds-*` variables the preview chrome
+ * is written against. The chrome knows nothing about an app's token names or
+ * whether they are RGB or HSL triples — a system maps them once, here.
+ */
 export function tokenBlock(system) {
   const lines = system.tokens.colors.map(
     (t) => `  --${t.name}: ${t.value}; /* ${t.hex} — ${t.use} */`,
   );
+  for (const t of system.tokens.literals?.entries ?? []) {
+    lines.push(`  --${system.tokens.literals.prefix}-${t.name}: ${t.hex}; /* ${t.use} */`);
+  }
   for (const [name, value] of Object.entries(system.tokens.derived ?? {})) {
     lines.push(`  --${name}: ${value};`);
   }
+  lines.push("  /* preview chrome */");
+  for (const [name, value] of Object.entries(system.chrome)) {
+    lines.push(`  --ds-${name}: ${value};`);
+  }
   return `:root {\n${lines.join("\n")}\n  color-scheme: ${system.tokens.colorScheme};\n}`;
+}
+
+/** The stylesheet link for a system's webfonts, if it names any. Google Fonts
+ *  is the one external host a published Claude Design page may reach; offline
+ *  and off disk the pages fall back to the stacks the kit declares. */
+function fontLink(system) {
+  return system.fontHref
+    ? `\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link rel="stylesheet" href="${system.fontHref}" />`
+    : "";
 }
 
 const esc = (s) =>
@@ -67,7 +88,7 @@ export function renderCard(system, group, card) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${esc(system.title)} · ${esc(card.name)}</title>
+    <title>${esc(system.title)} · ${esc(card.name)}</title>${fontLink(system)}
     <style>
 ${tokenBlock(system)
   .split("\n")
@@ -121,7 +142,7 @@ export function renderIndex(system) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${esc(system.title)} design system</title>
+    <title>${esc(system.title)} design system</title>${fontLink(system)}
     <style>
 ${tokenBlock(system)
   .split("\n")
