@@ -1,0 +1,76 @@
+{
+  "app": "flametender",
+  "title": "Flametender",
+  "cards": [
+    {
+      "name": "Palette",
+      "path": "palette.html",
+      "subtitle": "Stone structure, flame live state, spore danger",
+      "group": "Foundations",
+      "viewport": {
+        "width": 940,
+        "height": 980
+      }
+    },
+    {
+      "name": "Type",
+      "path": "typography.html",
+      "subtitle": "Grenze Gotisch budgeted, Karla for everything, IBM Plex Mono for facts",
+      "group": "Foundations",
+      "viewport": {
+        "width": 940,
+        "height": 760
+      }
+    },
+    {
+      "name": "Atmosphere",
+      "path": "atmosphere.html",
+      "subtitle": "Fog below, top-light above, one flame breathing",
+      "group": "Foundations",
+      "viewport": {
+        "width": 940,
+        "height": 780
+      }
+    },
+    {
+      "name": "Buttons",
+      "path": "buttons.html",
+      "subtitle": "The same six, stone-toned, square corners",
+      "group": "Components",
+      "viewport": {
+        "width": 940,
+        "height": 640
+      }
+    },
+    {
+      "name": "Terrace and stats",
+      "path": "panel.html",
+      "subtitle": "The grammar every page is built from",
+      "group": "Components",
+      "viewport": {
+        "width": 940,
+        "height": 840
+      }
+    },
+    {
+      "name": "Shell and server rail",
+      "path": "shell.html",
+      "subtitle": "Flame coins, one lit",
+      "group": "Components",
+      "viewport": {
+        "width": 1000,
+        "height": 640
+      }
+    },
+    {
+      "name": "State, bans and dialogs",
+      "path": "state.html",
+      "subtitle": "Running, stopped, unreachable — and confirming a loss",
+      "group": "Components",
+      "viewport": {
+        "width": 940,
+        "height": 760
+      }
+    }
+  ]
+}

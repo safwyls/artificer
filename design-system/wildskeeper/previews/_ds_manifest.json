@@ -1,0 +1,76 @@
+{
+  "app": "wildskeeper",
+  "title": "Wildskeeper",
+  "cards": [
+    {
+      "name": "Palette",
+      "path": "palette.html",
+      "subtitle": "Brass structure, rune live state, ember danger",
+      "group": "Foundations",
+      "viewport": {
+        "width": 940,
+        "height": 980
+      }
+    },
+    {
+      "name": "Type",
+      "path": "typography.html",
+      "subtitle": "Cinzel for identity, Alegreya Sans for prose, JetBrains Mono for facts",
+      "group": "Foundations",
+      "viewport": {
+        "width": 940,
+        "height": 760
+      }
+    },
+    {
+      "name": "Flourishes",
+      "path": "flourishes.html",
+      "subtitle": "Clipped notch, brass brackets, the dragon eye",
+      "group": "Foundations",
+      "viewport": {
+        "width": 940,
+        "height": 720
+      }
+    },
+    {
+      "name": "Buttons",
+      "path": "buttons.html",
+      "subtitle": "shadcn's six variants, brass-toned",
+      "group": "Components",
+      "viewport": {
+        "width": 940,
+        "height": 640
+      }
+    },
+    {
+      "name": "Panel and stats",
+      "path": "panel.html",
+      "subtitle": "The grammar every page is built from",
+      "group": "Components",
+      "viewport": {
+        "width": 940,
+        "height": 820
+      }
+    },
+    {
+      "name": "Shell and server rail",
+      "path": "shell.html",
+      "subtitle": "Rune coins, one lit",
+      "group": "Components",
+      "viewport": {
+        "width": 1000,
+        "height": 640
+      }
+    },
+    {
+      "name": "State and dialogs",
+      "path": "state.html",
+      "subtitle": "Running, stopped, unreachable — and confirming a loss",
+      "group": "Components",
+      "viewport": {
+        "width": 940,
+        "height": 720
+      }
+    }
+  ]
+}

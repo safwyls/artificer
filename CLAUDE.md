@@ -95,10 +95,16 @@ standalone preview pages committed under `<app>/previews/`. Every page
 inlines its own tokens and links to nothing, so one file renders the
 same off disk, in a Claude Design project card, and in a diff; the
 first line is the `@dsCard` marker Claude Design indexes by.
-`./scripts/checkdesign.sh` is the guard — token parity against the app's
-own `index.css`, plus a rebuild-and-diff of the committed previews.
-**reliquary is done; the other four are not** —
-`design-system/README.md` has the shape to copy.
+`./scripts/checkdesign.sh` is the guard — every token, `--radius` and
+literal hex compared against the app's own `index.css` and Tailwind
+config, plus a rebuild-and-diff of the committed previews. **All five
+are done.** They are three design languages, and the module layout says
+so: `lib/vault.mjs` holds the palette and primitives reliquary and the
+companion share verbatim (two halves of one custody flow, not two
+products that match), and `lib/console.mjs` holds the shadcn-semantic
+kit the three consoles share — feed it palcon's values and it comes out
+light and rounded, flametender's and it comes out mossy and square.
+`design-system/README.md` is the method.
 
 Tests: `go build ./... && go vet ./... && go test ./...`,
 `./scripts/checkbounds.sh`, `./scripts/checkdesign.sh`, and
