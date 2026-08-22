@@ -37,6 +37,7 @@ jobs:
             web/wildskeeper/package-lock.json
             web/palcon/package-lock.json
             web/reliquary/package-lock.json
+            web/companion/package-lock.json
       - name: Flametender frontend build & tests
         working-directory: web/flametender
         run: |
@@ -57,6 +58,12 @@ jobs:
           npm test
       - name: Reliquary frontend build & tests
         working-directory: web/reliquary
+        run: |
+          npm ci
+          npm run build
+          npm test
+      - name: Companion frontend build & tests
+        working-directory: web/companion
         run: |
           npm ci
           npm run build

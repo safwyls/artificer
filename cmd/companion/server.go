@@ -1,29 +1,37 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	web "github.com/safwyls/artificer/web/companion"
 )
 
-//go:embed ui
-var uiFS embed.FS
+// ui is the built React frontend, embedded in web/companion the way the
+// consoles and reliquary embed theirs. It must be embedded rather than
+// served from disk: the companion is one exe a player downloads, with no
+// installer and nothing beside it.
+var ui = func() fs.FS {
+	dist, err := web.Dist()
+	if err != nil {
+		// Only reachable if the binary was built without a frontend
+		// build, which the Dockerfile and release workflow both do.
+		panic("companion frontend missing from build: " + err.Error())
+	}
+	return dist
+}()
 
 func (a *app) routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		data, err := uiFS.ReadFile("ui/index.html")
-		if err != nil {
-			http.Error(w, "ui missing from build", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(data)
-	})
+	// The page and its assets. Everything that is not /api is the
+	// frontend; there is no router in it, so index.html is the only
+	// document — but the hashed JS/CSS beside it must be served too.
+	mux.Handle("GET /", http.FileServerFS(ui))
 	mux.HandleFunc("GET /api/state", a.handleState)
 	mux.HandleFunc("PUT /api/config", a.handleSetConfig)
 	mux.HandleFunc("POST /api/discover", a.handleDiscover)
@@ -175,7 +183,7 @@ func (a *app) handleArtwork(w http.ResponseWriter, r *http.Request) {
 // which a silent background poll never does.
 func (a *app) handleSyncNow(w http.ResponseWriter, r *http.Request) {
 	if !a.syncConfigured() {
-		writeJSON(w, map[string]any{"ok": false, "error": "not connected — set the service URL and your token below"})
+		writeJSON(w, map[string]any{"ok": false, "error": "not connected — set the service URL and your token in Settings"})
 		return
 	}
 	if err := a.syncRefresh(); err != nil {

@@ -130,18 +130,28 @@ installed games, links their save folders to worlds, and moves the
 saves; the agent's `PUT /v1/files/save` lets a dedicated server hold a
 world through the world's own agent link. Consoles host none of it.
 
-Its UI is a React frontend (`web/reliquary`), built and embedded like
-the three consoles' and structured the same way — app shell, router,
+Both UIs are React frontends now — `web/reliquary` for the service and
+`web/companion` for the player-side app — built and embedded like the
+three consoles' and structured the same way — app shell, router,
 `lib/api`, per-component tests. It replaced the single 702-line vanilla
 page on 2026-08-21 to the plan in `docs/reliquary-ui-rebuild.md`; the
-vault's visual identity was kept rather than redesigned. What that page
-had learned is now enforced by tests rather than by comments: the whole
+vault's visual identity was kept rather than redesigned; the companion
+followed on 2026-08-22 (`docs/companion-ui-rebuild.md`), wearing the
+same palette because it is the player-side half of one system. What
+those pages had learned is now enforced by tests rather than by
+comments: the whole
 record goes to the user-update API (a partial write clears the fields it
 omits — and the same is true of the world-settings API, which the
 Settings and Server link tabs both write through), covers are fetched
 once per *set* of worlds and never on the poll, and a value that
 contains quotes or angle brackets renders as text with its verbs still
-working. **Verified in tests only so far** — no real friend-group rotation has
+working. On the companion the same list runs: covers and save-location
+hints are asked for when the *set of installed games* changes rather
+than once at boot (the bug that made good IGDB credentials look dead),
+the scan trail's open state belongs to the player and survives the
+five-second poll, a half-filled link form is never clobbered by that
+poll, link failures render inside the dialog, and each panel fails
+alone. **Verified in tests only so far** — no real friend-group rotation has
 run through it yet, and the phase 0 recon items below gate calling it
 done.
 
