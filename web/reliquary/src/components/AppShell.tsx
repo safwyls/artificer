@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCustodyStream } from "../lib/live";
 import { cn } from "../lib/utils";
+import { RelicMark } from "./RelicMark";
 
 /**
  * The shell every signed-in page sits in: the sidebar names what this
@@ -45,6 +46,7 @@ export function AppShell() {
           name and build are one identity, as on the login page. */}
       <header className="sticky top-0 z-40 border-b border-edge bg-well md:hidden">
         <div className="flex items-center gap-2.5 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <RelicMark className="h-[19px] w-[19px] text-gold" />
           <span className="text-[19px] tracking-[0.06em] text-gold">Reliquary</span>
           <span className="font-mono text-[10px] text-mist">{version.data?.version ?? "…"}</span>
           {liveDot}
@@ -79,7 +81,10 @@ export function AppShell() {
       </header>
       <nav className="hidden w-56 flex-none flex-col border-r border-edge bg-well py-6 md:flex">
         <div className="border-b border-edge px-5 pb-5">
-          <div className="text-[21px] tracking-[0.06em] text-gold">Reliquary</div>
+          <div className="flex items-center gap-2">
+            <RelicMark className="h-[21px] w-[21px] text-gold" />
+            <div className="text-[21px] tracking-[0.06em] text-gold">Reliquary</div>
+          </div>
           <div className="mt-0.5 text-[12px] text-mist">the vault of shared worlds</div>
         </div>
         <div className="flex flex-col gap-0.5 px-2.5 py-3.5">
