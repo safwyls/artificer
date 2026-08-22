@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
-import { ShieldPlus } from "lucide-react";
 import { api, errorDetail } from "../lib/api";
+import { RelicMark } from "../components/RelicMark";
 import { useAuth } from "../lib/auth";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -68,7 +68,7 @@ export function Login() {
         className="flex w-full max-w-[360px] flex-col rounded-panel border border-edge bg-panel px-6 pb-[26px] pt-[30px] sm:px-8"
       >
         <div className="mb-3.5 flex flex-col items-center gap-1.5">
-          <ShieldPlus className="h-8 w-8 text-gold" strokeWidth={1.2} aria-hidden />
+          <RelicMark className="h-8 w-8 text-gold" />
           <div className="text-[22px] tracking-[0.06em] text-gold">Reliquary</div>
           <div className="text-[13px] text-mist">Sign in to the vault.</div>
         </div>
