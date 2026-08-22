@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { artFor, custodyOf, gameKey } from "./types";
+import { artFor, custodyOf, gameKey, launchTargetOf, launchable } from "./types";
 import { makeLink, makeSyncWorld } from "../test/utils";
 
 // One identity for a game, shared by the artwork map, the hidden list and
@@ -73,5 +73,25 @@ describe("custodyOf", () => {
   it("reports a world the service no longer knows, but only when connected", () => {
     expect(custodyOf(makeLink(), undefined, "safwyl", true)).toBe("gone");
     expect(custodyOf(makeLink(), undefined, undefined, false)).toBe("free");
+  });
+});
+
+// Mirrors launchTarget() in launch.go. The companion is still the one
+// that decides what to open; this only labels the button, and the two
+// must not disagree about whether there is anything to open at all.
+describe("launchTargetOf", () => {
+  it("builds Steam's run URI from the app id", () => {
+    expect(launchTargetOf(makeLink({ appId: "1203620" }))).toBe("steam://rungameid/1203620");
+  });
+
+  it("prefers the player's own override", () => {
+    expect(launchTargetOf(makeLink({ appId: "1203620", launchTarget: "D:\\g.lnk" }))).toBe("D:\\g.lnk");
+  });
+
+  it("has nothing to open for a folder linked by hand", () => {
+    expect(launchTargetOf(makeLink({ appId: "" }))).toBe("");
+    expect(launchable(makeLink({ appId: "" }))).toBe(false);
+    expect(launchable(makeLink({ appId: "", launchTarget: "   " }))).toBe(false);
+    expect(launchable(makeLink())).toBe(true);
   });
 });

@@ -29,6 +29,7 @@ export interface ConfigInput {
   serverUrl?: string;
   token?: string;
   steamDirs?: string[];
+  launchOnCheckout?: boolean;
 }
 
 export interface LinkInput {
@@ -74,8 +75,20 @@ export const api = {
   addLink: (input: LinkInput) => call("POST", "/api/links", input),
   createWorld: (input: CreateWorldInput) => call("POST", "/api/links/create", input),
   unlink: (worldID: number) => call("DELETE", `/api/links/${worldID}`),
+  /** Takes the world, installs its save, and — when the setting allows
+   * and the world has something to start — plays it. The answer says
+   * which of those happened: a save on disk with a game that would not
+   * start is a real outcome, not a failure. */
   checkout: (worldID: number, takeover: boolean) =>
-    call("POST", `/api/links/${worldID}/checkout`, { takeover }),
+    call<{ launched?: boolean; launchError?: string }>(
+      "POST",
+      `/api/links/${worldID}/checkout`,
+      { takeover },
+    ),
+  /** Start the game for a world already held here. */
+  launch: (worldID: number) => call("POST", `/api/links/${worldID}/launch`),
+  updateLink: (worldID: number, input: { launchTarget?: string }) =>
+    call("PUT", `/api/links/${worldID}`, input),
   checkin: (worldID: number) => call("POST", `/api/links/${worldID}/checkin`),
   checkpoint: (worldID: number) => call("POST", `/api/links/${worldID}/checkpoint`),
   renew: (worldID: number) => call("POST", `/api/links/${worldID}/renew`),

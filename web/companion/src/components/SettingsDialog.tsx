@@ -26,6 +26,7 @@ export function SettingsDialog({
   const steam = useSeededField(state.config?.steamDirs?.[0] ?? "");
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
+  const launchOnCheckout = state.config?.launchOnCheckout ?? true;
 
   const connect = async (e: FormEvent) => {
     e.preventDefault();
@@ -99,6 +100,33 @@ export function SettingsDialog({
           <Button type="button" className="mt-2" disabled={busy} onClick={saveSteam}>
             Save folder &amp; rescan
           </Button>
+        </div>
+
+        <div className="mt-6 border-t border-edge pt-4">
+          <label className="flex items-start gap-2.5 text-[14px]">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={launchOnCheckout}
+              onChange={async (e) => {
+                try {
+                  await api.setConfig({ launchOnCheckout: e.target.checked });
+                } catch (err) {
+                  toast.error(errorText(err));
+                } finally {
+                  refresh();
+                }
+              }}
+            />
+            <span>
+              Start the game when I check a world out
+              <span className="mt-0.5 block text-[12px] italic text-mist">
+                The save is put in place first, then the game starts — never the other way round. Switch it off to
+                take custody of a world without opening it. Games linked by hand carry nothing that says what starts
+                them, so those check out without launching either way.
+              </span>
+            </span>
+          </label>
         </div>
 
         <div className="mt-5 flex justify-end">

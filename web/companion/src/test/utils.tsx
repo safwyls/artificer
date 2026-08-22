@@ -75,7 +75,7 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
 
 export function makeState(overrides: Partial<CompanionState> = {}): CompanionState {
   return {
-    config: { serverUrl: "https://vault.example.test", tokenSet: true, steamDirs: [] },
+    config: { serverUrl: "https://vault.example.test", tokenSet: true, steamDirs: [], launchOnCheckout: true },
     links: [],
     discovered: { games: [], probes: [] },
     sync: { configured: true, username: "safwyl", worlds: [], busy: false },

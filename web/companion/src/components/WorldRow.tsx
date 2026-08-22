@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { api, errorText } from "../lib/api";
 import { useRefreshState } from "../lib/state";
-import { custodyOf, type Artwork, type Link, type SyncWorld } from "../lib/types";
+import { custodyOf, launchable, type Artwork, type Link, type SyncWorld } from "../lib/types";
 import { CoverArt } from "./CoverArt";
 import { CustodyChip, custodyLine } from "./CustodyChip";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -20,21 +20,52 @@ export function WorldRow({
   me,
   art,
   configured,
+  launchOnCheckout,
 }: {
   link: Link;
   world: SyncWorld | undefined;
   me: string | undefined;
   art: Record<string, Artwork>;
   configured: boolean;
+  /** The setting, so the button can promise only what will happen. */
+  launchOnCheckout: boolean;
 }) {
   const refresh = useRefreshState();
   const custody = custodyOf(link, world, me, configured);
   const title = link.gameTitle || world?.world.name || "";
+  // "& play" only when both halves are true: the setting is on, and this
+  // world has something to start. A world linked by hand from a folder
+  // has no app id, so the button goes back to promising the save alone.
+  const willPlay = launchOnCheckout && launchable(link);
 
   const run = async (fn: () => Promise<unknown>, okMsg?: string) => {
     try {
       await fn();
       if (okMsg) toast.success(okMsg);
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      refresh();
+    }
+  };
+
+  /**
+   * Checking out is two halves of one intention: fetch the save, then
+   * play. The companion does them in that order and reports both, because
+   * a save on disk with a game that would not start is a real outcome —
+   * the custody half succeeded and the player needs to know the other
+   * half did not, without being told the whole thing failed.
+   */
+  const checkout = async (takeover: boolean) => {
+    try {
+      const out = await api.checkout(link.worldId, takeover);
+      if (out.launchError) {
+        toast.warning(`checked out, but the game did not start: ${out.launchError}`);
+      } else if (out.launched) {
+        toast.success("checked out — the save is on this machine, and the game is starting");
+      } else {
+        toast.success("checked out — the save is on this machine");
+      }
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -60,13 +91,8 @@ export function WorldRow({
         <div className="break-all font-mono text-[11px] text-mist">{link.dir}</div>
         <div className="flex flex-wrap gap-2">
           {custody === "free" ? (
-            <Button
-              variant="primary"
-              onClick={() =>
-                run(() => api.checkout(link.worldId, false), "checked out — the save is on this machine")
-              }
-            >
-              Check out &amp; host
+            <Button variant="primary" onClick={() => checkout(false)}>
+              {willPlay ? "Check out & play" : "Check out & host"}
             </Button>
           ) : null}
           {custody === "mine" ? (
@@ -87,6 +113,13 @@ export function WorldRow({
               <Button onClick={() => run(() => api.renew(link.worldId), "hold renewed")}>
                 Renew hold
               </Button>
+              {/* The world is already here; this is for coming back to it
+                  later in the same hold, without checking anything out. */}
+              {launchable(link) ? (
+                <Button onClick={() => run(() => api.launch(link.worldId), "starting the game")}>
+                  Play
+                </Button>
+              ) : null}
             </>
           ) : null}
           {custody === "expired" ? (
@@ -95,7 +128,7 @@ export function WorldRow({
               title="Take over the expired hold?"
               body="The old holder's late check-in is kept and flagged, not lost."
               confirmLabel="Take over"
-              onConfirm={() => run(() => api.checkout(link.worldId, true), "world taken over")}
+              onConfirm={() => checkout(true)}
             />
           ) : null}
           {(custody === "held" || custody === "expired") && !world?.claimedBy ? (

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -840,4 +841,277 @@ func TestSyncErrorsDoNotLeakTheToken(t *testing.T) {
 	if strings.Contains(shown, "supersecrettoken") {
 		t.Errorf("the page's error line carries the sync token: %q", shown)
 	}
+}
+
+// --- starting the game once the save is in place (launch.go) ---
+
+func TestLaunchTarget(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		link *WorldLink
+		want string
+	}{
+		{"a Steam game launches through Steam", &WorldLink{AppID: "1623730"}, "steam://rungameid/1623730"},
+		{"an override wins over the app id", &WorldLink{AppID: "1623730", LaunchTarget: `D:\Games\modded.lnk`}, `D:\Games\modded.lnk`},
+		{"an override alone is enough", &WorldLink{LaunchTarget: "com.example.launcher://play"}, "com.example.launcher://play"},
+		// A folder linked by hand carries no app id and nothing that says
+		// what starts it. The companion must not guess.
+		{"a hand-linked folder has nothing to start", &WorldLink{}, ""},
+		{"whitespace is not a launch target", &WorldLink{LaunchTarget: "   "}, ""},
+		{"no link at all", nil, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := launchTarget(tc.link); got != tc.want {
+				t.Errorf("launchTarget = %q, want %q", got, tc.want)
+			}
+			if launchable(tc.link) != (tc.want != "") {
+				t.Errorf("launchable = %v for target %q", launchable(tc.link), tc.want)
+			}
+		})
+	}
+}
+
+func TestLaunchRefusesWhatItCannotStart(t *testing.T) {
+	a := newApp(Config{Links: []WorldLink{{WorldID: 1, Dir: t.TempDir()}}}, filepath.Join(t.TempDir(), "config.json"))
+	opened := 0
+	restore := stubLaunch(func(string) error { opened++; return nil })
+	defer restore()
+
+	if err := a.launch(2); err == nil || !strings.Contains(err.Error(), "link this world") {
+		t.Errorf("launching an unlinked world = %v, want it to say the world is not linked", err)
+	}
+	// The one that is linked but has nothing to start says *why*, and
+	// says what would fix it, rather than failing silently.
+	err := a.launch(1)
+	if err == nil {
+		t.Fatal("launch succeeded for a world with no app id and no launch target")
+	}
+	if !strings.Contains(err.Error(), "no Steam app id") || !strings.Contains(err.Error(), "launch target") {
+		t.Errorf("error = %q, want it to name the cause and the fix", err)
+	}
+	if opened != 0 {
+		t.Errorf("the desktop opener ran %d times for a world with nothing to start", opened)
+	}
+}
+
+// The whole point of the feature, and the one ordering that must never
+// invert: the save is in place *before* the game starts. Launching first
+// would have the game load the stale save and write over it at its first
+// autosave.
+func TestCheckoutInstallsTheSaveBeforeStartingTheGame(t *testing.T) {
+	source := t.TempDir()
+	if err := os.WriteFile(filepath.Join(source, "World.sav"), []byte("the world as the service holds it"), 0o600); err != nil {
+		t.Fatalf("write source save: %v", err)
+	}
+	var bundle bytes.Buffer
+	if err := packageWorldDir(source, &bundle); err != nil {
+		t.Fatalf("package: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/download") {
+			w.Write(bundle.Bytes())
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"accepted": true,
+			"world":    "Emberfall",
+			"session":  map[string]any{"id": 7, "baseVersion": 41},
+		})
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "World.sav"), []byte("stale local save"), 0o600)
+	a := newApp(Config{
+		ServerURL: srv.URL,
+		Token:     "tok",
+		Links:     []WorldLink{{WorldID: 1, Dir: dir, AppID: "1623730"}},
+	}, filepath.Join(t.TempDir(), "config.json"))
+
+	var launchedWith string
+	var sawAtLaunch string
+	restore := stubLaunch(func(uri string) error {
+		launchedWith = uri
+		// What is on disk at the moment the game is told to start.
+		data, _ := os.ReadFile(filepath.Join(dir, "World.sav"))
+		sawAtLaunch = string(data)
+		return nil
+	})
+	defer restore()
+
+	launched, launchErr, err := a.checkoutAndPlay(1, false)
+	if err != nil {
+		t.Fatalf("checkoutAndPlay: %v", err)
+	}
+	if launchErr != nil {
+		t.Fatalf("launch error: %v", launchErr)
+	}
+	if !launched {
+		t.Fatal("checkout did not start the game")
+	}
+	if launchedWith != "steam://rungameid/1623730" {
+		t.Errorf("launched %q, want the world's Steam run URI", launchedWith)
+	}
+	if sawAtLaunch != "the world as the service holds it" {
+		t.Errorf("the save on disk when the game started was %q — the checked-out save must be in place first", sawAtLaunch)
+	}
+}
+
+// The launch is the softer half. A game that will not start still leaves
+// the player holding the world with its save on disk, which is the part
+// that mattered — so the reason comes back rather than failing a
+// checkout that already succeeded.
+func TestAFailedLaunchDoesNotFailTheCheckout(t *testing.T) {
+	a, dir := appWithCheckoutStub(t, "1623730")
+	restore := stubLaunch(func(string) error { return errors.New("steam is not installed") })
+	defer restore()
+
+	launched, launchErr, err := a.checkoutAndPlay(1, false)
+	if err != nil {
+		t.Fatalf("checkoutAndPlay: %v", err)
+	}
+	if launched {
+		t.Error("reported a launch that failed")
+	}
+	if launchErr == nil || !strings.Contains(launchErr.Error(), "steam is not installed") {
+		t.Errorf("launch error = %v, want the opener's own reason", launchErr)
+	}
+	// The custody half stuck.
+	if l := a.link(1); l == nil || l.SessionID != 7 {
+		t.Errorf("link after a failed launch = %+v, want the hold recorded", l)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "World.sav")); err != nil {
+		t.Errorf("the save is not on disk after a failed launch: %v", err)
+	}
+}
+
+func TestLaunchOnCheckoutSetting(t *testing.T) {
+	// Absent means on: this is the behaviour people asked for, and a
+	// config written before the setting existed should get it.
+	if !(Config{}).launchOnCheckout() {
+		t.Error("a config with no setting does not launch on checkout")
+	}
+	off, on := false, true
+	if (Config{LaunchOnCheckout: &off}).launchOnCheckout() {
+		t.Error("an explicit false still launches")
+	}
+	if !(Config{LaunchOnCheckout: &on}).launchOnCheckout() {
+		t.Error("an explicit true does not launch")
+	}
+
+	t.Run("switched off, the save still arrives", func(t *testing.T) {
+		a, dir := appWithCheckoutStub(t, "1623730")
+		a.mu.Lock()
+		a.cfg.LaunchOnCheckout = &off
+		a.mu.Unlock()
+		opened := 0
+		restore := stubLaunch(func(string) error { opened++; return nil })
+		defer restore()
+
+		launched, launchErr, err := a.checkoutAndPlay(1, false)
+		if err != nil || launchErr != nil {
+			t.Fatalf("checkoutAndPlay: %v / %v", err, launchErr)
+		}
+		if launched || opened != 0 {
+			t.Error("the game was started with the setting switched off")
+		}
+		if _, err := os.Stat(filepath.Join(dir, "World.sav")); err != nil {
+			t.Errorf("the save is not on disk: %v", err)
+		}
+	})
+
+	t.Run("a world with nothing to start is not an error", func(t *testing.T) {
+		a, _ := appWithCheckoutStub(t, "")
+		restore := stubLaunch(func(string) error { t.Error("started a world with nothing to start"); return nil })
+		defer restore()
+		launched, launchErr, err := a.checkoutAndPlay(1, false)
+		if err != nil {
+			t.Fatalf("checkoutAndPlay: %v", err)
+		}
+		// Not an error to report: nothing was promised. The page shows
+		// "Check out & host" for these, not "Check out & play".
+		if launched || launchErr != nil {
+			t.Errorf("launched = %v, launchErr = %v", launched, launchErr)
+		}
+	})
+}
+
+func TestUpdateLinkStoresTheLaunchTarget(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	a := newApp(Config{Links: []WorldLink{{WorldID: 1, Dir: t.TempDir(), AppID: "1623730"}}}, path)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/links/1", strings.NewReader(`{"launchTarget":"  D:\\Games\\modded.lnk  "}`))
+	req.SetPathValue("worldID", "1")
+	a.handleUpdateLink(rec, req)
+	if !strings.Contains(rec.Body.String(), `"ok":true`) {
+		t.Fatalf("update answered %s", rec.Body.String())
+	}
+	// Trimmed, and it wins over the app id from here on.
+	if l := a.link(1); l == nil || l.LaunchTarget != `D:\Games\modded.lnk` {
+		t.Fatalf("stored launch target = %+v", l)
+	}
+	if got := launchTarget(a.link(1)); got != `D:\Games\modded.lnk` {
+		t.Errorf("launchTarget = %q, want the override", got)
+	}
+
+	// It survives a restart — this is a setting, not a session.
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	reloaded, err := parseConfig(raw)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.link(1).LaunchTarget != `D:\Games\modded.lnk` {
+		t.Error("the launch target did not survive a reload")
+	}
+
+	// Clearing it goes back to Steam.
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/links/1", strings.NewReader(`{"launchTarget":""}`))
+	req.SetPathValue("worldID", "1")
+	a.handleUpdateLink(rec, req)
+	if got := launchTarget(a.link(1)); got != "steam://rungameid/1623730" {
+		t.Errorf("after clearing, launchTarget = %q, want the Steam URI back", got)
+	}
+}
+
+// stubLaunch swaps the desktop opener for the duration of a test.
+func stubLaunch(fn func(string) error) func() {
+	prev := openLaunchURI
+	openLaunchURI = fn
+	return func() { openLaunchURI = prev }
+}
+
+// appWithCheckoutStub is an app pointed at a service that hands out one
+// checkout and one (empty) version, linked to a real folder.
+func appWithCheckoutStub(t *testing.T, appID string) (*app, string) {
+	t.Helper()
+	source := t.TempDir()
+	os.WriteFile(filepath.Join(source, "World.sav"), []byte("checked out"), 0o600)
+	var bundle bytes.Buffer
+	if err := packageWorldDir(source, &bundle); err != nil {
+		t.Fatalf("package: %v", err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/download") {
+			w.Write(bundle.Bytes())
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"accepted": true,
+			"world":    "Emberfall",
+			"session":  map[string]any{"id": 7, "baseVersion": 41},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	dir := t.TempDir()
+	return newApp(Config{
+		ServerURL: srv.URL,
+		Token:     "tok",
+		Links:     []WorldLink{{WorldID: 1, Dir: dir, AppID: appID}},
+	}, filepath.Join(t.TempDir(), "config.json")), dir
 }

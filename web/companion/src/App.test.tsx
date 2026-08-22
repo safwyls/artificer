@@ -20,7 +20,7 @@ describe("App — setup", () => {
   it("shows the connect card and the game-finding card side by side, not an empty page", async () => {
     vi.spyOn(api, "state").mockResolvedValue(
       makeState({
-        config: { serverUrl: "", tokenSet: false, steamDirs: [] },
+        config: { serverUrl: "", tokenSet: false, steamDirs: [], launchOnCheckout: true },
         sync: { configured: false, busy: false },
       }),
     );
@@ -35,7 +35,7 @@ describe("App — setup", () => {
   it("saves the URL and token together, and never sends an empty token", async () => {
     vi.spyOn(api, "state").mockResolvedValue(
       makeState({
-        config: { serverUrl: "", tokenSet: false, steamDirs: [] },
+        config: { serverUrl: "", tokenSet: false, steamDirs: [], launchOnCheckout: true },
         sync: { configured: false, busy: false },
       }),
     );
@@ -58,7 +58,7 @@ describe("App — setup", () => {
   it("saves the Steam folder without touching the connection", async () => {
     vi.spyOn(api, "state").mockResolvedValue(
       makeState({
-        config: { serverUrl: "", tokenSet: true, steamDirs: [] },
+        config: { serverUrl: "", tokenSet: true, steamDirs: [], launchOnCheckout: true },
         sync: { configured: false, busy: false },
       }),
     );
@@ -72,7 +72,7 @@ describe("App — setup", () => {
   it("clears the override rather than saving a blank folder", async () => {
     vi.spyOn(api, "state").mockResolvedValue(
       makeState({
-        config: { serverUrl: "", tokenSet: true, steamDirs: ["D:\\Old"] },
+        config: { serverUrl: "", tokenSet: true, steamDirs: ["D:\\Old"], launchOnCheckout: true },
         sync: { configured: false, busy: false },
       }),
     );
@@ -147,5 +147,35 @@ describe("App — connected", () => {
     vi.spyOn(api, "state").mockRejectedValue(new Error("connection refused"));
     renderWithProviders(<App />);
     expect(await screen.findByText(/companion is not answering on this machine/)).toBeInTheDocument();
+  });
+});
+
+describe("App — the launch setting", () => {
+  const connected = () =>
+    makeState({
+      links: [makeLink()],
+      discovered: { games: [makeGame()], probes: [] },
+      sync: { configured: true, username: "safwyl", busy: false, worlds: [makeSyncWorld()] },
+    });
+
+  it("carries the setting down to the button's promise", async () => {
+    const state = connected();
+    state.config.launchOnCheckout = false;
+    vi.spyOn(api, "state").mockResolvedValue(state);
+    renderWithProviders(<App />);
+    expect(await screen.findByRole("button", { name: "Check out & host" })).toBeInTheDocument();
+  });
+
+  it("switches launching off from Settings, and says what the order is", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    const setConfig = vi.spyOn(api, "setConfig").mockResolvedValue({});
+    renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    const toggle = await screen.findByLabelText(/Start the game when I check a world out/);
+    expect(toggle).toBeChecked();
+    // The order is the promise, so the setting says it out loud.
+    expect(screen.getByText(/The save is put in place first, then the game starts/)).toBeInTheDocument();
+    await userEvent.click(toggle);
+    await waitFor(() => expect(setConfig).toHaveBeenCalledWith({ launchOnCheckout: false }));
   });
 });
