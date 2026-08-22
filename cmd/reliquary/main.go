@@ -143,6 +143,15 @@ func run(logger *slog.Logger) error {
 		}
 		apiServer.Access = verifier
 		apiServer.AccessAdminEmails = cfg.AccessAdminEmails
+		// Anyone your Access policy lets through is a member of this
+		// friend group, so they arrive able to hold worlds rather than
+		// waiting for an admin to grant it one account at a time. Set
+		// ACCESS_GRANT_CUSTODY=0 to keep the console default, where an
+		// SSO identity confers nothing until someone says so.
+		if os.Getenv("ACCESS_GRANT_CUSTODY") != "0" {
+			apiServer.AccessGrants = []string{store.PermSync}
+			logger.Info("cloudflare access sign-ins receive the world-custody grant")
+		}
 		logger.Info("cloudflare access sign-in enabled", "issuer", verifier.Issuer())
 	}
 

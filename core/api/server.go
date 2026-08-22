@@ -110,6 +110,14 @@ type Server struct {
 	// The environment's IGDB pair, remembered so removing the UI-saved
 	// one falls back to it instead of to nothing.
 	artworkEnvID, artworkEnvSecret string
+	// AccessGrants are the permissions an account created by a
+	// Cloudflare Access sign-in starts with. Empty — the default, and
+	// what every console uses — means an SSO identity confers no power
+	// until an admin says so. The vault sets the custody grant here
+	// instead: its Access policy already names exactly the people meant
+	// to hold worlds, so making each of them wait for a second approval
+	// is ceremony, not safety.
+	AccessGrants []string
 	// SaveDB, when set, answers "where does this game keep its saves"
 	// from the Ludusavi manifest (savedirs.go). Nil means the companion
 	// falls back to its own heuristics, which is how it worked before.

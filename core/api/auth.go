@@ -167,15 +167,18 @@ func (s *Server) handleCloudflareLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := s.store.GetUserByUsername(r.Context(), identity.Email)
 	created := false
 	if err != nil {
-		// First sign-in: make the account. Deliberately with no
-		// permissions — Access says who you are, never what you may do
-		// here, and a console that granted power to everyone your
-		// identity provider knows would be a surprise of the worst kind.
+		// First sign-in: make the account, with whatever the deployment
+		// says an Access identity is worth (AccessGrants — nothing, by
+		// default). Access says who you are, never what you may do here,
+		// and a console that granted power to everyone your identity
+		// provider knows would be a surprise of the worst kind. A vault
+		// whose Access policy already names the friend group is the
+		// case where that reasoning inverts, so it opts in.
 		role := ""
 		if s.isAccessAdmin(identity.Email) {
 			role = store.RoleAdmin
 		}
-		id, cerr := s.store.CreateUser(r.Context(), identity.Email, ssoPasswordSentinel, role, nil)
+		id, cerr := s.store.CreateUser(r.Context(), identity.Email, ssoPasswordSentinel, role, s.AccessGrants)
 		if cerr != nil {
 			s.logger.Error("cloudflare access: creating user", "email", identity.Email, "error", cerr)
 			writeError(w, http.StatusInternalServerError, "could not create an account for this identity")
