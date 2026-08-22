@@ -365,6 +365,14 @@ func (s *Service) Checkin(ctx context.Context, ss *store.SyncSession, user *stor
 		}
 		s.handoffToClaimant(ctx, w.ID)
 	}
+	// The companion has answered whatever was asked of it. Clearing here
+	// rather than only when a session ends means a checkpoint — which
+	// keeps the hold — also settles its own request.
+	if ss.RequestedKind != "" {
+		if err := s.store.ClearSyncHandback(ctx, ss.ID); err != nil {
+			s.logger.Error("clearing a handback request", "session", ss.ID, "error", err)
+		}
+	}
 	s.pruneLocked(ctx, w.ID)
 	if kind == store.SyncKindCheckpoint {
 		s.publish(w.ID, EventCheckpoint)

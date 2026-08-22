@@ -131,7 +131,10 @@ split rule is where that knowledge would live.
    folder (tmp-extract-and-swap, one `.pre-checkout` copy kept);
    check-in packages the folder and returns the hold; mid-session
    checkpoints push automatically as crash insurance; a queued claim's
-   handoff is fetched without the player doing anything. Packaging
+   handoff is fetched without the player doing anything. An admin can
+   also **ask** a hold to check in or checkpoint — the companion picks
+   the request up on its next poll and answers it, which is how a world
+   comes back from someone who went to bed still holding it. Packaging
    waits out a settle window on the folder's mtimes — the app is
    game-blind, so the settle window is the torn-save guard, and the
    service verifies every upload again.

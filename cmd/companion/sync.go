@@ -49,6 +49,7 @@ type syncWorldDTO struct {
 		GameTitle   string `json:"gameTitle"`
 		SaveHint    string `json:"saveHint"`
 		Checkpoints bool   `json:"checkpoints"`
+		SavePath    string `json:"savePath"`
 		HeadVersion *int64 `json:"headVersion"`
 	} `json:"world"`
 	Holder *struct {
@@ -56,6 +57,9 @@ type syncWorldDTO struct {
 		Username  string    `json:"username"`
 		ExpiresAt time.Time `json:"expiresAt"`
 		Claimable bool      `json:"claimable"`
+		// What the service is waiting for this hold to do, picked up on
+		// the next poll (sync.go, answerHandback).
+		RequestedKind string `json:"requestedKind,omitempty"`
 	} `json:"holder,omitempty"`
 	ClaimedBy string `json:"claimedBy,omitempty"`
 	Head      *struct {
@@ -196,6 +200,10 @@ func (a *app) syncTick() {
 	}
 	for _, worldID := range a.linkedWorldIDs() {
 		a.adoptHandoff(worldID)
+		// Before the automatic checkpoint, because a standing request is
+		// somebody waiting: answering it now beats answering it after
+		// the settle window decides the folder is quiet enough.
+		a.answerHandback(worldID)
 		a.autoCheckpoint(worldID)
 	}
 }
@@ -283,6 +291,48 @@ func (a *app) autoCheckpoint(worldID int64) {
 	a.lastCheckpoint[worldID] = time.Now()
 	a.mu.Unlock()
 	a.noteSync(fmt.Sprintf("checkpoint pushed for %q", world.World.Name))
+}
+
+// answerHandback does what the service asked of this hold on its next
+// poll: push a checkpoint, or check in and let go.
+//
+// The service cannot reach a companion — this machine is behind a
+// household router — so a request is a flag the poll picks up, and this
+// is where it lands. It fires only for a hold this machine actually
+// owns: the flag is on the session, and a session belongs to one
+// companion.
+func (a *app) answerHandback(worldID int64) {
+	world := a.world(worldID)
+	if world == nil || world.Holder == nil || world.Holder.RequestedKind == "" {
+		return
+	}
+	a.mu.Lock()
+	link := a.cfg.link(worldID)
+	var sessionID int64
+	if link != nil {
+		sessionID = link.SessionID
+	}
+	me := a.worldSync.Username
+	a.mu.Unlock()
+	// Someone else's hold, or a hold this machine has lost track of.
+	if link == nil || sessionID == 0 || sessionID != world.Holder.SessionID || world.Holder.Username != me {
+		return
+	}
+
+	switch world.Holder.RequestedKind {
+	case "checkpoint":
+		if err := a.syncCheckpointNow(worldID); err != nil {
+			a.setSyncErr(fmt.Errorf("checkpoint asked for by %q: %w", world.World.Name, err))
+			return
+		}
+		a.noteSync(fmt.Sprintf("pushed a checkpoint of %q — the service asked for one", world.World.Name))
+	case "checkin":
+		if err := a.syncCheckin(worldID); err != nil {
+			a.setSyncErr(fmt.Errorf("check-in asked for by %q: %w", world.World.Name, err))
+			return
+		}
+		a.noteSync(fmt.Sprintf("checked %q back in — the service asked for it", world.World.Name))
+	}
 }
 
 // syncCheckout acquires a linked world and installs its head locally.
