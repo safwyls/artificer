@@ -46,9 +46,27 @@ export interface Link {
   gameTitle?: string;
   dir: string;
   appId?: string;
+  /** Overrides what starts this game. A path or a URI the desktop knows
+   * how to open — an .exe, a .lnk, another launcher's URI scheme — never
+   * a command line. Empty means Steam's own run URI, from appId. */
+  launchTarget?: string;
   sessionId?: number;
   baseVersion?: number;
 }
+
+/**
+ * What the companion will open to start this world's game, or "" when it
+ * has nothing to start — a folder linked by hand carries no app id, and
+ * the companion must not guess. Mirrors launchTarget() in launch.go; the
+ * companion is still the one that decides, this only labels the button.
+ */
+export function launchTargetOf(link: Link): string {
+  const override = (link.launchTarget ?? "").trim();
+  if (override) return override;
+  return link.appId ? `steam://rungameid/${link.appId}` : "";
+}
+
+export const launchable = (link: Link) => launchTargetOf(link) !== "";
 
 export interface SyncWorld {
   world: {
@@ -83,7 +101,13 @@ export interface SyncState {
 }
 
 export interface CompanionState {
-  config: { serverUrl: string; tokenSet: boolean; steamDirs: string[] };
+  config: {
+    serverUrl: string;
+    tokenSet: boolean;
+    steamDirs: string[];
+    /** Start the game once a checkout has put the save in place. */
+    launchOnCheckout: boolean;
+  };
   links: Link[];
   discovered: Discovery;
   sync: SyncState;

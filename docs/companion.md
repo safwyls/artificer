@@ -139,6 +139,39 @@ split rule is where that knowledge would live.
    game-blind, so the settle window is the torn-save guard, and the
    service verifies every upload again.
 
+4. **Starts the game** (2026-08-22, `launch.go`). Checking a world out
+   is two halves of one intention — fetch the save, then play — so the
+   button does both and reads *Check out & play*. **The order is not
+   negotiable**: the save is installed first and the game started
+   after. Launching first would have the game read the stale save and
+   write over it at its first autosave, which is the failure this whole
+   system exists to prevent.
+
+   What gets opened is `steam://rungameid/<appId>` from the app id
+   discovery recorded, or a **launch target** the player set on the
+   link, which wins. That target is a path or a URI the desktop's own
+   opener takes — an `.exe`, a `.lnk`, another launcher's URI scheme —
+   deliberately **not** a command line: quoting a Windows path with
+   spaces into arguments is a bug generator, and a shortcut carries its
+   arguments already. A world with neither an app id nor a target (a
+   folder linked by hand) is one the companion will not pretend it can
+   start: the button goes back to *Check out & host* and says so in the
+   link's own panel.
+
+   The launch is the softer half. A game that will not start still
+   leaves the player holding the world with its save on disk — the part
+   that mattered — so the reason comes back for the page to show rather
+   than failing a checkout that already succeeded. **Play** on a world
+   already held here starts it again without touching custody.
+
+   Only an *explicit* checkout launches. A queued claim's handoff is
+   fetched in the background, possibly while nobody is at the machine,
+   and starting a game there would be a surprise rather than a
+   convenience. Switch the whole thing off in **Settings** ("Start the
+   game when I check a world out") to take custody without opening
+   anything; the setting defaults on, and a config written before it
+   existed gets that default.
+
 The credential is the player's personal sync token from the service's
 page. Nothing leaves the machine until a service URL and token are set.
 It never reaches the screen either: transport errors quote the URL they
@@ -234,8 +267,9 @@ this repo's style.
 ## Config, and the migration chain
 
 `%AppData%`-equivalent (`os.UserConfigDir()`) `artificer-companion/config.json`,
-mode 0600: the service URL, the token, and the linked worlds with their
-hold state. Older configs are read as fallbacks: the first Artificer
+mode 0600: the service URL, the token, the linked worlds with their hold
+state and per-link launch target, and whether checking out starts the
+game (`launchOnCheckout`, absent = on). Older configs are read as fallbacks: the first Artificer
 Companion cut's nested sync block maps forward, and a wkcompanion-era
 file maps to its sync side only — a relay-only config maps to empty,
 because its credential has nothing to authenticate any more. Logs go to

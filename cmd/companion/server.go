@@ -50,6 +50,8 @@ func (a *app) routes() http.Handler {
 	// authorization is the sync token these calls carry upstream.
 	mux.HandleFunc("POST /api/links", a.handleAddLink)
 	mux.HandleFunc("POST /api/links/create", a.handleCreateWorld)
+	mux.HandleFunc("PUT /api/links/{worldID}", a.handleUpdateLink)
+	mux.HandleFunc("POST /api/links/{worldID}/launch", a.linkAction((*app).launch))
 	mux.HandleFunc("DELETE /api/links/{worldID}", a.linkAction(func(a *app, id int64) error { return a.unlink(id) }))
 	mux.HandleFunc("POST /api/links/{worldID}/checkout", a.handleCheckout)
 	mux.HandleFunc("POST /api/links/{worldID}/checkin", a.linkAction((*app).syncCheckin))
@@ -95,9 +97,10 @@ func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 	out := map[string]any{
 		"config": map[string]any{
-			"serverUrl": a.cfg.ServerURL,
-			"tokenSet":  a.cfg.Token != "",
-			"steamDirs": append([]string{}, a.cfg.SteamDirs...),
+			"serverUrl":        a.cfg.ServerURL,
+			"tokenSet":         a.cfg.Token != "",
+			"steamDirs":        append([]string{}, a.cfg.SteamDirs...),
+			"launchOnCheckout": a.cfg.launchOnCheckout(),
 		},
 		"links":      links,
 		"discovered": discovered,
@@ -117,9 +120,10 @@ func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
 // rescan.
 func (a *app) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		ServerURL *string   `json:"serverUrl"`
-		Token     string    `json:"token"`
-		SteamDirs *[]string `json:"steamDirs"`
+		ServerURL        *string   `json:"serverUrl"`
+		Token            string    `json:"token"`
+		SteamDirs        *[]string `json:"steamDirs"`
+		LaunchOnCheckout *bool     `json:"launchOnCheckout"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
@@ -140,6 +144,10 @@ func (a *app) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		a.cfg.SteamDirs = dirs
+	}
+	if in.LaunchOnCheckout != nil {
+		v := *in.LaunchOnCheckout
+		a.cfg.LaunchOnCheckout = &v
 	}
 	a.mu.Unlock()
 	if err := a.saveCfg(); err != nil {
@@ -316,12 +324,68 @@ func (a *app) handleCreateWorld(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true})
 }
 
+// handleCheckout takes the world and, when the setting allows and the
+// world has something to start, plays it. The answer says which of those
+// happened: a save on disk with a game that would not start is a real
+// outcome the page has to be able to explain.
 func (a *app) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Takeover bool `json:"takeover"`
 	}
 	json.NewDecoder(r.Body).Decode(&in) // an empty body is a plain checkout
-	a.linkAction(func(a *app, id int64) error { return a.syncCheckout(id, in.Takeover) })(w, r)
+	id, err := strconv.ParseInt(r.PathValue("worldID"), 10, 64)
+	if err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "invalid world id"})
+		return
+	}
+	if !a.syncConfigured() {
+		writeJSON(w, map[string]any{"ok": false, "error": "set the server URL and token first"})
+		return
+	}
+	launched, launchErr, err := a.checkoutAndPlay(id, in.Takeover)
+	if err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	out := map[string]any{"ok": true, "launched": launched}
+	if launchErr != nil {
+		out["launchError"] = launchErr.Error()
+	}
+	writeJSON(w, out)
+}
+
+// handleUpdateLink edits the parts of a link the player owns. Only the
+// launch target so far — the folder and the world it points at are
+// settled by linking, and changing either is an unlink and a relink.
+func (a *app) handleUpdateLink(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("worldID"), 10, 64)
+	if err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "invalid world id"})
+		return
+	}
+	var in struct {
+		LaunchTarget *string `json:"launchTarget"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
+		return
+	}
+	a.mu.Lock()
+	l := a.cfg.link(id)
+	if l == nil {
+		a.mu.Unlock()
+		writeJSON(w, map[string]any{"ok": false, "error": "no such link"})
+		return
+	}
+	if in.LaunchTarget != nil {
+		l.LaunchTarget = strings.TrimSpace(*in.LaunchTarget)
+	}
+	a.mu.Unlock()
+	if err := a.saveCfg(); err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "saving config: " + err.Error()})
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
 }
 
 // linkAction adapts a per-world verb into a local handler.

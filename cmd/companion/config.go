@@ -34,6 +34,18 @@ type Config struct {
 	// a shelf nobody scans. Hiding is reversible and local: it never
 	// touches a link or the service.
 	Hidden []string `json:"hidden,omitempty"`
+	// LaunchOnCheckout starts the game once a checkout has put the save
+	// in place — the second half of what "check this world out" means.
+	// A pointer because absent must mean on: this is the behaviour
+	// people asked for, and a config written before the setting existed
+	// should get it. An explicit false is the player saying they want
+	// the save without the game.
+	LaunchOnCheckout *bool `json:"launchOnCheckout,omitempty"`
+}
+
+// launchOnCheckout is the stored setting with its default applied.
+func (c Config) launchOnCheckout() bool {
+	return c.LaunchOnCheckout == nil || *c.LaunchOnCheckout
 }
 
 // WorldLink ties one world on the service to one save folder here, and
@@ -48,6 +60,13 @@ type WorldLink struct {
 	// cover the shelf does; without it a linked world can still be
 	// matched by title, which is why it stays optional.
 	AppID string `json:"appId,omitempty"`
+	// LaunchTarget overrides what starts this game when the world is
+	// checked out (launch.go). Empty means Steam's own run URI, built
+	// from AppID; a world with neither is one the companion will not
+	// pretend it can start. A path or a URI, never a command line — the
+	// OS's opener takes it, so an .exe, a .lnk and another launcher's
+	// URI scheme all work without quoting rules.
+	LaunchTarget string `json:"launchTarget,omitempty"`
 	// SessionID is the hold this machine has on the world (0 = none);
 	// BaseVersion the version it delivered.
 	SessionID   int64 `json:"sessionId,omitempty"`

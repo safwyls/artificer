@@ -439,6 +439,35 @@ func (a *app) syncCheckout(worldID int64, takeover bool) error {
 	return nil
 }
 
+// checkoutAndPlay is what the page's one button does: take the world,
+// put its save in place, then start the game — in that order, always.
+// Launching first would have the game load the stale save and write over
+// it at its first autosave, which is the failure this whole system
+// exists to prevent.
+//
+// The launch is the softer half. A game that will not start leaves the
+// player with the world checked out and the save on disk, which is the
+// part that mattered; the reason comes back for the page to show rather
+// than failing the checkout that already succeeded. Note that only an
+// explicit checkout launches — adopting a queued claim (syncTick) fetches
+// the world in the background, possibly while nobody is at the machine,
+// and starting a game there would be a surprise, not a convenience.
+func (a *app) checkoutAndPlay(worldID int64, takeover bool) (launched bool, launchErr error, err error) {
+	if err := a.syncCheckout(worldID, takeover); err != nil {
+		return false, nil, err
+	}
+	a.mu.Lock()
+	wanted := a.cfg.launchOnCheckout()
+	a.mu.Unlock()
+	if !wanted || !launchable(a.link(worldID)) {
+		return false, nil, nil
+	}
+	if err := a.launch(worldID); err != nil {
+		return false, err, nil
+	}
+	return true, nil, nil
+}
+
 func (a *app) link(worldID int64) *WorldLink {
 	a.mu.Lock()
 	defer a.mu.Unlock()

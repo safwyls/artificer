@@ -36,9 +36,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"time"
 )
 
@@ -123,21 +121,8 @@ func alreadyRunning(addr string) bool {
 }
 
 // openBrowser is best-effort: the printed URL is the real interface.
-func openBrowser(url string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	_ = cmd.Start()
-	go func() {
-		_ = cmd.Wait()
-	}()
-}
+// Same desktop opener the game launch uses (launch.go).
+func openBrowser(url string) { _ = openURI(url) }
 
 // watchLoop is the whole engine: a custody poll against the service,
 // handoff adoption when a queued claim came through, and the automatic

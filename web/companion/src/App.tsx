@@ -69,6 +69,7 @@ export function App() {
                     me={state.sync?.username}
                     art={art}
                     configured
+                    launchOnCheckout={state.config?.launchOnCheckout ?? true}
                   />
                 ))
               ) : (
