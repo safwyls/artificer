@@ -111,6 +111,15 @@ A Claude Code Web session cannot do step 1: `/design-login` has no TTY there,
 so `DesignSync` refuses. Building and reviewing the bundles works anywhere;
 only the push needs the terminal.
 
+**Project pins.** `.design-sync/config.json` records which Claude Design
+project a bundle belongs to, so a later sync updates the same project rather
+than creating a second one. Today it pins **reliquary only** — the other four
+have no project yet, and pushing one means adding its pin alongside. The
+`"shape": "custom"` field is load-bearing: these bundles are hand-authored
+from `system.mjs` through `build.mjs`, not produced by the storybook/package
+converter, so a sync must upload `previews/` as it stands rather than trying
+to re-derive it.
+
 ## Adding another app
 
 1. `mkdir design-system/<app>` and write `system.mjs`. If it belongs to an

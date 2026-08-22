@@ -104,7 +104,10 @@ companion share verbatim (two halves of one custody flow, not two
 products that match), and `lib/console.mjs` holds the shadcn-semantic
 kit the three consoles share — feed it palcon's values and it comes out
 light and rounded, flametender's and it comes out mossy and square.
-`design-system/README.md` is the method.
+`design-system/README.md` is the method. `.design-sync/config.json`
+pins which Claude Design project a bundle syncs to — reliquary only so
+far; the other four need pins added when they are pushed, and the push
+needs a real terminal (`/design-login` has no TTY on the web).
 
 Tests: `go build ./... && go vet ./... && go test ./...`,
 `./scripts/checkbounds.sh`, `./scripts/checkdesign.sh`, and
