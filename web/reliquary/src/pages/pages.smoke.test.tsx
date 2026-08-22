@@ -34,8 +34,10 @@ describe("AppShell", () => {
         </Route>
       </Routes>,
     );
-    expect(await screen.findByText("reliquary v1.4.2")).toBeInTheDocument();
-    expect(screen.getByText("safwyl")).toBeInTheDocument();
+    // The shell renders its chrome twice — the phone header and the desktop
+    // sidebar — so identity and version each appear in both.
+    expect(await screen.findAllByText("reliquary v1.4.2")).toHaveLength(2);
+    expect(screen.getAllByText("safwyl")).toHaveLength(2);
     expect(screen.getByText("live")).toBeInTheDocument();
   });
 
@@ -47,7 +49,7 @@ describe("AppShell", () => {
         </Route>
       </Routes>,
     );
-    expect(screen.getByRole("link", { name: /Users/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Users/ })).toHaveLength(2);
     unmount();
 
     auth.isAdmin = false;
@@ -61,7 +63,7 @@ describe("AppShell", () => {
       );
       expect(screen.queryByRole("link", { name: /Users/ })).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: /Cover art/ })).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Worlds/ })).toBeInTheDocument();
+      expect(screen.getAllByRole("link", { name: /Worlds/ }).length).toBeGreaterThan(0);
     } finally {
       auth.isAdmin = true;
     }

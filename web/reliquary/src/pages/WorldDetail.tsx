@@ -139,7 +139,7 @@ export function WorldDetail() {
 
   return (
     <>
-      <div className="border-b border-edge px-8 pb-[18px] pt-[22px]">
+      <div className="border-b border-edge px-4 pb-3.5 pt-4 md:px-8 md:pb-[18px] md:pt-[22px]">
         <div className="mb-3 text-[12px] text-mist">
           <Link to="/" className="no-underline">
             Worlds
@@ -158,7 +158,7 @@ export function WorldDetail() {
               <span className="text-[13px] text-mist">{holderLine(status, username)}</span>
             </div>
             {asked ? <div className="font-mono text-[12px] text-rune">{asked}</div> : null}
-            <div className="flex flex-wrap gap-6 font-mono text-[12px] text-mist">
+            <div className="flex flex-wrap gap-x-6 gap-y-1 font-mono text-[12px] text-mist [overflow-wrap:anywhere]">
               <span>
                 {status.head ? `head v${status.head.id} · ${fmtBytes(status.head.bytes)}` : "no versions yet"}
               </span>
@@ -188,7 +188,7 @@ export function WorldDetail() {
             </div>
           </div>
         </div>
-        <div className="mt-[18px] flex gap-1" role="tablist">
+        <div className="mt-3.5 flex gap-1 overflow-x-auto md:mt-[18px]" role="tablist">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -207,7 +207,7 @@ export function WorldDetail() {
       </div>
 
       {tab === "history" ? (
-        <div className="px-8 py-[22px]">
+        <div className="px-4 py-4 md:px-8 md:py-[22px]">
           {versions.length ? (
             <div className="overflow-hidden rounded-panel border border-edge bg-panel">
               {versions.map((v) => (
@@ -240,7 +240,7 @@ export function WorldDetail() {
 
       {tab === "settings" && isAdmin && draft ? (
         <form
-          className="grid max-w-4xl grid-cols-2 gap-4 px-8 py-[22px]"
+          className="grid max-w-4xl grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2 md:px-8 md:py-[22px]"
           onSubmit={(e: FormEvent) => {
             e.preventDefault();
             save.mutate(draft);
@@ -303,7 +303,7 @@ export function WorldDetail() {
 
       {tab === "server" && isAdmin && draft ? (
         <form
-          className="max-w-2xl px-8 py-[22px]"
+          className="max-w-2xl px-4 py-4 md:px-8 md:py-[22px]"
           onSubmit={(e: FormEvent) => {
             e.preventDefault();
             save.mutate(draft);

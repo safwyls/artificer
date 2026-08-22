@@ -40,7 +40,7 @@ export function Companion() {
         title="Your companion"
         subtitle="The Artificer Companion runs on your gaming machine and moves the saves for you."
       />
-      <div className="flex max-w-3xl flex-col gap-4 px-8 py-6">
+      <div className="flex max-w-3xl flex-col gap-4 px-4 py-5 md:px-8 md:py-6">
         <div className="rounded-panel border border-edge bg-panel px-5 py-4">
           <h2 className="text-[12px] uppercase tracking-[0.12em] text-gold">Token</h2>
           {token.isLoading ? <p className="mt-3 text-[13px] text-mist">…</p> : null}

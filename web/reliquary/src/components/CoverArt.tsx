@@ -23,7 +23,7 @@ export function CoverArt({
   const label = world.gameTitle || world.name || "";
   const box = cn(
     "flex-none rounded-[5px] border border-edge object-cover",
-    size === "detail" ? "w-24 h-32" : "w-[84px] h-28",
+    size === "detail" ? "w-[72px] h-24 sm:w-24 sm:h-32" : "w-16 h-[85px] sm:w-[84px] sm:h-28",
     className,
   );
   if (!art.cover || broken) {
