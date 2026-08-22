@@ -541,6 +541,51 @@ func TestRequestedCheckpointKeepsTheHold(t *testing.T) {
 	}
 }
 
+// An automatic checkpoint must not swallow a pending check-in request.
+//
+// Checkpoints fire on their own schedule while someone plays. If one of
+// those cleared a standing check-in ask, the admin's request would
+// vanish into an autosave and the world would stay held — with the page
+// showing nothing pending, so nobody would know to ask again. Caught in
+// testing against a real companion, which checkpointed moments after the
+// request was made.
+func TestAutomaticCheckpointDoesNotSwallowACheckinRequest(t *testing.T) {
+	app, admin := newVaultApp(t)
+	app.createUser(t, admin, "alice", "alicepassword", "user", []string{store.PermSync})
+	alice := app.login(t, "alice", "alicepassword")
+	app.do(t, "POST", "/api/sync/worlds", map[string]string{"name": "midgard"}, alice)
+	app.doTar(t, "/api/sync/worlds/1/import", alice)
+	rec := app.do(t, "POST", "/api/sync/worlds/1/checkout", nil, alice)
+	sessionID := int64(decodeMap(t, rec)["session"].(map[string]any)["id"].(float64))
+
+	if rec := app.do(t, "POST", "/api/sync/worlds/1/request", map[string]string{"kind": "checkin"}, admin); rec.Code != http.StatusOK {
+		t.Fatalf("request check-in: %d (body %s)", rec.Code, rec.Body)
+	}
+	// The companion's ordinary crash-insurance checkpoint lands first.
+	if rec := app.doTar(t, "/api/sync/sessions/"+itoa(sessionID)+"/checkpoint", alice); rec.Code != http.StatusOK {
+		t.Fatalf("checkpoint: %d (body %s)", rec.Code, rec.Body)
+	}
+
+	rec = app.do(t, "GET", "/api/sync/worlds/1", nil, admin)
+	st := decodeMap(t, rec)["status"].(map[string]any)
+	h, _ := st["holder"].(map[string]any)
+	if h == nil {
+		t.Fatal("the checkpoint ended the hold")
+	}
+	if h["requestedKind"] != "checkin" {
+		t.Fatalf("requestedKind = %v after an unrelated checkpoint, want the check-in still owed", h["requestedKind"])
+	}
+
+	// And it is still answerable.
+	if rec := app.doTar(t, "/api/sync/sessions/"+itoa(sessionID)+"/checkin", alice); rec.Code != http.StatusOK {
+		t.Fatalf("checkin: %d (body %s)", rec.Code, rec.Body)
+	}
+	rec = app.do(t, "GET", "/api/sync/worlds/1", nil, admin)
+	if decodeMap(t, rec)["status"].(map[string]any)["holder"] != nil {
+		t.Error("the world is still held after the requested check-in")
+	}
+}
+
 // The build is reported without a session: the login page shows it too,
 // and a version is not a secret.
 func TestVaultVersion(t *testing.T) {

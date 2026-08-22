@@ -31,9 +31,19 @@ import (
 )
 
 const (
-	// syncPollEvery paces the status poll against the service; the watch
-	// loop ticks more often, this keeps polling polite.
+	// syncPollEvery paces the status poll against the service when
+	// nobody is looking at the page — polite, because custody changes
+	// are rare and this runs on someone's machine all day.
 	syncPollEvery = time.Minute
+	// syncPollWatching is the pace while the companion page is open. A
+	// page showing a minute-old custody state is a page that looks
+	// broken: someone else checks a world in, and the person staring at
+	// the screen sees nothing happen. The page's own poll drives this,
+	// so it costs nothing when the page is closed.
+	syncPollWatching = 4 * time.Second
+	// pageWatchWindow is how long after a page request the app counts as
+	// being watched.
+	pageWatchWindow = 30 * time.Second
 	// checkinSettle / checkpointSettle: how long a world folder must be
 	// quiet before packaging. Check-in is short (the game is closed);
 	// checkpoints wait longer so a push lands between autosaves.
@@ -118,7 +128,33 @@ func (a *app) noteSync(action string) {
 // syncDo performs one custody call and decodes the service's ack. Any
 // 200 whose body is not the service's own JSON (an Access login page, a
 // tunnel interstitial) is a failure with the interceptor named.
+// scrubToken keeps the player's sync token out of anything the page
+// shows. Transport errors quote the URL they failed on, and the token
+// lives in that URL — so a refused connection would print the
+// credential onto the screen, and into any screenshot sent to whoever
+// runs the vault.
+func (a *app) scrubToken(err error) error {
+	if err == nil {
+		return nil
+	}
+	a.mu.Lock()
+	token := a.cfg.Token
+	a.mu.Unlock()
+	if token == "" {
+		return err
+	}
+	msg := strings.ReplaceAll(err.Error(), token, "<your sync token>")
+	if msg == err.Error() {
+		return err
+	}
+	return errors.New(msg)
+}
+
 func (a *app) syncDo(method, path string, body any, out any) error {
+	return a.scrubToken(a.syncDoRaw(method, path, body, out))
+}
+
+func (a *app) syncDoRaw(method, path string, body any, out any) error {
 	var payload io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -183,19 +219,54 @@ func (a *app) syncRefresh() error {
 	return nil
 }
 
-// syncTick rides the watch loop: poll, adopt handoffs, push checkpoints.
+// refreshIfStale polls the service when the view has aged past the
+// current interval. Single-flight: the page asks on every render, and a
+// slow service must not stack requests behind each other.
+func (a *app) refreshIfStale() {
+	a.mu.Lock()
+	stale := a.worldSync.PolledAt == nil || time.Since(*a.worldSync.PolledAt) >= a.pollIntervalLocked()
+	if !stale || a.refreshing || a.worldSync.Busy || !a.cfg.configured() {
+		a.mu.Unlock()
+		return
+	}
+	a.refreshing = true
+	a.mu.Unlock()
+	defer func() {
+		a.mu.Lock()
+		a.refreshing = false
+		a.mu.Unlock()
+	}()
+	a.syncRefresh()
+}
+
+// pollIntervalLocked is how stale the custody view may get: a few
+// seconds while someone has the page open, a minute otherwise. Caller
+// holds the lock.
+func (a *app) pollIntervalLocked() time.Duration {
+	if !a.pageSeen.IsZero() && time.Since(a.pageSeen) < pageWatchWindow {
+		return syncPollWatching
+	}
+	return syncPollEvery
+}
+
+// syncTick rides the watch loop: poll if the view has gone stale, then
+// act on what it says.
+//
+// Acting is no longer gated on the poll being due. It used to be — one
+// early return covered both — so a handoff, a handback request or a
+// checkpoint could only ever be noticed on the same beat the status was
+// fetched, and only once a minute at that. Refreshing and reacting are
+// different jobs on different clocks.
 func (a *app) syncTick() {
 	if !a.syncConfigured() {
 		return
 	}
+	a.refreshIfStale()
 	a.mu.Lock()
-	due := a.worldSync.PolledAt == nil || time.Since(*a.worldSync.PolledAt) >= syncPollEvery
 	busy := a.worldSync.Busy
+	polled := a.worldSync.PolledAt != nil
 	a.mu.Unlock()
-	if !due || busy {
-		return
-	}
-	if err := a.syncRefresh(); err != nil {
+	if busy || !polled {
 		return
 	}
 	for _, worldID := range a.linkedWorldIDs() {

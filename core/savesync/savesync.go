@@ -365,10 +365,15 @@ func (s *Service) Checkin(ctx context.Context, ss *store.SyncSession, user *stor
 		}
 		s.handoffToClaimant(ctx, w.ID)
 	}
-	// The companion has answered whatever was asked of it. Clearing here
-	// rather than only when a session ends means a checkpoint — which
-	// keeps the hold — also settles its own request.
-	if ss.RequestedKind != "" {
+	// Clear the request only when this upload actually answers it.
+	//
+	// A check-in ends the hold, so any request is moot afterwards. A
+	// checkpoint answers a checkpoint request and nothing else: the
+	// automatic mid-session checkpoints fire on their own schedule, and
+	// letting one of those clear a pending check-in means an admin's ask
+	// is silently swallowed by an autosave and the world stays held.
+	// Caught doing exactly that in testing.
+	if ss.RequestedKind != "" && (kind == store.SyncKindCheckin || ss.RequestedKind == store.SyncKindCheckpoint) {
 		if err := s.store.ClearSyncHandback(ctx, ss.ID); err != nil {
 			s.logger.Error("clearing a handback request", "session", ss.ID, "error", err)
 		}

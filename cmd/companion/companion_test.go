@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The config migration chain: wkcompanion-era and first-cut Artificer
@@ -763,5 +764,80 @@ func TestPrepareWorldDir(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(root), "escape")); err == nil {
 		t.Error("a traversal leaf escaped the root")
+	}
+}
+
+// An open page keeps the custody view current; a closed one lets the
+// background clock be polite.
+//
+// The bug this pins: syncTick gated *everything* — the poll and the
+// acting on it — behind a one-minute timer, and the page's own five-
+// second poll only ever re-read a cached snapshot. So a world someone
+// else checked in took up to a minute to appear, and forcing a sync from
+// the tray was the only way to see it, because that called the refresh
+// directly.
+func TestPagePollDrivesFreshness(t *testing.T) {
+	a := newApp(Config{ServerURL: "http://example.invalid", Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+
+	a.mu.Lock()
+	idle := a.pollIntervalLocked()
+	a.mu.Unlock()
+	if idle != syncPollEvery {
+		t.Errorf("interval with nobody looking = %s, want the polite one (%s)", idle, syncPollEvery)
+	}
+
+	// A page request is what "somebody is looking" means.
+	rec := httptest.NewRecorder()
+	a.handleState(rec, httptest.NewRequest("GET", "/api/state", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("state: %d", rec.Code)
+	}
+	a.mu.Lock()
+	watching := a.pollIntervalLocked()
+	seen := a.pageSeen
+	a.mu.Unlock()
+	if watching != syncPollWatching {
+		t.Errorf("interval while watched = %s, want %s", watching, syncPollWatching)
+	}
+	if seen.IsZero() {
+		t.Error("the page request was not noticed")
+	}
+	if syncPollWatching >= syncPollEvery {
+		t.Error("the watched interval is not shorter than the idle one")
+	}
+
+	// And it lapses, so a page left open in a closed laptop does not
+	// keep the poll running hot forever.
+	a.mu.Lock()
+	a.pageSeen = time.Now().Add(-pageWatchWindow - time.Second)
+	lapsed := a.pollIntervalLocked()
+	a.mu.Unlock()
+	if lapsed != syncPollEvery {
+		t.Errorf("interval after the watch window = %s, want %s", lapsed, syncPollEvery)
+	}
+}
+
+// The player's sync token never reaches the screen.
+//
+// Transport errors quote the URL they failed on, and the token lives in
+// that URL — so a refused connection printed the credential into the
+// page's error line, and into any screenshot sent for help.
+func TestSyncErrorsDoNotLeakTheToken(t *testing.T) {
+	a := newApp(Config{ServerURL: "http://127.0.0.1:1", Token: "supersecrettoken"}, filepath.Join(t.TempDir(), "config.json"))
+	err := a.syncRefresh()
+	if err == nil {
+		t.Fatal("a refused connection reported success")
+	}
+	if strings.Contains(err.Error(), "supersecrettoken") {
+		t.Errorf("the error carries the sync token: %v", err)
+	}
+	if !strings.Contains(err.Error(), "<your sync token>") {
+		t.Errorf("the error does not say what was redacted: %v", err)
+	}
+	a.mu.Lock()
+	shown := a.worldSync.LastError
+	a.mu.Unlock()
+	if strings.Contains(shown, "supersecrettoken") {
+		t.Errorf("the page's error line carries the sync token: %q", shown)
 	}
 }
