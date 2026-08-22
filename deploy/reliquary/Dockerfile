@@ -1,11 +1,19 @@
 # Reliquary — the standalone save-sync service.
 
 # ---- frontend build ----
+# Two frontends: reliquary's own page, and the companion's — this image
+# cross-builds the companion exe it hands out, and that exe embeds its
+# page the same way this service embeds its own.
 FROM docker.io/library/node:24-alpine AS frontend
-WORKDIR /app/web
+WORKDIR /app/reliquary
 COPY web/reliquary/package.json web/reliquary/package-lock.json* ./
 RUN npm install
 COPY web/reliquary/ ./
+RUN npm run build
+WORKDIR /app/companion
+COPY web/companion/package.json web/companion/package-lock.json* ./
+RUN npm install
+COPY web/companion/ ./
 RUN npm run build
 
 # ---- backend build ----
@@ -17,7 +25,8 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY --from=frontend /app/web/dist ./web/reliquary/dist
+COPY --from=frontend /app/reliquary/dist ./web/reliquary/dist
+COPY --from=frontend /app/companion/dist ./web/companion/dist
 # The build this image came from, stamped into both binaries and shown
 # in both UIs — so a save-sync report can name which service talked to
 # which companion. A plain `go build` leaves it "dev".

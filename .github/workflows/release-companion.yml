@@ -23,6 +23,18 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/companion/package-lock.json
+      # The companion's page is embedded in the exe (web/companion), so
+      # the frontend has to exist before the Go build runs.
+      - name: Companion frontend build
+        working-directory: web/companion
+        run: |
+          npm ci
+          npm run build
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26"

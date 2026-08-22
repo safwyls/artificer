@@ -48,10 +48,12 @@ surface; wildskeeper's old character relay survives only as the
 console-side inbox for old wkcompanion builds.
 `docs/save-sync-architecture.md` is the contract for custody semantics;
 its phase 0 recon (player-hosted save location) is still open.
-Reliquary's UI is a React frontend in `web/reliquary`, built and
-embedded like the consoles' (`docs/reliquary-ui-rebuild.md` is the plan
-it was built to, and records what is still unverified); the vanilla
-`cmd/reliquary/ui` page it replaced is gone.
+Both UIs are React frontends now, built and embedded like the consoles':
+`web/reliquary` for the service and `web/companion` for the player-side
+app (`docs/reliquary-ui-rebuild.md` and `docs/companion-ui-rebuild.md`
+are the plans they were built to, and record what is still unverified).
+The vanilla `cmd/reliquary/ui` and `cmd/companion/ui` pages they
+replaced are gone.
 
 Provisioning is Anvil-only across all three; the legacy
 provisioner-mode agent is retired (`PROVISIONER_URL` → `ANVIL_URL` —
