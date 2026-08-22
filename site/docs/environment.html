@@ -48,6 +48,7 @@
     <li><a href="architecture.html">Architecture</a></li>
     <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
+    <li><a href="save-sync.html">Shared world saves</a></li>
   </ul>
 </div><div class="side-cat">
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-wild)" aria-hidden="true"><i></i></span>Reference</div>
@@ -76,6 +77,7 @@
     <li><a href="architecture.html">Architecture</a></li>
     <li><a href="anvil.html">Anvil, the host service</a></li>
     <li><a href="agents.html">Sidecar agents</a></li>
+    <li><a href="save-sync.html">Shared world saves</a></li>
   </ul>
 </div><div class="side-cat">
   <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-wild)" aria-hidden="true"><i></i></span>Reference</div>
@@ -153,6 +155,27 @@ for reading an existing container.</p>
     <tr><td><code>ANVIL_DEFAULT_RUN_AS</code></td><td>unset</td><td>The uid:gid suggested to consoles that do not specify one.</td></tr>
   </tbody>
 </table>
+<h2 id="reliquary">Reliquary</h2>
+<p>The save-sync service (<a href="save-sync.html">shared world saves</a>). It runs on its own and
+shares none of the console variables.</p>
+<table>
+  <thead><tr><th>Variable</th><th>Default</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>JWT_SECRET</code></td><td>—</td><td>Signs sessions. Required; changing it signs everyone out.</td></tr>
+    <tr><td><code>ENCRYPTION_KEY</code></td><td>—</td><td>Required, exactly 32 characters. Encrypts stored agent tokens; changing it orphans them.</td></tr>
+    <tr><td><code>ADMIN_USERNAME</code><br><code>ADMIN_PASSWORD</code></td><td><code>admin</code> / —</td><td>The bootstrap admin, created only while the users table is empty. Later changes happen in the UI.</td></tr>
+    <tr><td><code>DATA_DIR</code></td><td><code>/data</code> in the image</td><td>Version archives and the database. Back it up like world data.</td></tr>
+    <tr><td><code>HTTP_ADDR</code></td><td><code>:8080</code></td><td>Listen address inside the container.</td></tr>
+    <tr><td><code>COOKIE_SECURE</code></td><td>unset</td><td>Mark session cookies Secure. Set it behind TLS; leave it unset for plain-HTTP LAN use.</td></tr>
+    <tr><td><code>COMPANION_EXE</code></td><td>the bundled exe</td><td>Which Artificer Companion binary the token-gated download hands out.</td></tr>
+    <tr><td><code>IGDB_CLIENT_ID</code><br><code>IGDB_CLIENT_SECRET</code></td><td>unset</td><td>A Twitch application's pair, for cover art. The admin panel's copy wins over these. Without either, games show as names.</td></tr>
+    <tr><td><code>SAVEDB_DISABLED</code></td><td>unset</td><td>Set to <code>1</code> to skip the save-location catalogue. Companions then fall back to Steam Cloud paths and a folder search.</td></tr>
+    <tr><td><code>SAVEDB_URL</code></td><td>the Ludusavi manifest</td><td>Fetch the catalogue from a mirror instead.</td></tr>
+    <tr><td><code>CF_ACCESS_TEAM_DOMAIN</code><br><code>CF_ACCESS_AUD</code></td><td>unset</td><td>Both required to accept Cloudflare Access assertions. Setting neither leaves the password form as the only way in.</td></tr>
+    <tr><td><code>CF_ACCESS_ADMIN_EMAILS</code></td><td>unset</td><td>Addresses promoted to admin on every sign-in. Anti-lockout.</td></tr>
+    <tr><td><code>ACCESS_GRANT_CUSTODY</code></td><td><code>1</code></td><td>Accounts created by an Access sign-in arrive holding world custody. Set <code>0</code> to grant it by hand instead.</td></tr>
+  </tbody>
+</table>
 <h2 id="retired">Retired names</h2>
 <p>These were read by earlier builds and are read by none now. A console that boots with one of
 them set — and without its replacement — logs a warning naming both, because the symptom otherwise
@@ -167,7 +190,7 @@ is a feature that quietly vanished: no wizard, no explanation.</p>
 <p>Setting both the old and new name is not an error: the warning only fires while the replacement
 is still unset, so a compose file can carry the old line until you get around to deleting it.</p>
 
-<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="agents.html"><small>← Previous</small><b>Sidecar agents</b></a><a class="pager-card next" href="troubleshooting.html"><small>Next →</small><b>Troubleshooting</b></a></nav>
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="save-sync.html"><small>← Previous</small><b>Shared world saves</b></a><a class="pager-card next" href="troubleshooting.html"><small>Next →</small><b>Troubleshooting</b></a></nav>
   </main>
 </div>
 <footer class="doc-footer">

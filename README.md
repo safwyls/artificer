@@ -15,6 +15,17 @@ framework that forges all three. The host service they're forged on is
 Plus `anvil` — one per host, the only component holding Docker rights, and
 what makes the Raise-a-server wizard work.
 
+And, for games whose world lives in a player's save folder rather than on a
+dedicated server, **shared world saves**: `reliquary` holds the world and lends
+it to one player at a time, and the **Artificer Companion** moves the saves on
+each player's machine. Both are game-blind and independent of the consoles —
+see [the docs](https://safwyls.github.io/artificer/docs/save-sync.html).
+
+| Component | What it is | Image / download |
+|---|---|---|
+| reliquary | The save-sync service | `ghcr.io/safwyls/reliquary` |
+| Artificer Companion | The player-side client | [`companion-latest`](https://github.com/safwyls/artificer/releases/tag/companion-latest) |
+
 ## Layout
 
 | Path | What lives there |
@@ -24,7 +35,7 @@ what makes the Raise-a-server wizard work.
 | `cmd/` | The binaries — each console main is thin wiring over `core`. |
 | `web/<console>/` | One React app per console, each themed for its game. |
 | `anvil/` | The host provisioning service. Separate module; references no console. |
-| `deploy/` | Dockerfiles, one directory per console. |
+| `deploy/` | Dockerfiles, one directory per console, plus `reliquary/`. |
 | `site/` | The public docs site and landing page, published to GitHub Pages. |
 
 Dependency rules — core never imports a game, games never import each other,
@@ -44,6 +55,8 @@ The unification is complete through Phase 6 (2026-08-18).
 - `docs/roadmap.md` — what is next, per game and shared
 - `docs/adding-a-game.md` — the checklist for a fourth game
 - `docs/sidecar-agent.md` — the agent design
+- `docs/save-sync-architecture.md` — shared world saves: the custody contract
+- `docs/companion.md` — the Artificer Companion, the player-side client
 - `docs/unification-plan.md` — the plan of record
 - `docs/drift-ledger.md` — per-file reconciliation decisions
 

@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared world saves — Artificer docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%20%3Crect%20width=%2232%22%20height=%2232%22%20rx=%227%22%20fill=%22%231D1916%22/%3E%20%3Ccircle%20cx=%2216%22%20cy=%2216%22%20r=%2213%22%20fill=%22none%22%20stroke=%22%23F4F1EC%22%20stroke-width=%221.2%22%20stroke-dasharray=%221%202.4%22%20opacity=%220.85%22/%3E%20%3Cg%20transform=%22translate(-3.8,-9.2)%20scale(0.2)%22%3E%20%3Cpath%20d=%22M48%20102%20L144%20102%20Q150%20102%20150%20107%20L150%20117%20Q150%20120%20146%20120%20L136%20121%20C125%20130%20119%20137%20123%20143%20L144%20149%20L148%20151%20L148%20163%20Q148%20165%20146%20165%20L124%20165%20C119%20155%2093%20155%2088%20165%20L66%20165%20Q64%20165%2064%20163%20L64%20150%20L68%20148%20L86%20143%20C89%20137%2087%20130%2077%20121%20C64%20120%2055%20112%2048%20102%20Z%22%20fill=%22%23D6431B%22/%3E%20%3C/g%3E%20%3C/svg%3E">
+<meta name="description" content="Pass a shared world between players without anyone overwriting anyone: reliquary and the Artificer Companion.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Shared world saves — Artificer docs">
+<meta property="og:description" content="Pass a shared world between players without anyone overwriting anyone: reliquary and the Artificer Companion.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html" aria-label="Artificer home">
+      <span class="mark" aria-hidden="true"><i></i></span>
+      <span class="wordmark">artificer</span>
+      <span class="crumb-docs">docs</span>
+    </a>
+    <nav class="nav-links" aria-label="Site">
+      <a class="hide-sm" href="../index.html#consoles">Consoles</a>
+      <a class="hide-sm" href="../index.html#deploy">Deploy</a>
+      <a class="nav-gh" href="https://github.com/safwyls/artificer"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="docs-shell">
+  <details class="side-mobile">
+    <summary>Docs navigation</summary>
+    <nav aria-label="Docs"><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--ember)" aria-hidden="true"><i></i></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">Your first server</a></li>
+    <li><a href="migrating.html">Migrate an existing server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
+  <ul>
+    <li><a href="architecture.html">Architecture</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
+    <li><a href="agents.html">Sidecar agents</a></li>
+    <li><a href="save-sync.html" class="active" aria-current="page">Shared world saves</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-wild)" aria-hidden="true"><i></i></span>Reference</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-flame-ink)" aria-hidden="true"><i></i></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div></nav>
+  </details>
+  <aside class="side" aria-label="Docs"><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--ember)" aria-hidden="true"><i></i></span>Getting started</div>
+  <ul>
+    <li><a href="introduction.html">Introduction</a></li>
+    <li><a href="deploy-truenas.html">Deploy on TrueNAS Scale</a></li>
+    <li><a href="deploy-docker.html">Deploy with Docker</a></li>
+    <li><a href="first-server.html">Your first server</a></li>
+    <li><a href="migrating.html">Migrate an existing server</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--quench)" aria-hidden="true"><i></i></span>How it works</div>
+  <ul>
+    <li><a href="architecture.html">Architecture</a></li>
+    <li><a href="anvil.html">Anvil, the host service</a></li>
+    <li><a href="agents.html">Sidecar agents</a></li>
+    <li><a href="save-sync.html" class="active" aria-current="page">Shared world saves</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-wild)" aria-hidden="true"><i></i></span>Reference</div>
+  <ul>
+    <li><a href="environment.html">Environment variables</a></li>
+  </ul>
+</div><div class="side-cat">
+  <div class="side-label"><span class="mark sm" style="--mark-fill: var(--c-flame-ink)" aria-hidden="true"><i></i></span>Help</div>
+  <ul>
+    <li><a href="troubleshooting.html">Troubleshooting</a></li>
+  </ul>
+</div></aside>
+  <main class="doc" id="content">
+    <p class="breadcrumb"><a href="index.html">Docs</a> <span>/</span> How it works <span>/</span> Shared world saves</p>
+    <h1>Shared world saves</h1>
+<p class="lead">Some games have no dedicated server worth running — the world lives in one player's
+save folder, and whoever hosts is whoever has the newest copy. Passing that world around a group by
+hand ends the same way every time: two people play the same evening, and one of them loses it.
+Reliquary holds the world instead, and hands it to one player at a time.</p>
+
+<h2 id="custody">One holder at a time</h2>
+<p>The model is a library book, not a sync folder. There is no merge, because two divergent saves of
+the same world cannot be merged by anything that does not understand the game.</p>
+<ul>
+  <li><b>Check out</b> — you take the world. Nobody else can, and your companion installs the
+    current version into your save folder.</li>
+  <li><b>Play.</b> Mid-session checkpoints upload quietly as crash insurance.</li>
+  <li><b>Check in</b> — your save becomes the new version and the world is free again.</li>
+  <li><b>Claim next</b> — if someone else holds it, you queue. The moment they check in, your
+    companion fetches it without you doing anything.</li>
+</ul>
+<p>Every check-in is kept as a version, so a world can be rolled back to any of the last N. A hold
+has a lease; past it, the world becomes claimable by someone else rather than stuck forever behind
+whoever forgot to check in.</p>
+<div class="callout note"><p>A late check-in is never thrown away. If someone takes over an expired
+hold and the original holder then checks in, their version is stored and flagged as a conflict
+instead of overwriting anything — recoverable, just not automatically the truth.</p></div>
+
+<h2 id="pieces">The two pieces</h2>
+<table>
+  <thead><tr><th></th><th>What it is</th><th>Where it runs</th></tr></thead>
+  <tbody>
+    <tr><td><b>reliquary</b></td><td>The service. Holds the worlds, the versions, the custody ledger,
+      the accounts and everyone's tokens. Deliberately game-blind — it never installs a game or talks
+      to one.</td><td>Your server, one container.</td></tr>
+    <tr><td><b>Artificer Companion</b></td><td>A single Windows executable. Finds installed games,
+      links their save folders to worlds, and moves the saves.</td><td>Each player's gaming
+      machine.</td></tr>
+  </tbody>
+</table>
+<p>Reliquary is independent of the three consoles. You can run it for games Artificer has no console
+for at all — it only ever sees a folder of files.</p>
+
+<h2 id="deploy">Deploying reliquary</h2>
+<div class="code-card" data-copy>
+<div class="code-head"><span>compose.yaml</span><button class="copy-btn">Copy</button></div>
+<pre>services:
+  reliquary:
+    image: ghcr.io/safwyls/reliquary:latest
+    restart: unless-stopped
+    <span class="c"># :latest tracks main, so an update is a re-pull.</span>
+    pull_policy: always
+    ports:
+      - "8830:8080"
+    environment:
+      <span class="c"># openssl rand -hex 32 — signs sessions; keep it stable.</span>
+      JWT_SECRET: "CHANGE-ME"
+      <span class="c"># openssl rand -hex 16 — EXACTLY 32 characters. Encrypts stored tokens.</span>
+      ENCRYPTION_KEY: "CHANGE-ME-32-chars-x"
+      <span class="c"># The bootstrap admin, created only while the users table is empty.</span>
+      ADMIN_USERNAME: "admin"
+      ADMIN_PASSWORD: "CHANGE-ME"
+      <span class="c"># Behind TLS? Mark session cookies Secure.</span>
+      <span class="c"># COOKIE_SECURE: "true"</span>
+    volumes:
+      - /srv/reliquary:/data</pre>
+</div>
+<p>Version archives live under <code>/data</code> as ordinary tar files
+(<code>savesync/&lt;world&gt;/&lt;version&gt;.tar</code>), with the SQLite database beside them. Give
+that directory the same snapshot and backup care as any world data.</p>
+<div class="callout warn"><p>The container needs no Docker rights and talks to no game. It does not
+belong on the same trust footing as Anvil — it is closer to a file server that happens to know whose
+turn it is.</p></div>
+
+<h2 id="players">Getting a player set up</h2>
+<ol>
+  <li><b>Give them an account</b> with the <b>world custody</b> grant. Without it an account can see
+    worlds and download a version, and nothing else — no companion token, no checking out. New
+    accounts made in the Users panel get it; existing ones can be granted it there any time.</li>
+  <li><b>They sign in</b> and copy their personal sync token from the <b>Your companion</b> panel.
+    The same panel hands out the executable.</li>
+  <li><b>They run the companion</b> — no installer, no service. It opens a page on
+    <code>127.0.0.1:8377</code> and sits in the tray. Paste the service URL and token, and nothing
+    leaves the machine until both are set.</li>
+  <li><b>They link a game.</b> The companion shows installed games as a shelf of covers; clicking one
+    asks where its save folder is and which world it belongs to — creating the world, and seeding it
+    with the current save, in the same step if this is the first player.</li>
+</ol>
+<div class="callout note"><p>Signing in through Cloudflare Access grants custody automatically,
+because the Access policy already names exactly the people meant to hold worlds. Set
+<code>ACCESS_GRANT_CUSTODY=0</code> to grant each account by hand instead.</p></div>
+
+<h2 id="folders">Finding the save folder</h2>
+<p>The companion never syncs a folder the player has not confirmed. It offers candidates, strongest
+first:</p>
+<ol>
+  <li>A <b>catalogue of known save locations</b> — the community-maintained
+    <a href="https://github.com/mtkennerly/ludusavi-manifest">Ludusavi manifest</a>, around 13,000
+    games. Reliquary fetches it weekly so no player's machine pulls 17&nbsp;MB of it, and sends back
+    path templates the companion expands locally.</li>
+  <li><b>Steam Cloud</b> — <code>userdata/&lt;account&gt;/&lt;appid&gt;/remote</code>, keyed by the
+    app id from the game's own manifest.</li>
+  <li>A <b>name search</b> across <code>Saved Games</code>, <code>%LOCALAPPDATA%</code>,
+    <code>%APPDATA%</code> and <code>Documents\My Games</code>.</li>
+</ol>
+<p>Within that order, a folder with files in it outranks an empty one. Anything at all can also be
+picked by browsing, or typed by hand, and every candidate says where it came from.</p>
+
+<h2 id="opaque">Joining a world whose folder has a scrambled name</h2>
+<p>Unreal games routinely name a save folder with an id generated once and never renameable —
+<code>K2hAc0p_LH74aymwOemkgg</code>. Everyone playing that world shares it, nobody can retype it,
+and the game will not create it until it has saved there. Without help, the second player either
+has to be told the exact string and make the folder by hand, or link their entire
+<code>SaveGames</code> and sync every save they own.</p>
+<p>So a world remembers its own folder name. The player creating it has their chosen folder split
+into the part that differs per machine and the part that does not, and is shown where the line
+falls before anything is recorded. Everyone who joins later picks only <b>their own save folder for
+that game</b>, and their companion creates the world's folder underneath it.</p>
+<div class="callout warn"><p>If a game turns out to use that folder to identify the <em>player</em>
+rather than the world, recreating the first player's name on a second machine may produce a folder
+that game ignores. The world's folder name is a default, not a mandate — link by hand to a different
+one if you hit a game that behaves that way.</p></div>
+
+<h2 id="afk">When the holder goes to bed still holding it</h2>
+<p>Nothing can reach into a companion — it runs on someone's home machine behind a router — so an
+admin leaves a request, and that player's companion picks it up on its next poll and answers it.
+Two verbs, and the difference matters:</p>
+<table>
+  <thead><tr><th>Ask for</th><th>What happens</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><b>Check in</b></td><td>Their current save is uploaded, becomes the new version, and the
+      world is released.</td><td>They are away and somebody else wants to play.</td></tr>
+    <tr><td><b>Checkpoint</b></td><td>Their current save is uploaded. They keep the
+      world.</td><td>You want a copy of an in-progress session.</td></tr>
+  </tbody>
+</table>
+<div class="callout note"><p>Ask for a <b>check-in</b>, not a checkpoint, when you want to take the
+world over. Checkpoints never move the world's current version by design, so releasing after one
+would hand the next player a save from before that session started.</p></div>
+<p>A machine that is asleep simply has not answered yet; the request stands until it wakes, and the
+page says how long it has been waiting. <b>Force release</b> still exists and still means what it
+says: take the world back, and lose whatever the holder never sent.</p>
+
+<h2 id="server">Worlds a dedicated server can also hold</h2>
+<p>Where a game <em>does</em> have a dedicated server — one raised by a console, with its sidecar
+agent — a world can name that agent and be handed to it. <b>Host on dedicated server</b> pushes the
+current version into the server's save directory; <b>Take back from server</b> pulls it out and
+makes it the new version. The server becomes just another holder in the same ledger, so the rule
+stays one holder at a time whether that holder is a person or a machine.</p>
+
+<h2 id="access">Behind Cloudflare Access</h2>
+<p>The companion authenticates with a token in the URL, on purpose: it has no browser to complete a
+login with. Anything that puts its own login page in front of the service therefore breaks every
+push — Access answers with HTML and an HTTP 200, and the companion names the interceptor rather than
+pretending the upload worked.</p>
+<p>Fix it with either a bypass or service-auth policy for <code>/api/public/*</code>, or a direct LAN
+address for players inside the network.</p>
+
+<h2 id="limits">What it is not</h2>
+<ul>
+  <li><b>Not a merge tool.</b> Two people cannot play the same world at once and have it work out.
+    The lock is the feature.</li>
+  <li><b>Not a live sync.</b> Saves move at checkout and check-in, plus checkpoints — not
+    continuously, because a half-written save is worse than a slightly old one.</li>
+  <li><b>Not a general backup.</b> It keeps the last N versions of a world you deliberately linked,
+    which is a different job from backing up a disk.</li>
+  <li><b>Not game-aware.</b> Verification is structural — a well-formed, non-empty, size-bounded
+    bundle. It cannot tell you a save is corrupt, only that it is a save.</li>
+</ul>
+<nav class="pager" aria-label="Pagination"><a class="pager-card prev" href="agents.html"><small>← Previous</small><b>Sidecar agents</b></a><a class="pager-card next" href="environment.html"><small>Next →</small><b>Environment variables</b></a></nav>
+  </main>
+</div>
+<footer class="doc-footer">
+  <div class="wrap-doc">
+    <p>Artificer is an unofficial fan project. Palworld is © Pocketpair, Inc. RuneScape Dragonwilds is
+    © Jagex Ltd. Enshrouded is © Keen Games GmbH. No affiliation or endorsement is implied.</p>
+    <p><a href="https://github.com/safwyls/artificer">GitHub</a> ·
+       <a href="https://github.com/safwyls/artificer/issues">Issues</a> ·
+       <a href="../index.html">Homepage</a></p>
+  </div>
+</footer>
+<script>
+  for (const card of document.querySelectorAll(".code-card[data-copy]")) {
+    const btn = card.querySelector(".copy-btn");
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(card.querySelector("pre").innerText);
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = "Copy"), 1600);
+      } catch { btn.textContent = "Select & copy"; }
+    });
+  }
+</script>
+</body>
+</html>
