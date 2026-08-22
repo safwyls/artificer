@@ -68,6 +68,32 @@ store schema and client survived the move.
   per-server backup restore button stays, since that is console
   territory on the same agent verb.
 
+### A world's folder, versus a player's save root (2026-08-21)
+
+A save folder splits into a machine-specific **root** and the world's own
+**leaf** inside it. Unreal games routinely make the leaf an opaque
+generated id (`K2hAc0p_LH74aymwOemkgg`) that every player of the world
+shares and none can retype.
+
+`sync_worlds.save_path` (migration 0027) records the leaf. It is
+metadata, not a transfer concern: bundles already carry paths relative to
+the linked folder, so the leaf never appears inside an archive. A joining
+player supplies their own root; their companion joins the world's leaf
+beneath it and creates the folder.
+
+Three rules keep it honest:
+
+- **The first companion to record a leaf settles it.** A later joiner's
+  metadata report cannot overwrite it — its own folder may legitimately
+  differ, and rewriting would move the world for everyone. Only an admin
+  can correct it, through world settings.
+- **The leaf is validated as a path**, at the service and again in the
+  companion: relative, no traversal, no drive letter, `/` only. It is the
+  one piece of companion-reported metadata that becomes a real directory
+  on a third party's disk.
+- **The root must exist.** Creating the leaf is the point; conjuring a
+  whole tree from a typo is not.
+
 ## The idea, restated in this repo's vocabulary
 
 Peer-hosted games make one player the host. The brainstorm adds

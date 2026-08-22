@@ -69,6 +69,11 @@
   .askfor { margin: 10px 0 0; border-left: 3px solid var(--gold); padding: 8px 10px;
             background: rgba(201,168,96,.10); font-size: 13px; color: var(--parchment); }
   .req { color: var(--gold); }
+  /* The two halves of a save folder, shown before anything is created. */
+  .split { margin-top: 8px; border-left: 3px solid var(--rune); padding: 7px 10px;
+           background: rgba(157,127,196,.10); font-size: 12.5px; }
+  .split .leafname { font-family: ui-monospace, monospace; color: var(--goldhi); overflow-wrap: anywhere; }
+  .split .rootname { font-family: ui-monospace, monospace; color: var(--mist); overflow-wrap: anywhere; }
   /* A world's own cover, beside its row — the same art the shelf shows,
      so a list of world names becomes a list of games. */
   .worldrow { display: flex; gap: 12px; align-items: flex-start; }
@@ -417,15 +422,16 @@ function linkFormHTML(g) {
          </select>`
       : `<p class="askfor"><b>No save folder was found for this game.</b> Paste the path below to link it — it is
          usually under %LOCALAPPDATA%, Documents\\My Games, or Saved Games. Nothing is linked until you do.</p>`}
-    <label>Save folder <span class="req">(required)</span></label>
+    <label><span id="lf-dirlabel">Save folder</span> <span class="req">(required)</span></label>
     <input id="lf-dir" value="${esc(cands.length ? cands[0].path : "")}" placeholder="C:\\Users\\you\\AppData\\Local\\Game\\Saved\\SaveGames">
     <button class="quiet" onclick="toggleBrowse()" id="lf-browsebtn">Browse this computer…</button>
     <div class="browser hidden" id="lf-browse"></div>
     <label>World on the service</label>
     <select id="lf-world">
       <option value="">— create a new world —</option>
-      ${worlds.map(w => `<option value="${w.world.id}">${esc(w.world.name)}${w.world.gameTitle ? " · " + esc(w.world.gameTitle) : ""}</option>`).join("")}
+      ${worlds.map(w => `<option value="${w.world.id}"${w.world.savePath ? ` data-savepath="${esc(w.world.savePath)}"` : ""}>${esc(w.world.name)}${w.world.gameTitle ? " · " + esc(w.world.gameTitle) : ""}</option>`).join("")}
     </select>
+    <div class="split hidden" id="lf-split"></div>
     <div id="lf-newrow"><label>New world's name</label><input id="lf-name" value="${esc(g.name)}"></div>
     <label style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--parchment)">
       <input type="checkbox" id="lf-seed" checked style="width:auto"> upload this folder's current save as the world's first version
@@ -489,18 +495,91 @@ function useBrowsed(path) {
   if (err) err.classList.remove("on");
 }
 
+// --- the two halves of a save folder ---
+//
+// Joining an existing world is the case this exists for. A world's
+// folder is often an opaque id an Unreal game generated once
+// (K2hAc0p_LH74aymwOemkgg): everyone playing that world shares it,
+// nobody can retype it, and the game will not create it until it has
+// saved there. So the joining player supplies only the half they can
+// know — the folder their game keeps saves in — and the companion makes
+// the rest underneath.
+//
+// Creating a world is the mirror: the folder being linked is split, the
+// player is shown where the line falls, and the leaf is recorded so
+// everyone who joins later gets it made for them.
+let SPLIT = null;
+
+function selectedWorldOption() {
+  const world = document.getElementById("lf-world");
+  return world && world.value ? world.selectedOptions[0] : null;
+}
+function selectedWorldLeaf() {
+  const opt = selectedWorldOption();
+  return opt ? (opt.dataset.savepath || "") : "";
+}
+
+// renderSplit says, in the form, exactly what will happen to the folder.
+async function renderSplit() {
+  const box = document.getElementById("lf-split");
+  const dirEl = document.getElementById("lf-dir");
+  if (!box || !dirEl) return;
+  const dir = dirEl.value.trim();
+  const leaf = selectedWorldLeaf();
+
+  if (leaf) {
+    // Joining: the world already knows its folder name.
+    let out = null;
+    try { out = await call("POST", "/api/savepath/resolve", { root: dir, leaf, create: false }); }
+    catch (e) { box.className = "split"; box.innerHTML = esc(e.message); return; }
+    box.className = "split";
+    box.innerHTML = `This world lives in a folder named <span class="leafname">${esc(leaf)}</span>.
+      Point at the folder your game keeps its saves in above, and linking will
+      ${out.exists ? "use" : "<b>create</b>"}:<br><span class="rootname">${esc(out.dir)}</span>
+      ${out.exists ? "" : `<br><span class="note" style="margin:2px 0 0">It does not exist yet — that is expected if you have never played this world.</span>`}`;
+    return;
+  }
+  if (!dir) { box.className = "split hidden"; return; }
+
+  // Creating: work out which part of this folder the world should carry.
+  const g = LINK_TARGET || {};
+  try {
+    const q = new URLSearchParams({ dir, appId: g.appId || "", name: g.name || "" });
+    SPLIT = (await call("GET", "/api/savepath/split?" + q.toString())).split;
+  } catch { SPLIT = null; }
+  if (!SPLIT || !SPLIT.leaf) {
+    box.className = "split hidden";
+    return;
+  }
+  box.className = "split";
+  box.innerHTML = `This world will be recorded as the folder
+    <span class="leafname">${esc(SPLIT.leaf)}</span>, inside
+    <span class="rootname">${esc(SPLIT.root)}</span>${SPLIT.why ? ` — ${esc(SPLIT.why)}` : ""}.
+    Anyone else joining picks their own save folder and gets that same folder name created for them, so
+    they never need to know it.`;
+}
+
 // wireLinkForm connects the bits that need behaviour rather than markup:
-// picking a found folder fills the path, and choosing an existing world
-// hides the new-world name.
+// picking a found folder fills the path, choosing an existing world hides
+// the new-world name, and either one re-asks where the folder splits.
 function wireLinkForm() {
   const cand = document.getElementById("lf-cand");
   const dir = document.getElementById("lf-dir");
-  if (cand && dir) cand.onchange = e => { if (e.target.value) dir.value = e.target.value; };
+  if (cand && dir) cand.onchange = e => { if (e.target.value) { dir.value = e.target.value; renderSplit(); } };
+  if (dir) {
+    let t;
+    dir.oninput = () => { clearTimeout(t); t = setTimeout(renderSplit, 350); };
+  }
   const world = document.getElementById("lf-world");
   if (world) world.onchange = e => {
     const row = document.getElementById("lf-newrow");
     if (row) row.style.display = e.target.value ? "none" : "";
+    const label = document.getElementById("lf-dirlabel");
+    if (label) label.textContent = selectedWorldLeaf() ? "Your save folder for this game" : "Save folder";
+    renderSplit();
   };
+  SPLIT = null;
+  renderSplit();
 }
 
 async function saveSteamDir() {
@@ -542,10 +621,28 @@ async function submitLink() {
   const name = worldId ? "" : (document.getElementById("lf-name")?.value || "").trim();
   if (!worldId && !name) return linkError("A new world needs a name.", "lf-name");
 
+  // Joining a world that knows its own folder: what the player gave is
+  // their save root, and the world's folder is created beneath it. This
+  // is the whole point — the folder name is usually an opaque id they
+  // have no way to type.
+  let linkDir = dir, savePath = "";
+  const leaf = selectedWorldLeaf();
+  if (worldId && leaf) {
+    try {
+      linkDir = (await call("POST", "/api/savepath/resolve", { root: dir, leaf, create: true })).dir;
+    } catch (e) {
+      return linkError(e.message, "lf-dir");
+    }
+  } else if (!worldId) {
+    // Creating: record the folder this world lives in, so the next
+    // player gets it made for them.
+    savePath = (SPLIT && SPLIT.leaf) || "";
+  }
+
   const seed = !worldId && document.getElementById("lf-seed").checked;
   try {
-    if (worldId) await call("POST", "/api/links", { worldId, gameTitle, dir, meta, appId });
-    else await call("POST", "/api/links/create", { name, gameTitle, dir, meta, appId, seed });
+    if (worldId) await call("POST", "/api/links", { worldId, gameTitle, dir: linkDir, meta, appId });
+    else await call("POST", "/api/links/create", { name, gameTitle, dir: linkDir, meta, appId, savePath, seed });
   } catch (e) {
     return linkError(e.message, "lf-dir");
   }

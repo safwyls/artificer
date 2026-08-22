@@ -47,6 +47,14 @@ type SyncWorld struct {
 	GameTitle string `json:"gameTitle"`
 	SaveHint  string `json:"saveHint"`
 	GameMeta  string `json:"gameMeta"`
+	// SavePath is the folder this world lives in, relative to each
+	// player's own save root — the opaque leaf an Unreal game generates
+	// ("K2hAc0p_LH74aymwOemkgg"), which every player of the world shares
+	// and none of them can retype. Slash-separated, always relative;
+	// empty when the save root is itself the world's folder. A joining
+	// player picks their root and their companion recreates this beneath
+	// it (migration 0027).
+	SavePath string `json:"savePath"`
 	// The sidecar agent that can also hold this world (the give/take
 	// flows), when the game has a dedicated server. The token is
 	// decrypted here, encrypted at rest, and never serialized.
@@ -131,14 +139,14 @@ func nullInt(p *int64) any {
 
 // sync_worlds.server_id predates the standalone service and is no
 // longer read: a world's dedicated server is its own agent link now.
-const syncWorldColumns = `id, name, game_title, save_hint, game_meta, agent_url, agent_token_enc, lease_hours, max_bytes, keep_versions, checkpoints, webhook_url, head_version, next_holder, created_at`
+const syncWorldColumns = `id, name, game_title, save_hint, game_meta, save_path, agent_url, agent_token_enc, lease_hours, max_bytes, keep_versions, checkpoints, webhook_url, head_version, next_holder, created_at`
 
 func (s *Store) scanSyncWorld(scan func(...any) error) (*SyncWorld, error) {
 	var w SyncWorld
 	var head, next sql.NullInt64
 	var checkpoints int
 	var created, tokenEnc string
-	if err := scan(&w.ID, &w.Name, &w.GameTitle, &w.SaveHint, &w.GameMeta, &w.AgentURL, &tokenEnc, &w.LeaseHours, &w.MaxBytes, &w.KeepVersions, &checkpoints, &w.WebhookURL, &head, &next, &created); err != nil {
+	if err := scan(&w.ID, &w.Name, &w.GameTitle, &w.SaveHint, &w.GameMeta, &w.SavePath, &w.AgentURL, &tokenEnc, &w.LeaseHours, &w.MaxBytes, &w.KeepVersions, &checkpoints, &w.WebhookURL, &head, &next, &created); err != nil {
 		return nil, err
 	}
 	if tokenEnc != "" {
@@ -237,10 +245,10 @@ func (s *Store) UpdateSyncWorldSettings(ctx context.Context, id int64, name stri
 // SetSyncWorldGameInfo stores what a companion reported about the game
 // behind a world. Metadata only — custody and policy stay untouched, so
 // a companion can never move a head or widen a size cap.
-func (s *Store) SetSyncWorldGameInfo(ctx context.Context, id int64, title, saveHint, meta string) error {
+func (s *Store) SetSyncWorldGameInfo(ctx context.Context, id int64, title, saveHint, meta, savePath string) error {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE sync_worlds SET game_title = ?, save_hint = ?, game_meta = ? WHERE id = ?`,
-		title, saveHint, meta, id)
+		`UPDATE sync_worlds SET game_title = ?, save_hint = ?, game_meta = ?, save_path = ? WHERE id = ?`,
+		title, saveHint, meta, savePath, id)
 	if err != nil {
 		return err
 	}

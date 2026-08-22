@@ -65,6 +65,49 @@ relay still accepts pushes from old wkcompanion builds;
    2–4, exactly as the companion worked before. `SAVEDB_URL` overrides
    the source. The vault's **Save-location catalogue** panel shows what
    loaded, when, and what failed, with a refresh button.
+### Joining a world whose folder has an opaque name
+
+A save folder has two halves. The **root** is machine-specific and
+discoverable — `%LOCALAPPDATA%\Witchspire\Saved\SaveGames`. The **leaf**
+is the world's own identity inside it, and Unreal games routinely make
+it an id generated once and never renameable:
+`K2hAc0p_LH74aymwOemkgg`. Everyone playing that world shares the leaf,
+nobody can retype it, and the game will not create it until it has saved
+there. Before this, the second player to join either had to be told the
+exact string and make the folder by hand, or link their whole
+`SaveGames` and sync every save they own.
+
+Save bundles carry paths **relative to the linked folder**, so the leaf
+never travels inside an archive. That is what makes the fix small:
+
+- The player who creates a world has their chosen folder **split**. A
+  catalogue or discovery root that contains it wins; failing that, a
+  parent named like a save container (`SaveGames`, `Saved`, `Saves`)
+  means the folder inside it is one save among several; failing both,
+  the folder is the root and there is no leaf — which is right for every
+  game that keeps a single save folder. The split is shown in the form
+  before anything is recorded.
+- The world stores the leaf (`sync_worlds.save_path`, migration 0027).
+- A joining player picks only **their own save root**. The companion
+  joins the world's leaf beneath it, **creates the folder**, and links
+  that. The root must already exist, so a typo is refused rather than
+  producing empty folders somewhere nobody meant.
+
+The leaf is validated as what it is — a path that will be created on
+someone else's machine — at the service and again in the companion:
+relative, no traversal, no drive letters, no separators but `/`.
+
+The first companion to record a leaf settles it; a later joiner
+reporting its own metadata cannot overwrite it. An admin can correct it
+in the vault's world settings.
+
+**Where this can still go wrong**: if a game's leaf identifies the
+*player* rather than the world, recreating the first player's folder
+name on a second machine may produce a folder that game ignores. The
+world's leaf is a default, not a mandate — link by hand to a different
+folder if a game turns out to work that way, and tell us, because the
+split rule is where that knowledge would live.
+
 2. **Links games to worlds.** Click a tile: unlinked games open a link
    form in a modal over the shelf, linked ones (shown in colour, against
    the greyed-out rest) open what they point at. (The form was inline

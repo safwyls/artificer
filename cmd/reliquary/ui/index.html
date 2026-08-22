@@ -109,9 +109,10 @@
     <br><button onclick="createUser()">Add user</button>
     <div class="note">World custody is the grant that lets someone check a world out, check it back in, and hold a
       companion token — without it an account can see the worlds and download a version, nothing more. New accounts
-      made here get it. Accounts created by signing in through Cloudflare Access <b>do not</b>: Access says who
-      someone is, never what they may do here, so grant custody below after their first sign-in. Admins have it
-      implicitly, and additionally manage worlds, users and rollbacks.</div>
+      made here get it, and so do accounts created by signing in through Cloudflare Access — that policy already
+      names your friend group (set <span class="mono">ACCESS_GRANT_CUSTODY=0</span> if you would rather grant each
+      one by hand). Anyone who signed in before that was the default arrives without it; grant it below. Admins have
+      it implicitly, and additionally manage worlds, users and rollbacks.</div>
   </div>
 
   <div class="panel hidden" id="artworkPanel">
@@ -345,6 +346,8 @@ function settingsForm(w) {
     <div><label>Lease (hours)</label><input id="s-lease-${w.id}" type="number" value="${w.leaseHours}"></div>
     <div><label>Max size (MiB)</label><input id="s-max-${w.id}" type="number" value="${Math.round(w.maxBytes / (1<<20))}"></div>
     <div><label>Keep versions</label><input id="s-keep-${w.id}" type="number" value="${w.keepVersions}"></div>
+    <div><label>World folder (inside each player's own save folder)</label>
+      <input id="s-path-${w.id}" value="${esc(w.savePath)}" placeholder="usually blank; e.g. K2hAc0p_LH74aymwOemkgg"></div>
     <div><label>Discord webhook URL</label><input id="s-hook-${w.id}" value="${esc(w.webhookUrl)}"></div>
     <div><label>Dedicated-server agent URL (optional)</label><input id="s-agent-${w.id}" value="${esc(w.agentUrl)}" placeholder="http://host:8420"></div>
     <div><label>Agent token ${w.hasAgentToken ? "(saved — empty keeps it)" : ""}</label><input id="s-atok-${w.id}" type="password"></div>
@@ -362,6 +365,7 @@ async function saveSettings(id) {
     maxBytes: Number(document.getElementById(`s-max-${id}`).value) * (1<<20),
     keepVersions: Number(document.getElementById(`s-keep-${id}`).value),
     checkpoints: document.getElementById(`s-cp-${id}`).checked,
+    savePath: document.getElementById(`s-path-${id}`).value.trim(),
     webhookUrl: document.getElementById(`s-hook-${id}`).value,
     agentUrl: document.getElementById(`s-agent-${id}`).value,
     agentToken: document.getElementById(`s-atok-${id}`).value,
@@ -407,6 +411,7 @@ async function renderWorlds() {
           <div class="line">${holderLine(st)}</div>
           ${st.holder && st.claimedBy ? `<div class="mono">next claim: ${esc(st.claimedBy)}</div>` : ""}
           ${w.saveHint ? `<div class="mono" title="where the companion that linked this game found its save">save location: ${esc(w.saveHint)}</div>` : ""}
+          ${w.savePath ? `<div class="mono" title="created inside each player's own save folder when they link this world">world folder: ${esc(w.savePath)}</div>` : ""}
           <div>${worldActions(st)}</div>
         </div>
       </div>`;
