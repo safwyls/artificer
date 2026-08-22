@@ -421,7 +421,39 @@ footer.site a { color: rgba(244,241,236,.82); }
   </div>
 </section>
 
-<section class="section" id="raise">
+<section class="section" id="saves">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="section-label">Shared world saves</p>
+      <h2>Some worlds live in a save folder, not on a server</h2>
+      <p>For those, whoever hosts is whoever holds the newest copy — and passing that around a group
+      by hand ends the same way every time: two people play the same evening, and one of them loses
+      it. <b>Reliquary</b> holds the world instead and lends it to one player at a time, with every
+      check-in kept as a version. It runs as its own container, knows nothing about any game, and
+      works for games no console here supports.</p>
+    </div>
+    <div class="feature-grid">
+      <article class="feature" style="--dot: var(--c-wild)">
+        <h3>One holder at a time</h3>
+        <p>Check out, play, check in. Nobody else can take the world while you have it, and the next
+        player is queued rather than racing you for it.</p>
+      </article>
+      <article class="feature" style="--dot: var(--c-wild)">
+        <h3>A companion that finds the folder</h3>
+        <p>A small app on each player's machine spots installed games and their save folders, and
+        moves the saves. Even the scrambled folder names Unreal games generate.</p>
+      </article>
+      <article class="feature" style="--dot: var(--c-wild)">
+        <h3>Get it back from whoever's asleep</h3>
+        <p>An admin can ask a holder's companion to check in. It answers next time that machine is
+        online, and the evening they played is not lost.</p>
+      </article>
+    </div>
+    <p style="margin-top:1.6rem"><a class="btn btn-ink" href="docs/save-sync.html">How shared world saves work</a></p>
+  </div>
+</section>
+
+<section class="section alt" id="raise">
   <div class="wrap">
     <div class="section-head">
       <p class="section-label">Raising a server</p>
@@ -454,7 +486,7 @@ footer.site a { color: rgba(244,241,236,.82); }
   </div>
 </section>
 
-<section class="section alt" id="deploy">
+<section class="section" id="deploy">
   <div class="wrap">
     <div class="section-head">
       <p class="section-label">Getting started</p>
@@ -509,7 +541,7 @@ footer.site a { color: rgba(244,241,236,.82); }
   </div>
 </section>
 
-<section class="section" id="docs">
+<section class="section alt" id="docs">
   <div class="wrap">
     <div class="section-head">
       <p class="section-label">Documentation</p>
@@ -521,6 +553,7 @@ footer.site a { color: rgba(244,241,236,.82); }
       <a class="doc-link" href="docs/architecture.html"><b>Architecture</b><span>Core, games, agents and where a new game plugs in.</span></a>
       <a class="doc-link" href="docs/anvil.html"><b>Anvil</b><span>Registering consoles, allowlists and data roots.</span></a>
       <a class="doc-link" href="docs/agents.html"><b>Sidecar agents</b><span>How the game actually gets installed and supervised.</span></a>
+      <a class="doc-link" href="docs/save-sync.html"><b>Shared world saves</b><span>Passing a world between players, one holder at a time.</span></a>
       <a class="doc-link" href="docs/environment.html"><b>Environment variables</b><span>Every variable each console and agent reads.</span></a>
       <a class="doc-link" href="docs/troubleshooting.html"><b>Troubleshooting</b><span>The failures worth recognising on sight.</span></a>
     </div>
