@@ -1,5 +1,14 @@
-# Reliquary — the standalone save-sync service. No frontend build stage:
-# the UI is a single embedded page (cmd/reliquary/ui), deliberately light.
+# Reliquary — the standalone save-sync service.
+
+# ---- frontend build ----
+FROM docker.io/library/node:24-alpine AS frontend
+WORKDIR /app/web
+COPY web/reliquary/package.json web/reliquary/package-lock.json* ./
+RUN npm install
+COPY web/reliquary/ ./
+RUN npm run build
+
+# ---- backend build ----
 FROM docker.io/library/golang:1.26-alpine AS backend
 WORKDIR /app
 # Download modules against the committed go.mod/go.sum before copying
@@ -8,6 +17,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+COPY --from=frontend /app/web/dist ./web/reliquary/dist
 # The build this image came from, stamped into both binaries and shown
 # in both UIs — so a save-sync report can name which service talked to
 # which companion. A plain `go build` leaves it "dev".

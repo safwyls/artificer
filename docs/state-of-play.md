@@ -129,7 +129,19 @@ Artificer Companion (`cmd/companion`, born wkcompanion; GitHub releases
 installed games, links their save folders to worlds, and moves the
 saves; the agent's `PUT /v1/files/save` lets a dedicated server hold a
 world through the world's own agent link. Consoles host none of it.
-**Verified in tests only so far** — no real friend-group rotation has
+
+Its UI is a React frontend (`web/reliquary`), built and embedded like
+the three consoles' and structured the same way — app shell, router,
+`lib/api`, per-component tests. It replaced the single 702-line vanilla
+page on 2026-08-21 to the plan in `docs/reliquary-ui-rebuild.md`; the
+vault's visual identity was kept rather than redesigned. What that page
+had learned is now enforced by tests rather than by comments: the whole
+record goes to the user-update API (a partial write clears the fields it
+omits — and the same is true of the world-settings API, which the
+Settings and Server link tabs both write through), covers are fetched
+once per *set* of worlds and never on the poll, and a value that
+contains quotes or angle brackets renders as text with its verbs still
+working. **Verified in tests only so far** — no real friend-group rotation has
 run through it yet, and the phase 0 recon items below gate calling it
 done.
 

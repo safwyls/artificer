@@ -48,6 +48,10 @@ surface; wildskeeper's old character relay survives only as the
 console-side inbox for old wkcompanion builds.
 `docs/save-sync-architecture.md` is the contract for custody semantics;
 its phase 0 recon (player-hosted save location) is still open.
+Reliquary's UI is a React frontend in `web/reliquary`, built and
+embedded like the consoles' (`docs/reliquary-ui-rebuild.md` is the plan
+it was built to, and records what is still unverified); the vanilla
+`cmd/reliquary/ui` page it replaced is gone.
 
 Provisioning is Anvil-only across all three; the legacy
 provisioner-mode agent is retired (`PROVISIONER_URL` → `ANVIL_URL` —
@@ -82,7 +86,9 @@ Rules already in force (see the plan's "Structural rules"):
   naming where the ability actually lives — rather than hiding it.
 
 Tests: `go build ./... && go vet ./... && go test ./...`,
-`./scripts/checkbounds.sh`, and `cd web/<console> && npm test`. The
+`./scripts/checkbounds.sh`, and `cd web/<frontend> && npm test`
+(`web/reliquary` is one of the four; the Go build embeds every `dist/`,
+so `npm run build` in each comes first). The
 anvil module has its own suite. Save-backed palworld tests need
 `palworld-save-tools` importable by python3; they skip without it.
 

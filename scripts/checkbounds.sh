@@ -73,6 +73,19 @@ for d in games/*/*agent/; do
   fi
 done
 
+# Rule: reliquary is game-blind, frontend included. It renders whatever
+# metadata the API reports about a world's game and must never branch on
+# which game that is — a named game in its production code is that rule
+# breaking. Fixtures and tests may of course name one as data.
+hits=$(grep -rniE --include='*.ts' --include='*.tsx' \
+  'palworld|dragonwilds|enshrouded|palcon|wildskeeper|flametender' \
+  web/reliquary/src 2>/dev/null | grep -v '\.test\.' | grep -v '^web/reliquary/src/test/' || true)
+if [ -n "$hits" ]; then
+  echo "BOUNDARY: reliquary's frontend names a game:"
+  echo "$hits"
+  fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
   echo "dependency rules: OK"
 fi
