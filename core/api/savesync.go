@@ -50,6 +50,10 @@ type syncHolder struct {
 	Username   string    `json:"username"`
 	ServerHeld bool      `json:"serverHeld"`
 	ExpiresAt  time.Time `json:"expiresAt"`
+	// A standing request for this holder's companion, waiting to be
+	// picked up on its next poll: "checkpoint" or "checkin".
+	RequestedKind string     `json:"requestedKind,omitempty"`
+	RequestedAt   *time.Time `json:"requestedAt,omitempty"`
 	// Claimable: the hold is past its lease, so a takeover checkout
 	// would succeed.
 	Claimable bool `json:"claimable"`
@@ -61,6 +65,7 @@ func (s *Server) syncStatus(r *http.Request, w *store.SyncWorld) *syncWorldStatu
 		holder := &syncHolder{
 			SessionID: ss.ID, UserID: ss.HolderID, ServerHeld: ss.ServerHeld,
 			ExpiresAt: ss.ExpiresAt, Claimable: ss.Expired(time.Now()),
+			RequestedKind: ss.RequestedKind, RequestedAt: ss.RequestedAt,
 		}
 		if u, err := s.store.GetUser(r.Context(), ss.HolderID); err == nil {
 			holder.Username = u.Username
@@ -554,6 +559,65 @@ func (s *Server) handleSyncImport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "version": v})
 }
 
+// handleSyncRequestHandback asks the current holder's companion to hand
+// the world back on its next poll.
+//
+// Nothing here reaches into a companion: it lives on someone's home
+// machine behind a router, and it polls. So the ask is a flag on the
+// session, and the answer arrives as an ordinary upload up to a poll
+// interval later. That is also why this cannot fail loudly when the
+// holder's machine is asleep — the request simply stands, and the page
+// says it is still standing.
+//
+// "checkin" is the verb that answers the case this exists for: a holder
+// who went to bed mid-session. A checkpoint captures their save but
+// never moves the head, so on its own it would leave the next player
+// checking out a version from before the session began.
+func (s *Server) handleSyncRequestHandback(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	switch in.Kind {
+	case store.SyncKindCheckin, store.SyncKindCheckpoint, "":
+	default:
+		writeError(w, http.StatusBadRequest, `ask for "checkin", "checkpoint", or "" to withdraw`)
+		return
+	}
+	ss, err := s.store.ActiveSyncSession(r.Context(), world.ID)
+	if err != nil {
+		writeError(w, http.StatusConflict, "nobody is holding this world")
+		return
+	}
+	if ss.ServerHeld {
+		writeError(w, http.StatusConflict,
+			"the dedicated server holds this world — take it back from the server instead; there is no companion to ask")
+		return
+	}
+	if in.Kind == store.SyncKindCheckpoint && !world.Checkpoints {
+		writeError(w, http.StatusBadRequest, "checkpoints are off for this world — ask for a check-in, or turn them on in settings")
+		return
+	}
+	user, _ := userFromContext(r.Context())
+	var by int64
+	if user != nil {
+		by = user.ID
+	}
+	if err := s.store.RequestSyncHandback(r.Context(), ss.ID, in.Kind, by, time.Now()); err != nil {
+		writeSyncError(w, err)
+		return
+	}
+	s.syncAudit(r, world, "sync-world-request", in.Kind)
+	writeJSON(w, http.StatusOK, s.syncStatus(r, world))
+}
+
 func (s *Server) handleSyncRelease(w http.ResponseWriter, r *http.Request) {
 	world, ok := s.loadSyncWorld(w, r)
 	if !ok {
@@ -711,6 +775,7 @@ func (s *Server) mountSyncSmall(r chi.Router) {
 	r.With(s.requirePermission(store.PermSync)).Post("/sync/worlds/{worldID}/claim", s.asUser(s.syncClaim))
 	r.With(s.requirePermission(store.PermSync)).Delete("/sync/worlds/{worldID}/claim", s.asUser(s.syncUnclaim))
 	r.With(s.requirePermission(store.PermSync)).Get("/sync/worlds/{worldID}/versions/{versionID}/download", s.syncDownload)
+	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/request", s.handleSyncRequestHandback)
 	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/release", s.handleSyncRelease)
 	r.With(s.requireAdmin).Post("/sync/worlds/{worldID}/head", s.handleSyncSetHead)
 	// The dedicated server as a holder (savesync_server.go): give the

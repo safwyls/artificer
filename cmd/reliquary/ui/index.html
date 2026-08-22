@@ -304,6 +304,17 @@ async function logout() {
 }
 
 // --- worlds ---
+// requestLine says what has been asked of a holder and how long it has
+// gone unanswered — a request nobody can see the state of is a request
+// nobody trusts.
+function requestLine(h) {
+  if (!h || !h.requestedKind) return "";
+  const what = h.requestedKind === "checkin" ? "check in and release" : "push a checkpoint";
+  const since = h.requestedAt ? ` · asked ${fmtTime(h.requestedAt)}` : "";
+  return `<div class="mono" style="color:var(--rune)">waiting for ${esc(h.username)}'s companion to ${what}${since}
+    — it answers within a minute of being online; if their machine is asleep the request stands until it wakes.</div>`;
+}
+
 function holderLine(st) {
   const h = st.holder;
   if (!h) return `<span class="free">Free — nobody holds this world</span>` + (st.claimedBy ? ` · next claim: ${esc(st.claimedBy)}` : "");
@@ -333,7 +344,16 @@ function worldActions(st) {
   if (ME.isAdmin) {
     if (w.agentUrl && !h && st.head) btn("Host on dedicated server", `act(() => j('POST', '/sync/worlds/${w.id}/server/give'), 'the server holds the world — start it when ready')`, "quiet");
     if (w.agentUrl && h && h.serverHeld) btn("Take back from server", `act(() => j('POST', '/sync/worlds/${w.id}/server/take'), 'taken back — the server save is the new head')`, "quiet");
-    if (h) btn("Force release", `confirm('Force-release this hold?') && act(() => j('POST', '/sync/worlds/${w.id}/release'), 'released')`, "quiet danger");
+    if (h && !h.serverHeld && !h.requestedKind) {
+      // The holder went quiet: ask their companion to hand the world
+      // back on its next poll. Check-in is the useful one — a checkpoint
+      // never moves the head, so releasing after one would hand the next
+      // player a save from before this session started.
+      btn("Ask holder to check in", `act(() => j('POST', '/sync/worlds/${w.id}/request', {kind: 'checkin'}), 'asked — their companion answers within a minute')`, "quiet");
+      if (w.checkpoints) btn("Ask for a checkpoint", `act(() => j('POST', '/sync/worlds/${w.id}/request', {kind: 'checkpoint'}), 'asked — their companion answers within a minute')`, "quiet");
+    }
+    if (h && h.requestedKind) btn("Withdraw the request", `act(() => j('POST', '/sync/worlds/${w.id}/request', {kind: ''}), 'withdrawn')`, "quiet");
+    if (h) btn("Force release", `confirm('Force-release this hold? Anything they have not sent is left on their machine.') && act(() => j('POST', '/sync/worlds/${w.id}/release'), 'released')`, "quiet danger");
     btn("Settings", `toggleSettings(${w.id})`, "quiet");
     btn("Delete", `confirm('Delete ${esc(w.name)} and every stored version?') && act(() => j('DELETE', '/sync/worlds/${w.id}'), 'deleted')`, "quiet danger");
   }
@@ -409,6 +429,7 @@ async function renderWorlds() {
           <h2><span class="worldname">${esc(w.name)}</span>${w.gameTitle ? `<span class="gametag">${esc(w.gameTitle)}</span>` : ""}
             <span class="meta">${st.head ? `head v${st.head.id} · ${fmtBytes(st.head.bytes)} · ${fmtTime(st.head.createdAt)}` : "no versions yet"}</span></h2>
           <div class="line">${holderLine(st)}</div>
+          ${requestLine(st.holder)}
           ${st.holder && st.claimedBy ? `<div class="mono">next claim: ${esc(st.claimedBy)}</div>` : ""}
           ${w.saveHint ? `<div class="mono" title="where the companion that linked this game found its save">save location: ${esc(w.saveHint)}</div>` : ""}
           ${w.savePath ? `<div class="mono" title="created inside each player's own save folder when they link this world">world folder: ${esc(w.savePath)}</div>` : ""}

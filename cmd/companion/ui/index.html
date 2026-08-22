@@ -107,6 +107,8 @@
     <h2>Your worlds</h2>
     <div id="links"></div>
     <div class="note" id="syncLine"></div>
+    <button class="quiet" onclick="syncNow()" id="syncNowBtn">Sync now</button>
+    <span class="mono" id="syncFresh"></span>
   </div>
 
   <div class="panel">
@@ -653,6 +655,36 @@ async function submitLink() {
 
 async function rescan() { await act(() => call("POST", "/api/discover"), "rescanned"); }
 
+// syncNow asks the service right now rather than waiting for the poll.
+// The page keeps itself current while it is open, so this is for being
+// certain rather than patient — and for hearing plainly when the service
+// cannot be reached, which a background poll never says out loud.
+async function syncNow() {
+  const btn = document.getElementById("syncNowBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Syncing…"; }
+  try {
+    const out = await call("POST", "/api/sync/refresh");
+    say(`synced — ${out.worlds} world${out.worlds === 1 ? "" : "s"} on the service`, true);
+  } catch (e) {
+    say(e.message, false);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Sync now"; }
+  }
+  refresh();
+}
+
+// The age of what is on screen. Custody is shared state — someone else
+// checking a world in is the whole reason this page exists — so "when
+// did we last hear from the service" is worth saying rather than
+// leaving people to guess.
+function freshness(polledAt) {
+  if (!polledAt) return "not synced yet";
+  const secs = Math.max(0, Math.round((Date.now() - new Date(polledAt)) / 1000));
+  if (secs < 10) return "up to date";
+  if (secs < 90) return `synced ${secs}s ago`;
+  return `synced ${Math.round(secs / 60)} min ago`;
+}
+
 async function saveCfg() {
   say("connecting…", true);
   await act(() => call("PUT", "/api/config", {
@@ -755,6 +787,10 @@ async function refresh() {
   const steamEl = document.getElementById("steamDir");
   if (document.activeElement !== steamEl && !steamEl.dataset.dirty) steamEl.value = (ST.config.steamDirs || [])[0] || "";
   document.getElementById("tokenState").textContent = ST.config.tokenSet ? "(saved — paste to replace)" : "";
+  const fresh = document.getElementById("syncFresh");
+  if (fresh) fresh.textContent = ST.sync.configured ? freshness(ST.sync.polledAt) : "";
+  const btn = document.getElementById("syncNowBtn");
+  if (btn) btn.classList.toggle("hidden", !ST.sync.configured);
   const line = document.getElementById("syncLine");
   if (ST.sync.configured) {
     line.innerHTML = `Connected as <b>${esc(ST.sync.username || "…")}</b>` +

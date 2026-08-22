@@ -131,13 +131,29 @@ split rule is where that knowledge would live.
    folder (tmp-extract-and-swap, one `.pre-checkout` copy kept);
    check-in packages the folder and returns the hold; mid-session
    checkpoints push automatically as crash insurance; a queued claim's
-   handoff is fetched without the player doing anything. Packaging
+   handoff is fetched without the player doing anything. An admin can
+   also **ask** a hold to check in or checkpoint — the companion picks
+   the request up on its next poll and answers it, which is how a world
+   comes back from someone who went to bed still holding it. Packaging
    waits out a settle window on the folder's mtimes — the app is
    game-blind, so the settle window is the torn-save guard, and the
    service verifies every upload again.
 
 The credential is the player's personal sync token from the service's
 page. Nothing leaves the machine until a service URL and token are set.
+It never reaches the screen either: transport errors quote the URL they
+failed on, and the token lives in that URL, so errors are scrubbed
+before the page or the log sees them.
+
+**How current the page is.** Custody is shared state — the whole point is
+that someone else checks a world in — so the page polls the service
+every few seconds while it is open and once a minute when it is not, its
+own render being what tells the app somebody is looking. It says how
+long ago it last heard from the service, and **Sync now** asks
+immediately and reports plainly if the service cannot be reached. (Until
+2026-08-22 the poll and the acting on it shared one one-minute gate, so
+a world someone else released took up to a minute to appear and forcing
+a sync from the tray icon was the only cure.)
 
 **Cover art** is resolved by the service, not here: reliquary holds the
 IGDB credentials (a Twitch app's client id and secret, from the vault's

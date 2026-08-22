@@ -94,6 +94,35 @@ Three rules keep it honest:
 - **The root must exist.** Creating the leaf is the point; conjuring a
   whole tree from a typo is not.
 
+### Asking a holder to hand the world back (2026-08-22)
+
+The host goes to bed mid-session and nobody else can play. Nothing can
+reach a companion — it runs on someone's home machine behind a router —
+so the ask is a flag on the session (`sync_sessions.requested_kind`,
+migration 0028) that the companion's own poll picks up, the same shape
+as a queued claim. Answer time is one poll interval (a minute); a
+machine that is asleep finds the request when it wakes.
+
+Two kinds, and the difference matters:
+
+- **`checkin`** captures the holder's save *and* ends the hold. This is
+  the verb for an absent holder.
+- **`checkpoint`** captures it and keeps the hold, for a backup while
+  someone is playing.
+
+A checkpoint **never moves the head** by design. So "ask for a
+checkpoint, then force-release" would hand the next player a save from
+before the session started — the holder's whole evening lost. The
+check-in request exists precisely so an admin does not have to assemble
+that from parts.
+
+Only an admin may ask. The request is refused for a server-held world
+(there is no companion to ask — take it back from the agent instead),
+and a checkpoint request is refused when the world has checkpoints
+turned off. Answering clears the flag, including for a checkpoint, which
+keeps its session. Force-release still exists and still means what it
+meant: take the world back and lose whatever the holder never sent.
+
 ## The idea, restated in this repo's vocabulary
 
 Peer-hosted games make one player the host. The brainstorm adds

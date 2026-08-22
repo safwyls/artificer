@@ -31,9 +31,19 @@ import (
 )
 
 const (
-	// syncPollEvery paces the status poll against the service; the watch
-	// loop ticks more often, this keeps polling polite.
+	// syncPollEvery paces the status poll against the service when
+	// nobody is looking at the page — polite, because custody changes
+	// are rare and this runs on someone's machine all day.
 	syncPollEvery = time.Minute
+	// syncPollWatching is the pace while the companion page is open. A
+	// page showing a minute-old custody state is a page that looks
+	// broken: someone else checks a world in, and the person staring at
+	// the screen sees nothing happen. The page's own poll drives this,
+	// so it costs nothing when the page is closed.
+	syncPollWatching = 4 * time.Second
+	// pageWatchWindow is how long after a page request the app counts as
+	// being watched.
+	pageWatchWindow = 30 * time.Second
 	// checkinSettle / checkpointSettle: how long a world folder must be
 	// quiet before packaging. Check-in is short (the game is closed);
 	// checkpoints wait longer so a push lands between autosaves.
@@ -49,6 +59,7 @@ type syncWorldDTO struct {
 		GameTitle   string `json:"gameTitle"`
 		SaveHint    string `json:"saveHint"`
 		Checkpoints bool   `json:"checkpoints"`
+		SavePath    string `json:"savePath"`
 		HeadVersion *int64 `json:"headVersion"`
 	} `json:"world"`
 	Holder *struct {
@@ -56,6 +67,9 @@ type syncWorldDTO struct {
 		Username  string    `json:"username"`
 		ExpiresAt time.Time `json:"expiresAt"`
 		Claimable bool      `json:"claimable"`
+		// What the service is waiting for this hold to do, picked up on
+		// the next poll (sync.go, answerHandback).
+		RequestedKind string `json:"requestedKind,omitempty"`
 	} `json:"holder,omitempty"`
 	ClaimedBy string `json:"claimedBy,omitempty"`
 	Head      *struct {
@@ -114,7 +128,33 @@ func (a *app) noteSync(action string) {
 // syncDo performs one custody call and decodes the service's ack. Any
 // 200 whose body is not the service's own JSON (an Access login page, a
 // tunnel interstitial) is a failure with the interceptor named.
+// scrubToken keeps the player's sync token out of anything the page
+// shows. Transport errors quote the URL they failed on, and the token
+// lives in that URL — so a refused connection would print the
+// credential onto the screen, and into any screenshot sent to whoever
+// runs the vault.
+func (a *app) scrubToken(err error) error {
+	if err == nil {
+		return nil
+	}
+	a.mu.Lock()
+	token := a.cfg.Token
+	a.mu.Unlock()
+	if token == "" {
+		return err
+	}
+	msg := strings.ReplaceAll(err.Error(), token, "<your sync token>")
+	if msg == err.Error() {
+		return err
+	}
+	return errors.New(msg)
+}
+
 func (a *app) syncDo(method, path string, body any, out any) error {
+	return a.scrubToken(a.syncDoRaw(method, path, body, out))
+}
+
+func (a *app) syncDoRaw(method, path string, body any, out any) error {
 	var payload io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -179,23 +219,62 @@ func (a *app) syncRefresh() error {
 	return nil
 }
 
-// syncTick rides the watch loop: poll, adopt handoffs, push checkpoints.
+// refreshIfStale polls the service when the view has aged past the
+// current interval. Single-flight: the page asks on every render, and a
+// slow service must not stack requests behind each other.
+func (a *app) refreshIfStale() {
+	a.mu.Lock()
+	stale := a.worldSync.PolledAt == nil || time.Since(*a.worldSync.PolledAt) >= a.pollIntervalLocked()
+	if !stale || a.refreshing || a.worldSync.Busy || !a.cfg.configured() {
+		a.mu.Unlock()
+		return
+	}
+	a.refreshing = true
+	a.mu.Unlock()
+	defer func() {
+		a.mu.Lock()
+		a.refreshing = false
+		a.mu.Unlock()
+	}()
+	a.syncRefresh()
+}
+
+// pollIntervalLocked is how stale the custody view may get: a few
+// seconds while someone has the page open, a minute otherwise. Caller
+// holds the lock.
+func (a *app) pollIntervalLocked() time.Duration {
+	if !a.pageSeen.IsZero() && time.Since(a.pageSeen) < pageWatchWindow {
+		return syncPollWatching
+	}
+	return syncPollEvery
+}
+
+// syncTick rides the watch loop: poll if the view has gone stale, then
+// act on what it says.
+//
+// Acting is no longer gated on the poll being due. It used to be — one
+// early return covered both — so a handoff, a handback request or a
+// checkpoint could only ever be noticed on the same beat the status was
+// fetched, and only once a minute at that. Refreshing and reacting are
+// different jobs on different clocks.
 func (a *app) syncTick() {
 	if !a.syncConfigured() {
 		return
 	}
+	a.refreshIfStale()
 	a.mu.Lock()
-	due := a.worldSync.PolledAt == nil || time.Since(*a.worldSync.PolledAt) >= syncPollEvery
 	busy := a.worldSync.Busy
+	polled := a.worldSync.PolledAt != nil
 	a.mu.Unlock()
-	if !due || busy {
-		return
-	}
-	if err := a.syncRefresh(); err != nil {
+	if busy || !polled {
 		return
 	}
 	for _, worldID := range a.linkedWorldIDs() {
 		a.adoptHandoff(worldID)
+		// Before the automatic checkpoint, because a standing request is
+		// somebody waiting: answering it now beats answering it after
+		// the settle window decides the folder is quiet enough.
+		a.answerHandback(worldID)
 		a.autoCheckpoint(worldID)
 	}
 }
@@ -283,6 +362,48 @@ func (a *app) autoCheckpoint(worldID int64) {
 	a.lastCheckpoint[worldID] = time.Now()
 	a.mu.Unlock()
 	a.noteSync(fmt.Sprintf("checkpoint pushed for %q", world.World.Name))
+}
+
+// answerHandback does what the service asked of this hold on its next
+// poll: push a checkpoint, or check in and let go.
+//
+// The service cannot reach a companion — this machine is behind a
+// household router — so a request is a flag the poll picks up, and this
+// is where it lands. It fires only for a hold this machine actually
+// owns: the flag is on the session, and a session belongs to one
+// companion.
+func (a *app) answerHandback(worldID int64) {
+	world := a.world(worldID)
+	if world == nil || world.Holder == nil || world.Holder.RequestedKind == "" {
+		return
+	}
+	a.mu.Lock()
+	link := a.cfg.link(worldID)
+	var sessionID int64
+	if link != nil {
+		sessionID = link.SessionID
+	}
+	me := a.worldSync.Username
+	a.mu.Unlock()
+	// Someone else's hold, or a hold this machine has lost track of.
+	if link == nil || sessionID == 0 || sessionID != world.Holder.SessionID || world.Holder.Username != me {
+		return
+	}
+
+	switch world.Holder.RequestedKind {
+	case "checkpoint":
+		if err := a.syncCheckpointNow(worldID); err != nil {
+			a.setSyncErr(fmt.Errorf("checkpoint asked for by %q: %w", world.World.Name, err))
+			return
+		}
+		a.noteSync(fmt.Sprintf("pushed a checkpoint of %q — the service asked for one", world.World.Name))
+	case "checkin":
+		if err := a.syncCheckin(worldID); err != nil {
+			a.setSyncErr(fmt.Errorf("check-in asked for by %q: %w", world.World.Name, err))
+			return
+		}
+		a.noteSync(fmt.Sprintf("checked %q back in — the service asked for it", world.World.Name))
+	}
 }
 
 // syncCheckout acquires a linked world and installs its head locally.

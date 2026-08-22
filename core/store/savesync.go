@@ -87,6 +87,14 @@ type SyncSession struct {
 	WarnedAt     *time.Time `json:"warnedAt,omitempty"`
 	EndedAt      *time.Time `json:"endedAt,omitempty"`
 	EndedBy      *int64     `json:"endedBy,omitempty"`
+	// An admin's standing request that this holder's companion hand the
+	// world back: "checkpoint" (capture, keep the hold) or "checkin"
+	// (capture and end it). Empty means nothing is pending. The
+	// companion sees it on its next poll — it cannot be reached any
+	// other way (migration 0028).
+	RequestedKind string     `json:"requestedKind,omitempty"`
+	RequestedAt   *time.Time `json:"requestedAt,omitempty"`
+	RequestedBy   *int64     `json:"requestedBy,omitempty"`
 }
 
 // Expired reports whether the hold is past its lease — claimable, not
@@ -287,17 +295,21 @@ func (s *Store) SetSyncWorldNextHolder(ctx context.Context, worldID int64, userI
 
 // --- sessions ---
 
-const syncSessionColumns = `id, world_id, holder_id, server_held, base_version, status, checked_out_at, expires_at, warned_at, ended_at, ended_by`
+const syncSessionColumns = `id, world_id, holder_id, server_held, base_version, status, checked_out_at, expires_at, warned_at, ended_at, ended_by, requested_kind, requested_at, requested_by`
 
 func scanSyncSession(scan func(...any) error) (*SyncSession, error) {
 	var ss SyncSession
 	var serverHeld int
-	var base, endedBy sql.NullInt64
+	var base, endedBy, requestedBy sql.NullInt64
 	var checkedOut, expires string
-	var warned, ended sql.NullString
-	if err := scan(&ss.ID, &ss.WorldID, &ss.HolderID, &serverHeld, &base, &ss.Status, &checkedOut, &expires, &warned, &ended, &endedBy); err != nil {
+	var warned, ended, requestedAt sql.NullString
+	if err := scan(&ss.ID, &ss.WorldID, &ss.HolderID, &serverHeld, &base, &ss.Status, &checkedOut, &expires, &warned, &ended, &endedBy, &ss.RequestedKind, &requestedAt, &requestedBy); err != nil {
 		return nil, err
 	}
+	if requestedBy.Valid {
+		ss.RequestedBy = &requestedBy.Int64
+	}
+	ss.RequestedAt = parseSyncTimePtr(requestedAt)
 	ss.ServerHeld = serverHeld != 0
 	if base.Valid {
 		ss.BaseVersion = &base.Int64
@@ -336,6 +348,42 @@ func (s *Store) GetSyncSession(ctx context.Context, id int64) (*SyncSession, err
 		return nil, ErrNotFound
 	}
 	return ss, err
+}
+
+// RequestSyncHandback records an admin's standing ask on an active hold:
+// "checkpoint" to capture the holder's save, "checkin" to capture it and
+// end the hold. Passing an empty kind withdraws the request.
+//
+// It only ever touches an active session. A hold that has already ended
+// has nothing to ask of, and letting the flag survive would mean a
+// companion coming back online days later acting on an instruction that
+// stopped making sense.
+func (s *Store) RequestSyncHandback(ctx context.Context, sessionID int64, kind string, by int64, now time.Time) error {
+	var at any
+	var byID any
+	if kind != "" {
+		at, byID = syncTime(now), by
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE sync_sessions SET requested_kind = ?, requested_at = ?, requested_by = ?
+		 WHERE id = ? AND status = ?`, kind, at, byID, sessionID, SyncActive)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// ClearSyncHandback drops a pending request once the companion has
+// answered it. Separate from ending the session so a checkpoint — which
+// keeps the hold — clears its own request too.
+func (s *Store) ClearSyncHandback(ctx context.Context, sessionID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE sync_sessions SET requested_kind = '', requested_at = NULL, requested_by = NULL WHERE id = ?`, sessionID)
+	return err
 }
 
 // ActiveSyncSession returns the world's current hold, or ErrNotFound when

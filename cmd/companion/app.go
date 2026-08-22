@@ -38,6 +38,14 @@ type app struct {
 	hints          map[string][]location
 	hintsError     string
 	hintsAvailable bool
+	// pageSeen is when the companion page last asked for state. While
+	// someone is looking, the custody poll runs at the page's pace
+	// instead of the background one — a page showing minute-old state
+	// looks broken to the person watching it happen.
+	pageSeen time.Time
+	// refreshing single-flights the status poll: the page asks on every
+	// render, and a slow service must not stack requests.
+	refreshing bool
 }
 
 // rescan re-runs game discovery with the configured Steam folders.

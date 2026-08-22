@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //go:embed ui
@@ -29,6 +30,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("GET /api/artwork", a.handleArtwork)
 	// Shelf housekeeping: browsing this machine for a save folder, and
 	// putting non-game entries away (browse.go, hidden.go).
+	mux.HandleFunc("POST /api/sync/refresh", a.handleSyncNow)
 	mux.HandleFunc("GET /api/savehints", a.handleSaveHints)
 	mux.HandleFunc("GET /api/browse", a.handleBrowse)
 	// The two halves of a save folder (savepath.go): where does this
@@ -50,6 +52,16 @@ func (a *app) routes() http.Handler {
 }
 
 func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
+	// Someone is looking. Note it, and start a poll if the view has gone
+	// stale — in the background, because the page asks every few seconds
+	// and must not wait on the service to render. The next ask shows the
+	// answer, which is what makes an open page feel live without the
+	// background loop having to poll this hard all day.
+	a.mu.Lock()
+	a.pageSeen = time.Now()
+	a.mu.Unlock()
+	go a.refreshIfStale()
+
 	a.mu.Lock()
 	st := a.worldSync
 	st.Configured = a.cfg.configured()
@@ -154,6 +166,26 @@ func (a *app) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	failure, asked := a.artError, a.artAsked
 	a.mu.Unlock()
 	writeJSON(w, map[string]any{"ok": true, "art": art, "asked": asked, "error": failure})
+}
+
+// handleSyncNow polls the service immediately and answers with what
+// happened. The page's own poll keeps things fresh while it is open;
+// this is for the moment someone wants to be certain rather than
+// patient — and for saying plainly when the service cannot be reached,
+// which a silent background poll never does.
+func (a *app) handleSyncNow(w http.ResponseWriter, r *http.Request) {
+	if !a.syncConfigured() {
+		writeJSON(w, map[string]any{"ok": false, "error": "not connected — set the service URL and your token below"})
+		return
+	}
+	if err := a.syncRefresh(); err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	a.mu.Lock()
+	worlds := len(a.worldSync.Worlds)
+	a.mu.Unlock()
+	writeJSON(w, map[string]any{"ok": true, "worlds": worlds})
 }
 
 // handleSaveHints asks the service for the catalogue's locations and
