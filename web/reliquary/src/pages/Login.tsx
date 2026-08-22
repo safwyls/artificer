@@ -65,7 +65,7 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(ellipse_at_50%_30%,#1a1524_0%,#100d17_65%)] p-6">
       <form
         onSubmit={submit}
-        className="flex w-[360px] flex-col rounded-panel border border-edge bg-panel px-8 pb-[26px] pt-[30px]"
+        className="flex w-full max-w-[360px] flex-col rounded-panel border border-edge bg-panel px-6 pb-[26px] pt-[30px] sm:px-8"
       >
         <div className="mb-3.5 flex flex-col items-center gap-1.5">
           <ShieldPlus className="h-8 w-8 text-gold" strokeWidth={1.2} aria-hidden />

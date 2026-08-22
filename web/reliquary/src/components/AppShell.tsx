@@ -28,15 +28,63 @@ export function AppShell() {
   const { live } = useCustodyStream();
   const version = useQuery({ queryKey: ["version"], queryFn: api.version, staleTime: Infinity });
 
+  const nav = NAV.filter((item) => !item.admin || isAdmin);
+  const liveDot = (
+    <span
+      className={cn("inline-block h-[7px] w-[7px] rounded-full", live ? "bg-ok" : "bg-mist")}
+      aria-hidden
+    />
+  );
+
   return (
-    <div className="flex min-h-screen">
-      <nav className="flex w-56 flex-none flex-col border-r border-edge bg-well py-6">
+    <div className="flex min-h-screen flex-col md:flex-row">
+      {/* Mobile chrome: the sidebar's job in two slim rows — identity and
+          sign-out up top, the nav as one scrollable pill row beneath. The
+          version string only matters when filing a bug, so on a phone it
+          lives at the end of the pill row rather than costing a footer. */}
+      <header className="border-b border-edge bg-well md:hidden">
+        <div className="flex items-center gap-2.5 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <span className="text-[19px] tracking-[0.06em] text-gold">Reliquary</span>
+          {liveDot}
+          <span className="ml-auto min-w-0 truncate text-[12px] text-mist">{username}</span>
+          <button
+            className="text-[12px] text-mist underline-offset-2 hover:text-parchment hover:underline"
+            onClick={() => logout()}
+          >
+            sign out
+          </button>
+        </div>
+        <nav className="flex items-center gap-1.5 overflow-x-auto px-4 pb-2.5">
+          {nav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                cn(
+                  "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-[13px] no-underline",
+                  isActive
+                    ? "border-edge bg-panel text-goldhi"
+                    : "border-transparent text-mist",
+                )
+              }
+            >
+              <item.icon className="h-3.5 w-3.5" aria-hidden />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+          <span className="shrink-0 pl-1.5 font-mono text-[10px] text-mist">
+            reliquary {version.data?.version ?? "…"}
+          </span>
+        </nav>
+      </header>
+      <nav className="hidden w-56 flex-none flex-col border-r border-edge bg-well py-6 md:flex">
         <div className="border-b border-edge px-5 pb-5">
           <div className="text-[21px] tracking-[0.06em] text-gold">Reliquary</div>
           <div className="mt-0.5 text-[12px] text-mist">the vault of shared worlds</div>
         </div>
         <div className="flex flex-col gap-0.5 px-2.5 py-3.5">
-          {NAV.filter((item) => !item.admin || isAdmin).map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -74,10 +122,7 @@ export function AppShell() {
             </div>
           </div>
           <div className="flex items-center gap-1.5 font-mono text-[11px] text-mist">
-            <span
-              className={cn("inline-block h-[7px] w-[7px] rounded-full", live ? "bg-ok" : "bg-mist")}
-              aria-hidden
-            />
+            {liveDot}
             <span>{live ? "live" : "reconnecting…"}</span>
             <span>·</span>
             {/* On the login page too: a bug report about save sync should be
@@ -105,7 +150,7 @@ export function PageHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-edge px-8 pb-[18px] pt-[26px]">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2.5 border-b border-edge px-4 pb-3.5 pt-4 md:px-8 md:pb-[18px] md:pt-[26px]">
       <div>
         <h1>{title}</h1>
         {subtitle ? <div className="mt-0.5 text-[13px] text-mist">{subtitle}</div> : null}

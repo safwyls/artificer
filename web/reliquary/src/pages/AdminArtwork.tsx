@@ -105,7 +105,7 @@ export function AdminArtwork() {
         title="Cover art"
         subtitle="IGDB authenticates through a Twitch application, so the pair is a Twitch client id and secret."
       />
-      <div className="flex max-w-3xl flex-col gap-4 px-8 py-6">
+      <div className="flex max-w-3xl flex-col gap-4 px-4 py-5 md:px-8 md:py-6">
         <div className="rounded-panel border border-edge bg-panel px-5 py-4">
           <h2 className="mb-3 text-[12px] uppercase tracking-[0.12em] text-gold">Status</h2>
           <dl className="grid grid-cols-[9rem_1fr] gap-x-4 gap-y-2 text-[13px]">

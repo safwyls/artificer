@@ -122,7 +122,7 @@ export function Worlds() {
       <PageHeader title="Shared worlds" subtitle="One holder at a time; every check-in a kept version.">
         {canSync ? <NewWorldDialog /> : null}
       </PageHeader>
-      <div className="flex flex-col gap-3.5 px-8 py-6">
+      <div className="flex flex-col gap-3.5 px-4 py-5 md:px-8 md:py-6">
         {!canSync ? <ReadOnlyBanner /> : null}
         {worlds.isLoading ? <p className="text-mist">Reading the ledger…</p> : null}
         {worlds.isError ? (

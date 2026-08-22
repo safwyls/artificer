@@ -12,7 +12,9 @@ import { Label } from "../components/ui/label";
 import { TableHead, TableRow, TableShell } from "../components/ui/table";
 import type { AppUser } from "../lib/types";
 
-const COLS = "grid grid-cols-[1.2fr_0.6fr_0.8fr_2fr] gap-2";
+// min-w keeps the four columns legible on a phone: the shell scrolls
+// sideways rather than crushing the action buttons into a single column.
+const COLS = "grid min-w-[560px] grid-cols-[1.2fr_0.6fr_0.8fr_2fr] gap-2";
 
 export function AdminUsers() {
   const queryClient = useQueryClient();
@@ -59,8 +61,8 @@ export function AdminUsers() {
         title="Users"
         subtitle="World custody is the grant that lets an account check worlds out and hold a companion token."
       />
-      <div className="flex flex-col gap-[18px] px-8 py-6">
-        <TableShell>
+      <div className="flex flex-col gap-[18px] px-4 py-5 md:px-8 md:py-6">
+        <TableShell className="overflow-x-auto">
           <TableHead className={COLS}>
             <span>User</span>
             <span>Role</span>

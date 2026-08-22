@@ -23,7 +23,7 @@ export function WorldCard({ status }: { status: WorldStatus }) {
   const asked = requestLine(status);
 
   return (
-    <div className="flex items-start gap-[18px] rounded-panel border border-edge bg-panel px-5 py-[18px]">
+    <div className="flex items-start gap-3.5 rounded-panel border border-edge bg-panel px-4 py-4 sm:gap-[18px] sm:px-5 sm:py-[18px]">
       <Link to={`/worlds/${w.id}`} aria-label={w.name}>
         <CoverArt world={w} />
       </Link>
