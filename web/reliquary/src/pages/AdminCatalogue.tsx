@@ -55,7 +55,7 @@ export function AdminCatalogue() {
       <div className="flex max-w-3xl flex-col gap-4 px-4 py-5 md:px-8 md:py-6">
         <div className="rounded-panel border border-edge bg-panel px-5 py-4">
           <h2 className="mb-3 text-[12px] uppercase tracking-[0.12em] text-gold">Status</h2>
-          <dl className="grid grid-cols-[9rem_1fr] gap-x-4 gap-y-2 text-[13px]">
+          <dl className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] gap-x-4 gap-y-2 text-[13px] [overflow-wrap:anywhere]">
             {rows.map(([k, v]) => (
               <div key={k} className="contents">
                 <dt className="text-mist">{k}</dt>
