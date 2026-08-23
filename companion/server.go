@@ -77,6 +77,7 @@ func (a *App) RoutesWithOptions(opt ServerOptions) http.Handler {
 	// putting non-game entries away (browse.go, hidden.go).
 	mux.HandleFunc("POST /api/sync/refresh", a.handleSyncNow)
 	mux.HandleFunc("GET /api/savehints", a.handleSaveHints)
+	mux.HandleFunc("GET /api/history", a.handleHistory)
 	mux.HandleFunc("GET /api/browse", a.handleBrowse)
 	// The two halves of a save folder (savepath.go): where does this
 	// folder split, and where does an existing world live under mine.
@@ -298,6 +299,37 @@ func (a *App) handleSyncNow(w http.ResponseWriter, r *http.Request) {
 // handleSaveHints asks the service for the catalogue's locations and
 // folds them into the discovered games' candidates. Driven by the page
 // when the game set changes, like artwork.
+// handleHistory answers both the Activity and the Conflicts views: one
+// merged read of every linked world's version list from the vault, which
+// is the only thing that can see either. `?refresh=1` skips the cache,
+// for the view's own refresh control.
+//
+// It answers 200 with `ok:false` and a reason rather than an error
+// status, the same shape the other read-only panels use — a view that
+// cannot load has something to say, and the page draws the reason.
+func (a *App) handleHistory(w http.ResponseWriter, r *http.Request) {
+	var (
+		h   History
+		err error
+	)
+	if r.URL.Query().Get("refresh") != "" {
+		h, err = a.RefreshHistory()
+	} else {
+		h, err = a.History()
+	}
+	if err != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, map[string]any{
+		"ok":        true,
+		"entries":   h.Entries,
+		"failed":    h.Failed,
+		"fetchedAt": h.FetchedAt,
+		"truncated": h.Truncated,
+	})
+}
+
 func (a *App) handleSaveHints(w http.ResponseWriter, r *http.Request) {
 	available, known, failure := a.SaveHints()
 	writeJSON(w, map[string]any{"ok": true, "available": available, "known": known, "error": failure})

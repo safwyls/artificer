@@ -91,6 +91,29 @@ func TestSnapshotCarriesWhatAShellRenders(t *testing.T) {
 	}
 }
 
+// The window names the machine it is running on rather than saying "this
+// machine", which says nothing you cannot already see. It only stops
+// being a truism once the same account syncs from two PCs — which is the
+// case custody exists to disambiguate — so the name has to come from the
+// machine and cannot be inferred by the UI.
+func TestSnapshotNamesThisMachine(t *testing.T) {
+	a := NewApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
+
+	want, err := os.Hostname()
+	if err != nil {
+		t.Skip("this host will not say what it is called")
+	}
+	if got := a.Snapshot().Hostname; got != want {
+		t.Errorf("Hostname = %q, want %q", got, want)
+	}
+
+	// Asked once and held: Snapshot runs on every poll and every change
+	// nudge, and a syscall per render is a syscall per render.
+	if a.Snapshot().Hostname != a.Snapshot().Hostname {
+		t.Error("the hostname changed between two snapshots")
+	}
+}
+
 // The token itself never reaches a UI. The page has only ever been told
 // whether one is saved, and the window must not learn more.
 func TestSnapshotWithholdsTheToken(t *testing.T) {

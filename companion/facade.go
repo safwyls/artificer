@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -81,7 +82,28 @@ type State struct {
 	Sync       SyncState   `json:"sync"`
 	Version    string      `json:"version"`
 	Update     UpdateState `json:"update"`
+	// Hostname is what this computer calls itself, so a UI can name the
+	// machine it is running on instead of saying "this machine" — which
+	// is a truism on the screen in front of you, and stops being one the
+	// moment the same account syncs from a second PC. That is exactly the
+	// case custody has to disambiguate: a hold belonging to you but to a
+	// different session is a hold on your *other* machine.
+	//
+	// Empty means "this computer would not say", which is a real answer
+	// on a locked-down host and not an error; the UI falls back to the
+	// old wording rather than showing a blank.
+	Hostname string `json:"hostname"`
 }
+
+// hostname is asked for once. It cannot change while the process runs,
+// and Snapshot is called on every poll and every change nudge.
+var hostname = sync.OnceValue(func() string {
+	h, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return h
+})
 
 // Snapshot is the state the UI renders, assembled once under the lock.
 //
@@ -130,6 +152,7 @@ func (a *App) Snapshot() State {
 		Sync:       st,
 		Version:    Version,
 		Update:     a.update,
+		Hostname:   hostname(),
 	}
 }
 

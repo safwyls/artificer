@@ -60,6 +60,12 @@ type App struct {
 	// about it. Never evicted: a shelf's worth of small JPEGs, and a
 	// cover re-fetched on a poll is a cover that flickers.
 	covers map[string][]byte
+	// history is the last merged read of every linked world's version
+	// list (history.go), and historyAt when it was taken. Cached because
+	// it is one request per linked world and it backs two tabs that are
+	// visited rarely — not because it is expensive to be right.
+	history   History
+	historyAt time.Time
 }
 
 // rescan re-runs game discovery with the configured Steam folders.
