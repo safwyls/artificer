@@ -127,9 +127,9 @@ describe("App — connected", () => {
     vi.spyOn(api, "state").mockResolvedValue(connected());
     renderWithProviders(<App />);
     expect(await screen.findByText("Open the games library")).toBeInTheDocument();
-    expect(screen.queryByText("Installed games")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Search installed games")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Games" }));
-    expect(await screen.findByText("Installed games")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Search installed games")).toBeInTheDocument();
     expect(screen.queryByText("Open the games library")).not.toBeInTheDocument();
   });
 

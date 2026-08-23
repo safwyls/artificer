@@ -10,7 +10,7 @@ import { PanelBoundary, SectionHeader } from "./components/Panel";
 import { SettingsTab } from "./components/SettingsTab";
 import { TabBar, type Tab } from "./components/TabBar";
 import { UpdateBanner } from "./components/UpdateBanner";
-import { Shelf, linkFor } from "./components/Shelf";
+import { GamesTab, linkFor } from "./components/GamesTab";
 import { WorldsTab } from "./components/WorldsTab";
 import { tileKey } from "./components/GameTile";
 import type { CompanionState, DiscoveredGame } from "./lib/types";
@@ -127,9 +127,8 @@ export function App() {
             </PanelBoundary>
           </>
         ) : tab === "games" ? (
-          <div className="flex flex-col gap-5 px-7 pb-6 pt-5">
-            <PanelBoundary name="shelf">
-              <Shelf
+          <PanelBoundary name="games">
+            <GamesTab
                 state={state}
                 art={art}
                 artEmpty={artEmpty}
@@ -138,10 +137,9 @@ export function App() {
                 activeKey={open ? tileKey(open) : null}
                 onOpen={setOpen}
                 onRescan={rescan}
-                onLinkByHand={() => setOpen(byHandGame())}
-              />
-            </PanelBoundary>
-          </div>
+              onLinkByHand={() => setOpen(byHandGame())}
+            />
+          </PanelBoundary>
         ) : tab === "activity" ? (
           <NotHereYet
             title="Activity"
