@@ -1,3 +1,4 @@
+import { apiUrl, authHeaders } from "./runtime";
 import type { Browse, CompanionState, Artwork, SplitInfo, UpdateState } from "./types";
 
 /**
@@ -5,14 +6,20 @@ import type { Browse, CompanionState, Artwork, SplitInfo, UpdateState } from "./
  * statuses — it is a local process talking to its own page, and the page
  * shows the sentence. `call` turns that into a thrown Error so every
  * caller handles failure the same way.
+ *
+ * Where the request goes and what it carries is the runtime adapter's
+ * business (`runtime.ts`): same-origin and unauthenticated in the browser
+ * build, the daemon's ephemeral address with a bearer token under the
+ * Electron shell. Nothing above this function knows which.
  */
 export async function call<T = Record<string, unknown>>(
   method: string,
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     method,
+    headers: authHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
