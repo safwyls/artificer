@@ -122,11 +122,23 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: companion-desktop/package-lock.json
+          cache-dependency-path: |
+            web/companion/package-lock.json
+            companion-desktop/package-lock.json
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26"
           cache-dependency-path: go.sum
+      # companiond embeds the companion's page (web/companion/embed.go),
+      # so `go run ./cmd/companiond` does not compile until that bundle
+      # exists — the same web-bundles-first ordering the monorepo job
+      # follows. A dev machine hides this behind a dist/ left over from an
+      # earlier build; a clean runner does not.
+      - name: Companion frontend build (companiond embeds it)
+        working-directory: web/companion
+        run: |
+          npm ci
+          npm run build
       - name: Electron shell build & tests
         working-directory: companion-desktop
         run: |
