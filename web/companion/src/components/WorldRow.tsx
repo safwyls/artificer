@@ -35,6 +35,7 @@ export function WorldRow({
   const refresh = useRefreshState();
   const [editing, setEditing] = useState(false);
   const custody = custodyOf(link, world, me, configured);
+  const state = custody.state;
   const title = link.gameTitle || world?.world.name || "";
   // "& play" only when both halves are true: the setting is on, and this
   // world has something to start. A world linked by hand from a folder
@@ -87,13 +88,13 @@ export function WorldRow({
           {link.gameTitle ? <span className="text-[12px] text-rune">{link.gameTitle}</span> : null}
           <CustodyChip custody={custody} className="ml-auto" />
         </div>
-        <div className="text-[13px] text-mist">{custodyLine(custody, link, world, me)}</div>
+        <div className="text-[13px] text-mist">{custodyLine(custody, link, me)}</div>
         {/* The folder, in full: the one thing on this page that is about
             this machine rather than the world, and the thing a player
             checks when a save goes to the wrong place. */}
         <div className="break-all font-mono text-[11px] text-mist">{link.dir}</div>
         <div className="flex flex-wrap gap-2">
-          {custody === "free" ? (
+          {state === "free" ? (
             <>
               <Button variant="primary" onClick={() => checkout(false)}>
                 {willPlay ? "Check out & play" : "Check out & host"}
@@ -106,7 +107,7 @@ export function WorldRow({
               ) : null}
             </>
           ) : null}
-          {custody === "mine" ? (
+          {state === "mine" ? (
             <>
               <Button
                 variant="primary"
@@ -133,7 +134,7 @@ export function WorldRow({
               ) : null}
             </>
           ) : null}
-          {custody === "expired" ? (
+          {state === "expired" ? (
             <ConfirmDialog
               trigger={<Button variant="primary">Take over expired hold</Button>}
               title="Take over the expired hold?"
@@ -142,7 +143,7 @@ export function WorldRow({
               onConfirm={() => checkout(true)}
             />
           ) : null}
-          {(custody === "held" || custody === "expired") && !world?.claimedBy ? (
+          {(state === "held" || state === "expired") && !world?.claimedBy ? (
             <Button
               onClick={() =>
                 run(

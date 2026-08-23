@@ -103,7 +103,7 @@ describe("WorldRow", () => {
     unmount();
     show(makeSyncWorld({ holder: holder(), claimedBy: "torv" }));
     expect(screen.queryByRole("button", { name: "Claim next" })).not.toBeInTheDocument();
-    expect(screen.getByText(/next claim: torv/)).toBeInTheDocument();
+    expect(screen.getByText(/next in line: torv/)).toBeInTheDocument();
   });
 
   it("says you're next rather than naming you", () => {
