@@ -1,10 +1,10 @@
-<!-- @dsCard group="Patterns" name="Update banner" subtitle="A different build is available, and what it will do" width="940" height="460" -->
+<!-- @dsCard group="Patterns" name="No worlds yet" subtitle="Derived from “nothing linked”, never from a stored flag" width="980" height="640" -->
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Artificer Companion · Update banner</title>
+    <title>Artificer Companion · No worlds yet</title>
     <style>
       :root {
         --ink: 16 13 23; /* #100d17 — the page ground */
@@ -389,39 +389,55 @@
   <body class="ds-page">
     <header class="ds-head">
       <p class="ds-eyebrow">Artificer Companion · Patterns</p>
-      <h1 class="ds-title">Update banner</h1>
-      <p class="ds-sub">A different build is available, and what it will do</p>
-      <p class="ds-intent">The companion keeps itself current, which means it can replace itself while a
-            player is looking at it. The banner is gold-on-held rather than an alert colour —
-            this is good news — and it says plainly that installing <b>replaces this one and
-            restarts</b>, because an app that vanishes mid-session without warning reads as a
-            crash.</p>
+      <h1 class="ds-title">No worlds yet</h1>
+      <p class="ds-sub">Derived from “nothing linked”, never from a stored flag</p>
+      <p class="ds-intent">The machine is connected to a vault and holds no worlds. Keying this on
+            <b>no linked worlds</b> rather than on a first-run flag means it comes back on its
+            own if every link is removed — it is a description of the machine, not a memory of
+            one. It says what is already true before it asks for anything, because both facts a
+            player needs in order to trust the next step — the vault answered, and these games
+            were found — are already known by the time this renders.</p>
     </header>
     <main class="ds-body">
       <section class="ds-specimen">
-<p class="ds-caption">Available</p>
+<p class="ds-caption">The three steps</p>
         <div class="ds-stage ds-stage--block">
-          <div class="vk-update">
-            <svg class="vk-i vk-i--lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>
-            <div class="vk-update-body"><span class="vk-update-lead">A different companion build is available.</span> <span class="vk-mono" style="color:rgb(var(--mist))">v0.9.5</span><span style="color:rgb(var(--mist))"> — it replaces this one and restarts.</span></div>
-            <button class="vk-btn vk-btn--primary">Install and restart</button>
-            <button class="vk-btn vk-btn--quiet">Not now</button>
+          <div style="max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:22px">
+            <div style="text-align:center">
+              <div class="vk-h1" style="font-size:21px">No worlds on this machine yet</div>
+              <div style="margin:8px auto 0;max-width:46ch;font-size:14px;color:rgb(var(--mist))">A world is one save folder the vault holds for your group. Link a game's save folder and the vault starts keeping its history.</div>
+            </div>
+            <div class="vk-group-body">
+              <div class="vk-step">
+                <span class="vk-step-mark vk-step-mark--done">✓</span>
+                <div class="vk-step-body"><div class="vk-step-title">Signed in as hazel</div><div class="vk-step-sub">https://vault.example.com</div></div>
+              </div>
+              <div class="vk-step">
+                <span class="vk-step-mark vk-step-mark--done">✓</span>
+                <div class="vk-step-body"><div class="vk-step-title">Found 13 installed games</div><div class="vk-step-sub">Across 4 libraries. A save folder is already known for 7 of them.</div></div>
+                <button class="vk-btn vk-btn--quiet">Review</button>
+              </div>
+              <div class="vk-step vk-step--now">
+                <span class="vk-step-mark vk-step-mark--now">3</span>
+                <div class="vk-step-body"><div class="vk-step-title">Link a game to make your first world</div><div class="vk-step-sub">Pick the game and the companion suggests the save folder. You confirm it.</div></div>
+                <button class="vk-btn vk-btn--primary vk-btn--lg">Choose a game</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
       <section class="ds-meta">
         <h2 class="ds-meta-h">Rules</h2>
         <ul class="ds-rules">
-            <li>“A <i>different</i> build”, not “a newer build”: the service is the source of truth, and a rollback is a legitimate thing for it to publish.</li>
-            <li>Gold, not ember. This is not a problem being reported.</li>
-            <li>The banner is dismissible and never blocks. A player mid-hold must be able to finish and check in first.</li>
+            <li>Done steps are marked in <code>ok</code>; the step still to do is gold and its row carries a well's ground, so “where am I” is answered before anything is read.</li>
+            <li>Both call-to-action buttons go to the same place — the games library — because linking a game is the only way to make a world. Two doors to one room is not a choice.</li>
+            <li>The screen states the vault URL and the library count as facts, not as a summary: if either is wrong, that is the thing the player needs to see before linking anything.</li>
         </ul>
       </section>
       <section class="ds-meta">
         <h2 class="ds-meta-h">Implemented by</h2>
         <ul class="ds-paths">
-            <li><code>web/companion/src/components/UpdateBanner.tsx</code></li>
-            <li><code>docs/companion.md</code></li>
+            <li><code>web/companion/src/components/NoWorlds.tsx</code></li>
         </ul>
       </section>
     </main>

@@ -1,10 +1,10 @@
-<!-- @dsCard group="Patterns" name="Linked world row" subtitle="The world, the folder, and one action" width="940" height="760" -->
+<!-- @dsCard group="Patterns" name="Worlds, grouped by custody" subtitle="What you hold, what you can take, what someone else has" width="1020" height="900" -->
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Artificer Companion · Linked world row</title>
+    <title>Artificer Companion · Worlds, grouped by custody</title>
     <style>
       :root {
         --ink: 16 13 23; /* #100d17 — the page ground */
@@ -242,53 +242,125 @@
       .vk-section-hint { font-size: 12px; font-style: italic; color: rgb(var(--mist)); }
       .vk-section-acts { margin-left: auto; display: flex; gap: 8px; }
       
-      .vk-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; }
+      .vk-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
       .vk-tile {
         display: flex; flex-direction: column; overflow: hidden; border-radius: 6px;
-        border: 1px solid; background: rgb(var(--ink)); text-align: left; cursor: pointer;
-        padding: 0; font-family: inherit; color: inherit;
-        transition: filter 0.15s, border-color 0.15s, transform 0.15s;
+        border: 1px solid; text-align: left; cursor: pointer; padding: 0;
+        font-family: inherit; color: inherit;
+        transition: opacity 0.15s, border-color 0.15s;
       }
-      .vk-tile:hover { transform: translateY(-2px); border-color: rgb(var(--gold)); }
-      .vk-tile--linked { border-color: rgb(var(--gold)); box-shadow: inset 0 0 0 1px rgb(var(--gold) / 0.25); }
-      .vk-tile--unlinked { border-color: rgb(var(--edge)); filter: grayscale(1) brightness(0.72); }
-      .vk-tile--unlinked:hover { filter: grayscale(0.25) brightness(1); }
-      .vk-tile--active { border-color: rgb(var(--goldhi)); }
+      .vk-tile--linked { border-color: rgb(var(--gold) / 0.5); background: rgb(var(--panel)); }
+      .vk-tile--unlinked { border-color: rgb(var(--edge)); background: rgb(var(--well)); opacity: 0.72; }
+      .vk-tile--unlinked:hover { opacity: 1; border-color: rgb(var(--gold) / 0.5); }
+      .vk-tile--active { border-color: rgb(var(--goldhi)); opacity: 1; }
       .vk-tile-art {
-        width: 100%; aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center;
-        background: var(--fill-cover); padding: 6px; text-align: center; font-size: 11px;
+        width: 100%; height: 132px; display: flex; align-items: center; justify-content: center;
+        background: var(--fill-cover); padding: 10px; text-align: center; font-size: 12px;
         line-height: 1.2; color: rgb(var(--mist));
       }
-      .vk-tile-cap { padding: 6px 7px 8px; font-size: 12px; line-height: 1.2; }
-      .vk-tile-cap b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .vk-tile-state { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
-      .vk-tile-state--linked { color: rgb(var(--gold)); }
-      .vk-tile-state--unlinked { color: rgb(var(--mist)); }
-      .vk-tile--add {
-        align-items: center; justify-content: center; gap: 6px; border-style: dashed;
-        border-color: rgb(var(--edge)); padding: 10px; text-align: center;
-        font-size: 12px; color: rgb(var(--mist)); background: none;
-      }
-      .vk-tile--add:hover { border-color: rgb(var(--gold)); color: rgb(var(--parchment)); transform: none; }
+      .vk-tile-cap { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px; }
+      .vk-tile-capmain { min-width: 0; flex: 1; }
+      /* Two lines, no ellipsis: a truncated title is not a title. */
+      .vk-tile-name { font-size: 13px; line-height: 1.25; color: rgb(var(--parchment)); }
+      .vk-tile-note { margin-top: 3px; font-size: 11.5px; line-height: 1.2; color: rgb(var(--mist)); }
+      .vk-tile-note--linked { color: rgb(var(--goldhi)); }
+      .vk-tile-link { white-space: nowrap; font-size: 11.5px; color: rgb(var(--goldhi)); }
       
-      .vk-worldrow {
-        display: flex; align-items: flex-start; gap: 14px; border: 1px solid rgb(var(--edge));
-        background: rgb(var(--panel)); border-radius: 8px; padding: 14px 16px;
+      /* ---- the window's tab bar -------------------------------------------- */
+      .vk-tabs { display: flex; gap: 4px; border-bottom: 1px solid rgb(var(--edge)); padding: 16px 28px 0; }
+      .vk-tab {
+        display: flex; align-items: center; gap: 8px; margin-bottom: -1px;
+        border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
+        padding: 8px 14px 10px; font-family: inherit; font-size: 14.5px; color: rgb(var(--mist));
+        transition: color 0.12s ease, border-color 0.12s ease;
       }
+      .vk-tab:hover { color: rgb(var(--parchment)); }
+      .vk-tab--on { border-bottom-color: rgb(var(--gold)); color: rgb(var(--goldhi)); }
+      .vk-tab-badge {
+        border: 1px solid rgb(var(--ember) / 0.5); border-radius: 3px; padding: 1px 6px;
+        font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: rgb(var(--ember));
+      }
+      
+      /* ---- a custody group ------------------------------------------------- */
+      .vk-group { display: flex; flex-direction: column; gap: 8px; }
+      .vk-group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+      .vk-group-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--mist)); }
+      .vk-group-label--gold { color: rgb(var(--gold)); }
+      .vk-group-sub { font-size: 12.5px; color: rgb(var(--mist)); }
+      .vk-group-body { overflow: hidden; border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+      .vk-group-body--gold { border-color: rgb(var(--gold) / 0.45); }
+      .vk-group-body > * + * { border-top: 1px solid rgb(var(--edge)); }
+      
+      /* Someone else's hold is grey. Gold means *you* have it, and that one
+         difference is what makes your world findable without reading a label. */
+      .vk-chip--other { border-color: rgb(var(--mist)); background: rgb(var(--well)); color: rgb(var(--mist)); }
+      
+      /* Shown only when a hold is under ~3h — pressure, not a fact. */
+      .vk-count {
+        display: inline-flex; align-items: center; gap: 5px;
+        border: 1px solid rgb(var(--ember) / 0.45); border-radius: 3px; padding: 1px 7px;
+        font-family: var(--mono); font-size: 11px; color: rgb(var(--ember));
+      }
+      
+      /* ---- the games toolbar ----------------------------------------------- */
+      .vk-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      .vk-search { position: relative; flex: 1; max-width: 340px; }
+      .vk-search .vk-i { position: absolute; left: 11px; top: 11px; color: rgb(var(--mist)); }
+      .vk-search input {
+        width: 100%; border: 1px solid rgb(var(--edge)); border-radius: 4px; background: rgb(var(--ink));
+        padding: 8px 10px 8px 32px; font-family: inherit; font-size: 13.5px; color: rgb(var(--parchment));
+      }
+      .vk-seg { display: flex; gap: 2px; border: 1px solid rgb(var(--edge)); border-radius: 4px; padding: 2px; }
+      .vk-seg-item {
+        border: 0; background: none; cursor: pointer; border-radius: 3px; padding: 4px 12px;
+        font-family: inherit; font-size: 12.5px; color: rgb(var(--mist));
+      }
+      .vk-seg-item--on { background: rgb(var(--panel)); color: rgb(var(--goldhi)); }
+      .vk-toolbar-acts { margin-left: auto; display: flex; gap: 8px; }
+      
+      /* ---- offline --------------------------------------------------------- */
+      .vk-offline {
+        display: flex; align-items: flex-start; gap: 14px;
+        border: 1px solid rgb(var(--ember) / 0.5); background: rgb(var(--panel));
+        border-radius: 8px; padding: 15px 18px;
+      }
+      .vk-offline .vk-i--lg { color: rgb(var(--ember)); stroke-width: 1.8; width: 17px; height: 17px; }
+      .vk-offline-body { flex: 1; }
+      .vk-offline-lead { font-size: 14.5px; color: rgb(var(--parchment)); }
+      .vk-offline-sub { margin-top: 3px; font-size: 12.5px; color: rgb(var(--mist)); }
+      
+      /* ---- a first-run step ------------------------------------------------ */
+      .vk-step { display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
+      .vk-step + .vk-step { border-top: 1px solid rgb(var(--edge)); }
+      .vk-step--now { background: rgb(var(--well)); }
+      .vk-step-mark {
+        flex: none; width: 22px; height: 22px; border-radius: 999px; border: 1px solid;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--mono); font-size: 11px;
+      }
+      .vk-step-mark--done { border-color: rgb(var(--ok)); color: rgb(var(--ok)); }
+      .vk-step-mark--now { border-color: rgb(var(--gold)); color: rgb(var(--gold)); }
+      .vk-step-body { flex: 1; }
+      .vk-step-title { font-size: 14.5px; color: rgb(var(--parchment)); }
+      .vk-step-sub { font-size: 12.5px; color: rgb(var(--mist)); }
+      
+      .vk-worldrow { display: flex; align-items: center; gap: 16px; padding: 15px 18px; }
+      .vk-worldrow:hover { background: rgb(var(--well)); }
       .vk-worldrow-art {
-        width: 56px; aspect-ratio: 3 / 4; flex: none; display: flex; align-items: center;
-        justify-content: center; border: 1px solid rgb(var(--edge)); border-radius: 4px;
-        background: var(--fill-cover); padding: 4px; text-align: center; font-size: 9px;
+        width: 54px; height: 72px; flex: none; display: flex; align-items: center;
+        justify-content: center; border: 1px solid rgb(var(--edge)); border-radius: 5px;
+        background: var(--fill-cover); padding: 5px; text-align: center; font-size: 9.5px;
         line-height: 1.15; color: rgb(var(--mist));
       }
-      .vk-worldrow-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 6px; }
-      .vk-worldrow-titlerow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
-      .vk-worldrow-name { font-size: 16px; font-weight: 700; }
+      .vk-worldrow-art--dim { opacity: 0.75; }
+      .vk-worldrow-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 5px; }
+      .vk-worldrow-titlerow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+      .vk-worldrow-name { font-size: 17px; font-weight: 700; color: rgb(var(--parchment)); }
       .vk-worldrow-game { font-size: 12px; color: rgb(var(--rune)); }
-      .vk-worldrow-titlerow .vk-chip { margin-left: auto; }
-      .vk-worldrow-line { font-size: 13px; color: rgb(var(--mist)); }
+      .vk-worldrow-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12.5px; color: rgb(var(--mist)); }
+      .vk-worldrow-meta { text-align: right; font-family: var(--mono); font-size: 11px; line-height: 1.5; color: rgb(var(--mist)); }
+      .vk-worldrow-acts { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
       .vk-dir { word-break: break-all; font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
-      .vk-worldrow-acts { display: flex; flex-wrap: wrap; gap: 8px; }
       
       .vk-trail { font-family: var(--mono); font-size: 12px; color: rgb(var(--mist)); }
       .vk-trail summary { cursor: pointer; }
@@ -317,103 +389,143 @@
   <body class="ds-page">
     <header class="ds-head">
       <p class="ds-eyebrow">Artificer Companion · Patterns</p>
-      <h1 class="ds-title">Linked world row</h1>
-      <p class="ds-sub">The world, the folder, and one action</p>
-      <p class="ds-intent">One linked world: what it is, who holds it, <b>the folder on this machine</b>,
-            and the single action its custody state calls for. The folder line is what makes
-            this the companion's row and not reliquary's card — it is the only thing here about
-            the disk rather than the world.</p>
+      <h1 class="ds-title">Worlds, grouped by custody</h1>
+      <p class="ds-sub">What you hold, what you can take, what someone else has</p>
+      <p class="ds-intent">Worlds is the whole page. Grouping by <b>what you can do with a world</b>
+            replaces the per-row status prose the old page carried, and the group holding the
+            world locked to this machine is bordered in gold — which is what makes it findable
+            at a glance in a list of any length. Group membership, the chip and the primary
+            action are all derived from the same <code>custodyOf</code> record, so they cannot
+            disagree.</p>
     </header>
     <main class="ds-body">
       <section class="ds-specimen">
-<p class="ds-caption">Free — check out, and check out without playing</p>
-        <div class="ds-stage ds-stage--stack">
-
-          <div class="vk-worldrow">
-            <div class="vk-worldrow-art">Dragonwilds</div>
-            <div class="vk-worldrow-main">
-              <div class="vk-worldrow-titlerow">
-                <span class="vk-worldrow-name">Ashwood Hollow</span>
-                <span class="vk-worldrow-game">Dragonwilds</span>
-                <span class="vk-chip vk-chip--free"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>Free</span>
+<p class="ds-caption">The three groups</p>
+        <div class="ds-stage ds-stage--block">
+          <div class="vk-group">
+            <div class="vk-group-head">
+              <div class="vk-group-label vk-group-label--gold">Checked out to you</div>
+              <div class="vk-group-sub">locked to this machine until you check it in</div>
+            </div>
+            <div class="vk-group-body vk-group-body--gold">
+            <div class="vk-worldrow">
+              <div class="vk-worldrow-art">Enshrouded</div>
+              <div class="vk-worldrow-main">
+                <div class="vk-worldrow-titlerow">
+                  <span class="vk-worldrow-name">Cinderfall</span>
+                  <span class="vk-worldrow-game">Enshrouded</span>
+                </div>
+                <div class="vk-worldrow-line"><span class="vk-chip vk-chip--held"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Yours</span><span>41h left on the hold</span></div>
               </div>
-              <div class="vk-worldrow-line">nobody holds this world</div>
-              <div class="vk-dir">C:\Users\hazel\AppData\Local\Dragonwilds\Saved\SaveGames\AshwoodHollow</div>
-              <div class="vk-worldrow-acts"><button class="vk-btn vk-btn--primary">Check out &amp; play</button><button class="vk-btn vk-btn--quiet">Check out</button></div>
+              <div class="vk-worldrow-meta">v18 · 240 MB · 4 min ago</div>
+              <div class="vk-worldrow-acts"><button class="vk-btn vk-btn--primary"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>Play</button><button class="vk-btn vk-btn--quiet">Check in</button><button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="More actions"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div>
+            </div>
+            </div>
+          </div>
+          <div class="vk-group">
+            <div class="vk-group-head">
+              <div class="vk-group-label">Free to take · 2</div>
+              
+            </div>
+            <div class="vk-group-body">
+            <div class="vk-worldrow">
+              <div class="vk-worldrow-art">Dragonwilds</div>
+              <div class="vk-worldrow-main">
+                <div class="vk-worldrow-titlerow">
+                  <span class="vk-worldrow-name">Ashwood Hollow</span>
+                  <span class="vk-worldrow-game">Dragonwilds</span>
+                </div>
+                <div class="vk-worldrow-line"><span class="vk-chip vk-chip--free"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>Free</span></div>
+              </div>
+              <div class="vk-worldrow-meta">v41 · 1.8 GB · 18:02</div>
+              <div class="vk-worldrow-acts"><button class="vk-btn vk-btn--primary"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>Check out &amp; play</button><button class="vk-btn vk-btn--quiet">Check out only</button><button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="More actions"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div>
+            </div>
+            <div class="vk-worldrow">
+              <div class="vk-worldrow-art">Len's Island</div>
+              <div class="vk-worldrow-main">
+                <div class="vk-worldrow-titlerow">
+                  <span class="vk-worldrow-name">Tidewatch</span>
+                  <span class="vk-worldrow-game">Len's Island</span>
+                </div>
+                <div class="vk-worldrow-line"><span class="vk-chip vk-chip--free"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>Free</span><span>you're next</span></div>
+              </div>
+              <div class="vk-worldrow-meta">v6 · 310 MB · Sunday</div>
+              <div class="vk-worldrow-acts"><button class="vk-btn vk-btn--primary"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>Check out &amp; play</button><button class="vk-btn vk-btn--quiet">Check out only</button><button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="More actions"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div>
+            </div>
+            </div>
+          </div>
+          <div class="vk-group">
+            <div class="vk-group-head">
+              <div class="vk-group-label">Held by someone else · 2</div>
+              
+            </div>
+            <div class="vk-group-body">
+            <div class="vk-worldrow">
+              <div class="vk-worldrow-art vk-worldrow-art--dim">Palworld</div>
+              <div class="vk-worldrow-main">
+                <div class="vk-worldrow-titlerow">
+                  <span class="vk-worldrow-name">Verdant Reach</span>
+                  <span class="vk-worldrow-game">Palworld</span>
+                </div>
+                <div class="vk-worldrow-line"><span class="vk-chip vk-chip--other"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Held</span><span>held by rook <span class="vk-count"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>2h 12m left</span></span></div>
+              </div>
+              <div class="vk-worldrow-meta">v7 · 210 MB · 2h ago</div>
+              <div class="vk-worldrow-acts"><button class="vk-btn vk-btn--quiet">Ask for it back</button><button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="More actions"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div>
+            </div>
+            <div class="vk-worldrow">
+              <div class="vk-worldrow-art vk-worldrow-art--dim">Sea of Stars</div>
+              <div class="vk-worldrow-main">
+                <div class="vk-worldrow-titlerow">
+                  <span class="vk-worldrow-name">Stormhold</span>
+                  <span class="vk-worldrow-game">Sea of Stars</span>
+                </div>
+                <div class="vk-worldrow-line"><span class="vk-chip vk-chip--expired"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Hold expired</span><span>held by mira — the hold expired</span></div>
+              </div>
+              <div class="vk-worldrow-meta">v23 · 90 MB · Tuesday</div>
+              <div class="vk-worldrow-acts"><button class="vk-btn vk-btn--primary">Take over expired hold</button><button class="vk-btn vk-btn--quiet">Ask for it back</button><button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="More actions"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div>
+            </div>
             </div>
           </div>
         </div>
       </section>
       <section class="ds-specimen">
-<p class="ds-caption">Yours — check in, checkpoint, renew, play</p>
-        <div class="ds-stage ds-stage--stack">
-
-          <div class="vk-worldrow">
-            <div class="vk-worldrow-art">Enshrouded</div>
-            <div class="vk-worldrow-main">
-              <div class="vk-worldrow-titlerow">
-                <span class="vk-worldrow-name">Cinderfall</span>
-                <span class="vk-worldrow-game">Enshrouded</span>
-                <span class="vk-chip vk-chip--held"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>You hold this world</span>
-              </div>
-              <div class="vk-worldrow-line">until 21:14 · save is on this machine</div>
-              <div class="vk-dir">C:\Users\hazel\Saved Games\Enshrouded\Cinderfall</div>
-              <div class="vk-worldrow-acts"><button class="vk-btn vk-btn--primary">Check in</button><button class="vk-btn vk-btn--quiet">Checkpoint now</button><button class="vk-btn vk-btn--quiet">Renew hold</button><button class="vk-btn vk-btn--quiet"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>Play</button></div>
-            </div>
+<p class="ds-caption">The overflow — the rare verbs, and the save path that used to sit in the row</p>
+        <div class="ds-stage ds-stage--block">
+          <div class="vk-menu">
+            <div style="border-bottom:1px solid rgb(var(--edge));padding:8px 12px;font-family:var(--mono);font-size:11px;color:rgb(var(--mist));word-break:break-all">C:\Users\hazel\Saved Games\Enshrouded\Cinderfall</div>
+            <div class="vk-menuitem">Renew hold</div>
+            <div class="vk-menuitem is-highlighted">Checkpoint now</div>
+            <div class="vk-menuitem">Open save folder</div>
+            <div class="vk-menuitem">Copy save path</div>
+            <div class="vk-menuitem">Rename or move…</div>
+            <div class="vk-menusep"></div>
+            <div class="vk-menuitem vk-menuitem--danger">Unlink</div>
           </div>
         </div>
       </section>
       <section class="ds-specimen">
-<p class="ds-caption">Expired — taking over is a confirm, because someone else's work is in the balance</p>
-        <div class="ds-stage ds-stage--stack">
-
-          <div class="vk-worldrow">
-            <div class="vk-worldrow-art">Palworld</div>
-            <div class="vk-worldrow-main">
-              <div class="vk-worldrow-titlerow">
-                <span class="vk-worldrow-name">Verdant Reach</span>
-                <span class="vk-worldrow-game">Palworld</span>
-                <span class="vk-chip vk-chip--expired"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Hold expired</span>
-              </div>
-              <div class="vk-worldrow-line">held by rook — the hold expired</div>
-              <div class="vk-dir">C:\Users\hazel\Documents\Palworld\Saved\VerdantReach</div>
-              <div class="vk-worldrow-acts"><button class="vk-btn vk-btn--primary">Take over expired hold</button></div>
-            </div>
-          </div>
-        </div>
-      </section>
-      <section class="ds-specimen">
-<p class="ds-caption">Gone — the link stays so the folder is still identifiable</p>
-        <div class="ds-stage ds-stage--stack">
-
-          <div class="vk-worldrow">
-            <div class="vk-worldrow-art">Dragonwilds</div>
-            <div class="vk-worldrow-main">
-              <div class="vk-worldrow-titlerow">
-                <span class="vk-worldrow-name">world #14</span>
-                <span class="vk-worldrow-game">Dragonwilds</span>
-                <span class="vk-chip vk-chip--expired">Gone from the service</span>
-              </div>
-              <div class="vk-worldrow-line">world #14 is not on the service any more</div>
-              <div class="vk-dir">C:\Users\hazel\AppData\Local\Dragonwilds\Saved\SaveGames\OldWorld</div>
-              <div class="vk-worldrow-acts"><button class="vk-btn vk-btn--danger">Unlink</button></div>
-            </div>
-          </div>
+<p class="ds-caption">The only pointer from Worlds to the games library</p>
+        <div class="ds-stage ds-stage--block">
+          <div class="vk-well" style="font-size:12.5px">13 games installed on this machine, 1 linked to a world. <a href="#" style="color:rgb(var(--goldhi))">Open the games library</a></div>
         </div>
       </section>
       <section class="ds-meta">
         <h2 class="ds-meta-h">Rules</h2>
         <ul class="ds-rules">
-            <li>The chip sits at the end of the title row, not before the name: the name identifies, the chip qualifies.</li>
-            <li>The verbs and their visibility are the old vanilla page's <code>linkedRow()</code>, rule for rule.</li>
+            <li>The chip moved off the end of the title row and onto the line below it, beside the sentence it qualifies: the name identifies, the custody line explains, and they no longer sit in opposite corners.</li>
+            <li><b>The save path left the row.</b> It is a debug fact, not a daily one — it sits at the head of the overflow menu, still one click away in full.</li>
+            <li>The cover of a world someone else holds drops to 0.75 opacity. Nothing here is yours to take, and the row says so before it is read.</li>
             <li>“Take over expired hold” confirms with what it costs — the old holder's late check-in is kept and flagged, not lost.</li>
+            <li>“Yours — fetching” offers no actions: the hold is this account's but on another session, and a button would race the download.</li>
+            <li>Offline, every verb that would <i>take</i> a world is withdrawn and the worlds nobody here holds are hidden behind a stated reason. Play stays — that is the whole point of the state.</li>
         </ul>
       </section>
       <section class="ds-meta">
         <h2 class="ds-meta-h">Implemented by</h2>
         <ul class="ds-paths">
+            <li><code>web/companion/src/components/WorldsTab.tsx</code></li>
             <li><code>web/companion/src/components/WorldRow.tsx</code></li>
-            <li><code>web/companion/src/components/ConfirmDialog.tsx</code></li>
+            <li><code>web/companion/src/components/OverflowMenu.tsx</code></li>
         </ul>
       </section>
     </main>

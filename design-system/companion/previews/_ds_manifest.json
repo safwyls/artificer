@@ -35,7 +35,7 @@
     {
       "name": "Custody chip",
       "path": "custody-chip.html",
-      "subtitle": "Six states — the service's three, plus this machine's",
+      "subtitle": "Six states, from one call — the service's three plus this machine's",
       "group": "Status",
       "viewport": {
         "width": 900,
@@ -43,13 +43,13 @@
       }
     },
     {
-      "name": "Connection",
+      "name": "Window chrome",
       "path": "connection.html",
-      "subtitle": "Reachable, as whom, how fresh",
+      "subtitle": "Reachable, as whom, how fresh — said exactly once",
       "group": "Status",
       "viewport": {
-        "width": 940,
-        "height": 620
+        "width": 980,
+        "height": 700
       }
     },
     {
@@ -63,23 +63,23 @@
       }
     },
     {
-      "name": "The shelf",
+      "name": "The games library",
       "path": "shelf.html",
-      "subtitle": "Linked in colour, unlinked greyed",
+      "subtitle": "Linked first, and every tile says what linking costs",
       "group": "Patterns",
       "viewport": {
-        "width": 940,
-        "height": 620
+        "width": 1000,
+        "height": 780
       }
     },
     {
-      "name": "Linked world row",
+      "name": "Worlds, grouped by custody",
       "path": "world-row.html",
-      "subtitle": "The world, the folder, and one action",
+      "subtitle": "What you hold, what you can take, what someone else has",
       "group": "Patterns",
       "viewport": {
-        "width": 940,
-        "height": 760
+        "width": 1020,
+        "height": 900
       }
     },
     {
@@ -90,6 +90,16 @@
       "viewport": {
         "width": 940,
         "height": 560
+      }
+    },
+    {
+      "name": "No worlds yet",
+      "path": "first-run.html",
+      "subtitle": "Derived from “nothing linked”, never from a stored flag",
+      "group": "Patterns",
+      "viewport": {
+        "width": 980,
+        "height": 640
       }
     },
     {
