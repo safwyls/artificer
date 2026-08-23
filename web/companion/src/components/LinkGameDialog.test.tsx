@@ -180,3 +180,32 @@ describe("LinkGameDialog", () => {
     expect(screen.queryByText(/This needs the game's save folder/)).not.toBeInTheDocument();
   });
 });
+
+// The in-app folder browser exists because a plain browser page cannot
+// open a real picker — not because it is the better way to pick a folder.
+describe("LinkGameDialog — picking a folder", () => {
+  afterEach(() => {
+    delete window.companion;
+  });
+
+  it("browses in-app when there is no shell to ask", async () => {
+    show();
+    expect(screen.getByRole("button", { name: "Browse this computer…" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Choose a folder…" })).not.toBeInTheDocument();
+  });
+
+  it("uses the shell's native picker when there is one", async () => {
+    const pick = vi.fn(async () => "D:\\Games\\Saves");
+    window.companion = {
+      baseUrl: "",
+      token: "",
+      pickFolder: pick,
+      openPath: async () => {},
+    };
+    show();
+    expect(screen.queryByRole("button", { name: "Browse this computer…" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Choose a folder…" }));
+    await waitFor(() => expect(pick).toHaveBeenCalled());
+    expect(screen.getByLabelText("Save folder")).toHaveValue("D:\\Games\\Saves");
+  });
+});

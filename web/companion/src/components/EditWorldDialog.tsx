@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { api, errorText } from "../lib/api";
+import { nativeFolders, pickFolder } from "../lib/runtime";
 import { useRefreshState } from "../lib/state";
 import type { Link, SyncWorld } from "../lib/types";
 import { Button } from "./ui/button";
@@ -75,6 +76,19 @@ export function EditWorldDialog({
             <p className="mt-1.5 text-[12px] italic text-mist">
               Check this world in before pointing it at a different folder.
             </p>
+          ) : null}
+          {nativeFolders() ? (
+            <Button
+              type="button"
+              className="mt-2 mr-2"
+              disabled={held}
+              onClick={async () => {
+                const picked = await pickFolder(dir);
+                if (picked) setDir(picked);
+              }}
+            >
+              Choose a folder…
+            </Button>
           ) : null}
           <Button
             className="mt-2"
