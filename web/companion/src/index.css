@@ -19,8 +19,11 @@
   --ok: 127 196 106; /* #7fc46a */
   --ember: 212 115 94; /* #d4735e — danger and conflict */
   --rune: 157 127 196; /* #9d7fc4 — game tags and info */
-  /* Native controls (scrollbars, the overscroll gutter, form widgets)
-     follow this; without it a dark page still gets light scrollbars. */
+  /* Native controls (the overscroll gutter, form widgets) follow this;
+     without it a dark page still gets light ones. Scrollbars are styled
+     outright below — `color-scheme: dark` only makes the platform's own
+     scrollbar dark, and a dark platform scrollbar is still a piece of
+     someone else's design language sitting inside this one. */
   color-scheme: dark;
 }
 
@@ -41,6 +44,51 @@
   a {
     @apply text-goldhi hover:text-gold;
   }
+  /* Scrollbars in the vault's own palette: a thin edge-coloured thumb on
+     the page ground, going gold under the pointer the way every other
+     hoverable thing here does. Both builds wear it — the same page in a
+     browser tab and in the desktop window should not disagree about its
+     own furniture.
+
+     The @supports gate is load-bearing, not tidiness. Chromium ignores
+     *every* ::-webkit-scrollbar rule on any element that also sets
+     `scrollbar-color` or `scrollbar-width` — the standard properties and
+     the legacy pseudo-elements are mutually exclusive there. Declaring
+     both unconditionally therefore threw away all of the rules below and
+     left Chrome drawing the platform's plain square-ended bar, which is
+     why the thumb had no radius however much was asked for. Firefox is
+     the one engine that needs the standard properties and the one engine
+     that does not support the pseudo-element, so it is exactly what
+     `not selector(::-webkit-scrollbar)` selects. */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgb(var(--edge)) transparent;
+    }
+  }
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    /* The border is the inset: a padding-box background leaves the track
+       showing through it, which is how an 11px-wide bar draws a 7px-wide
+       thumb without a second element. Fully rounded ends — the radius is
+       clipped to the padding box with the border subtracted, so it stays
+       a capsule rather than picking up flat corners. */
+    background-color: rgb(var(--edge));
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--gold) / 0.55);
+  }
+
   /* Focus is visible in one style across the app; the gold ring is the
      same accent the primary button carries. */
   :focus-visible {
@@ -49,6 +97,38 @@
 }
 
 @layer components {
+  /* The window's titlebar strip, in the desktop shell.
+     
+     `env(titlebar-area-height)` is the height the OS paints its caption
+     buttons over, and it paints the overlay's background across all of
+     it. Everything box-sizing counts inside that height is therefore
+     underneath those buttons — including a 1px bottom rule, which is why
+     the divider vanished behind them. So the strip is one pixel taller
+     than the area the OS claimed: the content box is exactly the
+     overlay's height and the rule sits just below it.
+     
+     A class rather than a Tailwind arbitrary value because the `calc()`
+     needs real spaces around its `+`, and because the reason above does
+     not fit in a class name. */
+  .app-titlebar {
+    height: calc(env(titlebar-area-height, 38px) + 1px);
+  }
+  /* The width the OS left us; past it is caption buttons. */
+  .app-titlebar-inner {
+    width: env(titlebar-area-width, 100%);
+  }
+
+  /* What the desktop shell's frameless window is dragged by. Inert in
+     the browser build, which has a titlebar of its own — the property is
+     Chromium's and means nothing in an ordinary tab.
+
+     A class rather than an inline style because it is furniture, and
+     because it is assertable: an inline `-webkit-app-region` is dropped
+     by jsdom, so a test for it can only ever pass. */
+  .app-drag {
+    -webkit-app-region: drag;
+  }
+
   /* The field label above every input: small caps in mist. */
   .field-label {
     @apply text-[11px] tracking-[0.1em] text-mist;

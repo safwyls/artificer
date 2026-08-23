@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, errorText } from "./api";
 import { LIVE_POLL_MS } from "./events";
 import { gameKey, type Artwork, type CompanionState, type DiscoveredGame } from "./types";
 
@@ -100,6 +100,38 @@ export function useSaveHints(games: DiscoveredGame[], configured: boolean) {
     },
   });
   return query.data ?? {};
+}
+
+/**
+ * Every linked world's history, read from the vault on demand.
+ *
+ * Not on the custody poll: it is one request per linked world, neither
+ * tab is needed to sync a save, and both are visited rarely. `enabled` is
+ * what keeps it that way — the query only runs while one of the two tabs
+ * that reads it is on screen.
+ *
+ * Errors are surfaced rather than swallowed. Cover art degrades to
+ * nothing because it is decoration; a history that quietly shows an empty
+ * list is telling you nothing happened, which is the one thing these
+ * views must never get wrong.
+ */
+export function useHistory(enabled: boolean) {
+  const query = useQuery({
+    queryKey: ["history"],
+    enabled,
+    // The companion holds a short cache of its own; this one stops a tab
+    // switch from re-asking, and `refetch` bypasses both.
+    staleTime: 15_000,
+    retry: false,
+    queryFn: () => api.history(),
+  });
+  return {
+    history: query.data,
+    loading: query.isLoading,
+    error: query.isError ? errorText(query.error) : undefined,
+    refreshing: query.isFetching,
+    refresh: () => query.refetch(),
+  };
 }
 
 /**

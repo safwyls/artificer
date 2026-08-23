@@ -42,7 +42,9 @@ ${vaultKit}
   border-bottom: 1px solid rgb(var(--edge)); background: rgb(var(--well)); padding: 16px 28px;
 }
 .vk-header .vk-i--xl { width: 24px; height: 24px; color: rgb(var(--gold)); stroke-width: 1.3; }
-.vk-header-name { font-size: 18px; letter-spacing: 0.05em; color: rgb(var(--gold)); }
+/* The one large gold heading. It was the header bar's name; the header
+   bar is gone, and the empty state (NoWorlds.tsx) is what wears it now. */
+.vk-header-name { font-size: 21px; letter-spacing: 0.05em; color: rgb(var(--gold)); }
 .vk-header-tag { font-size: 11px; color: rgb(var(--mist)); }
 .vk-header-right { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .vk-conn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
@@ -71,8 +73,10 @@ ${vaultKit}
 .vk-tile--unlinked { border-color: rgb(var(--edge)); background: rgb(var(--well)); opacity: 0.72; }
 .vk-tile--unlinked:hover { opacity: 1; border-color: rgb(var(--gold) / 0.5); }
 .vk-tile--active { border-color: rgb(var(--goldhi)); opacity: 1; }
+/* Covers are IGDB's t_cover_big, 264x374, and both frames are cut to
+   that ratio. A 132px-tall tile cropped the middle out of every one. */
 .vk-tile-art {
-  width: 100%; height: 132px; display: flex; align-items: center; justify-content: center;
+  width: 100%; aspect-ratio: 264 / 374; display: flex; align-items: center; justify-content: center;
   background: var(--fill-cover); padding: 10px; text-align: center; font-size: 12px;
   line-height: 1.2; color: rgb(var(--mist));
 }
@@ -84,12 +88,99 @@ ${vaultKit}
 .vk-tile-note--linked { color: rgb(var(--goldhi)); }
 .vk-tile-link { white-space: nowrap; font-size: 11.5px; color: rgb(var(--goldhi)); }
 
+/* ---- history rows (Activity and Conflicts) ---------------------------- */
+/* One row serves both views, so a conflict is recognisable wherever it
+   turns up rather than only in the tab named after it. */
+.vk-hrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 18px; }
+.vk-hrow-world { font-size: 14px; color: rgb(var(--parchment)); }
+.vk-hrow-who { font-size: 13px; color: rgb(var(--mist)); }
+.vk-hrow-who b { font-weight: 400; color: rgb(var(--parchment)); }
+.vk-hrow-meta { margin-left: auto; white-space: nowrap; font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
+.vk-htag {
+  border-radius: 3px; border: 1px solid; padding: 1px 6px; font-family: var(--mono);
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+}
+.vk-htag--conflict { border-color: rgb(var(--ember) / 0.5); color: rgb(var(--ember)); }
+.vk-htag--head { border-color: rgb(var(--gold) / 0.5); color: rgb(var(--gold)); }
+/* A history that could not be fully read has to say so: these views exist
+   to notice something you did not do yourself. */
+.vk-incomplete {
+  display: flex; flex-direction: column; gap: 6px; border-radius: 8px;
+  border: 1px dashed rgb(var(--ember) / 0.5); background: rgb(var(--well)); padding: 12px 18px;
+}
+.vk-incomplete-lead { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: rgb(var(--ember)); }
+.vk-incomplete-why { font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
+
+/* ---- chrome's button ------------------------------------------------- */
+/* A fourth button, and not one of the three the shared kit carries: for a
+   control that sits on a rule rather than in a panel, where a frame draws
+   a box on the rule. It is companion-only -- lib/vault.mjs is what this
+   app and reliquary share verbatim, and reliquary has nothing that sits
+   on chrome like this. Wordless too, in its one use, because what it
+   would say is already said in the titlebar above it. */
+.vk-btn--bare { border-color: transparent; color: rgb(var(--mist)); }
+.vk-btn--bare:hover,
+.vk-btn.is-hover.vk-btn--bare { background: rgb(var(--panel)); color: rgb(var(--goldhi)); }
+
+/* ---- the desktop shell's titlebar ------------------------------------ */
+/* The Electron shell asks the OS for a frameless window, so this strip is
+   the titlebar: it is what the window is dragged by. Only the caption
+   buttons are still the platform's, recoloured to sit in it — hand-drawn
+   ones cost Windows 11 its snap-layouts menu. The reserved end of the
+   strip is where the OS draws them. Nothing of this exists in the browser
+   build, which is served into a tab that has a titlebar already. */
+.vk-titlebar {
+  /* 39, not 38: the app's strip is calc(env(titlebar-area-height) + 1px).
+     The OS paints its caption buttons -- and the overlay's background --
+     across the full height it reports, so a 1px bottom rule counted
+     inside that height disappears behind them. */
+  display: flex; height: 39px; flex: none; align-items: center; gap: 12px;
+  border-bottom: 1px solid rgb(var(--edge)); background: rgb(var(--ink));
+  padding: 0 16px 0 14px; user-select: none;
+}
+/* In the app these two are env(titlebar-area-width) and
+   env(titlebar-area-height) -- the overlay's own report of where the OS
+   drew the caption buttons. The specimen stands in a fixed number for
+   them because there is no OS drawing on this page. */
+.vk-titlebar--win { padding-right: 152px; }
+.vk-titlebar--mac { padding-left: 80px; }
+.vk-titlebar-mark { width: 14px; height: 14px; flex: none; color: rgb(var(--gold)); }
+/* The app's name is set in the app's own face, not the mono the rest of
+   the chrome uses -- and that is a weight decision, not a taste one. The
+   mono stack resolves to Consolas on Windows, which ships Regular and
+   Bold and nothing between, so font-weight 600 and 700 render the same
+   pixels: the strip had already asked for everything that face had.
+   Georgia has the weight, and it is what the rest of the app speaks in. */
+.vk-titlebar-name {
+  flex: none; font-family: Georgia, "Times New Roman", serif; font-size: 13px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+  color: rgb(var(--gold));
+}
+.vk-titlebar-machine { font-size: 12.5px; color: rgb(var(--mist)); }
+.vk-titlebar-sync {
+  margin-left: auto; flex: none; display: flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 11px; color: rgb(var(--mist));
+}
+/* Only ever drawn in a specimen: the real ones belong to the OS. */
+.vk-caption { margin-left: auto; display: flex; gap: 2px; }
+.vk-caption span {
+  display: flex; width: 46px; height: 36px; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11px; color: rgb(var(--parchment));
+}
+
 /* ---- the window's tab bar -------------------------------------------- */
-.vk-tabs { display: flex; gap: 4px; border-bottom: 1px solid rgb(var(--edge)); padding: 16px 28px 0; }
+/* One row, not two: the tabs and the window's single action share it.
+   There used to be a full-width header strip above this one carrying a
+   name, a line of text and a button. */
+.vk-tabs {
+  display: flex; align-items: stretch; border-bottom: 1px solid rgb(var(--edge)); padding: 0 28px;
+}
+.vk-tabs-list { display: flex; align-items: stretch; gap: 4px; }
+.vk-tabs-acts { margin-left: auto; display: flex; align-items: center; gap: 14px; padding: 4px 0 4px 20px; }
 .vk-tab {
   display: flex; align-items: center; gap: 8px; margin-bottom: -1px;
   border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
-  padding: 8px 14px 10px; font-family: inherit; font-size: 14.5px; color: rgb(var(--mist));
+  padding: 8px 14px 7px; font-family: inherit; font-size: 13.5px; color: rgb(var(--mist));
   transition: color 0.12s ease, border-color 0.12s ease;
 }
 .vk-tab:hover { color: rgb(var(--parchment)); }
@@ -105,7 +196,13 @@ ${vaultKit}
 .vk-group-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--mist)); }
 .vk-group-label--gold { color: rgb(var(--gold)); }
 .vk-group-sub { font-size: 12.5px; color: rgb(var(--mist)); }
-.vk-group-body { overflow: hidden; border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+/* Not overflow:hidden, however much the rounded corners want it -- a
+   row's overflow menu is positioned inside this card, and clipping the
+   card clipped the menu to the row it opened from. The corners are kept
+   by rounding the first and last rows, which is what the clip was for. */
+.vk-group-body { border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+.vk-group-body > :first-child { border-top-left-radius: 8px; border-top-right-radius: 8px; }
+.vk-group-body > :last-child { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
 .vk-group-body--gold { border-color: rgb(var(--gold) / 0.45); }
 .vk-group-body > * + * { border-top: 1px solid rgb(var(--edge)); }
 
@@ -165,7 +262,7 @@ ${vaultKit}
 .vk-worldrow { display: flex; align-items: center; gap: 16px; padding: 15px 18px; }
 .vk-worldrow:hover { background: rgb(var(--well)); }
 .vk-worldrow-art {
-  width: 54px; height: 72px; flex: none; display: flex; align-items: center;
+  width: 54px; aspect-ratio: 264 / 374; flex: none; display: flex; align-items: center;
   justify-content: center; border: 1px solid rgb(var(--edge)); border-radius: 5px;
   background: var(--fill-cover); padding: 5px; text-align: center; font-size: 9.5px;
   line-height: 1.15; color: rgb(var(--mist));
@@ -222,6 +319,16 @@ const CHIP = {
 const countdown = (text) => `<span class="vk-count">${sm(ICON.clock)}${text}</span>`;
 
 const dots = `<button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="More actions">${sm(ICON.dotsVertical)}</button>`;
+
+/** The vault mark (VaultMark.tsx): a gold diamond, worn by the titlebar,
+ * the empty state, and the app/tray icon make-icon.js rasterises from the
+ * same shape. It was a diamond on a wider kite until that composition was
+ * seen at 16-48px, where it reads as a small person rather than a vault. */
+const mark = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" class="vk-titlebar-mark" aria-hidden><path d="M12 3l9 9-9 9-9-9z"/></svg>`;
+
+/** The OS's caption buttons, stood in for so a specimen shows what the
+ * reserved end of the strip is reserved for. */
+const caption = `<span class="vk-caption"><span>&#8211;</span><span>&#9723;</span><span>&#10005;</span></span>`;
 
 const tile = (name, note, linked, extra = "") =>
   `            <button class="vk-tile ${linked ? "vk-tile--linked" : "vk-tile--unlinked"}${extra}">
@@ -318,7 +425,7 @@ export default {
               stage: "block",
               caption: "Scale",
               html: [
-                typeRow("header · 18px / 0.05em / gold", `<span class="vk-header-name">Artificer Companion</span>`),
+                typeRow("heading · 21px / 0.05em / gold", `<span class="vk-header-name">No worlds on this machine yet</span>`),
                 typeRow("section · 12px / 0.12em / caps", `<span class="vk-section-h">Linked worlds</span>`),
                 typeRow("world name · 16px / bold", `<span class="vk-worldrow-name">Ashwood Hollow</span>`),
                 typeRow("body · 15px", `Everything the app says in a sentence.`),
@@ -334,7 +441,7 @@ export default {
             "Both build strings appear in the footer: a save-sync report that names one half names nothing.",
             "Hints are italic mist; they explain, they never instruct.",
           ],
-          sources: ["web/companion/src/components/WorldRow.tsx", "web/companion/src/components/HeaderBar.tsx"],
+          sources: ["web/companion/src/components/WorldRow.tsx", "web/companion/src/components/TitleBar.tsx"],
         },
       ],
     },
@@ -365,7 +472,13 @@ export default {
               caption: "With an icon, and the busy state",
               html: `          <button class="vk-btn vk-btn--quiet">${sm(ICON.refresh)}Sync now</button>
           <button class="vk-btn vk-btn--quiet is-disabled">${sm(ICON.refresh)}Syncing…</button>
-          <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings">${sm(ICON.settings)}</button>`,
+          ${dots}`,
+            },
+            {
+              caption: "Bare: chrome's button, on a rule rather than in a panel",
+              html: `          <button class="vk-btn vk-btn--bare vk-btn--icon" aria-label="Sync now" title="Sync now">${sm(ICON.refresh)}</button>
+          <button class="vk-btn vk-btn--bare vk-btn--icon is-hover" aria-label="Sync now">${sm(ICON.refresh)}</button>
+          <button class="vk-btn vk-btn--bare vk-btn--icon is-disabled" aria-label="Syncing…">${sm(ICON.refresh)}</button>`,
             },
             {
               caption: "The action row of a world you hold: one primary, one quiet, three dots",
@@ -377,6 +490,7 @@ export default {
             "Checking out is two halves of one intention, and both are reported: a save on disk with a game that would not start is a real outcome — “checked out, but the game did not start” beats a failure toast.",
             "“Checkpoint now” shows only for worlds the service keeps checkpoints for. A button that always 501s is a lie about the feature.",
             "<b>One primary, one quiet, then the overflow.</b> The row used to carry four buttons of equal weight, which meant it carried none — nothing on it said which one you were meant to press.",
+            "<b>Three buttons in a panel; <i>bare</i> is not one of them.</b> It is for chrome — a control sitting on a rule, where a frame draws a box on the rule. It carries no border and, in its one use, no label, so it is only correct with an icon whose meaning is already established elsewhere on screen: the titlebar says the sync state in words a few pixels above it, and turns the same arrow while a sync runs. The name survives as the accessible label and the tooltip, which is where a control with no text has to keep it.",
           ],
           sources: ["web/companion/src/components/ui/button.tsx", "web/companion/src/components/WorldRow.tsx"],
         },
@@ -434,44 +548,42 @@ export default {
             paths and both build versions moved to Settings › Diagnostics, which the status
             bar links to. Freshness runs on a clock of its own, because the poll it describes
             may answer with an unchanged timestamp, and an age that stops moving reads as a
-            frozen app.`,
+            frozen app.
+            <br><br>
+            All of it is in <b>one strip</b> now. There was a second full-width header under
+            it carrying the app's name, that same line about the machine, and one button —
+            two bands of chrome and about 90px of window spent before the worlds start. The
+            name, the machine and the sync report are the titlebar's; the button sits beside
+            the tabs. Under the desktop shell that strip is also the window's titlebar, so
+            the OS draws the caption buttons over its right end and it is what the window is
+            dragged by.`,
           specimens: [
             {
               stage: "block",
-              caption: "Header and tabs",
-              html: `          <header class="vk-header">
-            <div><div class="vk-header-name" style="font-size:22px">Artificer Companion</div><div class="vk-header-tag" style="font-size:12.5px">this machine, syncing as hazel</div></div>
-            <div class="vk-header-right">
-              <span class="vk-conn vk-mono" style="font-size:11px;color:rgb(var(--mist))"><span class="vk-dot vk-dot--live"></span>synced 2 min ago</span>
-              <button class="vk-btn vk-btn--quiet">${sm(ICON.refresh)}Sync now</button>
-              <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings">${sm(ICON.settings)}</button>
-            </div>
-          </header>
+              caption: "The whole of the window's chrome: one strip, one tab row",
+              html: `          <div class="vk-titlebar vk-titlebar--win">${mark}<span class="vk-titlebar-name">Reliquary Companion</span><span class="vk-titlebar-machine">zedsixninety, syncing as hazel</span><span class="vk-titlebar-sync"><span class="vk-dot vk-dot--live"></span>synced 2 min ago</span>${caption}</div>
           <div class="vk-tabs">
-            <button class="vk-tab vk-tab--on">Worlds</button>
-            <button class="vk-tab">Games</button>
-            <button class="vk-tab">Activity</button>
-            <button class="vk-tab">Conflicts<span class="vk-tab-badge">1</span></button>
-            <button class="vk-tab">Settings</button>
+            <div class="vk-tabs-list">
+              <button class="vk-tab vk-tab--on">Worlds</button>
+              <button class="vk-tab">Games</button>
+              <button class="vk-tab">Activity</button>
+              <button class="vk-tab">Conflicts<span class="vk-tab-badge">1</span></button>
+              <button class="vk-tab">Settings</button>
+            </div>
+            <div class="vk-tabs-acts"><button class="vk-btn vk-btn--bare vk-btn--icon" aria-label="Sync now" title="Sync now">${sm(ICON.refresh)}</button></div>
           </div>`,
             },
             {
               stage: "block",
+              caption: "The browser build wears the other name, and macOS reserves the other end",
+              html: `          <div class="vk-titlebar">${mark}<span class="vk-titlebar-name">Artificer Companion</span><span class="vk-titlebar-machine">zedsixninety, syncing as hazel</span><span class="vk-titlebar-sync"><span class="vk-dot vk-dot--live"></span>synced 2 min ago</span></div>
+          <div class="vk-titlebar vk-titlebar--mac" style="margin-top:14px">${mark}<span class="vk-titlebar-name">Reliquary Companion</span><span class="vk-titlebar-machine">zedsixninety, syncing as hazel</span></div>`,
+            },
+            {
+              stage: "block",
               caption: "Not connected, and the vault unreachable",
-              html: `          <header class="vk-header" style="margin-bottom:14px">
-            <div><div class="vk-header-name" style="font-size:22px">Artificer Companion</div><div class="vk-header-tag" style="font-size:12.5px">this machine — not connected to a vault yet</div></div>
-            <div class="vk-header-right">
-              <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings">${sm(ICON.settings)}</button>
-            </div>
-          </header>
-          <header class="vk-header">
-            <div><div class="vk-header-name" style="font-size:22px">Artificer Companion</div><div class="vk-header-tag" style="font-size:12.5px">this machine, syncing as hazel</div></div>
-            <div class="vk-header-right">
-              <span class="vk-conn vk-mono" style="font-size:11px;color:rgb(var(--mist))"><span class="vk-dot" style="background:rgb(var(--ember))"></span>the vault is unreachable</span>
-              <button class="vk-btn vk-btn--quiet">${sm(ICON.refresh)}Sync now</button>
-              <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings">${sm(ICON.settings)}</button>
-            </div>
-          </header>`,
+              html: `          <div class="vk-titlebar vk-titlebar--win" style="margin-bottom:14px">${mark}<span class="vk-titlebar-name">Reliquary Companion</span><span class="vk-titlebar-machine">zedsixninety — not connected to a vault yet</span>${caption}</div>
+          <div class="vk-titlebar vk-titlebar--win">${mark}<span class="vk-titlebar-name">Reliquary Companion</span><span class="vk-titlebar-machine">zedsixninety, syncing as hazel</span><span class="vk-titlebar-sync"><span class="vk-dot" style="background:rgb(var(--ember))"></span>the vault is unreachable</span>${caption}</div>`,
             },
             {
               stage: "block",
@@ -494,15 +606,95 @@ export default {
           ],
           rules: [
             "<b>One place.</b> The dot and the relative time are the whole sync report; everything else that used to say it is gone or has moved to Diagnostics.",
+            "<b>One way into Settings.</b> There was a cog in the header as well as the tab a few pixels below it — two controls for one destination, and the cog was the one nothing else in the app referred to. The tab stays.",
+            "The desktop shell's window is frameless, so the app draws its own titlebar and the OS only recolours the caption buttons over it. Hand-drawing those instead would cost Windows 11 its snap-layouts menu, which is a worse loss than a mismatched button shape.",
+            "<b>The strip's height and usable width come from the OS</b>, as <code>env(titlebar-area-height)</code> and <code>env(titlebar-area-width)</code> — the overlay's own report of where it drew the buttons. A hand-agreed number cannot survive a display-scaling change.",
+            "<b>One pixel taller than the OS asked for.</b> The overlay paints its own background across every pixel of the height it reports, so a bottom rule counted inside that height sits under the caption buttons and vanishes. The content box is the reported height; the rule goes below it.",
+            "<b>Two products, two names.</b> The desktop shell is the Reliquary Companion — its productName, its own release track, its own icon; the browser-and-tray build is the Artificer Companion. The strip says whichever one it is running in.",
+            "<b>One mark, one weight.</b> The diamond is the same drawing in the strip, in the empty state and in the app and tray icon, and its stroke is set by ratio rather than by eye — the icon strokes 8.5% of its tile on a diamond 32% of it, so stroke over radius is 0.266 everywhere. It was a diamond on a wider kite until that pair was looked at from 16px, where it reads as a small person.",
+            "<b>The machine is named, not gestured at.</b> “This machine” is a truism on the screen in front of you — it carries something only by contrast, and the contrast is not on this strip. The daemon reports <code>os.Hostname()</code> and the strip uses it; a host that will not say its name falls back to the old wording rather than to a blank. It stops being a truism the moment one account syncs from two PCs, which is the case custody exists to disambiguate.",
+            "The window is a fixed frame with one scrolling region in the middle. Chrome that scrolls away is chrome that cannot be dragged.",
             "Three dot states, not two: ok when connected, ember when the last sync errored, mist when no vault is configured at all.",
             "The error text is the transport's own words. “Could not connect” sends a player to the wrong place; a DNS failure names itself.",
             "The Conflicts badge is drawn only when the count is non-zero. A “0” beside Conflicts is a number nobody needs.",
             "“Sync now” exists for being certain rather than patient — the page keeps itself current while open, and this is how a player hears out loud that the service cannot be reached.",
           ],
           sources: [
-            "web/companion/src/components/HeaderBar.tsx",
+            "web/companion/src/components/TitleBar.tsx",
             "web/companion/src/components/TabBar.tsx",
+            "web/companion/src/components/StatusBar.tsx",
+            "web/companion/src/components/VaultMark.tsx",
             "web/companion/src/components/Offline.tsx",
+            "companion-desktop/src/main.ts",
+          ],
+        },
+        {
+          slug: "history",
+          name: "Activity and Conflicts",
+          subtitle: "One read of the vault, filtered two ways",
+          viewport: { width: 980, height: 720 },
+          intent: `Both tabs are the same call. The companion asks the vault for every linked
+            world's version list and merges it; <b>Activity</b> is that list by day,
+            <b>Conflicts</b> is that list filtered to the flagged rows. Fetching them
+            separately would let two views disagree about what happened.
+            <br><br>
+            A conflict is not a separate record — it is a version the vault refused to
+            fast-forward onto, because the check-in arrived from a hold that had already
+            ended or from one whose starting point had moved. So the conflict marking lives
+            on the <i>row</i>, and is recognisable in Activity too.
+            <br><br>
+            This is the vault's record, not this machine's, and that is the point: the
+            companion already knows what it did itself and says so in the titlebar. What it
+            cannot know without asking is that someone else checked a world in an hour ago.`,
+          specimens: [
+            {
+              stage: "block",
+              caption: "A day of activity — the current version is marked, and so is a refused one",
+              html: `          <h3 class="vk-section-h" style="margin-bottom:10px">Today · 3</h3>
+          <div class="vk-group-body">
+            <div class="vk-hrow"><span class="vk-hrow-world">Ashwood Hollow</span><span class="vk-hrow-who"><b>rook</b> checked in</span><span class="vk-htag vk-htag--head">current</span><span class="vk-hrow-meta">v24 · 16 KB · 2 min ago</span></div>
+            <div class="vk-hrow"><span class="vk-hrow-world">Embervale</span><span class="vk-hrow-who"><b>hazel</b> checked in</span><span class="vk-htag vk-htag--conflict">conflict</span><span class="vk-hrow-meta">v23 · 15 KB · 1 h ago</span></div>
+            <div class="vk-hrow"><span class="vk-hrow-world">Embervale</span><span class="vk-hrow-who"><b>hazel</b> checkpointed</span><span class="vk-hrow-meta">v22 · 15 KB · 3 h ago</span></div>
+          </div>`,
+            },
+            {
+              stage: "block",
+              caption: "Conflicts: grouped by world, and honest that this window cannot settle one",
+              html: `          <h3 class="vk-section-h" style="color:rgb(var(--gold));margin-bottom:10px">Embervale · 2</h3>
+          <div class="vk-group-body" style="margin-bottom:14px">
+            <div class="vk-hrow"><span class="vk-hrow-who"><b>hazel</b> checked in</span><span class="vk-htag vk-htag--conflict">conflict</span><span class="vk-hrow-meta">v23 · 15 KB · 1 h ago</span></div>
+            <div class="vk-hrow"><span class="vk-hrow-who"><b>rook</b> checked in</span><span class="vk-htag vk-htag--conflict">conflict</span><span class="vk-hrow-meta">v21 · 14 KB · 5 h ago</span></div>
+          </div>
+          <div style="border-radius:8px;border:1px dashed rgb(var(--edge));background:rgb(var(--well));padding:12px 18px;font-size:12.5px;color:rgb(var(--mist))">
+            Nothing is lost while this is unresolved: a flagged save is kept whatever else is pruned.
+            Choosing which one becomes the world&rsquo;s current save is done on the sync service by an
+            administrator — this window deliberately cannot.
+          </div>`,
+            },
+            {
+              stage: "block",
+              caption: "A list that is not the whole truth says so",
+              html: `          <div class="vk-incomplete">
+            <div class="vk-incomplete-lead">${sm(ICON.alert)}2 worlds could not be read, so this list is incomplete.</div>
+            <div class="vk-incomplete-why">Cinderfall: service answered 502</div>
+            <div class="vk-incomplete-why">Verdant Reach: dial tcp: no such host</div>
+          </div>`,
+            },
+          ],
+          rules: [
+            "<b>One read, filtered twice.</b> Activity and Conflicts never fetch separately — two views of one history that could disagree about what happened would be worse than one view.",
+            "<b>The conflict badge is on the row, not the tab.</b> A refused check-in is recognisable in Activity as well, which is where someone is most likely to be looking when it happens.",
+            "<b>An incomplete list says it is incomplete.</b> A world the vault would not answer for is named, with the reason. These views exist to notice something you did not do yourself; a short list that looks complete is worse than an error.",
+            "<b>This window cannot resolve a conflict, and says so.</b> Moving a world's head decides for everyone and is admin-only on the vault; the companion holds one player's credential. The view names where the ability lives rather than offering a button that would be refused — the same rule a console follows when a game cannot support a feature.",
+            "<b>Read only while one of the two tabs is open.</b> It is one request per linked world, and neither view is needed to sync a save.",
+            "Grouped by day in Activity, because that is how the question gets asked; by world in Conflicts, because a conflict is one world having two futures.",
+          ],
+          sources: [
+            "web/companion/src/components/ActivityTab.tsx",
+            "web/companion/src/components/ConflictsTab.tsx",
+            "web/companion/src/components/HistoryView.tsx",
+            "companion/history.go",
+            "core/api/savesync.go",
           ],
         },
         {

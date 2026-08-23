@@ -1,5 +1,10 @@
-// ipc-contract.ts — channel names shared between preload.ts and main.ts,
-// kept in one place so the two never drift apart.
+// ipc-contract.ts — the channel names and the shape of what the preload
+// exposes, and the definition main.ts works from.
+//
+// preload.ts cannot import the values here: a sandboxed preload is loaded
+// as a single file and its `require` resolves only Electron built-ins, so
+// it keeps its own copy and test/ipc-contract.test.js holds the two to
+// each other. It does import the `CompanionBridge` type, which is erased.
 
 export const IPC = {
   getConnection: "companion:getConnection",
@@ -13,6 +18,10 @@ export const IPC = {
 export interface CompanionBridge {
   baseUrl: string;
   token: string;
+  /** `process.platform`. The renderer draws the window's titlebar and
+   * has to leave room for the caption buttons the OS draws over it —
+   * which end of the strip those land on is a platform question. */
+  platform: NodeJS.Platform;
   pickFolder(startDir?: string): Promise<string | null>;
   openPath(path: string): Promise<void>;
   setAutostart(enabled: boolean): Promise<void>;

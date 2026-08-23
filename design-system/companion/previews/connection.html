@@ -224,7 +224,9 @@
         border-bottom: 1px solid rgb(var(--edge)); background: rgb(var(--well)); padding: 16px 28px;
       }
       .vk-header .vk-i--xl { width: 24px; height: 24px; color: rgb(var(--gold)); stroke-width: 1.3; }
-      .vk-header-name { font-size: 18px; letter-spacing: 0.05em; color: rgb(var(--gold)); }
+      /* The one large gold heading. It was the header bar's name; the header
+         bar is gone, and the empty state (NoWorlds.tsx) is what wears it now. */
+      .vk-header-name { font-size: 21px; letter-spacing: 0.05em; color: rgb(var(--gold)); }
       .vk-header-tag { font-size: 11px; color: rgb(var(--mist)); }
       .vk-header-right { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
       .vk-conn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
@@ -253,8 +255,10 @@
       .vk-tile--unlinked { border-color: rgb(var(--edge)); background: rgb(var(--well)); opacity: 0.72; }
       .vk-tile--unlinked:hover { opacity: 1; border-color: rgb(var(--gold) / 0.5); }
       .vk-tile--active { border-color: rgb(var(--goldhi)); opacity: 1; }
+      /* Covers are IGDB's t_cover_big, 264x374, and both frames are cut to
+         that ratio. A 132px-tall tile cropped the middle out of every one. */
       .vk-tile-art {
-        width: 100%; height: 132px; display: flex; align-items: center; justify-content: center;
+        width: 100%; aspect-ratio: 264 / 374; display: flex; align-items: center; justify-content: center;
         background: var(--fill-cover); padding: 10px; text-align: center; font-size: 12px;
         line-height: 1.2; color: rgb(var(--mist));
       }
@@ -266,12 +270,99 @@
       .vk-tile-note--linked { color: rgb(var(--goldhi)); }
       .vk-tile-link { white-space: nowrap; font-size: 11.5px; color: rgb(var(--goldhi)); }
       
+      /* ---- history rows (Activity and Conflicts) ---------------------------- */
+      /* One row serves both views, so a conflict is recognisable wherever it
+         turns up rather than only in the tab named after it. */
+      .vk-hrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 18px; }
+      .vk-hrow-world { font-size: 14px; color: rgb(var(--parchment)); }
+      .vk-hrow-who { font-size: 13px; color: rgb(var(--mist)); }
+      .vk-hrow-who b { font-weight: 400; color: rgb(var(--parchment)); }
+      .vk-hrow-meta { margin-left: auto; white-space: nowrap; font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
+      .vk-htag {
+        border-radius: 3px; border: 1px solid; padding: 1px 6px; font-family: var(--mono);
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+      }
+      .vk-htag--conflict { border-color: rgb(var(--ember) / 0.5); color: rgb(var(--ember)); }
+      .vk-htag--head { border-color: rgb(var(--gold) / 0.5); color: rgb(var(--gold)); }
+      /* A history that could not be fully read has to say so: these views exist
+         to notice something you did not do yourself. */
+      .vk-incomplete {
+        display: flex; flex-direction: column; gap: 6px; border-radius: 8px;
+        border: 1px dashed rgb(var(--ember) / 0.5); background: rgb(var(--well)); padding: 12px 18px;
+      }
+      .vk-incomplete-lead { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: rgb(var(--ember)); }
+      .vk-incomplete-why { font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
+      
+      /* ---- chrome's button ------------------------------------------------- */
+      /* A fourth button, and not one of the three the shared kit carries: for a
+         control that sits on a rule rather than in a panel, where a frame draws
+         a box on the rule. It is companion-only -- lib/vault.mjs is what this
+         app and reliquary share verbatim, and reliquary has nothing that sits
+         on chrome like this. Wordless too, in its one use, because what it
+         would say is already said in the titlebar above it. */
+      .vk-btn--bare { border-color: transparent; color: rgb(var(--mist)); }
+      .vk-btn--bare:hover,
+      .vk-btn.is-hover.vk-btn--bare { background: rgb(var(--panel)); color: rgb(var(--goldhi)); }
+      
+      /* ---- the desktop shell's titlebar ------------------------------------ */
+      /* The Electron shell asks the OS for a frameless window, so this strip is
+         the titlebar: it is what the window is dragged by. Only the caption
+         buttons are still the platform's, recoloured to sit in it — hand-drawn
+         ones cost Windows 11 its snap-layouts menu. The reserved end of the
+         strip is where the OS draws them. Nothing of this exists in the browser
+         build, which is served into a tab that has a titlebar already. */
+      .vk-titlebar {
+        /* 39, not 38: the app's strip is calc(env(titlebar-area-height) + 1px).
+           The OS paints its caption buttons -- and the overlay's background --
+           across the full height it reports, so a 1px bottom rule counted
+           inside that height disappears behind them. */
+        display: flex; height: 39px; flex: none; align-items: center; gap: 12px;
+        border-bottom: 1px solid rgb(var(--edge)); background: rgb(var(--ink));
+        padding: 0 16px 0 14px; user-select: none;
+      }
+      /* In the app these two are env(titlebar-area-width) and
+         env(titlebar-area-height) -- the overlay's own report of where the OS
+         drew the caption buttons. The specimen stands in a fixed number for
+         them because there is no OS drawing on this page. */
+      .vk-titlebar--win { padding-right: 152px; }
+      .vk-titlebar--mac { padding-left: 80px; }
+      .vk-titlebar-mark { width: 14px; height: 14px; flex: none; color: rgb(var(--gold)); }
+      /* The app's name is set in the app's own face, not the mono the rest of
+         the chrome uses -- and that is a weight decision, not a taste one. The
+         mono stack resolves to Consolas on Windows, which ships Regular and
+         Bold and nothing between, so font-weight 600 and 700 render the same
+         pixels: the strip had already asked for everything that face had.
+         Georgia has the weight, and it is what the rest of the app speaks in. */
+      .vk-titlebar-name {
+        flex: none; font-family: Georgia, "Times New Roman", serif; font-size: 13px;
+        font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+        color: rgb(var(--gold));
+      }
+      .vk-titlebar-machine { font-size: 12.5px; color: rgb(var(--mist)); }
+      .vk-titlebar-sync {
+        margin-left: auto; flex: none; display: flex; align-items: center; gap: 7px;
+        font-family: var(--mono); font-size: 11px; color: rgb(var(--mist));
+      }
+      /* Only ever drawn in a specimen: the real ones belong to the OS. */
+      .vk-caption { margin-left: auto; display: flex; gap: 2px; }
+      .vk-caption span {
+        display: flex; width: 46px; height: 36px; align-items: center; justify-content: center;
+        font-family: var(--mono); font-size: 11px; color: rgb(var(--parchment));
+      }
+      
       /* ---- the window's tab bar -------------------------------------------- */
-      .vk-tabs { display: flex; gap: 4px; border-bottom: 1px solid rgb(var(--edge)); padding: 16px 28px 0; }
+      /* One row, not two: the tabs and the window's single action share it.
+         There used to be a full-width header strip above this one carrying a
+         name, a line of text and a button. */
+      .vk-tabs {
+        display: flex; align-items: stretch; border-bottom: 1px solid rgb(var(--edge)); padding: 0 28px;
+      }
+      .vk-tabs-list { display: flex; align-items: stretch; gap: 4px; }
+      .vk-tabs-acts { margin-left: auto; display: flex; align-items: center; gap: 14px; padding: 4px 0 4px 20px; }
       .vk-tab {
         display: flex; align-items: center; gap: 8px; margin-bottom: -1px;
         border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
-        padding: 8px 14px 10px; font-family: inherit; font-size: 14.5px; color: rgb(var(--mist));
+        padding: 8px 14px 7px; font-family: inherit; font-size: 13.5px; color: rgb(var(--mist));
         transition: color 0.12s ease, border-color 0.12s ease;
       }
       .vk-tab:hover { color: rgb(var(--parchment)); }
@@ -287,7 +378,13 @@
       .vk-group-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--mist)); }
       .vk-group-label--gold { color: rgb(var(--gold)); }
       .vk-group-sub { font-size: 12.5px; color: rgb(var(--mist)); }
-      .vk-group-body { overflow: hidden; border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+      /* Not overflow:hidden, however much the rounded corners want it -- a
+         row's overflow menu is positioned inside this card, and clipping the
+         card clipped the menu to the row it opened from. The corners are kept
+         by rounding the first and last rows, which is what the clip was for. */
+      .vk-group-body { border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+      .vk-group-body > :first-child { border-top-left-radius: 8px; border-top-right-radius: 8px; }
+      .vk-group-body > :last-child { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
       .vk-group-body--gold { border-color: rgb(var(--gold) / 0.45); }
       .vk-group-body > * + * { border-top: 1px solid rgb(var(--edge)); }
       
@@ -347,7 +444,7 @@
       .vk-worldrow { display: flex; align-items: center; gap: 16px; padding: 15px 18px; }
       .vk-worldrow:hover { background: rgb(var(--well)); }
       .vk-worldrow-art {
-        width: 54px; height: 72px; flex: none; display: flex; align-items: center;
+        width: 54px; aspect-ratio: 264 / 374; flex: none; display: flex; align-items: center;
         justify-content: center; border: 1px solid rgb(var(--edge)); border-radius: 5px;
         background: var(--fill-cover); padding: 5px; text-align: center; font-size: 9.5px;
         line-height: 1.15; color: rgb(var(--mist));
@@ -398,46 +495,45 @@
             paths and both build versions moved to Settings › Diagnostics, which the status
             bar links to. Freshness runs on a clock of its own, because the poll it describes
             may answer with an unchanged timestamp, and an age that stops moving reads as a
-            frozen app.</p>
+            frozen app.
+            <br><br>
+            All of it is in <b>one strip</b> now. There was a second full-width header under
+            it carrying the app's name, that same line about the machine, and one button —
+            two bands of chrome and about 90px of window spent before the worlds start. The
+            name, the machine and the sync report are the titlebar's; the button sits beside
+            the tabs. Under the desktop shell that strip is also the window's titlebar, so
+            the OS draws the caption buttons over its right end and it is what the window is
+            dragged by.</p>
     </header>
     <main class="ds-body">
       <section class="ds-specimen">
-<p class="ds-caption">Header and tabs</p>
+<p class="ds-caption">The whole of the window's chrome: one strip, one tab row</p>
         <div class="ds-stage ds-stage--block">
-          <header class="vk-header">
-            <div><div class="vk-header-name" style="font-size:22px">Artificer Companion</div><div class="vk-header-tag" style="font-size:12.5px">this machine, syncing as hazel</div></div>
-            <div class="vk-header-right">
-              <span class="vk-conn vk-mono" style="font-size:11px;color:rgb(var(--mist))"><span class="vk-dot vk-dot--live"></span>synced 2 min ago</span>
-              <button class="vk-btn vk-btn--quiet"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Sync now</button>
-              <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-            </div>
-          </header>
+          <div class="vk-titlebar vk-titlebar--win"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" class="vk-titlebar-mark" aria-hidden><path d="M12 3l9 9-9 9-9-9z"/></svg><span class="vk-titlebar-name">Reliquary Companion</span><span class="vk-titlebar-machine">zedsixninety, syncing as hazel</span><span class="vk-titlebar-sync"><span class="vk-dot vk-dot--live"></span>synced 2 min ago</span><span class="vk-caption"><span>&#8211;</span><span>&#9723;</span><span>&#10005;</span></span></div>
           <div class="vk-tabs">
-            <button class="vk-tab vk-tab--on">Worlds</button>
-            <button class="vk-tab">Games</button>
-            <button class="vk-tab">Activity</button>
-            <button class="vk-tab">Conflicts<span class="vk-tab-badge">1</span></button>
-            <button class="vk-tab">Settings</button>
+            <div class="vk-tabs-list">
+              <button class="vk-tab vk-tab--on">Worlds</button>
+              <button class="vk-tab">Games</button>
+              <button class="vk-tab">Activity</button>
+              <button class="vk-tab">Conflicts<span class="vk-tab-badge">1</span></button>
+              <button class="vk-tab">Settings</button>
+            </div>
+            <div class="vk-tabs-acts"><button class="vk-btn vk-btn--bare vk-btn--icon" aria-label="Sync now" title="Sync now"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></button></div>
           </div>
+        </div>
+      </section>
+      <section class="ds-specimen">
+<p class="ds-caption">The browser build wears the other name, and macOS reserves the other end</p>
+        <div class="ds-stage ds-stage--block">
+          <div class="vk-titlebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" class="vk-titlebar-mark" aria-hidden><path d="M12 3l9 9-9 9-9-9z"/></svg><span class="vk-titlebar-name">Artificer Companion</span><span class="vk-titlebar-machine">zedsixninety, syncing as hazel</span><span class="vk-titlebar-sync"><span class="vk-dot vk-dot--live"></span>synced 2 min ago</span></div>
+          <div class="vk-titlebar vk-titlebar--mac" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" class="vk-titlebar-mark" aria-hidden><path d="M12 3l9 9-9 9-9-9z"/></svg><span class="vk-titlebar-name">Reliquary Companion</span><span class="vk-titlebar-machine">zedsixninety, syncing as hazel</span></div>
         </div>
       </section>
       <section class="ds-specimen">
 <p class="ds-caption">Not connected, and the vault unreachable</p>
         <div class="ds-stage ds-stage--block">
-          <header class="vk-header" style="margin-bottom:14px">
-            <div><div class="vk-header-name" style="font-size:22px">Artificer Companion</div><div class="vk-header-tag" style="font-size:12.5px">this machine — not connected to a vault yet</div></div>
-            <div class="vk-header-right">
-              <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-            </div>
-          </header>
-          <header class="vk-header">
-            <div><div class="vk-header-name" style="font-size:22px">Artificer Companion</div><div class="vk-header-tag" style="font-size:12.5px">this machine, syncing as hazel</div></div>
-            <div class="vk-header-right">
-              <span class="vk-conn vk-mono" style="font-size:11px;color:rgb(var(--mist))"><span class="vk-dot" style="background:rgb(var(--ember))"></span>the vault is unreachable</span>
-              <button class="vk-btn vk-btn--quiet"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Sync now</button>
-              <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-            </div>
-          </header>
+          <div class="vk-titlebar vk-titlebar--win" style="margin-bottom:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" class="vk-titlebar-mark" aria-hidden><path d="M12 3l9 9-9 9-9-9z"/></svg><span class="vk-titlebar-name">Reliquary Companion</span><span class="vk-titlebar-machine">zedsixninety — not connected to a vault yet</span><span class="vk-caption"><span>&#8211;</span><span>&#9723;</span><span>&#10005;</span></span></div>
+          <div class="vk-titlebar vk-titlebar--win"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" class="vk-titlebar-mark" aria-hidden><path d="M12 3l9 9-9 9-9-9z"/></svg><span class="vk-titlebar-name">Reliquary Companion</span><span class="vk-titlebar-machine">zedsixninety, syncing as hazel</span><span class="vk-titlebar-sync"><span class="vk-dot" style="background:rgb(var(--ember))"></span>the vault is unreachable</span><span class="vk-caption"><span>&#8211;</span><span>&#9723;</span><span>&#10005;</span></span></div>
         </div>
       </section>
       <section class="ds-specimen">
@@ -464,6 +560,14 @@
         <h2 class="ds-meta-h">Rules</h2>
         <ul class="ds-rules">
             <li><b>One place.</b> The dot and the relative time are the whole sync report; everything else that used to say it is gone or has moved to Diagnostics.</li>
+            <li><b>One way into Settings.</b> There was a cog in the header as well as the tab a few pixels below it — two controls for one destination, and the cog was the one nothing else in the app referred to. The tab stays.</li>
+            <li>The desktop shell's window is frameless, so the app draws its own titlebar and the OS only recolours the caption buttons over it. Hand-drawing those instead would cost Windows 11 its snap-layouts menu, which is a worse loss than a mismatched button shape.</li>
+            <li><b>The strip's height and usable width come from the OS</b>, as <code>env(titlebar-area-height)</code> and <code>env(titlebar-area-width)</code> — the overlay's own report of where it drew the buttons. A hand-agreed number cannot survive a display-scaling change.</li>
+            <li><b>One pixel taller than the OS asked for.</b> The overlay paints its own background across every pixel of the height it reports, so a bottom rule counted inside that height sits under the caption buttons and vanishes. The content box is the reported height; the rule goes below it.</li>
+            <li><b>Two products, two names.</b> The desktop shell is the Reliquary Companion — its productName, its own release track, its own icon; the browser-and-tray build is the Artificer Companion. The strip says whichever one it is running in.</li>
+            <li><b>One mark, one weight.</b> The diamond is the same drawing in the strip, in the empty state and in the app and tray icon, and its stroke is set by ratio rather than by eye — the icon strokes 8.5% of its tile on a diamond 32% of it, so stroke over radius is 0.266 everywhere. It was a diamond on a wider kite until that pair was looked at from 16px, where it reads as a small person.</li>
+            <li><b>The machine is named, not gestured at.</b> “This machine” is a truism on the screen in front of you — it carries something only by contrast, and the contrast is not on this strip. The daemon reports <code>os.Hostname()</code> and the strip uses it; a host that will not say its name falls back to the old wording rather than to a blank. It stops being a truism the moment one account syncs from two PCs, which is the case custody exists to disambiguate.</li>
+            <li>The window is a fixed frame with one scrolling region in the middle. Chrome that scrolls away is chrome that cannot be dragged.</li>
             <li>Three dot states, not two: ok when connected, ember when the last sync errored, mist when no vault is configured at all.</li>
             <li>The error text is the transport's own words. “Could not connect” sends a player to the wrong place; a DNS failure names itself.</li>
             <li>The Conflicts badge is drawn only when the count is non-zero. A “0” beside Conflicts is a number nobody needs.</li>
@@ -473,9 +577,12 @@
       <section class="ds-meta">
         <h2 class="ds-meta-h">Implemented by</h2>
         <ul class="ds-paths">
-            <li><code>web/companion/src/components/HeaderBar.tsx</code></li>
+            <li><code>web/companion/src/components/TitleBar.tsx</code></li>
             <li><code>web/companion/src/components/TabBar.tsx</code></li>
+            <li><code>web/companion/src/components/StatusBar.tsx</code></li>
+            <li><code>web/companion/src/components/VaultMark.tsx</code></li>
             <li><code>web/companion/src/components/Offline.tsx</code></li>
+            <li><code>companion-desktop/src/main.ts</code></li>
         </ul>
       </section>
     </main>

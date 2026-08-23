@@ -331,15 +331,15 @@ func (s *Server) handleSyncWorldMeta(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"accepted": true})
 }
 
-func (s *Server) handleGetSyncWorld(w http.ResponseWriter, r *http.Request) {
-	world, ok := s.loadSyncWorld(w, r)
-	if !ok {
-		return
-	}
+// syncWorldDetail is one world's custody state and its whole version
+// history, with uploader names resolved. Both tiers answer with it: the
+// vault's own UI renders the history table from it, and the companion
+// reads it for the Activity and Conflicts views — a conflict is a flag
+// on a version, and the vault is the only thing that can see one.
+func (s *Server) syncWorldDetail(r *http.Request, world *store.SyncWorld) (map[string]any, error) {
 	versions, err := s.store.ListSyncVersions(r.Context(), world.ID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list versions")
-		return
+		return nil, err
 	}
 	// Uploader names for the history table, resolved once per user.
 	names := map[int64]string{}
@@ -353,11 +353,47 @@ func (s *Server) handleGetSyncWorld(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	return map[string]any{
 		"status":    s.syncStatus(r, world),
 		"versions":  versions,
 		"uploaders": names,
-	})
+	}, nil
+}
+
+func (s *Server) handleGetSyncWorld(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	out, err := s.syncWorldDetail(r, world)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list versions")
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handlePublicSyncWorld is the same answer for the companion tier, which
+// reaches it with a sync token instead of a cookie.
+//
+// It is a separate handler for one reason: every response on that tier
+// carries `accepted: true`, and the companion's client treats its absence
+// as "something other than the service answered" — that is what catches a
+// Cloudflare Access login page returning 200 with HTML. Adding the ack
+// here rather than to the shared body keeps the convention on the tier
+// that has it instead of leaking it into the vault UI's responses.
+func (s *Server) handlePublicSyncWorld(w http.ResponseWriter, r *http.Request) {
+	world, ok := s.loadSyncWorld(w, r)
+	if !ok {
+		return
+	}
+	out, err := s.syncWorldDetail(r, world)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list versions")
+		return
+	}
+	out["accepted"] = true
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleUpdateSyncWorld(w http.ResponseWriter, r *http.Request) {
@@ -869,6 +905,11 @@ func (s *Server) mountSyncUploads(r chi.Router) {
 		r.Delete("/worlds/{worldID}/claim", s.withSyncTokenUser(func(w http.ResponseWriter, r *http.Request) {
 			s.asUser(s.syncUnclaim)(w, r)
 		}))
+		// Read-only, and the token is already a PermSync grant: the
+		// companion can list every world here, so one world's history is
+		// nothing new. Resolving a conflict is not on this tier — moving
+		// the head is admin, and it stays that way.
+		r.Get("/worlds/{worldID}", s.withSyncTokenUser(s.handlePublicSyncWorld))
 		r.Get("/worlds/{worldID}/versions/{versionID}/download", s.withSyncTokenUser(s.syncDownload))
 		r.Post("/sessions/{sessionID}/renew", s.withSyncTokenUser(s.syncRenew))
 		r.Post("/sessions/{sessionID}/checkin", s.withSyncTokenUser(func(w http.ResponseWriter, r *http.Request) {

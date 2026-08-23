@@ -1,35 +1,27 @@
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { api, errorText } from "./lib/api";
+import { cn } from "./lib/utils";
 import { useLiveUpdates } from "./lib/events";
-import { useArtwork, useCompanionState, useRefreshState, useSaveHints } from "./lib/state";
+import { useArtwork, useCompanionState, useHistory, useRefreshState, useSaveHints } from "./lib/state";
+import { ActivityTab } from "./components/ActivityTab";
+import { ConflictsTab, conflictCount } from "./components/ConflictsTab";
 import { FirstRun } from "./components/FirstRun";
-import { FooterBar, HeaderBar } from "./components/HeaderBar";
+import { StatusBar } from "./components/StatusBar";
 import { LinkGameDialog, byHandGame } from "./components/LinkGameDialog";
 import { LinkedGameDialog } from "./components/LinkedGameDialog";
 import { NoWorlds } from "./components/NoWorlds";
-import { PanelBoundary, SectionHeader } from "./components/Panel";
+import { PanelBoundary } from "./components/Panel";
 import { SettingsTab } from "./components/SettingsTab";
 import { TabBar, type Tab } from "./components/TabBar";
+import { TitleBar } from "./components/TitleBar";
+import { Button } from "./components/ui/button";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { GamesTab, linkFor } from "./components/GamesTab";
 import { WorldsTab } from "./components/WorldsTab";
 import { tileKey } from "./components/GameTile";
-import type { CompanionState, DiscoveredGame } from "./lib/types";
-
-/**
- * A tab with no backing surface yet. It names where the ability actually
- * lives rather than drawing an empty list that looks broken — the same
- * rule the consoles follow when a game cannot support a feature.
- */
-function NotHereYet({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="flex flex-col gap-2 px-7 pb-6 pt-6">
-      <SectionHeader title={title} />
-      <p className="max-w-[62ch] text-[13px] text-mist">{body}</p>
-    </div>
-  );
-}
+import type { DiscoveredGame } from "./lib/types";
 
 export function App() {
   const refresh = useRefreshState();
@@ -50,14 +42,32 @@ export function App() {
   const [toDiagnostics, setToDiagnostics] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  // The vault's record of what happened, read only while one of the two
+  // tabs that shows it is open: one request per linked world, and neither
+  // view is needed to sync a save.
+  const history = useHistory(
+    Boolean(state?.sync?.configured) && (tab === "activity" || tab === "conflicts"),
+  );
+
+  // Both of these keep the titlebar: it is the only thing the shell's
+  // frameless window can be dragged by, and a window you cannot move is
+  // the worst place to be told the companion is not answering.
   if (isLoading) {
-    return <p className="p-8 text-mist">Reading this machine…</p>;
+    return (
+      <div className="flex h-screen flex-col">
+        <TitleBar />
+        <p className="p-8 text-mist">Reading this machine…</p>
+      </div>
+    );
   }
   if (isError || !state) {
     return (
-      <p className="p-8 font-mono text-[13px] text-ember">
-        The companion is not answering on this machine: {errorText(error)}
-      </p>
+      <div className="flex h-screen flex-col">
+        <TitleBar />
+        <p className="p-8 font-mono text-[13px] text-ember">
+          The companion is not answering on this machine: {errorText(error)}
+        </p>
+      </div>
     );
   }
 
@@ -103,16 +113,44 @@ export function App() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <HeaderBar
-        state={state}
-        syncing={syncing}
-        onSyncNow={syncNow}
-        onOpenSettings={() => goTab("settings")}
+    // A fixed frame with one scrolling region in the middle, rather than
+    // one long scrolling page. Under the shell the titlebar has to stay
+    // put to stay draggable, and the status bar is the same promise the
+    // header makes — both belong to the window, not to the content.
+    <div className="flex h-screen flex-col overflow-hidden">
+      <TitleBar state={state} syncing={syncing} />
+      <TabBar
+        tab={tab}
+        onTab={goTab}
+        conflicts={conflictCount(history.history)}
+        actions={
+          // The window's one action, and only once there is a vault to
+          // sync with. It asks now rather than waiting for the poll: for
+          // being certain rather than patient.
+          //
+          // Frameless and wordless: it sits on the tab row's rule, where
+          // a bordered box reads as a second piece of chrome, and what it
+          // would have said is already said — the titlebar carries the
+          // sync state in words a few pixels above it, and turns this
+          // same arrow while a sync runs. The name survives as the
+          // accessible label and the tooltip, which is where a control
+          // with no text has to keep it.
+          configured ? (
+            <Button
+              variant="bare"
+              size="icon"
+              onClick={syncNow}
+              disabled={syncing}
+              aria-label={syncing ? "Syncing…" : "Sync now"}
+              title={syncing ? "Syncing…" : "Sync now"}
+            >
+              <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} aria-hidden />
+            </Button>
+          ) : null
+        }
       />
-      <TabBar tab={tab} onTab={goTab} />
 
-      <main className="flex flex-1 flex-col">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {!configured ? (
           <PanelBoundary name="setup">
             <div className="flex flex-1 flex-col">
@@ -163,15 +201,26 @@ export function App() {
             />
           </PanelBoundary>
         ) : tab === "activity" ? (
-          <NotHereYet
-            title="Activity"
-            body={activityBody(state)}
-          />
+          <PanelBoundary name="activity">
+            <ActivityTab
+              history={history.history}
+              loading={history.loading}
+              error={history.error}
+              refreshing={history.refreshing}
+              onRefresh={history.refresh}
+            />
+          </PanelBoundary>
         ) : tab === "conflicts" ? (
-          <NotHereYet
-            title="Conflicts"
-            body="A conflict is two check-ins of the same world from different machines, and the vault is the only thing that can see one. Reliquary keeps them with the world's history — this tab lights up when the companion is taught to read that list."
-          />
+          <PanelBoundary name="conflicts">
+            <ConflictsTab
+              history={history.history}
+              loading={history.loading}
+              error={history.error}
+              refreshing={history.refreshing}
+              onRefresh={history.refresh}
+              serverUrl={state.config?.serverUrl}
+            />
+          </PanelBoundary>
         ) : (
           <PanelBoundary name="settings">
             <SettingsTab state={state} focusDiagnostics={toDiagnostics} />
@@ -179,7 +228,7 @@ export function App() {
         )}
       </main>
 
-      <FooterBar
+      <StatusBar
         state={state}
         onDiagnostics={() => {
           setTab("settings");
@@ -204,17 +253,4 @@ export function App() {
       ) : null}
     </div>
   );
-}
-
-/** What the companion can honestly say about recent activity today: the
- * last thing it did, and that nothing is waiting to be sent. */
-function activityBody(state: CompanionState): string {
-  const last = state.sync?.lastAction;
-  const queued = state.sync?.queue?.length ?? 0;
-  const head = last ? `The last thing this companion did: ${last}.` : "This companion has not moved a save yet this session.";
-  const tail =
-    queued > 0
-      ? ` ${queued} transfer${queued === 1 ? "" : "s"} are waiting to be sent.`
-      : " Nothing is waiting to be sent — a checkout, a checkpoint and a check-in each either reach the vault now or fail now.";
-  return `${head}${tail} The full history of a world lives in the vault, beside the world itself.`;
 }

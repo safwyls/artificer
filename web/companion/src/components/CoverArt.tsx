@@ -3,6 +3,18 @@ import { artFor, type Artwork } from "../lib/types";
 import { cn } from "../lib/utils";
 
 /**
+ * Every cover the service answers with is IGDB's `t_cover_big`, which is
+ * 264x374 (core/igdb/igdb.go). The frame is cut to that ratio so a
+ * poster is shown whole; the shelf used to draw a 132px-tall letterbox
+ * and crop the middle out of every one of them.
+ *
+ * Declared once, and both variants wear it: a tile and a row thumbnail
+ * that disagree about the shape of a cover is the drift this component
+ * exists to prevent.
+ */
+export const COVER_ASPECT = "aspect-[264/374]";
+
+/**
  * The one place a cover is drawn, so the shelf tile and the world row
  * cannot drift apart. A broken image falls back to the game's name rather
  * than the browser's torn-page icon.
@@ -24,11 +36,13 @@ export function CoverArt({
   const [broken, setBroken] = useState(false);
   const found = artFor(art, game);
   const label = found.name || game.name || "";
-  const shape =
+  const shape = cn(
+    COVER_ASPECT,
     variant === "tile"
-      ? // The library grid sets the tile's cover height; the cover fills it.
-        "w-full h-full"
-      : "w-[54px] h-[72px] flex-none rounded-[5px] border border-edge";
+      ? // The grid column sets the tile's width; the ratio sets its height.
+        "w-full"
+      : "w-[54px] flex-none rounded-[5px] border border-edge",
+  );
   if (!found.cover || broken) {
     return (
       <div

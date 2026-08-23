@@ -34,6 +34,13 @@ regression test, not folklore.
 
 ## Target structure
 
+This is the plan's sketch, not a map of the tree as built — several names
+moved on the way (`Shelf.tsx` became `GamesTab.tsx`, `SettingsDialog.tsx`
+became `SettingsTab.tsx`, and `HeaderBar.tsx` is gone: the window's
+chrome is `TitleBar.tsx` + `TabBar.tsx` + `StatusBar.tsx`, see
+`docs/reliquary-companion.md`). Read `web/companion/src/components/` for
+what exists.
+
 ```
 web/companion/
   embed.go            // package web, //go:embed all:dist, Dist() fs.FS

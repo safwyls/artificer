@@ -27,6 +27,11 @@
 export interface CompanionBridge {
   baseUrl: string;
   token: string;
+  /** `process.platform` from the shell. Optional because a shell built
+   * before the app drew its own titlebar does not send one, and an
+   * unknown platform must degrade to "no shell chrome" rather than to a
+   * guess about where the window's caption buttons are. */
+  platform?: string;
   pickFolder(startDir?: string): Promise<string | null>;
   openPath(path: string): Promise<void>;
   setAutostart(enabled: boolean): Promise<void>;
@@ -68,6 +73,20 @@ export function apiUrl(path: string): string {
 export function authHeaders(): Record<string, string> {
   const b = bridge();
   return b && b.token ? { Authorization: `Bearer ${b.token}` } : {};
+}
+
+/** True when the page is running inside the desktop shell rather than a
+ * browser tab. The one thing this gates is chrome the shell asked for:
+ * a frameless window has no titlebar until the page draws one. */
+export const inShell = () => Boolean(bridge());
+
+/** Which OS the shell is on, or undefined in the browser build. The
+ * titlebar needs it because the platform decides which end of the strip
+ * the OS draws its caption buttons over. */
+export function shellPlatform(): string | undefined {
+  const b = bridge();
+  if (!b) return undefined;
+  return typeof b.platform === "string" && b.platform ? b.platform : "unknown";
 }
 
 /** True when the shell can open a real OS folder picker. Components

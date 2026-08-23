@@ -41,7 +41,14 @@ export function WorldGroup({
       </div>
       <div
         className={cn(
-          "overflow-hidden rounded-panel border bg-panel [&>*+*]:border-t [&>*+*]:border-edge",
+          // Not `overflow-hidden`, however much the rounded corners want
+          // it: a row's overflow menu is positioned inside this card, and
+          // clipping the card clipped the menu to the row it opened from.
+          // The corners are kept by rounding the first and last rows
+          // instead, which is what the clip was actually for — a row's
+          // hover fill squaring off the card's corner.
+          "rounded-panel border bg-panel [&>*+*]:border-t [&>*+*]:border-edge",
+          "[&>*:first-child]:rounded-t-panel [&>*:last-child]:rounded-b-panel",
           gold ? "border-gold/45" : "border-edge",
         )}
       >

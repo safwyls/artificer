@@ -92,6 +92,30 @@ describe("App — connected", () => {
       sync: { configured: true, username: "safwyl", busy: false, worlds: [makeSyncWorld()] },
     });
 
+  // There used to be a settings cog in the header as well as the tab a
+  // few pixels below it. Two controls, one destination — and the cog was
+  // the one nothing else in the app referred to.
+  it("offers one way into Settings, not two", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    renderWithProviders(<App />);
+    expect(await screen.findByRole("tab", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
+  });
+
+  // The sync control lost its frame and its words: it sits on the tab
+  // row's rule, and what it would have said is already in the titlebar a
+  // few pixels above. A control with no text keeps its name in its
+  // accessible label, or it has no name at all.
+  it("keeps the sync control findable after it stops saying anything", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    const syncNow = vi.spyOn(api, "syncNow").mockResolvedValue({ worlds: 1 });
+    renderWithProviders(<App />);
+    const button = await screen.findByRole("button", { name: "Sync now" });
+    expect(button).toHaveTextContent("");
+    await userEvent.click(button);
+    await waitFor(() => expect(syncNow).toHaveBeenCalled());
+  });
+
   it("names who it is connected as, once, in the header", async () => {
     vi.spyOn(api, "state").mockResolvedValue(connected());
     renderWithProviders(<App />);
@@ -136,19 +160,99 @@ describe("App — connected", () => {
   // Neither has a backing surface on the companion's API yet, so each
   // names where the ability actually lives rather than drawing an empty
   // list that reads as broken.
-  it("says where activity and conflicts live rather than faking them", async () => {
+  // Both tabs read the vault, because the vault is the only thing that
+  // can see either. This machine already knows what it did itself.
+  it("shows the vault's record of what happened, including what this machine did not do", async () => {
     vi.spyOn(api, "state").mockResolvedValue(connected());
+    const history = vi.spyOn(api, "history").mockResolvedValue({
+      entries: [
+        {
+          worldId: 1, worldName: "Embervale", versionId: 9, kind: "checkin",
+          conflict: false, head: true, bytes: 2048, uploader: "rook",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      failed: [],
+      fetchedAt: new Date().toISOString(),
+    });
     renderWithProviders(<App />);
     await userEvent.click(await screen.findByRole("tab", { name: "Activity" }));
-    expect(await screen.findByText(/Nothing is waiting to be sent/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Conflicts" }));
-    expect(await screen.findByText(/the vault is the only thing that can see one/)).toBeInTheDocument();
+    expect(await screen.findByText("Embervale")).toBeInTheDocument();
+    // The row itself, not the tab's own explanatory line above it.
+    const row = screen.getByText("rook").closest("div")!;
+    expect(row).toHaveTextContent("checked in");
+    expect(history).toHaveBeenCalled();
+  });
+
+  // The history is not read at all until one of the two tabs that shows
+  // it is open: it is a request per linked world, and neither view is
+  // needed to sync a save.
+  it("does not read the vault's history until a tab asks for it", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    const history = vi.spyOn(api, "history").mockResolvedValue({
+      entries: [], failed: [], fetchedAt: new Date().toISOString(),
+    });
+    renderWithProviders(<App />);
+    expect(await screen.findByText(/syncing as safwyl/)).toBeInTheDocument();
+    expect(history).not.toHaveBeenCalled();
+  });
+
+  it("badges the Conflicts tab and names where a conflict is settled", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    vi.spyOn(api, "history").mockResolvedValue({
+      entries: [
+        {
+          worldId: 1, worldName: "Embervale", versionId: 9, kind: "checkin",
+          conflict: true, head: false, bytes: 2048, uploader: "rook",
+          createdAt: new Date().toISOString(),
+        },
+        {
+          worldId: 1, worldName: "Embervale", versionId: 8, kind: "checkin",
+          conflict: false, head: true, bytes: 1024, uploader: "safwyl",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      failed: [],
+      fetchedAt: new Date().toISOString(),
+    });
+    renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Conflicts" }));
+
+    // Only the flagged one, out of two versions in the same history.
+    expect(await screen.findByText("conflict")).toBeInTheDocument();
+    expect(screen.getByText(/1 save is waiting on a decision/)).toBeInTheDocument();
+    // Resolution is an admin verb on the vault and is not on the
+    // companion's token tier, so the view names where it lives rather
+    // than offering a button that would be refused.
+    expect(screen.getByText(/by an administrator/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /resolve|make current/i })).not.toBeInTheDocument();
+    // The badge the tab bar could always draw, now that something counts.
+    expect(screen.getByRole("tab", { name: /Conflicts/ })).toHaveTextContent("1");
   });
 
   it("carries no conflict badge when there are no conflicts", async () => {
     vi.spyOn(api, "state").mockResolvedValue(connected());
+    vi.spyOn(api, "history").mockResolvedValue({
+      entries: [], failed: [], fetchedAt: new Date().toISOString(),
+    });
     renderWithProviders(<App />);
     expect(await screen.findByRole("tab", { name: "Conflicts" })).toHaveTextContent(/^Conflicts$/);
+  });
+
+  // A history that could not be fully read must say so. These views
+  // exist to notice something you did not do yourself, and a short list
+  // that looks complete is worse than an error.
+  it("admits when a world's history could not be read", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    vi.spyOn(api, "history").mockResolvedValue({
+      entries: [],
+      failed: [{ worldId: 4, worldName: "Cinderfall", error: "service answered 502" }],
+      fetchedAt: new Date().toISOString(),
+    });
+    renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Activity" }));
+    expect(await screen.findByText(/could not be read, so this list is incomplete/)).toBeInTheDocument();
+    expect(screen.getByText(/Cinderfall: service answered 502/)).toBeInTheDocument();
   });
 
   // First run is derived from "no linked worlds" rather than from a
@@ -267,7 +371,7 @@ describe("App — the launch setting", () => {
     vi.spyOn(api, "state").mockResolvedValue(connected());
     const setConfig = vi.spyOn(api, "setConfig").mockResolvedValue({});
     renderWithProviders(<App />);
-    await userEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    await userEvent.click(await screen.findByRole("tab", { name: "Settings" }));
     const toggle = await screen.findByLabelText(/Start the game when I check a world out/);
     expect(toggle).toBeChecked();
     // The order is the promise, so the setting says it out loud.

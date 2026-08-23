@@ -53,9 +53,9 @@ export const GameTile = memo(function GameTile({
         active && "border-goldhi opacity-100",
       )}
     >
-      <div className="h-[132px] w-full overflow-hidden">
-        <CoverArt art={art} game={game} variant="tile" />
-      </div>
+      {/* No frame of its own: the cover carries its own ratio, and a
+          wrapper with a height was what cropped it. */}
+      <CoverArt art={art} game={game} variant="tile" />
       <div className="flex items-center gap-2 px-2.5 pb-2.5 pt-2">
         <div className="min-w-0 flex-1">
           {/* Two lines, no ellipsis: a truncated title is not a title. */}
