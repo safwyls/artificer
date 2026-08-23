@@ -11,7 +11,7 @@
 import { mkdir, readdir, readFile, writeFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { renderCard, renderIndex, renderManifest } from "./lib/render.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -24,7 +24,9 @@ async function systems() {
   for (const e of entries) {
     if (!e.isDirectory() || e.name === "lib") continue;
     const spec = join(root, e.name, "system.mjs");
-    if (existsSync(spec)) found.push({ dir: e.name, spec });
+    // Imported as a file:// URL, not a bare path: on Windows the "c:" of
+    // an absolute path is read as a URL scheme and the import fails.
+    if (existsSync(spec)) found.push({ dir: e.name, spec: pathToFileURL(spec).href });
   }
   return found.sort((a, b) => a.dir.localeCompare(b.dir));
 }

@@ -8,7 +8,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(root, "..");
@@ -40,7 +40,9 @@ if (dirs.length === 0) {
 }
 
 for (const dir of dirs) {
-  const system = (await import(join(root, dir, "system.mjs"))).default;
+  // A file:// URL rather than a bare path: on Windows the "c:" of an
+  // absolute path is read as a URL scheme and the import fails.
+  const system = (await import(pathToFileURL(join(root, dir, "system.mjs")).href)).default;
   const cssPath = join(repo, system.source.css);
   if (!existsSync(cssPath)) {
     console.error(`${dir}: source stylesheet ${system.source.css} does not exist`);

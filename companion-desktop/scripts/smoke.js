@@ -7,7 +7,14 @@ const path = require("node:path");
 
 const electron = require("electron");
 const appDir = path.join(__dirname, "..");
-const hasDisplay = Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+// DISPLAY/WAYLAND_DISPLAY are how X11 and Wayland say there is a screen;
+// Windows and macOS have no such variable and always have one. Without
+// this the check refused to run on the two platforms the shell actually
+// ships to.
+const hasDisplay =
+  process.platform === "win32" ||
+  process.platform === "darwin" ||
+  Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
 const haveXvfb = run("sh", ["-c", "command -v xvfb-run"], { encoding: "utf8" }).status === 0;
 
 let cmd = electron;
