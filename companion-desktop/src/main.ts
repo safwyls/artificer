@@ -6,7 +6,7 @@
 // else — custody, sync, discovery — is the daemon's job over HTTP; this
 // file holds no domain logic.
 
-import { app, BrowserWindow, Tray, Menu, dialog, shell, ipcMain, Notification, nativeImage } from "electron";
+import { app, BrowserWindow, Tray, Menu, dialog, shell, ipcMain, Notification, nativeImage, session, Session } from "electron";
 import * as path from "node:path";
 import { spawnDaemon, waitForHealthy, killDaemon, DaemonHandle } from "./daemon";
 import { setAutostart, getAutostart } from "./autostart";
@@ -87,9 +87,92 @@ async function stopDaemon() {
 }
 
 function iconPath(): string {
-  // web/companion ships the shared favicon; reused here for tray/window icon
-  // (docs/reliquary-companion.md: byte-identical icon across builds).
-  return path.join(__dirname, "..", "..", "web", "companion", "public", "favicon.ico");
+  // build/icon.png travels inside the asar (electron-builder.yml `files`),
+  // so this same relative path resolves both from dist/ in the source tree
+  // and from app.asar/dist in a packaged one. It used to point out at
+  // web/companion/public/favicon.ico, which is not shipped in the package
+  // at all — so every packaged build handed the tray an empty image.
+  return path.join(__dirname, "..", "build", "icon.png");
+}
+
+// The tray wants a tray-sized image, not the 1024px app icon: some
+// platforms scale a huge source badly, and Linux tray implementations
+// vary enough that handing them the intended size is the safe move.
+function trayImage() {
+  const img = nativeImage.createFromPath(iconPath());
+  if (img.isEmpty()) return img;
+  const px = process.platform === "darwin" ? 22 : 32;
+  return img.resize({ width: px, height: px });
+}
+
+/**
+ * The window loads the daemon's page as an ordinary top-level navigation,
+ * and a navigation cannot carry an Authorization header — so without this
+ * the daemon answers the document request itself with its 401 JSON, and
+ * that JSON is the whole window.
+ *
+ * Injecting the bearer here rather than exempting the page from the token
+ * server-side keeps the property the daemon was built around: a loopback
+ * port is reachable by every process on the machine, and nothing that did
+ * not get the token from this shell gets an answer. The URL filter is the
+ * daemon's own origin, so the token never rides along anywhere else the
+ * page might reach.
+ */
+function attachDaemonAuth(sess: Session, baseUrl: string, token: string) {
+  sess.webRequest.onBeforeSendHeaders({ urls: [`${baseUrl}/*`] }, (details, callback) => {
+    callback({
+      requestHeaders: { ...details.requestHeaders, Authorization: `Bearer ${token}` },
+    });
+  });
+}
+
+/**
+ * Load the window once, headlessly, and assert the daemon's page is what
+ * came back — then exit. Run by `npm run smoke` (needs a display; use
+ * xvfb-run where there is none).
+ *
+ * This exists because the shell shipped a window showing nothing but the
+ * daemon's own `missing or wrong bearer token` JSON. Every other check
+ * passed while it did: the daemon was healthy, the handshake worked, no
+ * process leaked. They all watched the processes and never the page.
+ */
+async function runSmoke(win: BrowserWindow) {
+  // app.exit() skips will-quit, so tear the daemon down explicitly rather
+  // than leaning on its stdin-close safety net — an orphaned companiond is
+  // the defect this architecture is most prone to, and a check that leaks
+  // one while reporting success would be worse than no check.
+  const finish = async (code: number) => {
+    await stopDaemon();
+    app.exit(code);
+  };
+  const fail = (why: string) => {
+    log("SMOKE FAIL:", why);
+    void finish(1);
+  };
+  win.webContents.once("did-fail-load", (_e, code, desc) => fail(`load failed ${code} ${desc}`));
+  win.webContents.once("did-finish-load", () => {
+    setTimeout(async () => {
+      try {
+        const text: string = await win.webContents.executeJavaScript(
+          "document.body ? document.body.innerText.slice(0, 400) : ''",
+        );
+        if (/missing or wrong bearer token|"ok"\s*:\s*false/i.test(text)) {
+          return fail(`daemon rejected the page request: ${text.trim()}`);
+        }
+        // The renderer mounts into #root; an error page or a blank
+        // document has no such node, so this distinguishes "the app drew
+        // itself" from "something loaded".
+        const mounted: boolean = await win.webContents.executeJavaScript(
+          "!!document.querySelector('#root') && document.querySelector('#root').childElementCount > 0",
+        );
+        if (!mounted) return fail(`page loaded but the app did not mount; body was: ${text.trim()}`);
+        log("SMOKE OK: the companion's page rendered");
+        await finish(0);
+      } catch (err) {
+        fail(String(err));
+      }
+    }, 1500);
+  });
 }
 
 function createWindow() {
@@ -110,6 +193,8 @@ function createWindow() {
 
   const devUrl = process.env.COMPANION_DEV_URL;
   const target = devUrl || daemon.baseUrl;
+  // Before the first request leaves, including the navigation below.
+  attachDaemonAuth(session.defaultSession, daemon.baseUrl, daemon.token);
   // baseUrl/token reach the renderer via preload's synchronous IPC call
   // (see ipc-contract.ts / preload.ts), not the URL or argv.
   ipcMain.on(IPC.getConnection, (event) => {
@@ -117,6 +202,8 @@ function createWindow() {
   });
 
   void mainWindow.loadURL(target);
+
+  if (process.env.COMPANION_SMOKE) void runSmoke(mainWindow);
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
@@ -136,7 +223,7 @@ function createWindow() {
 }
 
 function createTray() {
-  tray = new Tray(nativeImage.createFromPath(iconPath()));
+  tray = new Tray(trayImage());
   tray.setToolTip("Reliquary Companion");
   const menu = Menu.buildFromTemplate([
     {

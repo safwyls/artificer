@@ -154,6 +154,18 @@ magick -background none -density 3072 \
 `-resize 1024x1024` upscales 32px of pixels and looks it. Requires
 ImageMagick with the librsvg delegate (`magick -list format | grep SVG`).
 
+### Window smoke
+
+`npm run smoke` launches the built shell, loads the window once, and
+asserts the daemon's page actually rendered — that the body is not an
+error payload and that the renderer mounted into `#root` — then exits.
+It needs a display and uses `xvfb-run` automatically where there is none.
+
+It exists because the shell shipped a window showing only the daemon's
+`missing or wrong bearer token` JSON while every other check passed. The
+daemon was healthy, the handshake parsed, nothing leaked; all of it
+watched the processes and none of it watched the page. CI runs this.
+
 ### What has been verified vs. deferred
 
 Verified on this machine (Linux, headless, no FUSE available so the

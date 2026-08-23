@@ -26,6 +26,9 @@ directories:
 files:
   - dist/**/*
   - package.json
+  # The window and tray icons are loaded from inside the asar at runtime
+  # (src/main.ts iconPath), so the image has to travel with the app.
+  - build/icon.png
 
 # The companiond binary for the platform being packaged, staged ahead of
 # time by `npm run build:daemon` (see README.md). electron-builder places
@@ -56,11 +59,13 @@ nsis:
   allowToChangeInstallationDirectory: true
   artifactName: "${productName}-Setup-${version}.${ext}"
 
+# arm64 only: the Intel runner (macos-13) is being retired and its jobs
+# queue indefinitely, so an x64 dmg cannot be built alongside a companiond
+# of matching architecture. Apple Silicon is the Mac worth shipping now.
 mac:
   target:
     - target: dmg
       arch:
-        - x64
         - arm64
   category: public.app-category.utilities
 

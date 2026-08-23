@@ -145,6 +145,16 @@ jobs:
           npm ci
           npm run build
           npm test
+      # The shell once shipped a window containing nothing but the daemon's
+      # own 401 JSON, and every check we had still passed: the daemon was
+      # healthy, the handshake parsed, no process leaked. They all watched
+      # the processes and none of them watched the page. This one opens the
+      # window and asserts the app mounted, so it needs a display.
+      - name: Install xvfb (the window smoke needs a display)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Window smoke (the page renders, not an error body)
+        working-directory: companion-desktop
+        run: npm run smoke
 
   anvil:
     runs-on: ubuntu-latest
