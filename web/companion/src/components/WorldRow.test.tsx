@@ -34,17 +34,25 @@ const show = (world = makeSyncWorld(), link = makeLink(), launchOnCheckout = tru
     />,
   );
 
+/** The rare and destructive verbs live behind the three dots now. */
+const openMenu = async () => {
+  await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+};
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
 describe("WorldRow", () => {
-  it("shows the folder on this machine, in full", () => {
+  // The save path is a debug fact, not a daily one: it left the row for
+  // the overflow menu, where it is still one click away in full.
+  it("keeps the folder on this machine out of the row, but not out of reach", async () => {
     show();
-    expect(
-      screen.getByText("C:\\Users\\you\\AppData\\Roaming\\Enshrouded\\savegame"),
-    ).toBeInTheDocument();
+    const path = "C:\\Users\\you\\AppData\\Roaming\\Enshrouded\\savegame";
+    expect(screen.queryByText(path)).not.toBeInTheDocument();
+    await openMenu();
+    expect(screen.getByText(path)).toBeInTheDocument();
   });
 
   it("offers checking out a free world, and nothing else custodial", () => {
@@ -56,23 +64,29 @@ describe("WorldRow", () => {
   it("offers a plain checkout — no launch — alongside checkout & play", async () => {
     const checkout = vi.spyOn(api, "checkout").mockResolvedValue({});
     show();
-    await userEvent.click(screen.getByRole("button", { name: "Check out" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check out only" }));
     await waitFor(() => expect(checkout).toHaveBeenCalledWith(1, false, false));
   });
 
-  it("offers check in, checkpoint and renew to the holder on this machine", () => {
+  // One primary, one quiet, and the rest behind the dots. Four buttons of
+  // equal weight meant none of them said which one you were meant to press.
+  it("offers the holder one primary and one quiet, with the rest in the overflow", async () => {
     show(makeSyncWorld({ holder: holder({ username: "safwyl" }) }), makeLink({ sessionId: 7 }));
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check in" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Checkpoint now" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Renew hold" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Checkpoint now" })).not.toBeInTheDocument();
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: "Checkpoint now" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Renew hold" })).toBeInTheDocument();
   });
 
   // A checkpoint the service will not keep is a button that lies.
-  it("hides the checkpoint verb for a world that does not keep checkpoints", () => {
+  it("hides the checkpoint verb for a world that does not keep checkpoints", async () => {
     const world = makeSyncWorld({ holder: holder({ username: "safwyl" }) });
     world.world.checkpoints = false;
     show(world, makeLink({ sessionId: 7 }));
-    expect(screen.queryByRole("button", { name: "Checkpoint now" })).not.toBeInTheDocument();
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: "Checkpoint now" })).not.toBeInTheDocument();
   });
 
   // The account holds it, but the save is still on its way to this
@@ -97,13 +111,13 @@ describe("WorldRow", () => {
     await waitFor(() => expect(checkout).toHaveBeenCalledWith(1, true, true));
   });
 
-  it("offers to claim next only when nobody has", () => {
+  it("offers to ask for it back only when nobody else has", () => {
     const { unmount } = show(makeSyncWorld({ holder: holder() }));
-    expect(screen.getByRole("button", { name: "Claim next" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ask for it back" })).toBeInTheDocument();
     unmount();
     show(makeSyncWorld({ holder: holder(), claimedBy: "torv" }));
-    expect(screen.queryByRole("button", { name: "Claim next" })).not.toBeInTheDocument();
-    expect(screen.getByText(/next claim: torv/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ask for it back" })).not.toBeInTheDocument();
+    expect(screen.getByText(/next in line: torv/)).toBeInTheDocument();
   });
 
   it("says you're next rather than naming you", () => {
@@ -124,11 +138,11 @@ describe("WorldRow", () => {
   it("asks before unlinking, and promises nothing is deleted", async () => {
     const unlink = vi.spyOn(api, "unlink").mockResolvedValue({});
     show();
-    await userEvent.click(screen.getByRole("button", { name: "Unlink" }));
+    await openMenu();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Unlink" }));
     expect(await screen.findByText("Nothing is deleted.")).toBeInTheDocument();
     expect(unlink).not.toHaveBeenCalled();
-    const confirms = screen.getAllByRole("button", { name: "Unlink" });
-    await userEvent.click(confirms[confirms.length - 1]);
+    await userEvent.click(screen.getByRole("button", { name: "Unlink" }));
     await waitFor(() => expect(unlink).toHaveBeenCalledWith(1));
   });
 });

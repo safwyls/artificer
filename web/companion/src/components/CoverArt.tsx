@@ -26,8 +26,9 @@ export function CoverArt({
   const label = found.name || game.name || "";
   const shape =
     variant === "tile"
-      ? "w-full aspect-[3/4]"
-      : "w-14 aspect-[3/4] flex-none rounded border border-edge";
+      ? // The library grid sets the tile's cover height; the cover fills it.
+        "w-full h-full"
+      : "w-[54px] h-[72px] flex-none rounded-[5px] border border-edge";
   if (!found.cover || broken) {
     return (
       <div

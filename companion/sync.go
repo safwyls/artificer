@@ -98,6 +98,36 @@ type syncState struct {
 	// call. Shown beside this app's version so a bug report about a
 	// transfer can name both halves rather than one.
 	ServerVersion string `json:"serverVersion,omitempty"`
+	// Queue is the offline work waiting to be sent, and it is always
+	// empty today — deliberately.
+	//
+	// The engine has no send-queue. A checkout, a checkpoint and a
+	// check-in each either reach the service now or fail now, and the
+	// failure is reported in LastError; nothing is recorded to retry
+	// later, so there is no list of unsent work to report. The redesign
+	// (design_handoff_companion_redesign) wants an offline screen
+	// listing queued transfers, and the field is here so the renderer
+	// can render "nothing queued" honestly instead of the UI inventing
+	// a manifest the engine never kept — the same reason the old Fyne
+	// offline banner refused to list anything. Filling it means teaching
+	// sync.go to record deferred work first; that is a real engine
+	// change, not a serialization one.
+	Queue []QueuedWork `json:"queue"`
+}
+
+// QueuedWork is one piece of work waiting for the service to come back.
+// Nothing produces one yet (see syncState.Queue); the shape is fixed
+// here so the renderer and any future queue implementation agree.
+type QueuedWork struct {
+	// What kind of transfer is waiting — "checkout", "checkpoint",
+	// "checkin".
+	What string `json:"what"`
+	// World it belongs to, and that world's name at the time it queued.
+	WorldID   int64  `json:"worldId"`
+	WorldName string `json:"worldName,omitempty"`
+	// When it was queued, and how big the payload is, when known.
+	QueuedAt time.Time `json:"time"`
+	Size     int64     `json:"size,omitempty"`
 }
 
 func (a *App) SyncConfigured() bool {

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { api, errorText } from "../lib/api";
+import { nativeFolders, pickFolder } from "../lib/runtime";
 import { useRefreshState } from "../lib/state";
 import { gameKey, type Artwork, type CompanionState, type DiscoveredGame, type SplitInfo } from "../lib/types";
 import { CoverArt } from "./CoverArt";
@@ -195,12 +196,32 @@ export function LinkGameDialog({
               value={dir}
               onChange={(e) => setDir(e.target.value)}
             />
-            <Button type="button" size="sm" className="mt-1.5" onClick={() => setBrowsing((v) => !v)}>
-              {browsing ? "Hide the browser" : "Browse this computer…"}
-            </Button>
+            {/* Under a shell with a native picker, use it: the in-app
+                browser exists because a plain browser page cannot open
+                one, not because it is the better way to pick a folder. */}
+            {nativeFolders() ? (
+              <Button
+                type="button"
+                size="sm"
+                className="mt-1.5"
+                onClick={async () => {
+                  const picked = await pickFolder(dir);
+                  if (picked) {
+                    setDir(picked);
+                    setError("");
+                  }
+                }}
+              >
+                Choose a folder…
+              </Button>
+            ) : (
+              <Button type="button" size="sm" className="mt-1.5" onClick={() => setBrowsing((v) => !v)}>
+                {browsing ? "Hide the browser" : "Browse this computer…"}
+              </Button>
+            )}
           </div>
 
-          {browsing ? (
+          {browsing && !nativeFolders() ? (
             <FolderBrowser
               start={dir}
               onUse={(path) => {

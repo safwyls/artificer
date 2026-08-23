@@ -1,0 +1,445 @@
+<!-- @dsCard group="Patterns" name="No worlds yet" subtitle="Derived from “nothing linked”, never from a stored flag" width="980" height="640" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Artificer Companion · No worlds yet</title>
+    <style>
+      :root {
+        --ink: 16 13 23; /* #100d17 — the page ground */
+        --well: 20 16 29; /* #14101d — sidebar, header and inset strips — a shade under the page, so a panel on it still reads as raised */
+        --panel: 26 21 36; /* #1a1524 — cards, dialogs, menus */
+        --edge: 47 39 64; /* #2f2740 — every border and divider */
+        --parchment: 232 224 207; /* #e8e0cf — body text */
+        --mist: 148 141 163; /* #948da3 — secondary text, quiet buttons, labels */
+        --gold: 201 168 96; /* #c9a860 — accent, headings, the primary button, the focus ring */
+        --goldhi: 227 198 127; /* #e3c67f — accent hover, links, the HEAD badge */
+        --ok: 127 196 106; /* #7fc46a — free custody, the live dot, success */
+        --ember: 212 115 94; /* #d4735e — danger, conflict, an expired hold */
+        --rune: 157 127 196; /* #9d7fc4 — game tags, info, the CHECKPOINT badge */
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+        --primary-fill: linear-gradient(to bottom, #2a2416, #1e1a10);
+        --fill-free: #14200f;
+        --fill-held: #23180c;
+        --fill-expired: #26130e;
+        --fill-cover: linear-gradient(to bottom right, #221b2e, #14101d);
+        --fill-login: radial-gradient(ellipse at 50% 30%, #1a1524 0%, #100d17 65%);
+        /* preview chrome */
+        --ds-bg: rgb(var(--ink));
+        --ds-panel: rgb(var(--panel));
+        --ds-raise: rgb(var(--well));
+        --ds-line: rgb(var(--edge));
+        --ds-fg: rgb(var(--parchment));
+        --ds-fg-soft: rgb(var(--parchment) / 0.9);
+        --ds-muted: rgb(var(--mist));
+        --ds-accent: rgb(var(--gold));
+        --ds-accent-hi: rgb(var(--goldhi));
+        --ds-body: Georgia, Gelasio, "Times New Roman", serif;
+        --ds-mono: var(--mono);
+        color-scheme: dark;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+      
+      /* ---- preview chrome -------------------------------------------------- */
+      .ds-page {
+        margin: 0;
+        background: var(--ds-bg);
+        color: var(--ds-fg);
+        font-family: var(--ds-body);
+        font-size: 15px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .ds-head { border-bottom: 1px solid var(--ds-line); padding: 26px 32px 20px; }
+      .ds-eyebrow {
+        margin: 0; font-family: var(--ds-mono); font-size: 11px;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--ds-muted);
+      }
+      .ds-title { margin: 6px 0 0; font-size: 22px; font-weight: normal; letter-spacing: 0.05em; color: var(--ds-accent); }
+      .ds-sub { margin: 3px 0 0; font-size: 13px; color: var(--ds-muted); }
+      .ds-intent { margin: 14px 0 0; max-width: 70ch; font-size: 14px; color: var(--ds-fg-soft); }
+      .ds-body { display: flex; flex-direction: column; gap: 28px; padding: 24px 32px 44px; }
+      .ds-caption {
+        margin: 0 0 10px; font-family: var(--ds-mono); font-size: 10px;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--ds-muted);
+      }
+      .ds-stage { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      .ds-stage--block { display: block; }
+      .ds-stage--stack { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+      .ds-stage--well {
+        background: var(--ds-raise); border: 1px solid var(--ds-line);
+        border-radius: 8px; padding: 18px;
+      }
+      .ds-meta { border-top: 1px solid var(--ds-line); padding-top: 16px; }
+      .ds-meta-h {
+        margin: 0 0 8px; font-family: var(--ds-mono); font-size: 10px; font-weight: normal;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--ds-muted);
+      }
+      .ds-paths, .ds-rules { margin: 0; padding-left: 18px; }
+      .ds-paths li, .ds-rules li { font-size: 13px; color: var(--ds-fg-soft); margin-bottom: 4px; }
+      .ds-paths li { list-style: none; margin-left: -18px; }
+      code { font-family: var(--ds-mono); font-size: 12px; color: var(--ds-accent-hi); }
+      .ds-idx-group + .ds-idx-group { border-top: 1px solid var(--ds-line); padding-top: 20px; }
+      .ds-idx { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+      .ds-idx li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+      .ds-idx-link { color: var(--ds-accent-hi); text-decoration: none; font-size: 15px; }
+      .ds-idx-link:hover { color: var(--ds-accent); text-decoration: underline; }
+      .ds-idx-sub { font-size: 12px; color: var(--ds-muted); }
+      
+      /* ---- swatches -------------------------------------------------------- */
+      .ds-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+      .ds-swatch { border: 1px solid var(--ds-line); border-radius: 8px; overflow: hidden; background: var(--ds-panel); }
+      .ds-swatch-chip { height: 58px; border-bottom: 1px solid var(--ds-line); }
+      .ds-swatch-body { padding: 8px 10px 10px; }
+      .ds-swatch-name { font-family: var(--ds-mono); font-size: 12px; color: var(--ds-fg); }
+      .ds-swatch-hex { font-family: var(--ds-mono); font-size: 11px; color: var(--ds-muted); }
+      .ds-swatch-use { margin-top: 4px; font-size: 12px; color: var(--ds-muted); line-height: 1.35; }
+      
+      
+      /* ---- vault primitives -------------------------------------------- */
+      .vk-i { width: 14px; height: 14px; flex: none; }
+      .vk-i--sm { width: 12px; height: 12px; }
+      .vk-i--lg { width: 16px; height: 16px; }
+      .vk-mono { font-family: var(--mono); }
+      
+      .vk-panel {
+        border: 1px solid rgb(var(--edge)); background: rgb(var(--panel));
+        border-radius: 8px; padding: 16px 20px;
+      }
+      .vk-well {
+        border: 1px dashed rgb(var(--edge)); background: rgb(var(--well));
+        border-radius: 8px; padding: 14px 20px; font-size: 13px; color: rgb(var(--mist));
+      }
+      .vk-h1 { margin: 0; font-size: 22px; font-weight: normal; letter-spacing: 0.05em; color: rgb(var(--gold)); }
+      .vk-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: rgb(var(--mist)); }
+      .vk-input {
+        width: 100%; border: 1px solid rgb(var(--edge)); border-radius: 4px;
+        background: rgb(var(--ink)); padding: 8px 10px; font-family: inherit;
+        font-size: 14px; color: rgb(var(--parchment));
+      }
+      .vk-input::placeholder { color: rgb(var(--mist) / 0.6); }
+      .vk-input:focus-visible, .vk-btn:focus-visible, .vk-navitem:focus-visible {
+        outline: none; box-shadow: 0 0 0 2px rgb(var(--ink)), 0 0 0 4px rgb(var(--gold) / 0.6);
+      }
+      
+      .vk-btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        border: 1px solid transparent; border-radius: 4px; white-space: nowrap;
+        font-family: inherit; padding: 6px 16px; font-size: 13px; cursor: pointer;
+        background: none; transition: color 0.12s ease, border-color 0.12s ease;
+      }
+      .vk-btn--primary {
+        border-color: rgb(var(--gold)); background: var(--primary-fill);
+        font-weight: 700; letter-spacing: 0.04em; color: rgb(var(--gold));
+      }
+      .vk-btn--primary:hover { color: rgb(var(--goldhi)); border-color: rgb(var(--goldhi)); }
+      .vk-btn--quiet { border-color: rgb(var(--edge)); color: rgb(var(--mist)); }
+      .vk-btn--quiet:hover { border-color: rgb(var(--gold) / 0.6); color: rgb(var(--parchment)); }
+      .vk-btn--danger { border-color: rgb(var(--ember) / 0.4); color: rgb(var(--mist)); }
+      .vk-btn--danger:hover { border-color: rgb(var(--ember)); color: rgb(var(--ember)); }
+      .vk-btn--sm { padding: 4px 12px; font-size: 12px; }
+      .vk-btn--lg { padding: 8px 18px; font-size: 14px; }
+      .vk-btn--icon { padding: 6px 10px; }
+      .vk-btn[disabled], .vk-btn.is-disabled { opacity: 0.5; pointer-events: none; }
+      .vk-btn.is-hover.vk-btn--primary { color: rgb(var(--goldhi)); border-color: rgb(var(--goldhi)); }
+      .vk-btn.is-hover.vk-btn--quiet { border-color: rgb(var(--gold) / 0.6); color: rgb(var(--parchment)); }
+      .vk-btn.is-hover.vk-btn--danger { border-color: rgb(var(--ember)); color: rgb(var(--ember)); }
+      
+      .vk-badge {
+        display: inline-block; border-radius: 3px; background: rgb(var(--ink));
+        padding: 2px 8px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+      }
+      .vk-badge--head { color: rgb(var(--goldhi)); }
+      .vk-badge--conflict { color: rgb(var(--ember)); }
+      .vk-badge--checkpoint { color: rgb(var(--rune)); }
+      .vk-badge--muted { color: rgb(var(--mist)); }
+      
+      .vk-chip {
+        display: inline-flex; align-items: center; gap: 6px; border: 1px solid;
+        border-radius: 999px; padding: 2px 12px; font-size: 12px;
+      }
+      .vk-chip--free { border-color: rgb(var(--ok)); background: var(--fill-free); color: rgb(var(--ok)); }
+      .vk-chip--held { border-color: rgb(var(--gold)); background: var(--fill-held); color: rgb(var(--goldhi)); }
+      .vk-chip--expired { border-color: rgb(var(--ember)); background: var(--fill-expired); color: rgb(var(--ember)); }
+      
+      .vk-menu {
+        min-width: 13rem; border: 1px solid rgb(var(--edge)); background: rgb(var(--panel));
+        border-radius: 4px; padding: 4px 0; font-size: 13px;
+        box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+      }
+      .vk-menuitem { padding: 6px 12px; color: rgb(var(--mist)); cursor: pointer; }
+      .vk-menuitem.is-highlighted { background: rgb(var(--ink)); color: rgb(var(--parchment)); }
+      .vk-menuitem--danger.is-highlighted { background: rgb(var(--ember) / 0.1); color: rgb(var(--ember)); }
+      .vk-menusep { height: 1px; margin: 4px 0; background: rgb(var(--edge)); }
+      
+      .vk-dialog {
+        width: 100%; max-width: 28rem; position: relative;
+        border: 1px solid rgb(var(--edge)); background: rgb(var(--panel));
+        border-radius: 8px; padding: 24px; color: rgb(var(--parchment));
+        box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.6);
+      }
+      .vk-dialog-title { margin: 0; font-size: 13px; font-weight: normal; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--gold)); }
+      .vk-dialog-body { margin: 12px 0 0; font-size: 14px; color: rgb(var(--parchment) / 0.9); }
+      .vk-dialog-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+      .vk-dialog-x { position: absolute; right: 16px; top: 16px; color: rgb(var(--mist)); background: none; border: 0; cursor: pointer; padding: 0; }
+      
+      .vk-toast {
+        display: flex; flex-direction: column; gap: 2px; min-width: 18rem;
+        border: 1px solid rgb(var(--edge)); background: rgb(var(--panel));
+        border-radius: 4px; padding: 12px 14px; font-size: 13px; color: rgb(var(--parchment));
+      }
+      .vk-toast--success { border-color: rgb(var(--ok) / 0.5); }
+      .vk-toast--error { border-color: rgb(var(--ember) / 0.6); }
+      .vk-toast-desc { color: rgb(var(--mist)); }
+      
+      .vk-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; }
+      .vk-dot--live { background: rgb(var(--ok)); }
+      .vk-dot--down { background: rgb(var(--mist)); }
+      
+      .vk-tableshell { overflow: hidden; border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+      .vk-tablehead {
+        border-bottom: 1px solid rgb(var(--edge)); padding: 10px 18px;
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--mist));
+      }
+      .vk-tablerow { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid rgb(var(--edge)); }
+      .vk-tablerow:last-child { border-bottom: 0; }
+      
+      .vk-cover { flex: none; border: 1px solid rgb(var(--edge)); border-radius: 5px; width: 84px; height: 112px; object-fit: cover; }
+      .vk-cover--fallback {
+        display: flex; align-items: center; justify-content: center; text-align: center;
+        background: var(--fill-cover); padding: 6px; font-size: 11px; line-height: 1.2; color: rgb(var(--mist));
+      }
+      .vk-cover--detail { width: 96px; height: 128px; }
+      
+      .vk-type-row { display: flex; align-items: baseline; gap: 18px; border-bottom: 1px solid rgb(var(--edge)); padding: 12px 0; }
+      .vk-type-row:last-child { border-bottom: 0; }
+      .vk-type-key { width: 190px; flex: none; font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
+      .vk-focus-demo { display: inline-flex; }
+      
+      /* ---- companion compositions ----------------------------------------- */
+      .vk-header {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+        border-bottom: 1px solid rgb(var(--edge)); background: rgb(var(--well)); padding: 16px 28px;
+      }
+      .vk-header .vk-i--xl { width: 24px; height: 24px; color: rgb(var(--gold)); stroke-width: 1.3; }
+      .vk-header-name { font-size: 18px; letter-spacing: 0.05em; color: rgb(var(--gold)); }
+      .vk-header-tag { font-size: 11px; color: rgb(var(--mist)); }
+      .vk-header-right { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      .vk-conn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+      .vk-conn b { margin-left: 4px; font-weight: 700; }
+      .vk-header-err { width: 100%; font-size: 13px; color: rgb(var(--ember)); }
+      .vk-footer {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        border-top: 1px solid rgb(var(--edge)); padding: 10px 28px;
+        font-family: var(--mono); font-size: 11px; color: rgb(var(--mist));
+      }
+      .vk-footer-last { margin-left: auto; }
+      
+      .vk-section { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+      .vk-section-h { margin: 0; font-size: 12px; font-weight: normal; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--gold)); }
+      .vk-section-hint { font-size: 12px; font-style: italic; color: rgb(var(--mist)); }
+      .vk-section-acts { margin-left: auto; display: flex; gap: 8px; }
+      
+      .vk-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+      .vk-tile {
+        display: flex; flex-direction: column; overflow: hidden; border-radius: 6px;
+        border: 1px solid; text-align: left; cursor: pointer; padding: 0;
+        font-family: inherit; color: inherit;
+        transition: opacity 0.15s, border-color 0.15s;
+      }
+      .vk-tile--linked { border-color: rgb(var(--gold) / 0.5); background: rgb(var(--panel)); }
+      .vk-tile--unlinked { border-color: rgb(var(--edge)); background: rgb(var(--well)); opacity: 0.72; }
+      .vk-tile--unlinked:hover { opacity: 1; border-color: rgb(var(--gold) / 0.5); }
+      .vk-tile--active { border-color: rgb(var(--goldhi)); opacity: 1; }
+      .vk-tile-art {
+        width: 100%; height: 132px; display: flex; align-items: center; justify-content: center;
+        background: var(--fill-cover); padding: 10px; text-align: center; font-size: 12px;
+        line-height: 1.2; color: rgb(var(--mist));
+      }
+      .vk-tile-cap { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px; }
+      .vk-tile-capmain { min-width: 0; flex: 1; }
+      /* Two lines, no ellipsis: a truncated title is not a title. */
+      .vk-tile-name { font-size: 13px; line-height: 1.25; color: rgb(var(--parchment)); }
+      .vk-tile-note { margin-top: 3px; font-size: 11.5px; line-height: 1.2; color: rgb(var(--mist)); }
+      .vk-tile-note--linked { color: rgb(var(--goldhi)); }
+      .vk-tile-link { white-space: nowrap; font-size: 11.5px; color: rgb(var(--goldhi)); }
+      
+      /* ---- the window's tab bar -------------------------------------------- */
+      .vk-tabs { display: flex; gap: 4px; border-bottom: 1px solid rgb(var(--edge)); padding: 16px 28px 0; }
+      .vk-tab {
+        display: flex; align-items: center; gap: 8px; margin-bottom: -1px;
+        border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
+        padding: 8px 14px 10px; font-family: inherit; font-size: 14.5px; color: rgb(var(--mist));
+        transition: color 0.12s ease, border-color 0.12s ease;
+      }
+      .vk-tab:hover { color: rgb(var(--parchment)); }
+      .vk-tab--on { border-bottom-color: rgb(var(--gold)); color: rgb(var(--goldhi)); }
+      .vk-tab-badge {
+        border: 1px solid rgb(var(--ember) / 0.5); border-radius: 3px; padding: 1px 6px;
+        font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: rgb(var(--ember));
+      }
+      
+      /* ---- a custody group ------------------------------------------------- */
+      .vk-group { display: flex; flex-direction: column; gap: 8px; }
+      .vk-group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+      .vk-group-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--mist)); }
+      .vk-group-label--gold { color: rgb(var(--gold)); }
+      .vk-group-sub { font-size: 12.5px; color: rgb(var(--mist)); }
+      .vk-group-body { overflow: hidden; border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+      .vk-group-body--gold { border-color: rgb(var(--gold) / 0.45); }
+      .vk-group-body > * + * { border-top: 1px solid rgb(var(--edge)); }
+      
+      /* Someone else's hold is grey. Gold means *you* have it, and that one
+         difference is what makes your world findable without reading a label. */
+      .vk-chip--other { border-color: rgb(var(--mist)); background: rgb(var(--well)); color: rgb(var(--mist)); }
+      
+      /* Shown only when a hold is under ~3h — pressure, not a fact. */
+      .vk-count {
+        display: inline-flex; align-items: center; gap: 5px;
+        border: 1px solid rgb(var(--ember) / 0.45); border-radius: 3px; padding: 1px 7px;
+        font-family: var(--mono); font-size: 11px; color: rgb(var(--ember));
+      }
+      
+      /* ---- the games toolbar ----------------------------------------------- */
+      .vk-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      .vk-search { position: relative; flex: 1; max-width: 340px; }
+      .vk-search .vk-i { position: absolute; left: 11px; top: 11px; color: rgb(var(--mist)); }
+      .vk-search input {
+        width: 100%; border: 1px solid rgb(var(--edge)); border-radius: 4px; background: rgb(var(--ink));
+        padding: 8px 10px 8px 32px; font-family: inherit; font-size: 13.5px; color: rgb(var(--parchment));
+      }
+      .vk-seg { display: flex; gap: 2px; border: 1px solid rgb(var(--edge)); border-radius: 4px; padding: 2px; }
+      .vk-seg-item {
+        border: 0; background: none; cursor: pointer; border-radius: 3px; padding: 4px 12px;
+        font-family: inherit; font-size: 12.5px; color: rgb(var(--mist));
+      }
+      .vk-seg-item--on { background: rgb(var(--panel)); color: rgb(var(--goldhi)); }
+      .vk-toolbar-acts { margin-left: auto; display: flex; gap: 8px; }
+      
+      /* ---- offline --------------------------------------------------------- */
+      .vk-offline {
+        display: flex; align-items: flex-start; gap: 14px;
+        border: 1px solid rgb(var(--ember) / 0.5); background: rgb(var(--panel));
+        border-radius: 8px; padding: 15px 18px;
+      }
+      .vk-offline .vk-i--lg { color: rgb(var(--ember)); stroke-width: 1.8; width: 17px; height: 17px; }
+      .vk-offline-body { flex: 1; }
+      .vk-offline-lead { font-size: 14.5px; color: rgb(var(--parchment)); }
+      .vk-offline-sub { margin-top: 3px; font-size: 12.5px; color: rgb(var(--mist)); }
+      
+      /* ---- a first-run step ------------------------------------------------ */
+      .vk-step { display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
+      .vk-step + .vk-step { border-top: 1px solid rgb(var(--edge)); }
+      .vk-step--now { background: rgb(var(--well)); }
+      .vk-step-mark {
+        flex: none; width: 22px; height: 22px; border-radius: 999px; border: 1px solid;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--mono); font-size: 11px;
+      }
+      .vk-step-mark--done { border-color: rgb(var(--ok)); color: rgb(var(--ok)); }
+      .vk-step-mark--now { border-color: rgb(var(--gold)); color: rgb(var(--gold)); }
+      .vk-step-body { flex: 1; }
+      .vk-step-title { font-size: 14.5px; color: rgb(var(--parchment)); }
+      .vk-step-sub { font-size: 12.5px; color: rgb(var(--mist)); }
+      
+      .vk-worldrow { display: flex; align-items: center; gap: 16px; padding: 15px 18px; }
+      .vk-worldrow:hover { background: rgb(var(--well)); }
+      .vk-worldrow-art {
+        width: 54px; height: 72px; flex: none; display: flex; align-items: center;
+        justify-content: center; border: 1px solid rgb(var(--edge)); border-radius: 5px;
+        background: var(--fill-cover); padding: 5px; text-align: center; font-size: 9.5px;
+        line-height: 1.15; color: rgb(var(--mist));
+      }
+      .vk-worldrow-art--dim { opacity: 0.75; }
+      .vk-worldrow-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 5px; }
+      .vk-worldrow-titlerow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+      .vk-worldrow-name { font-size: 17px; font-weight: 700; color: rgb(var(--parchment)); }
+      .vk-worldrow-game { font-size: 12px; color: rgb(var(--rune)); }
+      .vk-worldrow-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12.5px; color: rgb(var(--mist)); }
+      .vk-worldrow-meta { text-align: right; font-family: var(--mono); font-size: 11px; line-height: 1.5; color: rgb(var(--mist)); }
+      .vk-worldrow-acts { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+      .vk-dir { word-break: break-all; font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
+      
+      .vk-trail { font-family: var(--mono); font-size: 12px; color: rgb(var(--mist)); }
+      .vk-trail summary { cursor: pointer; }
+      .vk-trail-row { padding: 2px 0; }
+      .vk-trail-row b { font-weight: 700; }
+      .vk-trail-hit { color: rgb(var(--ok)); }
+      .vk-trail-to { padding-left: 16px; word-break: break-all; }
+      .vk-trail-note { padding-left: 16px; color: rgb(var(--ember)); }
+      
+      .vk-update {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+        border: 1px solid rgb(var(--gold) / 0.5); background: var(--fill-held);
+        border-radius: 8px; padding: 12px 20px;
+      }
+      .vk-update .vk-i--lg { color: rgb(var(--gold)); stroke-width: 1.4; width: 20px; height: 20px; }
+      .vk-update-body { flex: 1; font-size: 13px; }
+      .vk-update-lead { font-size: 14px; color: rgb(var(--parchment)); }
+      
+      .vk-panelfail {
+        border: 1px solid rgb(var(--ember) / 0.5); background: rgb(var(--panel));
+        border-radius: 8px; padding: 12px 16px; font-size: 13px; color: rgb(var(--ember));
+      }
+      .vk-panelfail-sub { margin-top: 4px; font-size: 12px; color: rgb(var(--mist)); }
+    </style>
+  </head>
+  <body class="ds-page">
+    <header class="ds-head">
+      <p class="ds-eyebrow">Artificer Companion · Patterns</p>
+      <h1 class="ds-title">No worlds yet</h1>
+      <p class="ds-sub">Derived from “nothing linked”, never from a stored flag</p>
+      <p class="ds-intent">The machine is connected to a vault and holds no worlds. Keying this on
+            <b>no linked worlds</b> rather than on a first-run flag means it comes back on its
+            own if every link is removed — it is a description of the machine, not a memory of
+            one. It says what is already true before it asks for anything, because both facts a
+            player needs in order to trust the next step — the vault answered, and these games
+            were found — are already known by the time this renders.</p>
+    </header>
+    <main class="ds-body">
+      <section class="ds-specimen">
+<p class="ds-caption">The three steps</p>
+        <div class="ds-stage ds-stage--block">
+          <div style="max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:22px">
+            <div style="text-align:center">
+              <div class="vk-h1" style="font-size:21px">No worlds on this machine yet</div>
+              <div style="margin:8px auto 0;max-width:46ch;font-size:14px;color:rgb(var(--mist))">A world is one save folder the vault holds for your group. Link a game's save folder and the vault starts keeping its history.</div>
+            </div>
+            <div class="vk-group-body">
+              <div class="vk-step">
+                <span class="vk-step-mark vk-step-mark--done">✓</span>
+                <div class="vk-step-body"><div class="vk-step-title">Signed in as hazel</div><div class="vk-step-sub">https://vault.example.com</div></div>
+              </div>
+              <div class="vk-step">
+                <span class="vk-step-mark vk-step-mark--done">✓</span>
+                <div class="vk-step-body"><div class="vk-step-title">Found 13 installed games</div><div class="vk-step-sub">Across 4 libraries. A save folder is already known for 7 of them.</div></div>
+                <button class="vk-btn vk-btn--quiet">Review</button>
+              </div>
+              <div class="vk-step vk-step--now">
+                <span class="vk-step-mark vk-step-mark--now">3</span>
+                <div class="vk-step-body"><div class="vk-step-title">Link a game to make your first world</div><div class="vk-step-sub">Pick the game and the companion suggests the save folder. You confirm it.</div></div>
+                <button class="vk-btn vk-btn--primary vk-btn--lg">Choose a game</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="ds-meta">
+        <h2 class="ds-meta-h">Rules</h2>
+        <ul class="ds-rules">
+            <li>Done steps are marked in <code>ok</code>; the step still to do is gold and its row carries a well's ground, so “where am I” is answered before anything is read.</li>
+            <li>Both call-to-action buttons go to the same place — the games library — because linking a game is the only way to make a world. Two doors to one room is not a choice.</li>
+            <li>The screen states the vault URL and the library count as facts, not as a summary: if either is wrong, that is the thing the player needs to see before linking anything.</li>
+        </ul>
+      </section>
+      <section class="ds-meta">
+        <h2 class="ds-meta-h">Implemented by</h2>
+        <ul class="ds-paths">
+            <li><code>web/companion/src/components/NoWorlds.tsx</code></li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

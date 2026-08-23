@@ -55,12 +55,25 @@ are the plans they were built to, and record what is still unverified).
 The vanilla `cmd/reliquary/ui` and `cmd/companion/ui` pages they
 replaced are gone.
 The companion's engine lives in the importable `companion/` package
-(2026-08-22) with two shells around it: `cmd/companion`, the shipping
-browser-and-tray build, and `companion-desktop/` (its own Go module —
-Fyne needs CGO everywhere), the in-development **Reliquary Companion**
-native desktop app that will replace it after a real-machine smoke —
-`docs/reliquary-companion.md` has the split, the separate release
-identity (`reliquary-companion-latest`) and the cutover gate.
+(2026-08-22), and it now has two shells built on it rather than one:
+`cmd/companion`, the shipping browser-and-tray build, and the
+in-development **Reliquary Companion**, a real native window replacing
+the browser tab. The Reliquary Companion is a headless Go daemon,
+`cmd/companiond` (thin over `companion/`, same shape as any console
+binary over `core`), wrapped by `companion-desktop/` — an Electron shell
+(main process, preload, tray, native dialogs, autostart) over the same
+React renderer the browser build already serves, `web/companion`.
+`companion-desktop/` is a plain Node project, not a Go module, and is not
+in `go.work`. This replaced an earlier in-process Fyne app the same
+`companion-desktop/` directory held for one release cycle;
+`companion-cutover.md` is the plan of record for that move and
+`docs/companion-api-surface.md` is the API contract it was built
+against. `docs/reliquary-companion.md` has the shell's shape, the
+separate release identity (`reliquary-companion-latest`, built in CI by
+`release-reliquary-companion.yml` — never touches the browser build's
+`companion-latest`) and the cutover gate: the Electron shell replaces
+`cmd/companion` only after passing a real-machine parity checklist,
+which is not yet ticked.
 
 Provisioning is Anvil-only across all three; the legacy
 provisioner-mode agent is retired (`PROVISIONER_URL` → `ANVIL_URL` —

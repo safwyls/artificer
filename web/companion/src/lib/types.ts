@@ -89,6 +89,21 @@ export interface SyncWorld {
   head?: { id: number; bytes: number; createdAt: string };
 }
 
+/**
+ * One transfer waiting for the vault to come back. The engine records
+ * none of these today and the field is always empty — deliberately, so
+ * the offline screen can say "nothing queued" honestly rather than
+ * inventing a manifest (companion/sync.go says the same at length). The
+ * shape is fixed here so the renderer and a future queue agree.
+ */
+export interface QueuedWork {
+  what: string;
+  worldId: number;
+  worldName?: string;
+  time: string;
+  size?: number;
+}
+
 export interface SyncState {
   configured: boolean;
   username?: string;
@@ -98,6 +113,8 @@ export interface SyncState {
   lastAction?: string;
   polledAt?: string;
   serverVersion?: string;
+  /** Always empty today — see QueuedWork. */
+  queue?: QueuedWork[];
 }
 
 /** What GitHub last said about the current release (cmd/companion:
@@ -183,9 +200,33 @@ export function artFor(
   );
 }
 
-/** The custody state a linked world is in, as the chip and the row's one
- * primary action both read it. */
-export type Custody = "free" | "mine" | "fetching" | "held" | "expired" | "gone";
+/**
+ * The custody state a linked world is in.
+ *
+ * The redesign names four (`free | yours | held | expired`); this app has
+ * always carried two more, and they are real rather than decorative:
+ * `fetching` is "your account holds it, but on another session — the save
+ * is still on its way here", and `gone` is "the service does not have
+ * this world any more". Both need a different answer from the four, so
+ * they stay. `mine` is this app's name for the handoff's `yours`.
+ */
+export type CustodyState = "free" | "mine" | "fetching" | "held" | "expired" | "gone";
+
+/**
+ * One custody answer, and the only one. The chip and the row's primary
+ * action are both derived from this single value so they cannot disagree
+ * — a chip reading "Free" beside a disabled Check out is the failure this
+ * shape exists to make impossible. Nothing else may decide either.
+ */
+export interface Custody {
+  state: CustodyState;
+  /** Who holds it, when someone does — including you. */
+  holder?: string;
+  /** When the hold lapses, as the service reported it. */
+  expiresAt?: string;
+  /** Who is queued for it next, when anyone is. */
+  claimedBy?: string;
+}
 
 export function custodyOf(
   link: Link,
@@ -193,14 +234,33 @@ export function custodyOf(
   me: string | undefined,
   configured: boolean,
 ): Custody {
-  if (!world) return configured ? "gone" : "free";
+  if (!world) return { state: configured ? "gone" : "free" };
   const h = world.holder;
-  if (!h) return "free";
+  const rest = { holder: h?.username, expiresAt: h?.expiresAt, claimedBy: world.claimedBy };
+  if (!h) return { state: "free", ...rest };
   if (h.username === me) {
     // The service says this account holds it, but this machine has no
     // session for it: another machine of theirs took it, or the download
     // is still on its way here.
-    return link.sessionId === h.sessionId ? "mine" : "fetching";
+    return { state: link.sessionId === h.sessionId ? "mine" : "fetching", ...rest };
   }
-  return h.claimable ? "expired" : "held";
+  return { state: h.claimable ? "expired" : "held", ...rest };
+}
+
+/** How long a hold has left, in ms — negative once it has lapsed, and
+ * NaN when there is no hold to measure. */
+export function holdLeft(custody: Custody, now = Date.now()): number {
+  if (!custody.expiresAt) return NaN;
+  const at = new Date(custody.expiresAt).getTime();
+  return Number.isNaN(at) ? NaN : at - now;
+}
+
+/** Under three hours: the point at which a hold stops being a fact and
+ * starts being pressure, and the only point at which a countdown is
+ * worth the ink. */
+export const HOLD_PRESSURE_MS = 3 * 60 * 60 * 1000;
+
+export function holdIsPressing(custody: Custody, now = Date.now()): boolean {
+  const left = holdLeft(custody, now);
+  return !Number.isNaN(left) && left > 0 && left < HOLD_PRESSURE_MS;
 }

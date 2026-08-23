@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { artFor, custodyOf, gameKey, launchTargetOf, launchable } from "./types";
+import {
+  artFor,
+  custodyOf,
+  gameKey,
+  holdIsPressing,
+  holdLeft,
+  launchTargetOf,
+  launchable,
+} from "./types";
 import { makeLink, makeSyncWorld } from "../test/utils";
 
 // One identity for a game, shared by the artwork map, the hidden list and
@@ -44,12 +52,12 @@ describe("custodyOf", () => {
   });
 
   it("calls a world with no holder free", () => {
-    expect(custodyOf(makeLink(), makeSyncWorld(), "safwyl", true)).toBe("free");
+    expect(custodyOf(makeLink(), makeSyncWorld(), "safwyl", true).state).toBe("free");
   });
 
   it("is mine only when this machine holds the session", () => {
     const world = makeSyncWorld({ holder: holder({ username: "safwyl", sessionId: 7 }) });
-    expect(custodyOf(makeLink({ sessionId: 7 }), world, "safwyl", true)).toBe("mine");
+    expect(custodyOf(makeLink({ sessionId: 7 }), world, "safwyl", true).state).toBe("mine");
   });
 
   // The account holds it but this machine has no session for it: another
@@ -58,21 +66,22 @@ describe("custodyOf", () => {
   // received the save yet.
   it("is fetching when the hold is this account's but another session's", () => {
     const world = makeSyncWorld({ holder: holder({ username: "safwyl", sessionId: 9 }) });
-    expect(custodyOf(makeLink({ sessionId: 7 }), world, "safwyl", true)).toBe("fetching");
+    expect(custodyOf(makeLink({ sessionId: 7 }), world, "safwyl", true).state).toBe("fetching");
   });
 
   it("distinguishes someone else's live hold from an expired one", () => {
-    expect(custodyOf(makeLink(), makeSyncWorld({ holder: holder() }), "safwyl", true)).toBe("held");
+    expect(custodyOf(makeLink(), makeSyncWorld({ holder: holder() }), "safwyl", true).state).toBe("held");
     expect(
-      custodyOf(makeLink(), makeSyncWorld({ holder: holder({ claimable: true }) }), "safwyl", true),
+      custodyOf(makeLink(), makeSyncWorld({ holder: holder({ claimable: true }) }), "safwyl", true)
+        .state,
     ).toBe("expired");
   });
 
   // A link to a world the service no longer has is a real state, and the
   // player has to be told rather than shown a row that does nothing.
   it("reports a world the service no longer knows, but only when connected", () => {
-    expect(custodyOf(makeLink(), undefined, "safwyl", true)).toBe("gone");
-    expect(custodyOf(makeLink(), undefined, undefined, false)).toBe("free");
+    expect(custodyOf(makeLink(), undefined, "safwyl", true).state).toBe("gone");
+    expect(custodyOf(makeLink(), undefined, undefined, false).state).toBe("free");
   });
 });
 
@@ -93,5 +102,54 @@ describe("launchTargetOf", () => {
     expect(launchable(makeLink({ appId: "" }))).toBe(false);
     expect(launchable(makeLink({ appId: "", launchTarget: "   " }))).toBe(false);
     expect(launchable(makeLink())).toBe(true);
+  });
+});
+
+// Both the chip and the row's one primary action read this single value.
+// Carrying the holder and the expiry on it is what stops a second lookup
+// from disagreeing with the first.
+describe("the custody record", () => {
+  const soon = (ms: number) => new Date(Date.now() + ms).toISOString();
+
+  it("carries who holds it, until when, and who is queued behind them", () => {
+    const world = makeSyncWorld({
+      holder: { sessionId: 7, username: "mira", expiresAt: soon(3_600_000), claimable: false },
+      claimedBy: "torv",
+    });
+    const custody = custodyOf(makeLink(), world, "safwyl", true);
+    expect(custody.holder).toBe("mira");
+    expect(custody.claimedBy).toBe("torv");
+    expect(holdLeft(custody)).toBeGreaterThan(3_500_000);
+  });
+
+  // Holds last 48 hours. A timer ticking for two days is noise; a timer
+  // under three hours is the reason to go and check the world in.
+  it("calls a hold pressing only under three hours", () => {
+    const pressing = custodyOf(
+      makeLink(),
+      makeSyncWorld({
+        holder: { sessionId: 7, username: "mira", expiresAt: soon(2 * 3_600_000), claimable: false },
+      }),
+      "safwyl",
+      true,
+    );
+    const calm = custodyOf(
+      makeLink(),
+      makeSyncWorld({
+        holder: { sessionId: 7, username: "mira", expiresAt: soon(40 * 3_600_000), claimable: false },
+      }),
+      "safwyl",
+      true,
+    );
+    expect(holdIsPressing(pressing)).toBe(true);
+    expect(holdIsPressing(calm)).toBe(false);
+  });
+
+  it("has nothing to count down for a free world or a lapsed hold", () => {
+    expect(holdIsPressing({ state: "free" })).toBe(false);
+    expect(holdIsPressing({ state: "held", expiresAt: new Date(Date.now() - 1000).toISOString() })).toBe(
+      false,
+    );
+    expect(Number.isNaN(holdLeft({ state: "free" }))).toBe(true);
   });
 });

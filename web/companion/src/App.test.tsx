@@ -27,7 +27,7 @@ describe("App — setup", () => {
     renderWithProviders(<App />);
     expect(await screen.findByText("Connect to your vault")).toBeInTheDocument();
     expect(screen.getByText("Finding your games")).toBeInTheDocument();
-    expect(screen.getByText("Not connected")).toBeInTheDocument();
+    expect(screen.getByText(/not connected to a vault yet/)).toBeInTheDocument();
     // Nothing leaves this machine until it is connected — said out loud.
     expect(screen.getByText(/Nothing leaves this machine until you connect/)).toBeInTheDocument();
   });
@@ -92,28 +92,123 @@ describe("App — connected", () => {
       sync: { configured: true, username: "safwyl", busy: false, worlds: [makeSyncWorld()] },
     });
 
-  it("names who it is connected as, and both builds in the footer", async () => {
+  it("names who it is connected as, once, in the header", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    renderWithProviders(<App />);
+    expect(await screen.findByText(/syncing as safwyl/)).toBeInTheDocument();
+  });
+
+  // Build versions are diagnostics: they were in the page chrome, where
+  // they competed with the worlds for the eye. A save-sync report that
+  // names one half names nothing, so an unknown service version is still
+  // said out loud — just in the one place diagnostics live.
+  it("keeps both builds in Settings › Diagnostics, not in the chrome", async () => {
     vi.spyOn(api, "state").mockResolvedValue({
       ...connected(),
       sync: { ...connected().sync, serverVersion: "v1.4.2" },
     });
     renderWithProviders(<App />);
-    expect(await screen.findByText("safwyl")).toBeInTheDocument();
-    expect(screen.getByText("companion v1.4.2 · service v1.4.2")).toBeInTheDocument();
+    expect(await screen.findByText(/syncing as safwyl/)).toBeInTheDocument();
+    expect(screen.queryByText(/companion v1.4.2/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Diagnostics" }));
+    expect(await screen.findByText("companion v1.4.2 · service v1.4.2")).toBeInTheDocument();
   });
 
-  // A save-sync report that names one half names nothing — so an unknown
-  // service version is said, not omitted.
   it("admits when it does not know the service's build", async () => {
     vi.spyOn(api, "state").mockResolvedValue(connected());
     renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "Diagnostics" }));
     expect(await screen.findByText("companion v1.4.2 · service version unknown")).toBeInTheDocument();
   });
 
-  it("says what to do when nothing is linked yet", async () => {
+  // Worlds is the whole page; the installed-games grid is somewhere you
+  // go on purpose. It used to take about 70% of the window.
+  it("keeps the installed-games grid off the Worlds tab", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    renderWithProviders(<App />);
+    expect(await screen.findByText("Open the games library")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Search installed games")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Games" }));
+    expect(await screen.findByLabelText("Search installed games")).toBeInTheDocument();
+    expect(screen.queryByText("Open the games library")).not.toBeInTheDocument();
+  });
+
+  // Neither has a backing surface on the companion's API yet, so each
+  // names where the ability actually lives rather than drawing an empty
+  // list that reads as broken.
+  it("says where activity and conflicts live rather than faking them", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Activity" }));
+    expect(await screen.findByText(/Nothing is waiting to be sent/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Conflicts" }));
+    expect(await screen.findByText(/the vault is the only thing that can see one/)).toBeInTheDocument();
+  });
+
+  it("carries no conflict badge when there are no conflicts", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    renderWithProviders(<App />);
+    expect(await screen.findByRole("tab", { name: "Conflicts" })).toHaveTextContent(/^Conflicts$/);
+  });
+
+  // First run is derived from "no linked worlds" rather than from a
+  // stored flag, so it comes back on its own if every link is removed.
+  it("shows the first-run steps when no world is linked, and says what is already true", async () => {
     vi.spyOn(api, "state").mockResolvedValue({ ...connected(), links: [] });
     renderWithProviders(<App />);
-    expect(await screen.findByText(/Nothing linked yet/)).toBeInTheDocument();
+    expect(await screen.findByText("No worlds on this machine yet")).toBeInTheDocument();
+    expect(screen.getByText("Signed in as safwyl")).toBeInTheDocument();
+    expect(screen.getByText("Found 1 installed game")).toBeInTheDocument();
+  });
+
+  it("sends the first-run call to action to the games library", async () => {
+    vi.spyOn(api, "state").mockResolvedValue({ ...connected(), links: [] });
+    renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "Choose a game" }));
+    expect(await screen.findByLabelText("Search installed games")).toBeInTheDocument();
+  });
+
+  // Offline is derived from connectivity, and it is a variant of Worlds
+  // rather than a tab: the Worlds tab stays active.
+  it("says the vault is unreachable without moving the player off Worlds", async () => {
+    vi.spyOn(api, "state").mockResolvedValue({
+      ...connected(),
+      sync: { ...connected().sync, lastError: "dial tcp: connection refused" },
+    });
+    renderWithProviders(<App />);
+    expect(await screen.findByText("Working offline — the vault is unreachable")).toBeInTheDocument();
+    expect(screen.getByText(/The hold stands until the vault answers again/)).toBeInTheDocument();
+    expect(screen.getByText("dial tcp: connection refused")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Worlds" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  // The engine keeps no send-queue: a checkout, a checkpoint and a
+  // check-in each either reach the vault now or fail now. An empty
+  // "Queued to send · 0" would be a manifest the companion never kept.
+  it("draws no queue section when there is nothing queued", async () => {
+    vi.spyOn(api, "state").mockResolvedValue({
+      ...connected(),
+      sync: { ...connected().sync, lastError: "unreachable", queue: [] },
+    });
+    renderWithProviders(<App />);
+    expect(await screen.findByText("Working offline — the vault is unreachable")).toBeInTheDocument();
+    expect(screen.queryByText(/Queued to send/)).not.toBeInTheDocument();
+  });
+
+  it("lists queued work when the engine ever records any", async () => {
+    vi.spyOn(api, "state").mockResolvedValue({
+      ...connected(),
+      sync: {
+        ...connected().sync,
+        lastError: "unreachable",
+        queue: [
+          { what: "Save written", worldId: 1, worldName: "Embervale", time: "2026-08-23T20:14:00Z", size: 18_000_000 },
+        ],
+      },
+    });
+    renderWithProviders(<App />);
+    expect(await screen.findByText("Queued to send · 1")).toBeInTheDocument();
+    expect(screen.getByText("18 MB")).toBeInTheDocument();
   });
 
   // Regression: form state must never be clobbered by the five-second
@@ -122,6 +217,7 @@ describe("App — connected", () => {
   it("keeps a half-filled link form across a poll", async () => {
     vi.spyOn(api, "state").mockResolvedValue({ ...connected(), links: [] });
     const { queryClient } = renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Games" }));
     await userEvent.click(await screen.findByRole("button", { name: "Link a folder by hand…" }));
     const field = await screen.findByLabelText("Save folder");
     await userEvent.type(field, "C:\\half-typed");
@@ -138,6 +234,7 @@ describe("App — connected", () => {
   it("opens what a linked tile points at, rather than the link form", async () => {
     vi.spyOn(api, "state").mockResolvedValue(connected());
     renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Games" }));
     await userEvent.click(await screen.findByRole("button", { name: /Enshrouded/ }));
     expect(await screen.findByText(/check it out and in from/)).toBeInTheDocument();
     expect(screen.queryByLabelText("World on the service")).not.toBeInTheDocument();

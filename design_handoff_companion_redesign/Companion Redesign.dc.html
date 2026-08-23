@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  body { margin: 0; background: #100d17; }
+  * { box-sizing: border-box; }
+  ::selection { background: rgba(201,168,96,0.25); }
+  a { color: #e3c67f; text-decoration: none; }
+  a:hover { color: #c9a860; text-decoration: underline; }
+</style>
+</helmet>
+<div style="min-height: 100vh; padding: 26px; background: #100d17; font-family: Georgia, Gelasio, 'Times New Roman', serif; display: flex; flex-direction: column; align-items: center; gap: 14px;">
+
+  <div style="width: 1440px; display: flex; align-items: center; gap: 10px;">
+    <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #948da3; margin-right: 4px;">Mock state</span>
+    <button onClick="{{ goWorlds }}" style="font-family: inherit; font-size: 12px; padding: 4px 12px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Worlds</button>
+    <button onClick="{{ goGames }}" style="font-family: inherit; font-size: 12px; padding: 4px 12px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Games library</button>
+    <button onClick="{{ goFirstRun }}" style="font-family: inherit; font-size: 12px; padding: 4px 12px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">First run</button>
+    <button onClick="{{ goOffline }}" style="font-family: inherit; font-size: 12px; padding: 4px 12px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Offline</button>
+  </div>
+
+  <div style="width: 1440px; border: 1px solid #2f2740; border-radius: 10px; overflow: hidden; background: #100d17; box-shadow: 0 30px 60px -20px rgba(0,0,0,0.8); display: flex; flex-direction: column;">
+
+    <div style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px; background: #14101d; border-bottom: 1px solid #2f2740;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#c9a860" stroke-width="1.4" style="width: 14px; height: 14px;"><path d="M12 2l4 4-4 4-4-4z"/><path d="M4 12l8 10 8-10-8-4z"/></svg>
+      <span style="font-size: 12px; color: #948da3;">Reliquary Companion</span>
+      <div style="margin-left: auto; display: flex; gap: 4px;">
+        <div style="width: 26px; height: 20px; display: flex; align-items: center; justify-content: center; color: #948da3;">–</div>
+        <div style="width: 26px; height: 20px; display: flex; align-items: center; justify-content: center; color: #948da3; font-size: 11px;">□</div>
+        <div style="width: 26px; height: 20px; display: flex; align-items: center; justify-content: center; color: #948da3; font-size: 13px;">✕</div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 20px 28px 0;">
+      <div>
+        <div style="font-size: 22px; letter-spacing: 0.05em; color: #c9a860;">Reliquary Companion</div>
+        <div style="margin-top: 2px; font-size: 12.5px; color: #948da3;">this machine, syncing as safwyl@pm.me</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px; padding-bottom: 4px;">
+        <div style="display: flex; align-items: center; gap: 7px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #948da3;">
+          <span style="width: 7px; height: 7px; border-radius: 999px; background: #7fc46a;"></span>
+          <span>synced 2 min ago</span>
+        </div>
+        <button style="display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; padding: 6px 14px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width: 13px; height: 13px;"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+          Sync now
+        </button>
+        <button aria-label="Settings" style="display: inline-flex; align-items: center; font-family: inherit; padding: 6px 9px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width: 14px; height: 14px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 4px; padding: 16px 28px 0; border-bottom: 1px solid #2f2740;">
+      <div onClick="{{ goWorlds }}" style="padding: 8px 14px 10px; font-size: 14.5px; color: #948da3; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;" style-hover="color: #e8e0cf;">
+        <span style="{{ tabWorlds }}">Worlds</span>
+      </div>
+      <div onClick="{{ goGames }}" style="padding: 8px 14px 10px; font-size: 14.5px; color: #948da3; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;" style-hover="color: #e8e0cf;">
+        <span style="{{ tabGames }}">Games</span>
+      </div>
+      <div style="padding: 8px 14px 10px; font-size: 14.5px; color: #948da3; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;" style-hover="color: #e8e0cf;">Activity</div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 8px 14px 10px; font-size: 14.5px; color: #948da3; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;" style-hover="color: #e8e0cf;">
+        Conflicts
+        <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.06em; color: #d4735e; border: 1px solid rgba(212,115,94,0.5); border-radius: 3px; padding: 1px 6px;">1</span>
+      </div>
+      <div style="padding: 8px 14px 10px; font-size: 14.5px; color: #948da3; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;" style-hover="color: #e8e0cf;">Settings</div>
+    </div>
+
+    <sc-if value="{{ isWorlds }}" hint-placeholder-val="{{ true }}">
+    <div style="padding: 22px 28px 26px; display: flex; flex-direction: column; gap: 22px; min-height: 640px;">
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: baseline; gap: 12px;">
+          <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #c9a860;">Checked out to you</div>
+          <div style="font-size: 12.5px; color: #948da3;">locked to this machine until you check it in</div>
+        </div>
+        <div style="border: 1px solid rgba(201,168,96,0.45); background: #1a1524; border-radius: 8px; overflow: hidden;">
+          <sc-for list="{{ mine }}" as="w" hint-placeholder-count="1">
+            <div style="display: flex; align-items: center; gap: 16px; padding: 15px 18px;">
+              <div style="flex: none; width: 54px; height: 72px; border: 1px solid #2f2740; border-radius: 5px; background: linear-gradient(to bottom right, #221b2e, #14101d); display: flex; align-items: center; justify-content: center; text-align: center; padding: 5px; font-size: 9.5px; line-height: 1.15; color: #948da3;">{{ w.game }}</div>
+              <div style="min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; align-items: baseline; gap: 10px;">
+                  <span style="font-size: 17px; font-weight: 700; color: #e8e0cf;">{{ w.name }}</span>
+                  <span style="font-size: 12px; color: #9d7fc4;">{{ w.game }}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #948da3;">
+                  <span style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid #c9a860; background: #23180c; color: #e3c67f; border-radius: 999px; padding: 2px 11px; font-size: 12px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width: 11px; height: 11px;"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Yours
+                  </span>
+                  <span>{{ w.line }}</span>
+                </div>
+              </div>
+              <div style="text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #948da3; line-height: 1.5;">{{ w.head }}</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px;">
+                <button style="display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 4px; cursor: pointer; border: 1px solid #c9a860; background: linear-gradient(to bottom, #2a2416, #1e1a10); color: #c9a860;" style-hover="color: #e3c67f; border-color: #e3c67f;">
+                  <svg viewBox="0 0 24 24" fill="currentColor" style="width: 11px; height: 11px;"><path d="M5 3l16 9-16 9z"/></svg>
+                  Play
+                </button>
+                <button style="font-family: inherit; font-size: 13px; padding: 7px 14px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Check in</button>
+                <button aria-label="More actions" style="font-family: inherit; padding: 7px 9px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3; display: inline-flex;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">
+                  <svg viewBox="0 0 24 24" fill="currentColor" style="width: 13px; height: 13px;"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                </button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: baseline; gap: 12px;">
+          <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #948da3;">Free to take · 3</div>
+        </div>
+        <div style="border: 1px solid #2f2740; background: #1a1524; border-radius: 8px; overflow: hidden;">
+          <sc-for list="{{ free }}" as="w" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-top: 1px solid #2f2740;" style-hover="background: #14101d;">
+              <div style="flex: none; width: 54px; height: 72px; border: 1px solid #2f2740; border-radius: 5px; background: linear-gradient(to bottom right, #221b2e, #14101d); display: flex; align-items: center; justify-content: center; text-align: center; padding: 5px; font-size: 9.5px; line-height: 1.15; color: #948da3;">{{ w.game }}</div>
+              <div style="min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; align-items: baseline; gap: 10px;">
+                  <span style="font-size: 17px; font-weight: 700; color: #e8e0cf;">{{ w.name }}</span>
+                  <span style="font-size: 12px; color: #9d7fc4;">{{ w.game }}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #948da3;">
+                  <span style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid #7fc46a; background: #14200f; color: #7fc46a; border-radius: 999px; padding: 2px 11px; font-size: 12px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width: 11px; height: 11px;"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                    Free
+                  </span>
+                  <span>{{ w.line }}</span>
+                </div>
+              </div>
+              <div style="text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #948da3; line-height: 1.5;">{{ w.head }}</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px;">
+                <button style="display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 4px; cursor: pointer; border: 1px solid #c9a860; background: linear-gradient(to bottom, #2a2416, #1e1a10); color: #c9a860;" style-hover="color: #e3c67f; border-color: #e3c67f;">
+                  <svg viewBox="0 0 24 24" fill="currentColor" style="width: 11px; height: 11px;"><path d="M5 3l16 9-16 9z"/></svg>
+                  Check out &amp; play
+                </button>
+                <button style="font-family: inherit; font-size: 13px; padding: 7px 14px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Check out only</button>
+                <button aria-label="More actions" style="font-family: inherit; padding: 7px 9px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3; display: inline-flex;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">
+                  <svg viewBox="0 0 24 24" fill="currentColor" style="width: 13px; height: 13px;"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                </button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #948da3;">Held by someone else · 2</div>
+        <div style="border: 1px solid #2f2740; background: #1a1524; border-radius: 8px; overflow: hidden;">
+          <sc-for list="{{ held }}" as="w" hint-placeholder-count="2">
+            <div style="display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-top: 1px solid #2f2740;" style-hover="background: #14101d;">
+              <div style="flex: none; width: 54px; height: 72px; border: 1px solid #2f2740; border-radius: 5px; background: linear-gradient(to bottom right, #221b2e, #14101d); display: flex; align-items: center; justify-content: center; text-align: center; padding: 5px; font-size: 9.5px; line-height: 1.15; color: #948da3; opacity: 0.75;">{{ w.game }}</div>
+              <div style="min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; align-items: baseline; gap: 10px;">
+                  <span style="font-size: 17px; font-weight: 700; color: #e8e0cf;">{{ w.name }}</span>
+                  <span style="font-size: 12px; color: #9d7fc4;">{{ w.game }}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #948da3;">
+                  <span style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid #948da3; background: #14101d; color: #948da3; border-radius: 999px; padding: 2px 11px; font-size: 12px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width: 11px; height: 11px;"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Held
+                  </span>
+                  <span>{{ w.line }}</span>
+                  <sc-if value="{{ w.urgent }}" hint-placeholder-val="{{ true }}">
+                    <span style="display: inline-flex; align-items: center; gap: 5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #d4735e; border: 1px solid rgba(212,115,94,0.45); border-radius: 3px; padding: 1px 7px;">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width: 10px; height: 10px;"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                      {{ w.countdown }}
+                    </span>
+                  </sc-if>
+                </div>
+              </div>
+              <div style="text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #948da3; line-height: 1.5;">{{ w.head }}</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px;">
+                <button style="font-family: inherit; font-size: 13px; padding: 7px 14px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Ask for it back</button>
+                <button style="font-family: inherit; font-size: 13px; padding: 7px 14px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Download a copy</button>
+                <button aria-label="More actions" style="font-family: inherit; padding: 7px 9px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3; display: inline-flex;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">
+                  <svg viewBox="0 0 24 24" fill="currentColor" style="width: 13px; height: 13px;"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                </button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; padding: 12px 18px; border: 1px dashed #2f2740; background: #14101d; border-radius: 8px; font-size: 12.5px; color: #948da3;">
+        <span>13 games installed on this machine, 1 linked to a world.</span>
+        <a href="#" onClick="{{ goGames }}">Open the games library</a>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isGames }}">
+    <div style="padding: 22px 28px 26px; display: flex; flex-direction: column; gap: 18px; min-height: 640px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="position: relative; flex: 1; max-width: 340px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#948da3" stroke-width="2" stroke-linecap="round" style="width: 14px; height: 14px; position: absolute; left: 11px; top: 11px;"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.3-4.3"/></svg>
+          <input placeholder="Search installed games" style="width: 100%; border: 1px solid #2f2740; border-radius: 4px; background: #100d17; padding: 8px 10px 8px 32px; font-family: inherit; font-size: 13.5px; color: #e8e0cf;" />
+        </div>
+        <div style="display: flex; gap: 2px; border: 1px solid #2f2740; border-radius: 4px; padding: 2px;">
+          <div style="font-size: 12.5px; padding: 4px 12px; border-radius: 3px; background: #1a1524; color: #e3c67f; cursor: pointer;">All 13</div>
+          <div style="font-size: 12.5px; padding: 4px 12px; border-radius: 3px; color: #948da3; cursor: pointer;" style-hover="color: #e8e0cf;">Linked 1</div>
+          <div style="font-size: 12.5px; padding: 4px 12px; border-radius: 3px; color: #948da3; cursor: pointer;" style-hover="color: #e8e0cf;">Unlinked 12</div>
+        </div>
+        <div style="margin-left: auto; display: flex; gap: 8px;">
+          <button style="font-family: inherit; font-size: 13px; padding: 7px 14px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Rescan</button>
+          <button style="font-family: inherit; font-size: 13px; padding: 7px 14px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Link a folder by hand…</button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #c9a860;">Linked · 1</div>
+        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px;">
+          <div style="border: 1px solid rgba(201,168,96,0.5); border-radius: 6px; overflow: hidden; background: #1a1524; cursor: pointer;">
+            <div style="height: 132px; background: linear-gradient(to bottom right, #221b2e, #14101d); display: flex; align-items: center; justify-content: center; text-align: center; padding: 10px; font-size: 12px; color: #948da3;">Witchspire</div>
+            <div style="padding: 8px 10px 10px;">
+              <div style="font-size: 13px; color: #e8e0cf; line-height: 1.25;">Witchspire</div>
+              <div style="margin-top: 3px; font-size: 11.5px; color: #e3c67f;">1 world · FGI</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 12px;">
+          <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #948da3;">Not linked · 12</div>
+          <div style="font-size: 12.5px; color: #948da3;">Reliquary knows a save location for 7 of these.</div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px;">
+          <sc-for list="{{ games }}" as="g" hint-placeholder-count="12">
+            <div style="border: 1px solid #2f2740; border-radius: 6px; overflow: hidden; background: #14101d; cursor: pointer; opacity: 0.72;" style-hover="opacity: 1; border-color: rgba(201,168,96,0.5);">
+              <div style="height: 132px; background: linear-gradient(to bottom right, #221b2e, #14101d); display: flex; align-items: flex-end; justify-content: center; text-align: center; padding: 10px; font-size: 12px; color: #948da3; position: relative;">
+                <span>{{ g.name }}</span>
+              </div>
+              <div style="padding: 8px 10px 10px; display: flex; align-items: center; gap: 8px;">
+                <div style="min-width: 0; flex: 1;">
+                  <div style="font-size: 13px; color: #e8e0cf; line-height: 1.25;">{{ g.name }}</div>
+                  <div style="margin-top: 3px; font-size: 11.5px; color: #948da3;">{{ g.note }}</div>
+                </div>
+                <span style="font-size: 11.5px; color: #e3c67f; white-space: nowrap;">Link</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top: 4px; font-size: 12.5px; color: #948da3;">4 entries were hidden as duplicates or launchers. <a href="#">Show them</a></div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isFirstRun }}">
+    <div style="padding: 60px 28px; min-height: 640px; display: flex; align-items: flex-start; justify-content: center;">
+      <div style="width: 620px; display: flex; flex-direction: column; gap: 22px;">
+        <div style="text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c9a860" stroke-width="1.1" style="width: 34px; height: 34px;"><path d="M12 2l4 4-4 4-4-4z"/><path d="M4 12l8 10 8-10-8-4z"/></svg>
+          <div style="font-size: 21px; letter-spacing: 0.05em; color: #c9a860;">No worlds on this machine yet</div>
+          <div style="font-size: 14px; color: #948da3; max-width: 46ch; text-wrap: pretty;">A world is one save folder the vault holds for your group. Link a game's save folder and Reliquary starts keeping its history.</div>
+        </div>
+
+        <div style="border: 1px solid #2f2740; background: #1a1524; border-radius: 8px; overflow: hidden;">
+          <div style="display: flex; align-items: center; gap: 14px; padding: 16px 20px;">
+            <span style="flex: none; width: 22px; height: 22px; border-radius: 999px; border: 1px solid #7fc46a; color: #7fc46a; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;">✓</span>
+            <div style="flex: 1;">
+              <div style="font-size: 14.5px; color: #e8e0cf;">Signed in as safwyl@pm.me</div>
+              <div style="font-size: 12.5px; color: #948da3;">4 people in this vault</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-top: 1px solid #2f2740;">
+            <span style="flex: none; width: 22px; height: 22px; border-radius: 999px; border: 1px solid #7fc46a; color: #7fc46a; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;">✓</span>
+            <div style="flex: 1;">
+              <div style="font-size: 14.5px; color: #e8e0cf;">Found 13 installed games</div>
+              <div style="font-size: 12.5px; color: #948da3;">Across 4 libraries. Save locations known for 7 of them.</div>
+            </div>
+            <button onClick="{{ goGames }}" style="font-family: inherit; font-size: 13px; padding: 6px 14px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Review</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-top: 1px solid #2f2740; background: #14101d;">
+            <span style="flex: none; width: 22px; height: 22px; border-radius: 999px; border: 1px solid #c9a860; color: #c9a860; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;">3</span>
+            <div style="flex: 1;">
+              <div style="font-size: 14.5px; color: #e8e0cf;">Link a game to make your first world</div>
+              <div style="font-size: 12.5px; color: #948da3;">Pick the game and Reliquary suggests the save folder. You confirm it.</div>
+            </div>
+            <button onClick="{{ goGames }}" style="display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 13.5px; font-weight: 700; letter-spacing: 0.04em; padding: 8px 18px; border-radius: 4px; cursor: pointer; border: 1px solid #c9a860; background: linear-gradient(to bottom, #2a2416, #1e1a10); color: #c9a860;" style-hover="color: #e3c67f; border-color: #e3c67f;">Choose a game</button>
+          </div>
+        </div>
+
+        <div style="text-align: center; font-size: 12.5px; color: #948da3;">Someone in your group already made worlds? <a href="#">Join one instead</a></div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isOffline }}">
+    <div style="padding: 22px 28px 26px; display: flex; flex-direction: column; gap: 18px; min-height: 640px;">
+      <div style="display: flex; align-items: flex-start; gap: 14px; padding: 15px 18px; border: 1px solid rgba(212,115,94,0.5); background: #1a1524; border-radius: 8px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#d4735e" stroke-width="1.8" stroke-linecap="round" style="width: 17px; height: 17px; margin-top: 2px; flex: none;"><path d="M2 8.8A16 16 0 0 1 22 8.8"/><path d="M6.5 12.8a10 10 0 0 1 11 0"/><circle cx="12" cy="19" r="1"/><path d="m2 2 20 20"/></svg>
+        <div style="flex: 1;">
+          <div style="font-size: 14.5px; color: #e8e0cf;">Working offline — the vault is unreachable</div>
+          <div style="margin-top: 3px; font-size: 12.5px; color: #948da3;">Keep playing the world you already hold. Everything you do is written locally and sent up when the vault answers again. Retrying in 30s.</div>
+        </div>
+        <button style="font-family: inherit; font-size: 13px; padding: 6px 14px; border-radius: 4px; cursor: pointer; background: none; border: 1px solid #2f2740; color: #948da3;" style-hover="border-color: rgba(201,168,96,0.6); color: #e8e0cf;">Retry now</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #c9a860;">Checked out to you — playable offline</div>
+        <div style="border: 1px solid rgba(201,168,96,0.45); background: #1a1524; border-radius: 8px; padding: 15px 18px; display: flex; align-items: center; gap: 16px;">
+          <div style="flex: none; width: 54px; height: 72px; border: 1px solid #2f2740; border-radius: 5px; background: linear-gradient(to bottom right, #221b2e, #14101d); display: flex; align-items: center; justify-content: center; text-align: center; padding: 5px; font-size: 9.5px; line-height: 1.15; color: #948da3;">Witchspire</div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+            <div style="display: flex; align-items: baseline; gap: 10px;">
+              <span style="font-size: 17px; font-weight: 700; color: #e8e0cf;">FGI</span>
+              <span style="font-size: 12px; color: #9d7fc4;">Witchspire</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #948da3;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid #c9a860; background: #23180c; color: #e3c67f; border-radius: 999px; padding: 2px 11px; font-size: 12px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width: 11px; height: 11px;"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Yours
+              </span>
+              <span>the hold stands while you are offline — 41h left</span>
+            </div>
+          </div>
+          <div style="text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #948da3;">v18 · 240 MB<br />2 saves not yet sent</div>
+          <button style="display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; padding: 7px 16px; border-radius: 4px; cursor: pointer; border: 1px solid #c9a860; background: linear-gradient(to bottom, #2a2416, #1e1a10); color: #c9a860; margin-left: 8px;" style-hover="color: #e3c67f; border-color: #e3c67f;">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width: 11px; height: 11px;"><path d="M5 3l16 9-16 9z"/></svg>
+            Play
+          </button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #948da3;">Queued to send · 3</div>
+        <div style="border: 1px solid #2f2740; background: #1a1524; border-radius: 8px; overflow: hidden; font-size: 13px;">
+          <sc-for list="{{ queue }}" as="q" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 14px; padding: 11px 18px; border-top: 1px solid #2f2740;">
+              <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #948da3; width: 54px;">{{ q.time }}</span>
+              <span style="color: #e8e0cf;">{{ q.what }}</span>
+              <span style="margin-left: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #948da3;">{{ q.size }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border: 1px dashed #2f2740; background: #14101d; border-radius: 8px; padding: 14px 18px; font-size: 12.5px; color: #948da3;">The other 5 worlds are hidden while offline — custody can't be confirmed, so checking one out could collide with someone else. <a href="#">Show them read-only</a></div>
+    </div>
+    </sc-if>
+
+    <div style="display: flex; align-items: center; gap: 16px; padding: 0 28px; height: 34px; border-top: 1px solid #2f2740; background: #14101d; font-size: 12px; color: #948da3;">
+      <span>{{ footLeft }}</span>
+      <a href="#" style="margin-left: auto; font-size: 12px;">Diagnostics</a>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1492,&quot;height&quot;:1010}}">
+class Component extends DCLogic {
+  state = { view: "worlds" };
+  set(view) { this.setState({ view }); }
+  renderVals() {
+    const v = this.state.view;
+    const on = "color: #e3c67f; border-bottom: 2px solid #c9a860; padding-bottom: 10px;";
+    return {
+      isWorlds: v === "worlds",
+      isGames: v === "games",
+      isFirstRun: v === "firstrun",
+      isOffline: v === "offline",
+      tabWorlds: v === "worlds" || v === "offline" ? on : "",
+      tabGames: v === "games" ? on : "",
+      goWorlds: () => this.set("worlds"),
+      goGames: () => this.set("games"),
+      goFirstRun: () => this.set("firstrun"),
+      goOffline: () => this.set("offline"),
+      footLeft: v === "offline"
+        ? "offline since 19:41 · 3 changes waiting"
+        : v === "firstrun"
+          ? "13 games found · nothing linked yet"
+          : "6 worlds · 13 games installed, 1 linked",
+      mine: [
+        { name: "FGI", game: "Witchspire", head: "v18 · 240 MB · saved 4 min ago", line: "yours since 19:04 — 47h left on the hold" }
+      ],
+      free: [
+        { name: "Ashwood Hollow", game: "RuneScape: Dragonwilds", head: "v41 · 1.8 GB · 18:02", line: "last played by rook" },
+        { name: "Cinderfall", game: "Enshrouded", head: "v12 · 640 MB · yesterday", line: "last played by mira" },
+        { name: "Tidewatch", game: "Len's Island", head: "v6 · 310 MB · Sunday", line: "last played by you" }
+      ],
+      held: [
+        { name: "Verdant Reach", game: "Palworld", head: "v7 · 210 MB · 2h ago", line: "held by rook", urgent: true, countdown: "2h 12m left" },
+        { name: "Stormhold", game: "Sea of Stars", head: "v23 · 90 MB · Tuesday", line: "held by mira since Tuesday", urgent: false, countdown: "" }
+      ],
+      games: [
+        { name: "Enshrouded", note: "save folder known" },
+        { name: "Farever", note: "save folder known" },
+        { name: "Len's Island", note: "save folder known" },
+        { name: "RuneScape: Dragonwilds", note: "save folder known" },
+        { name: "Sea of Stars", note: "save folder known" },
+        { name: "Cloudheim", note: "save folder known" },
+        { name: "Crimson Desert", note: "save folder known" },
+        { name: "DragonSword: Awakening", note: "pick the folder yourself" },
+        { name: "Palworld", note: "pick the folder yourself" },
+        { name: "Voyagers of Nera", note: "pick the folder yourself" },
+        { name: "Nightingale", note: "pick the folder yourself" },
+        { name: "Valheim", note: "pick the folder yourself" }
+      ],
+      queue: [
+        { time: "20:14", what: "Save written to FGI", size: "18 MB" },
+        { time: "19:58", what: "Save written to FGI", size: "12 MB" },
+        { time: "19:44", what: "Checked out FGI", size: "—" }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

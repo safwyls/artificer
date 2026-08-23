@@ -14,9 +14,9 @@
 //
 // The engine — discovery, custody sync, the local server, in-place
 // updates — lives in the importable companion package; this entrypoint
-// is the browser-and-tray shell around it. The native desktop shell
-// (companion-desktop, shipping as reliquary-companion) wraps the same
-// package in its own window.
+// is the browser-and-tray shell around it. cmd/companiond is the
+// headless daemon build of the same package, for the Electron shell
+// (companion-cutover.md).
 //
 // On Windows it lives in the system tray (build with
 // -ldflags="-H windowsgui" so no console window opens): the tray menu

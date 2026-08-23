@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
+import { LIVE_POLL_MS } from "./events";
 import { gameKey, type Artwork, type CompanionState, type DiscoveredGame } from "./types";
 
 /** How often the open page re-reads local state. The companion's own
@@ -8,11 +9,17 @@ import { gameKey, type Artwork, type CompanionState, type DiscoveredGame } from 
  * service in the background, so this is also what keeps custody live. */
 export const POLL_MS = 5_000;
 
-export function useCompanionState() {
+/**
+ * @param live — the SSE stream is carrying changes, so the poll drops to
+ * a heartbeat. It does not stop: a stream can be dropped by anything in
+ * between without either end noticing, and custody is the wrong thing to
+ * be quietly wrong about.
+ */
+export function useCompanionState(live = false) {
   return useQuery<CompanionState>({
     queryKey: ["state"],
     queryFn: api.state,
-    refetchInterval: POLL_MS,
+    refetchInterval: live ? LIVE_POLL_MS : POLL_MS,
     // The page is a local process's own view; refetching on focus on top
     // of a 5 s poll buys nothing.
     refetchOnWindowFocus: false,

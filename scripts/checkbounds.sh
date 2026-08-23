@@ -73,6 +73,24 @@ for d in games/*/*agent/; do
   fi
 done
 
+# Rule: the companion engine and its shells are game-blind Go, too. The
+# companion is a player-side custody client: it scans a filesystem and
+# reports what it found, so it may lean on core (savesync's engine and
+# the shared DTOs) but must never import a game module or anvil — a
+# console's game registry and a host provisioner are both above it.
+# cmd/companion is the browser-and-tray shell and cmd/companiond the
+# Electron shell's daemon; both are thin wiring over the same package
+# and inherit the same rule.
+for d in companion cmd/companion cmd/companiond; do
+  [ -d "$d" ] || continue
+  hits=$(grep -rn --include='*.go' -E '"github.com/safwyls/(artificer/(games|anvil)|palcon|wildskeeper|flametender|anvil)' "$d" 2>/dev/null || true)
+  if [ -n "$hits" ]; then
+    echo "BOUNDARY: $d imports game/anvil code:"
+    echo "$hits"
+    fail=1
+  fi
+done
+
 # Rule: reliquary and the companion are game-blind, frontends included.
 # Both render whatever metadata reaches them about a world's game — the
 # service stores it without interpreting it, and the companion reports it

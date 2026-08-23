@@ -2,7 +2,9 @@ package companion
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -26,8 +28,43 @@ var ui = func() fs.FS {
 	return dist
 }()
 
-func (a *App) Routes() http.Handler {
+// ServerOptions are the per-shell parts of the local server. The
+// browser build passes none of them and gets exactly the surface it
+// always had; cmd/companiond fills them in.
+type ServerOptions struct {
+	// Token, when set, is required as `Authorization: Bearer <token>` on
+	// every request except GET /healthz. A loopback listener is reachable
+	// by every process on the machine — including a page in the player's
+	// browser — so the daemon an Electron shell spawns must not be
+	// answerable to anything that did not get the token from that shell.
+	//
+	// Empty means no auth, which is the browser build's shape: it serves
+	// the page itself, to a browser that cannot be handed a secret before
+	// the first request.
+	Token string
+	// Raise focuses whatever window the shell owns, for POST /api/raise.
+	// Nil where the shell has no window; the route then answers 501
+	// naming where the ability actually lives, per the repo rule that a
+	// missing ability answers with a reason rather than hiding.
+	Raise func() error
+}
+
+// Routes is the local server the browser build serves: no auth, no
+// window to raise.
+func (a *App) Routes() http.Handler { return a.RoutesWithOptions(ServerOptions{}) }
+
+// RoutesWithOptions is Routes with the shell-specific parts filled in.
+func (a *App) RoutesWithOptions(opt ServerOptions) http.Handler {
 	mux := http.NewServeMux()
+	// Liveness, deliberately outside the token check: a shell polls this
+	// to know when the daemon is up, and it must be able to do that
+	// before it hands the token to anything. It reports no state beyond
+	// "this process is answering" — see docs/companion-api-surface.md.
+	mux.HandleFunc("GET /healthz", a.handleHealthz)
+	// The push side of the state surface (SSE, matching core's custody
+	// stream in core/api/savesync_live.go) and the shell handshake.
+	mux.HandleFunc("GET /api/events", a.handleEvents)
+	mux.HandleFunc("POST /api/raise", a.handleRaise(opt.Raise))
 	// The page and its assets. Everything that is not /api is the
 	// frontend; there is no router in it, so index.html is the only
 	// document — but the hashed JS/CSS beside it must be served too.
@@ -62,7 +99,128 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /api/links/{worldID}/checkpoint", a.linkAction((*App).Checkpoint))
 	mux.HandleFunc("POST /api/links/{worldID}/renew", a.linkAction((*App).Renew))
 	mux.HandleFunc("POST /api/links/{worldID}/claim", a.linkAction((*App).Claim))
-	return mux
+	if opt.Token == "" {
+		return mux
+	}
+	return requireToken(opt.Token, mux)
+}
+
+// requireToken rejects anything without the bearer token — except
+// GET /healthz, which is how a shell learns the daemon is up.
+//
+// The comparison is constant-time: this is a local secret an unrelated
+// process on the same machine could otherwise guess a byte at a time.
+func requireToken(token string, next http.Handler) http.Handler {
+	want := []byte("Bearer " + token)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		got := []byte(r.Header.Get("Authorization"))
+		if subtle.ConstantTimeCompare(got, want) != 1 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]any{
+				"ok":    false,
+				"error": "missing or wrong bearer token",
+			})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// handleHealthz says only that this process is answering. No custody,
+// no config, no version-shaped secrets: it is the one route a shell may
+// call before it has proven anything.
+func (a *App) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]any{"ok": true, "version": Version})
+}
+
+// handleRaise is the single-instance handshake: whatever is already
+// running owns the window, and a second launch asks it to come forward
+// rather than starting a rival process. The daemon outlives its shell,
+// so the route belongs here even though the raising itself does not.
+func (a *App) handleRaise(raise func() error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if raise == nil {
+			// A reason, not silence: this build has no window, and the
+			// caller is told which one does.
+			w.WriteHeader(http.StatusNotImplemented)
+			writeJSON(w, map[string]any{
+				"ok": false,
+				"error": "this companion build has no window to raise — " +
+					"the desktop shell (Electron main) owns that; the browser " +
+					"build's page is at the address this server prints",
+			})
+			return
+		}
+		if err := raise(); err != nil {
+			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "raised": true})
+	}
+}
+
+// eventKeepalive paces the comment frames that keep an idle stream from
+// being reaped. Same figure and same reason as core's custody stream
+// (core/api/savesync_live.go).
+const eventKeepalive = 25 * time.Second
+
+// handleEvents streams engine change nudges as server-sent events —
+// the HTTP face of the in-process Subscribe() a same-process shell uses
+// (facade.go). SSE rather than a WebSocket because that is what core
+// already does for custody events and because this is one direction
+// with no payload: the client re-reads GET /api/state, which keeps a
+// dropped or coalesced event harmless.
+//
+// A connected stream also counts as someone looking, the way the page's
+// poll does — otherwise a renderer that stopped polling because it has
+// a live stream would quietly get minute-old custody.
+func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		writeJSON(w, map[string]any{"ok": false, "error": "this server cannot stream events"})
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+
+	nudges, unsubscribe := a.Subscribe()
+	defer unsubscribe()
+
+	a.MarkSeen()
+	// An opening frame proves the stream is live before anything
+	// happens, so the renderer can show "live" instead of waiting for
+	// the first change to find out.
+	fmt.Fprint(w, "event: ready\ndata: {}\n\n")
+	flusher.Flush()
+
+	keepalive := time.NewTicker(eventKeepalive)
+	defer keepalive.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-keepalive.C:
+			// Still watching, so keep the custody poll at the page's pace.
+			a.MarkSeen()
+			fmt.Fprint(w, ": keepalive\n\n")
+			flusher.Flush()
+		case _, ok := <-nudges:
+			if !ok {
+				return
+			}
+			fmt.Fprint(w, "event: changed\ndata: {}\n\n")
+			flusher.Flush()
+		}
+	}
 }
 
 func (a *App) handleState(w http.ResponseWriter, r *http.Request) {

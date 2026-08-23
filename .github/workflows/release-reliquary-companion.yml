@@ -1,16 +1,13 @@
-name: Release (reliquary-companion)
+name: Release (Reliquary Companion)
 
-# Publishes the native desktop build of the companion — its own rolling
-# release, separate from `companion-latest`, so the two builds' in-place
-# updaters can never swap one in for the other (each build pins its own
-# tag and asset names in its entrypoint). Windows only: that is what
-# players run. Fyne needs CGO, so this cross-builds with mingw-w64 from
-# the Linux runner. This is the parallel build; once it replaces
-# cmd/companion the browser build's release retires with it.
-#
-# The tag, the asset name and the two manifest files are unchanged from
-# when this shell was a Wails window: installed dev builds pin them, and
-# a rename here would strand every one of them.
+# Publishes the in-development Electron shell (companion-desktop/) as a
+# rolling prerelease, separate from the shipping browser-and-tray
+# companion's `companion-latest` release (release-companion.yml). Per
+# docs/reliquary-companion.md this app is gated on a real-machine parity
+# smoke before it cuts over — this workflow exists so CI, not a dev
+# machine, produces the per-platform companiond binary electron-builder
+# packages (companion-cutover.md Phase 5 item 3), not to announce the
+# cutover itself.
 on:
   push:
     branches: [main]
@@ -21,10 +18,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            daemon_name: companiond
+            builder_flag: --linux AppImage
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            daemon_name: companiond.exe
+            builder_flag: --win nsis
+          # electron-builder.yml targets both Mac architectures, and the
+          # daemon that travels in extraResources is a native binary, not
+          # a universal one — so each dmg has to be packaged on a runner
+          # whose companiond matches its arch. Building both from one
+          # runner would put an arm64 daemon inside the Intel dmg, where
+          # it cannot exec at all. macos-13 is the Intel runner.
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            daemon_name: companiond
+            builder_flag: --mac dmg --arm64
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+            daemon_name: companiond
+            builder_flag: --mac dmg --x64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -32,9 +57,8 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: web/companion/package-lock.json
-      # The page is embedded in the exe (web/companion — the same
-      # frontend the browser build ships), so it has to exist before the
-      # Go build runs.
+      # The shell loads the daemon's embedded page (same contract as
+      # cmd/companion), so the renderer has to be built before companiond.
       - name: Companion frontend build
         working-directory: web/companion
         run: |
@@ -43,46 +67,81 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26"
-          cache-dependency-path: companion-desktop/go.sum
-      - name: mingw-w64 (Fyne's Windows target needs a CGO cross-compiler)
-        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
-      - name: Build reliquary-companion (Windows)
+          cache-dependency-path: go.sum
+      # Cross-compiled per target OS/arch here rather than on a dev
+      # machine, straight into the staging dir electron-builder.yml's
+      # extraResources picks up (companion-cutover.md Phase 5 item 3).
+      - name: Build companiond for this platform
+        shell: bash
+        run: |
+          mkdir -p companion-desktop/resources
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
+            go build -o companion-desktop/resources/${{ matrix.daemon_name }} ./cmd/companiond
+      - name: Electron shell dependencies
         working-directory: companion-desktop
+        run: npm ci
+      - name: Package with electron-builder
+        working-directory: companion-desktop
+        # There are no signing certificates in this repo, so tell
+        # electron-builder not to go looking for one: on the Mac runners
+        # its identity hunt is what turns "unsigned build" into a failed
+        # job. These are unsigned prereleases and the release notes say so.
         env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: "1"
-          CC: x86_64-w64-mingw32-gcc
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder ${{ matrix.builder_flag }} --publish never
+      - name: Collect artifacts
+        shell: bash
+        working-directory: companion-desktop/release
         run: |
-          # -s -w halves the exe (55 MB to 26 MB): Fyne and the embedded
-          # frontend make this a much bigger binary than the browser
-          # build, and every push to main is a rolling download players'
-          # updaters fetch. Panics still carry their stack; only the
-          # DWARF tables and the symbol table go.
-          go build \
-            -ldflags="-H windowsgui -s -w -X main.version=${GITHUB_SHA::12}" \
-            -o reliquary-companion.exe .
-      # Same identity-not-ordering contract as the browser build's
-      # release: the version file says which build this is, and the
-      # checksum is what the updater verifies a download against.
+          mkdir -p ../../dist-out
+          find . -maxdepth 1 -type f \( -iname '*.AppImage' -o -iname '*.exe' -o -iname '*.dmg' \) \
+            -exec cp {} ../../dist-out/ \;
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reliquary-companion-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist-out/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten artifacts
+        run: |
+          mkdir -p out
+          find artifacts -type f -exec cp {} out/ \;
+          ls -la out
+      # Same rationale as release-companion.yml's manifests: a fact the
+      # updater can read (identity + integrity), not prose to parse. This
+      # shell has no updater yet, but the manifest keeps the two release
+      # tracks symmetric ahead of one landing.
       - name: Version and checksum manifests
-        working-directory: companion-desktop
         run: |
-          printf '%s' "${GITHUB_SHA::12}" > companion-version.txt
-          sha256sum reliquary-companion.exe > companion-sha256.txt
-          cat companion-version.txt companion-sha256.txt
-      - name: Rolling reliquary-companion-latest release (main)
-        if: github.ref == 'refs/heads/main'
+          printf '%s' "${GITHUB_SHA::12}" > out/reliquary-companion-version.txt
+          ( cd out && sha256sum * > reliquary-companion-sha256.txt )
+          cat out/reliquary-companion-version.txt out/reliquary-companion-sha256.txt
+      - name: Rolling reliquary-companion-latest release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: reliquary-companion-latest
-          name: Reliquary Companion (latest)
+          name: Reliquary Companion (latest, in development)
           body: |
-            The Reliquary Companion — the save-sync client as a native desktop application.
-            Rebuilt from every push to main; the commit this build came from is ${{ github.sha }}.
-            This is the in-development desktop shell; the browser-based build lives on the `companion-latest` release until the cutover.
+            **This is the in-development Electron shell, not the shipping companion.**
+            The Artificer Companion (`companion-latest`) remains the supported
+            player-side client until this shell passes the real-machine parity
+            checklist in `docs/reliquary-companion.md` and cuts over. Nothing
+            here is gated behind that checklist being complete — treat these
+            builds as pre-release and untested on real hardware beyond the
+            Linux CI runner.
+
+            Rebuilt from every push to main; the commit this build came from
+            is ${{ github.sha }}.
           prerelease: true
           files: |
-            companion-desktop/reliquary-companion.exe
-            companion-desktop/companion-version.txt
-            companion-desktop/companion-sha256.txt
+            out/*

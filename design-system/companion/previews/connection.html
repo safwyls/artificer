@@ -1,10 +1,10 @@
-<!-- @dsCard group="Status" name="Connection" subtitle="Reachable, as whom, how fresh" width="940" height="620" -->
+<!-- @dsCard group="Status" name="Window chrome" subtitle="Reachable, as whom, how fresh — said exactly once" width="980" height="700" -->
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Artificer Companion · Connection</title>
+    <title>Artificer Companion · Window chrome</title>
     <style>
       :root {
         --ink: 16 13 23; /* #100d17 — the page ground */
@@ -242,53 +242,125 @@
       .vk-section-hint { font-size: 12px; font-style: italic; color: rgb(var(--mist)); }
       .vk-section-acts { margin-left: auto; display: flex; gap: 8px; }
       
-      .vk-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; }
+      .vk-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
       .vk-tile {
         display: flex; flex-direction: column; overflow: hidden; border-radius: 6px;
-        border: 1px solid; background: rgb(var(--ink)); text-align: left; cursor: pointer;
-        padding: 0; font-family: inherit; color: inherit;
-        transition: filter 0.15s, border-color 0.15s, transform 0.15s;
+        border: 1px solid; text-align: left; cursor: pointer; padding: 0;
+        font-family: inherit; color: inherit;
+        transition: opacity 0.15s, border-color 0.15s;
       }
-      .vk-tile:hover { transform: translateY(-2px); border-color: rgb(var(--gold)); }
-      .vk-tile--linked { border-color: rgb(var(--gold)); box-shadow: inset 0 0 0 1px rgb(var(--gold) / 0.25); }
-      .vk-tile--unlinked { border-color: rgb(var(--edge)); filter: grayscale(1) brightness(0.72); }
-      .vk-tile--unlinked:hover { filter: grayscale(0.25) brightness(1); }
-      .vk-tile--active { border-color: rgb(var(--goldhi)); }
+      .vk-tile--linked { border-color: rgb(var(--gold) / 0.5); background: rgb(var(--panel)); }
+      .vk-tile--unlinked { border-color: rgb(var(--edge)); background: rgb(var(--well)); opacity: 0.72; }
+      .vk-tile--unlinked:hover { opacity: 1; border-color: rgb(var(--gold) / 0.5); }
+      .vk-tile--active { border-color: rgb(var(--goldhi)); opacity: 1; }
       .vk-tile-art {
-        width: 100%; aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center;
-        background: var(--fill-cover); padding: 6px; text-align: center; font-size: 11px;
+        width: 100%; height: 132px; display: flex; align-items: center; justify-content: center;
+        background: var(--fill-cover); padding: 10px; text-align: center; font-size: 12px;
         line-height: 1.2; color: rgb(var(--mist));
       }
-      .vk-tile-cap { padding: 6px 7px 8px; font-size: 12px; line-height: 1.2; }
-      .vk-tile-cap b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .vk-tile-state { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
-      .vk-tile-state--linked { color: rgb(var(--gold)); }
-      .vk-tile-state--unlinked { color: rgb(var(--mist)); }
-      .vk-tile--add {
-        align-items: center; justify-content: center; gap: 6px; border-style: dashed;
-        border-color: rgb(var(--edge)); padding: 10px; text-align: center;
-        font-size: 12px; color: rgb(var(--mist)); background: none;
-      }
-      .vk-tile--add:hover { border-color: rgb(var(--gold)); color: rgb(var(--parchment)); transform: none; }
+      .vk-tile-cap { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px; }
+      .vk-tile-capmain { min-width: 0; flex: 1; }
+      /* Two lines, no ellipsis: a truncated title is not a title. */
+      .vk-tile-name { font-size: 13px; line-height: 1.25; color: rgb(var(--parchment)); }
+      .vk-tile-note { margin-top: 3px; font-size: 11.5px; line-height: 1.2; color: rgb(var(--mist)); }
+      .vk-tile-note--linked { color: rgb(var(--goldhi)); }
+      .vk-tile-link { white-space: nowrap; font-size: 11.5px; color: rgb(var(--goldhi)); }
       
-      .vk-worldrow {
-        display: flex; align-items: flex-start; gap: 14px; border: 1px solid rgb(var(--edge));
-        background: rgb(var(--panel)); border-radius: 8px; padding: 14px 16px;
+      /* ---- the window's tab bar -------------------------------------------- */
+      .vk-tabs { display: flex; gap: 4px; border-bottom: 1px solid rgb(var(--edge)); padding: 16px 28px 0; }
+      .vk-tab {
+        display: flex; align-items: center; gap: 8px; margin-bottom: -1px;
+        border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
+        padding: 8px 14px 10px; font-family: inherit; font-size: 14.5px; color: rgb(var(--mist));
+        transition: color 0.12s ease, border-color 0.12s ease;
       }
+      .vk-tab:hover { color: rgb(var(--parchment)); }
+      .vk-tab--on { border-bottom-color: rgb(var(--gold)); color: rgb(var(--goldhi)); }
+      .vk-tab-badge {
+        border: 1px solid rgb(var(--ember) / 0.5); border-radius: 3px; padding: 1px 6px;
+        font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: rgb(var(--ember));
+      }
+      
+      /* ---- a custody group ------------------------------------------------- */
+      .vk-group { display: flex; flex-direction: column; gap: 8px; }
+      .vk-group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+      .vk-group-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--mist)); }
+      .vk-group-label--gold { color: rgb(var(--gold)); }
+      .vk-group-sub { font-size: 12.5px; color: rgb(var(--mist)); }
+      .vk-group-body { overflow: hidden; border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+      .vk-group-body--gold { border-color: rgb(var(--gold) / 0.45); }
+      .vk-group-body > * + * { border-top: 1px solid rgb(var(--edge)); }
+      
+      /* Someone else's hold is grey. Gold means *you* have it, and that one
+         difference is what makes your world findable without reading a label. */
+      .vk-chip--other { border-color: rgb(var(--mist)); background: rgb(var(--well)); color: rgb(var(--mist)); }
+      
+      /* Shown only when a hold is under ~3h — pressure, not a fact. */
+      .vk-count {
+        display: inline-flex; align-items: center; gap: 5px;
+        border: 1px solid rgb(var(--ember) / 0.45); border-radius: 3px; padding: 1px 7px;
+        font-family: var(--mono); font-size: 11px; color: rgb(var(--ember));
+      }
+      
+      /* ---- the games toolbar ----------------------------------------------- */
+      .vk-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      .vk-search { position: relative; flex: 1; max-width: 340px; }
+      .vk-search .vk-i { position: absolute; left: 11px; top: 11px; color: rgb(var(--mist)); }
+      .vk-search input {
+        width: 100%; border: 1px solid rgb(var(--edge)); border-radius: 4px; background: rgb(var(--ink));
+        padding: 8px 10px 8px 32px; font-family: inherit; font-size: 13.5px; color: rgb(var(--parchment));
+      }
+      .vk-seg { display: flex; gap: 2px; border: 1px solid rgb(var(--edge)); border-radius: 4px; padding: 2px; }
+      .vk-seg-item {
+        border: 0; background: none; cursor: pointer; border-radius: 3px; padding: 4px 12px;
+        font-family: inherit; font-size: 12.5px; color: rgb(var(--mist));
+      }
+      .vk-seg-item--on { background: rgb(var(--panel)); color: rgb(var(--goldhi)); }
+      .vk-toolbar-acts { margin-left: auto; display: flex; gap: 8px; }
+      
+      /* ---- offline --------------------------------------------------------- */
+      .vk-offline {
+        display: flex; align-items: flex-start; gap: 14px;
+        border: 1px solid rgb(var(--ember) / 0.5); background: rgb(var(--panel));
+        border-radius: 8px; padding: 15px 18px;
+      }
+      .vk-offline .vk-i--lg { color: rgb(var(--ember)); stroke-width: 1.8; width: 17px; height: 17px; }
+      .vk-offline-body { flex: 1; }
+      .vk-offline-lead { font-size: 14.5px; color: rgb(var(--parchment)); }
+      .vk-offline-sub { margin-top: 3px; font-size: 12.5px; color: rgb(var(--mist)); }
+      
+      /* ---- a first-run step ------------------------------------------------ */
+      .vk-step { display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
+      .vk-step + .vk-step { border-top: 1px solid rgb(var(--edge)); }
+      .vk-step--now { background: rgb(var(--well)); }
+      .vk-step-mark {
+        flex: none; width: 22px; height: 22px; border-radius: 999px; border: 1px solid;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--mono); font-size: 11px;
+      }
+      .vk-step-mark--done { border-color: rgb(var(--ok)); color: rgb(var(--ok)); }
+      .vk-step-mark--now { border-color: rgb(var(--gold)); color: rgb(var(--gold)); }
+      .vk-step-body { flex: 1; }
+      .vk-step-title { font-size: 14.5px; color: rgb(var(--parchment)); }
+      .vk-step-sub { font-size: 12.5px; color: rgb(var(--mist)); }
+      
+      .vk-worldrow { display: flex; align-items: center; gap: 16px; padding: 15px 18px; }
+      .vk-worldrow:hover { background: rgb(var(--well)); }
       .vk-worldrow-art {
-        width: 56px; aspect-ratio: 3 / 4; flex: none; display: flex; align-items: center;
-        justify-content: center; border: 1px solid rgb(var(--edge)); border-radius: 4px;
-        background: var(--fill-cover); padding: 4px; text-align: center; font-size: 9px;
+        width: 54px; height: 72px; flex: none; display: flex; align-items: center;
+        justify-content: center; border: 1px solid rgb(var(--edge)); border-radius: 5px;
+        background: var(--fill-cover); padding: 5px; text-align: center; font-size: 9.5px;
         line-height: 1.15; color: rgb(var(--mist));
       }
-      .vk-worldrow-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 6px; }
-      .vk-worldrow-titlerow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
-      .vk-worldrow-name { font-size: 16px; font-weight: 700; }
+      .vk-worldrow-art--dim { opacity: 0.75; }
+      .vk-worldrow-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 5px; }
+      .vk-worldrow-titlerow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+      .vk-worldrow-name { font-size: 17px; font-weight: 700; color: rgb(var(--parchment)); }
       .vk-worldrow-game { font-size: 12px; color: rgb(var(--rune)); }
-      .vk-worldrow-titlerow .vk-chip { margin-left: auto; }
-      .vk-worldrow-line { font-size: 13px; color: rgb(var(--mist)); }
+      .vk-worldrow-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12.5px; color: rgb(var(--mist)); }
+      .vk-worldrow-meta { text-align: right; font-family: var(--mono); font-size: 11px; line-height: 1.5; color: rgb(var(--mist)); }
+      .vk-worldrow-acts { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
       .vk-dir { word-break: break-all; font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
-      .vk-worldrow-acts { display: flex; flex-wrap: wrap; gap: 8px; }
       
       .vk-trail { font-family: var(--mono); font-size: 12px; color: rgb(var(--mist)); }
       .vk-trail summary { cursor: pointer; }
@@ -317,64 +389,84 @@
   <body class="ds-page">
     <header class="ds-head">
       <p class="ds-eyebrow">Artificer Companion · Status</p>
-      <h1 class="ds-title">Connection</h1>
-      <p class="ds-sub">Reachable, as whom, how fresh</p>
-      <p class="ds-intent">Said once at the top rather than in a panel at the bottom: whether the vault
-            is reachable, as whom, how old what you are looking at is, and the two things you
-            might do about it. Freshness runs on a clock of its own, because the poll it
-            describes may answer with an unchanged timestamp — an age that stops moving reads
-            as a frozen app.</p>
+      <h1 class="ds-title">Window chrome</h1>
+      <p class="ds-sub">Reachable, as whom, how fresh — said exactly once</p>
+      <p class="ds-intent">Sync state used to be reported three times: the header dot, a "you're up to
+            date" line at the bottom of the page, and the scan trail's own summary. Three
+            readings of one fact drift, and nothing tells a player which is current. It is
+            said <b>once</b> now — a dot and a relative time — and the scan trail, the tried
+            paths and both build versions moved to Settings › Diagnostics, which the status
+            bar links to. Freshness runs on a clock of its own, because the poll it describes
+            may answer with an unchanged timestamp, and an age that stops moving reads as a
+            frozen app.</p>
     </header>
     <main class="ds-body">
       <section class="ds-specimen">
-<p class="ds-caption">Connected</p>
+<p class="ds-caption">Header and tabs</p>
         <div class="ds-stage ds-stage--block">
           <header class="vk-header">
-            <svg class="vk-i vk-i--xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9"/><path d="M20 16H4l-1.28 2.55a1 1 0 0 0 .9 1.45h16.76a1 1 0 0 0 .9-1.45z"/></svg>
-            <div><div class="vk-header-name">Artificer Companion</div><div class="vk-header-tag">shared world saves, synced from this machine</div></div>
+            <div><div class="vk-header-name" style="font-size:22px">Artificer Companion</div><div class="vk-header-tag" style="font-size:12.5px">this machine, syncing as hazel</div></div>
             <div class="vk-header-right">
-              <span class="vk-conn"><span class="vk-dot vk-dot--live"></span>Connected as <b>hazel</b></span>
-              <span class="vk-mono" style="font-size:12px;color:rgb(var(--mist))">checked 12s ago</span>
+              <span class="vk-conn vk-mono" style="font-size:11px;color:rgb(var(--mist))"><span class="vk-dot vk-dot--live"></span>synced 2 min ago</span>
               <button class="vk-btn vk-btn--quiet"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Sync now</button>
               <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
             </div>
           </header>
+          <div class="vk-tabs">
+            <button class="vk-tab vk-tab--on">Worlds</button>
+            <button class="vk-tab">Games</button>
+            <button class="vk-tab">Activity</button>
+            <button class="vk-tab">Conflicts<span class="vk-tab-badge">1</span></button>
+            <button class="vk-tab">Settings</button>
+          </div>
         </div>
       </section>
       <section class="ds-specimen">
-<p class="ds-caption">Not connected, and connected but erroring</p>
+<p class="ds-caption">Not connected, and the vault unreachable</p>
         <div class="ds-stage ds-stage--block">
           <header class="vk-header" style="margin-bottom:14px">
-            <svg class="vk-i vk-i--xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9"/><path d="M20 16H4l-1.28 2.55a1 1 0 0 0 .9 1.45h16.76a1 1 0 0 0 .9-1.45z"/></svg>
-            <div><div class="vk-header-name">Artificer Companion</div><div class="vk-header-tag">shared world saves, synced from this machine</div></div>
+            <div><div class="vk-header-name" style="font-size:22px">Artificer Companion</div><div class="vk-header-tag" style="font-size:12.5px">this machine — not connected to a vault yet</div></div>
             <div class="vk-header-right">
-              <span class="vk-conn"><span class="vk-dot vk-dot--down"></span><span style="color:rgb(var(--mist))">Not connected</span></span>
               <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
             </div>
           </header>
           <header class="vk-header">
-            <svg class="vk-i vk-i--xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9"/><path d="M20 16H4l-1.28 2.55a1 1 0 0 0 .9 1.45h16.76a1 1 0 0 0 .9-1.45z"/></svg>
-            <div><div class="vk-header-name">Artificer Companion</div><div class="vk-header-tag">shared world saves, synced from this machine</div></div>
+            <div><div class="vk-header-name" style="font-size:22px">Artificer Companion</div><div class="vk-header-tag" style="font-size:12.5px">this machine, syncing as hazel</div></div>
             <div class="vk-header-right">
-              <span class="vk-conn"><span class="vk-dot" style="background:rgb(var(--ember))"></span>Connected as <b>hazel</b></span>
-              <span class="vk-mono" style="font-size:12px;color:rgb(var(--mist))">transfer in progress…</span>
+              <span class="vk-conn vk-mono" style="font-size:11px;color:rgb(var(--mist))"><span class="vk-dot" style="background:rgb(var(--ember))"></span>the vault is unreachable</span>
               <button class="vk-btn vk-btn--quiet"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Sync now</button>
+              <button class="vk-btn vk-btn--quiet vk-btn--icon" aria-label="Settings"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
             </div>
-            <div class="vk-header-err">dial tcp: lookup vault.example.com: no such host</div>
           </header>
         </div>
       </section>
       <section class="ds-specimen">
-<p class="ds-caption">The footer: both builds, and the last thing that happened</p>
+<p class="ds-caption">The status bar: what this machine holds, and the way into diagnostics</p>
         <div class="ds-stage ds-stage--block">
-          <footer class="vk-footer"><span>companion v0.9.4 · service v1.9.2</span><span class="vk-footer-last">last action: checked in Ashwood Hollow</span></footer>
+          <footer class="vk-footer" style="font-family:inherit;font-size:12px"><span>6 worlds · 13 games installed, 1 linked</span><a class="vk-footer-last" href="#" style="color:rgb(var(--goldhi))">Diagnostics</a></footer>
+        </div>
+      </section>
+      <section class="ds-specimen">
+<p class="ds-caption">Offline is a variant of Worlds, not a tab — the Worlds tab stays active</p>
+        <div class="ds-stage ds-stage--block">
+          <div class="vk-offline">
+            <svg class="vk-i vk-i--lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a16 16 0 0 1 20 0"/><path d="M6.5 12.8a10 10 0 0 1 11 0"/><circle cx="12" cy="19" r="1"/><path d="m2 2 20 20"/></svg>
+            <div class="vk-offline-body">
+              <div class="vk-offline-lead">Working offline — the vault is unreachable</div>
+              <div class="vk-offline-sub">Keep playing the world you already hold. The hold stands until the vault answers again.</div>
+              <div class="vk-mono" style="margin-top:6px;font-size:11px;color:rgb(var(--ember))">dial tcp: lookup vault.example.com: no such host</div>
+            </div>
+            <button class="vk-btn vk-btn--quiet">Retry now</button>
+          </div>
         </div>
       </section>
       <section class="ds-meta">
         <h2 class="ds-meta-h">Rules</h2>
         <ul class="ds-rules">
+            <li><b>One place.</b> The dot and the relative time are the whole sync report; everything else that used to say it is gone or has moved to Diagnostics.</li>
             <li>Three dot states, not two: ok when connected, ember when the last sync errored, mist when no vault is configured at all.</li>
             <li>The error text is the transport's own words. “Could not connect” sends a player to the wrong place; a DNS failure names itself.</li>
+            <li>The Conflicts badge is drawn only when the count is non-zero. A “0” beside Conflicts is a number nobody needs.</li>
             <li>“Sync now” exists for being certain rather than patient — the page keeps itself current while open, and this is how a player hears out loud that the service cannot be reached.</li>
         </ul>
       </section>
@@ -382,7 +474,8 @@
         <h2 class="ds-meta-h">Implemented by</h2>
         <ul class="ds-paths">
             <li><code>web/companion/src/components/HeaderBar.tsx</code></li>
-            <li><code>web/companion/src/lib/format.ts</code></li>
+            <li><code>web/companion/src/components/TabBar.tsx</code></li>
+            <li><code>web/companion/src/components/Offline.tsx</code></li>
         </ul>
       </section>
     </main>

@@ -5,11 +5,12 @@
 // (reliquary), and moves the saves.
 //
 // Two entrypoints share it: cmd/companion, the original tray-and-browser
-// build, and companion-desktop, the native desktop shell
-// (reliquary-companion). Both wire the same App, HTTP routes and loops;
-// only the window and the process shell differ. The desktop shell also
-// uses the in-process facade in facade.go rather than polling the
-// routes.
+// build, and cmd/companiond, the headless daemon an Electron shell
+// spawns (companion-cutover.md). Both wire the same App, HTTP routes and
+// loops; only the process shell differs. The in-process facade in
+// facade.go stays for a shell that lives in this process; the daemon's
+// shell is out of process and reads the same state over the routes and
+// the SSE stream.
 package companion
 
 import (
@@ -46,7 +47,17 @@ func (a *App) WatchLoop() {
 // SetupLogging mirrors logs into a file beside the config: a windowed
 // build has no console, and "why didn't it sync" must be answerable
 // after the fact.
-func SetupLogging(cfgPath string) {
+func SetupLogging(cfgPath string) { SetupLoggingTo(cfgPath, os.Stdout) }
+
+// SetupLoggingTo is SetupLogging with the console half chosen by the
+// caller. The daemon build passes os.Stderr: its stdout is a handshake
+// channel whose first line is the listen address and which carries
+// nothing else, so a log line on it would be read as protocol.
+func SetupLoggingTo(cfgPath string, console io.Writer) {
+	// The console half is set first and unconditionally: if the log file
+	// cannot be opened, the daemon must still not fall back to stdout,
+	// which is its handshake channel.
+	log.SetOutput(console)
 	logPath := filepath.Join(filepath.Dir(cfgPath), "companion.log")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err != nil {
 		return
@@ -55,7 +66,7 @@ func SetupLogging(cfgPath string) {
 	if err != nil {
 		return
 	}
-	log.SetOutput(io.MultiWriter(os.Stdout, f))
+	log.SetOutput(io.MultiWriter(console, f))
 }
 
 // AlreadyRunning checks whether the listen address is a live companion.

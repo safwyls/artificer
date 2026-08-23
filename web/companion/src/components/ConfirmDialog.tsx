@@ -10,25 +10,38 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
  */
 export function ConfirmDialog({
   trigger,
+  open: openProp,
+  onOpenChange,
   title,
   body,
   confirmLabel,
   danger,
   onConfirm,
 }: {
-  trigger: ReactNode;
+  /** Omitted when the caller drives `open` itself — a verb chosen from an
+   * overflow menu has no trigger left on screen by the time the dialog
+   * opens. */
+  trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   title: string;
   body: ReactNode;
   confirmLabel: string;
   danger?: boolean;
   onConfirm: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : ownOpen;
+  const setOpen = (next: boolean) => {
+    if (!controlled) setOwnOpen(next);
+    onOpenChange?.(next);
+  };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {/* The trigger is whatever the caller drew — a quiet button, a menu
           item — so the dialog never dictates how the verb looks. */}
-      <span onClick={() => setOpen(true)}>{trigger}</span>
+      {trigger ? <span onClick={() => setOpen(true)}>{trigger}</span> : null}
       <DialogContent>
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{body}</DialogDescription>
