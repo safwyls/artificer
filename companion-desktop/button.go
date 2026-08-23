@@ -279,6 +279,16 @@ func dangerButton(label string, tapped func()) *vaultButton {
 	return newVaultButton(label, toneDanger, tapped)
 }
 
+// iconPrimary is the primary carrying a glyph — the play triangle on
+// "Play" and "Check out & play". The icon is the fastest way to tell
+// the two checkout verbs apart at a glance, which is exactly what the
+// old four-button row could not do.
+func iconPrimary(label string, icon fyne.Resource, tapped func()) *vaultButton {
+	b := newVaultButton(label, tonePrimary, tapped)
+	b.icon = icon
+	return b
+}
+
 // iconButton is a quiet button carrying an icon, with or without a
 // label. The settings gear in the header is the label-less case.
 func iconButton(label string, icon fyne.Resource, tapped func()) *vaultButton {
