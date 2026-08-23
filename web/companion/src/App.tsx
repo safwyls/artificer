@@ -6,6 +6,7 @@ import { FirstRun } from "./components/FirstRun";
 import { FooterBar, HeaderBar } from "./components/HeaderBar";
 import { LinkGameDialog, byHandGame } from "./components/LinkGameDialog";
 import { LinkedGameDialog } from "./components/LinkedGameDialog";
+import { NoWorlds } from "./components/NoWorlds";
 import { PanelBoundary, SectionHeader } from "./components/Panel";
 import { SettingsTab } from "./components/SettingsTab";
 import { TabBar, type Tab } from "./components/TabBar";
@@ -59,6 +60,11 @@ export function App() {
   const worlds = state.sync?.worlds ?? [];
   const openLink = open ? linkFor(open, links) : undefined;
   const configured = Boolean(state.sync?.configured);
+  // Offline is derived from connectivity, never chosen: the companion's
+  // last attempt to reach the vault either worked or said why it did not.
+  // First run is derived the same way, from "no linked worlds" — so it
+  // comes back on its own if every link is removed.
+  const offline = configured && Boolean(state.sync?.lastError);
 
   const goTab = (t: Tab) => {
     setToDiagnostics(false);
@@ -123,7 +129,18 @@ export function App() {
               </div>
             ) : null}
             <PanelBoundary name="worlds">
-              <WorldsTab state={state} art={art} onOpenGames={() => goTab("games")} />
+              {links.length ? (
+                <WorldsTab
+                  state={state}
+                  art={art}
+                  offline={offline}
+                  retrying={syncing}
+                  onRetry={syncNow}
+                  onOpenGames={() => goTab("games")}
+                />
+              ) : (
+                <NoWorlds state={state} onOpenGames={() => goTab("games")} />
+              )}
             </PanelBoundary>
           </>
         ) : tab === "games" ? (

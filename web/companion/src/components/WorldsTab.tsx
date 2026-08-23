@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { custodyOf, type Artwork, type CompanionState, type CustodyState, type Link, type SyncWorld } from "../lib/types";
 import { cn } from "../lib/utils";
+import { OfflineBanner, QueuedToSend } from "./Offline";
 import { WorldRow } from "./WorldRow";
 
 /**
@@ -66,13 +67,22 @@ export function WorldsTab({
   state,
   art,
   offline,
+  retrying,
+  onRetry,
   onOpenGames,
 }: {
   state: CompanionState;
   art: Record<string, Artwork>;
   offline?: boolean;
+  retrying?: boolean;
+  onRetry?: () => void;
   onOpenGames: () => void;
 }) {
+  // Offline, the worlds nobody here holds are hidden by default: custody
+  // cannot be confirmed, so checking one out could collide with someone
+  // else. They are one click away, read-only, for anyone who just wants
+  // to look.
+  const [showOthers, setShowOthers] = useState(false);
   const links = state.links ?? [];
   const worlds = state.sync?.worlds ?? [];
   const me = state.sync?.username;
@@ -100,8 +110,20 @@ export function WorldsTab({
   const games = (state.discovered?.games ?? []).filter((g) => !g.hidden);
   const linkedGames = new Set(links.map((l) => l.gameTitle).filter(Boolean));
 
+  const others = grouped.free.length + grouped.held.length;
+  const hideOthers = Boolean(offline) && !showOthers && others > 0;
+  const queue = state.sync?.queue ?? [];
+
   return (
     <div className="flex flex-col gap-[22px] px-7 pb-[26px] pt-[22px]">
+      {offline ? (
+        <OfflineBanner
+          error={state.sync?.lastError}
+          retrying={Boolean(retrying)}
+          onRetry={() => onRetry?.()}
+        />
+      ) : null}
+
       {grouped.yours.length ? (
         <WorldGroup
           label="Checked out to you"
@@ -116,16 +138,32 @@ export function WorldsTab({
         </WorldGroup>
       ) : null}
 
-      {grouped.free.length ? (
+      {offline ? <QueuedToSend queue={queue} /> : null}
+
+      {grouped.free.length && !hideOthers ? (
         <WorldGroup label="Free to take" count={grouped.free.length}>
           {grouped.free.map(row)}
         </WorldGroup>
       ) : null}
 
-      {grouped.held.length ? (
+      {grouped.held.length && !hideOthers ? (
         <WorldGroup label="Held by someone else" count={grouped.held.length}>
           {grouped.held.map(row)}
         </WorldGroup>
+      ) : null}
+
+      {hideOthers ? (
+        <div className="rounded-panel border border-dashed border-edge bg-well px-[18px] py-3.5 text-[12.5px] text-mist">
+          The other {others} world{others === 1 ? " is" : "s are"} hidden while offline — custody
+          can&apos;t be confirmed, so checking one out could collide with someone else.{" "}
+          <button
+            type="button"
+            onClick={() => setShowOthers(true)}
+            className="rounded-[3px] text-goldhi hover:text-gold hover:underline"
+          >
+            Show them read-only
+          </button>
+        </div>
       ) : null}
 
       {links.length ? null : (

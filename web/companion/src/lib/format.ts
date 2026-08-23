@@ -75,7 +75,8 @@ export function fmtBytes(n: number | undefined): string {
     v /= 1000;
     i++;
   }
-  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+  // One decimal only where it carries information: 1.8 GB, but 240 MB.
+  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
 }
 
 /** "2 libraries", "1 library" — the scan trail counts both halves. */

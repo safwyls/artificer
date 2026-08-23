@@ -140,6 +140,18 @@ describe("WorldsTab — offline", () => {
     expect(screen.queryByRole("button", { name: "Ask for it back" })).not.toBeInTheDocument();
   });
 
+  // A judgement call, and the reason is stated on screen: custody cannot
+  // be confirmed offline, so taking a world could collide with someone
+  // else. Looking is still allowed.
+  it("hides the worlds nobody here holds, and says why", async () => {
+    show(populated(), true);
+    expect(screen.getByText(/hidden while offline/)).toBeInTheDocument();
+    expect(screen.queryByText("Free to take · 1")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show them read-only" }));
+    expect(screen.getByText("Free to take · 1")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Check out & play" })).not.toBeInTheDocument();
+  });
+
   it("says the hold stands while offline", () => {
     show(populated(), true);
     const group = screen.getByText("Checked out to you").parentElement as HTMLElement;

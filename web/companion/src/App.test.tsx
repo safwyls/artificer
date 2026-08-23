@@ -151,10 +151,64 @@ describe("App — connected", () => {
     expect(await screen.findByRole("tab", { name: "Conflicts" })).toHaveTextContent(/^Conflicts$/);
   });
 
-  it("says what to do when nothing is linked yet", async () => {
+  // First run is derived from "no linked worlds" rather than from a
+  // stored flag, so it comes back on its own if every link is removed.
+  it("shows the first-run steps when no world is linked, and says what is already true", async () => {
     vi.spyOn(api, "state").mockResolvedValue({ ...connected(), links: [] });
     renderWithProviders(<App />);
-    expect(await screen.findByText(/Nothing linked yet/)).toBeInTheDocument();
+    expect(await screen.findByText("No worlds on this machine yet")).toBeInTheDocument();
+    expect(screen.getByText("Signed in as safwyl")).toBeInTheDocument();
+    expect(screen.getByText("Found 1 installed game")).toBeInTheDocument();
+  });
+
+  it("sends the first-run call to action to the games library", async () => {
+    vi.spyOn(api, "state").mockResolvedValue({ ...connected(), links: [] });
+    renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "Choose a game" }));
+    expect(await screen.findByLabelText("Search installed games")).toBeInTheDocument();
+  });
+
+  // Offline is derived from connectivity, and it is a variant of Worlds
+  // rather than a tab: the Worlds tab stays active.
+  it("says the vault is unreachable without moving the player off Worlds", async () => {
+    vi.spyOn(api, "state").mockResolvedValue({
+      ...connected(),
+      sync: { ...connected().sync, lastError: "dial tcp: connection refused" },
+    });
+    renderWithProviders(<App />);
+    expect(await screen.findByText("Working offline — the vault is unreachable")).toBeInTheDocument();
+    expect(screen.getByText(/The hold stands until the vault answers again/)).toBeInTheDocument();
+    expect(screen.getByText("dial tcp: connection refused")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Worlds" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  // The engine keeps no send-queue: a checkout, a checkpoint and a
+  // check-in each either reach the vault now or fail now. An empty
+  // "Queued to send · 0" would be a manifest the companion never kept.
+  it("draws no queue section when there is nothing queued", async () => {
+    vi.spyOn(api, "state").mockResolvedValue({
+      ...connected(),
+      sync: { ...connected().sync, lastError: "unreachable", queue: [] },
+    });
+    renderWithProviders(<App />);
+    expect(await screen.findByText("Working offline — the vault is unreachable")).toBeInTheDocument();
+    expect(screen.queryByText(/Queued to send/)).not.toBeInTheDocument();
+  });
+
+  it("lists queued work when the engine ever records any", async () => {
+    vi.spyOn(api, "state").mockResolvedValue({
+      ...connected(),
+      sync: {
+        ...connected().sync,
+        lastError: "unreachable",
+        queue: [
+          { what: "Save written", worldId: 1, worldName: "Embervale", time: "2026-08-23T20:14:00Z", size: 18_000_000 },
+        ],
+      },
+    });
+    renderWithProviders(<App />);
+    expect(await screen.findByText("Queued to send · 1")).toBeInTheDocument();
+    expect(screen.getByText("18 MB")).toBeInTheDocument();
   });
 
   // Regression: form state must never be clobbered by the five-second
