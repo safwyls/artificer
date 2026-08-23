@@ -133,14 +133,26 @@ without needing a packaged build or a display.
 
 ### Icon
 
-`build/icon.png` (256x256, committed) is generated from
-`web/companion/public/favicon.ico`, which is only 32x32 — too small for
-electron-builder's Linux/AppImage icon requirement (>=256x256). Regenerate
-it if the source favicon changes:
+`build/icon.png` (1024x1024, committed) is rasterized from
+`web/reliquary/public/favicon.svg` — the Reliquary mark on its rounded
+ink tile. This app is the Reliquary Companion, so it wears the Reliquary
+mark; the browser build keeps its own `web/companion/public/favicon.ico`,
+which is deliberately tray-sized (16 and 32 only) and has no artwork
+large enough to be an app icon. macOS requires at least 512x512, so
+upscaling that favicon is not an option even where it is technically
+allowed — it only produces a blurry icon that passes a size check.
+
+Regenerate it if the mark changes:
 
 ```
-magick "../web/companion/public/favicon.ico[1]" -resize 256x256 build/icon.png
+magick -background none -density 3072 \
+  ../web/reliquary/public/favicon.svg -depth 8 build/icon.png
 ```
+
+`-density` is what does the work: it rasterizes the vector *at* 1024px
+(96dpi x 1024/32). Rendering at the SVG's intrinsic 32px and passing
+`-resize 1024x1024` upscales 32px of pixels and looks it. Requires
+ImageMagick with the librsvg delegate (`magick -list format | grep SVG`).
 
 ### What has been verified vs. deferred
 
