@@ -20,13 +20,16 @@ import (
 // reachable, as whom, how old what you are looking at is, and the two
 // things you might want to do about it.
 func (u *ui) header(st companion.State) fyne.CanvasObject {
+	// The window's own name is the one place the serif is unambiguously
+	// right: it is large, it is set once, and it is what makes the header
+	// read as the vault rather than as a toolkit's title bar.
 	title := container.NewVBox(
-		text("Reliquary Companion", colGold, 17),
-		text("shared world saves, synced from this machine", colMist, 11),
+		serifText("Reliquary Companion", colGold, szTitle),
+		text("shared world saves, synced from this machine", colMist, szCaption),
 	)
 
 	light := colMist
-	who := text("Not connected", colMist, 13)
+	who := text("Not connected", colMist, szCaption)
 	switch {
 	case st.Sync.LastError != "":
 		light = colEmber
@@ -38,7 +41,7 @@ func (u *ui) header(st companion.State) fyne.CanvasObject {
 		if name == "" {
 			name = "…"
 		}
-		who = text("Connected as "+name, colParchment, 13)
+		who = text("Connected as "+name, colParchment, szCaption)
 	}
 
 	right := container.NewHBox(dot(light), who)
@@ -50,8 +53,12 @@ func (u *ui) header(st companion.State) fyne.CanvasObject {
 		if st.Sync.Busy {
 			line = "transfer in progress…"
 		}
-		right.Add(monoText(line, colMist, 12))
-		right.Add(widget.NewButtonWithIcon("Sync now", theme.ViewRefreshIcon(), func() {
+		// Padded so the measurement does not run straight into the
+		// account name beside it — an HBox packs its children edge to
+		// edge, and "Connected as safwyls" and "up to date" read as one
+		// run-on line without this.
+		right.Add(container.NewPadded(monoText(line, colMist, szCaption)))
+		right.Add(iconButton("Sync now", theme.ViewRefreshIcon(), func() {
 			go func() {
 				worlds, err := u.engine.SyncNow()
 				if err != nil {
@@ -62,7 +69,7 @@ func (u *ui) header(st companion.State) fyne.CanvasObject {
 			}()
 		}))
 	}
-	right.Add(widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { u.showSettings() }))
+	right.Add(iconButton("", theme.SettingsIcon(), func() { u.showSettings() }))
 
 	bar := container.NewBorder(nil, nil, title, right)
 	rows := container.NewVBox(bar)
@@ -85,10 +92,10 @@ func (u *ui) footer(st companion.State) fyne.CanvasObject {
 	case st.Sync.Configured:
 		versions += " · service version unknown"
 	}
-	row := container.NewHBox(monoText(versions, colMist, 11))
+	row := container.NewHBox(monoText(versions, colMist, szCaption))
 	if st.Sync.LastAction != "" {
 		row = container.NewBorder(nil, nil, row,
-			monoText("last action: "+st.Sync.LastAction, colMist, 11))
+			monoText("last action: "+st.Sync.LastAction, colMist, szCaption))
 	}
 	return container.NewPadded(row)
 }
@@ -137,8 +144,7 @@ func (u *ui) mainScreen(st companion.State) fyne.CanvasObject {
 	rows.Add(sectionHeader("Your worlds", ""))
 	if len(st.Links) == 0 {
 		rows.Add(italicText(
-			"Nothing linked yet — link an installed game below, or ask whoever runs your sync service which world to join.",
-			colMist, 13))
+			"Nothing linked yet — link an installed game below, or ask whoever runs your sync service which world to join.", colMist, szCaption))
 	}
 	for _, link := range st.Links {
 		rows.Add(u.worldRow(st, link))
@@ -160,15 +166,15 @@ func (u *ui) updateBanner(st companion.State) fyne.CanvasObject {
 		return nil
 	}
 	lines := container.NewVBox(
-		text("A different companion build is available.", colParchment, 14),
-		monoText(up.Version, colMist, 12),
+		text("A different companion build is available.", colParchment, szBody),
+		monoText(up.Version, colMist, szCaption),
 	)
 	if !up.Supported {
 		// Offering a button that cannot work is worse than saying why.
-		lines.Add(italicText(up.Why, colMist, 12))
+		lines.Add(italicText(up.Why, colMist, szCaption))
 		return callout(colGold, lines)
 	}
-	lines.Add(text("It replaces this one and restarts.", colMist, 12))
+	lines.Add(text("It replaces this one and restarts.", colMist, szCaption))
 	apply := primaryButton("Update now", func() {
 		u.say("updating — the companion will restart", false)
 		go func() {
@@ -205,8 +211,11 @@ func (u *ui) firstRunScreen(st companion.State) fyne.CanvasObject {
 	status := text(statusWord(st), colMist, 12)
 	status.TextStyle = fyne.TextStyle{Monospace: true}
 
-	connect := primaryButton("Save & connect", nil)
-	connect.OnTapped = func() {
+	// The one place a full-width primary is right: this is a narrow card
+	// in a two-column first-run layout, and a button spanning it reads as
+	// the card's own call to action. Everywhere else a primary is compact
+	// and goes through actions().
+	connect := wideButton("Save & connect", func() {
 		serverURL := url.Text
 		go func() {
 			fyne.Do(func() {
@@ -234,16 +243,17 @@ func (u *ui) firstRunScreen(st companion.State) fyne.CanvasObject {
 			}
 			u.say("connected", false)
 		}()
-	}
+	})
 
 	connectCard := panelCard(container.NewVBox(
-		boldText("CONNECT TO YOUR VAULT", colGold, 12),
+		serifBold("Connect to your vault", colGold, szSubhead),
 		wrapped("Nothing leaves this machine until you connect. Ask whoever runs your group's sync service for the address, and mint your token on its page.", colMist),
-		text("Save-sync service URL", colMist, 11),
+		text("Save-sync service URL", colMist, szCaption),
 		url,
-		text("Your sync token", colMist, 11),
+		text("Your sync token", colMist, szCaption),
 		token,
-		container.NewHBox(connect, status),
+		connect,
+		container.NewPadded(status),
 	))
 
 	steam := widget.NewEntry()
@@ -254,13 +264,13 @@ func (u *ui) firstRunScreen(st companion.State) fyne.CanvasObject {
 	}
 
 	gamesCard := panelCard(container.NewVBox(
-		boldText("FINDING YOUR GAMES", colGold, 12),
+		serifBold("Finding your games", colGold, szSubhead),
 		wrapped("Steam is detected automatically — the registry, then the usual install paths. Set a folder only if the scan misses a library.", colMist),
 		text("Steam folder (blank = auto-detect)", colMist, 11),
 		container.NewBorder(nil, nil, nil, u.folderPickerButton(steam), steam),
-		widget.NewButton("Save folder & rescan", func() { u.saveSteamDir(steam.Text) }),
+		actions(quietButton("Save folder & rescan", func() { u.saveSteamDir(steam.Text) })),
 		inset(u.scanTrail(st, true)),
-		italicText(`"No games found" always names its own cause here.`, colMist, 12),
+		italicText(`"No games found" always names its own cause here.`, colMist, szCaption),
 	))
 
 	return container.NewPadded(container.NewGridWithColumns(2, connectCard, gamesCard))

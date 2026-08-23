@@ -110,6 +110,7 @@ func main() {
 		engine:     engine,
 		cfgPath:    cfgPath,
 		covers:     map[string]fyne.Resource{},
+		coverAsked: map[string]bool{},
 		holdWarned: map[int64]time.Time{},
 	}
 

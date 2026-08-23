@@ -27,9 +27,73 @@ import (
 	"github.com/safwyls/artificer/companion"
 )
 
-// dialogSize is roomy enough for the link form, which is the biggest of
-// them, without becoming a second window.
-var dialogSize = fyne.NewSize(620, 620)
+// Dialog sizing is relative to the window, not fixed.
+//
+// The first cut resized every dialog to a flat 620×620. On a window
+// bigger than that it was fine; on anything smaller Fyne clamped it to
+// the window's own bounds, so the settings sheet stopped being a card
+// and became a full-width panel sliding over the app, with its lower
+// controls — "Check for update", "Close" — pushed off the bottom edge
+// where nothing could reach them. A modal has to be a card *on* the
+// window at every window size, which means measuring the window.
+const (
+	// dialogMaxW and dialogMaxH are as large as a dialog is ever worth
+	// being: past this it stops reading as a card and starts reading as
+	// a second window.
+	dialogMaxW = 620
+	dialogMaxH = 640
+	// dialogMinW and dialogMinH are the floor. Below this the content
+	// cannot be laid out at all, and a scrollbar is a better answer than
+	// a squeezed one.
+	dialogMinW = 320
+	dialogMinH = 240
+	// dialogInset is how much of the window a dialog leaves showing
+	// around itself, as a fraction. Some visible backdrop is what makes
+	// it read as modal rather than as a new screen.
+	dialogInset = 0.88
+)
+
+// dialogSize is the size for a dialog on the window as it is right now:
+// a fraction of the window, capped both ways.
+func (u *ui) dialogSize() fyne.Size {
+	win := u.win.Canvas().Size()
+	w, h := win.Width*dialogInset, win.Height*dialogInset
+	if w > dialogMaxW {
+		w = dialogMaxW
+	}
+	if h > dialogMaxH {
+		h = dialogMaxH
+	}
+	if w < dialogMinW {
+		w = dialogMinW
+	}
+	if h < dialogMinH {
+		h = dialogMinH
+	}
+	return fyne.NewSize(w, h)
+}
+
+// confirmSize is the same for the one-question dialogs, which need much
+// less room and should not be blown up to the full cap on a big window.
+func (u *ui) confirmSize() fyne.Size {
+	s := u.dialogSize()
+	if s.Width > 460 {
+		s.Width = 460
+	}
+	if s.Height > 260 {
+		s.Height = 260
+	}
+	return s
+}
+
+// dialogBody is the wrapper every dialog's content goes through: a
+// scroll container, so that whatever the content's natural height is, it
+// can always be reached inside the size the dialog was given. Without
+// it a dialog taller than its box simply clips, and the buttons at the
+// bottom of a form are exactly what gets clipped.
+func dialogBody(content fyne.CanvasObject) fyne.CanvasObject {
+	return container.NewVScroll(container.NewPadded(content))
+}
 
 // show puts a dialog up, replacing whatever was there. Two stacked
 // modals is never what anyone meant.
@@ -42,7 +106,7 @@ func (u *ui) show(d interface {
 		u.openDialog.Hide()
 	}
 	u.openDialog = d
-	d.Resize(dialogSize)
+	d.Resize(u.dialogSize())
 	d.Show()
 }
 
@@ -57,14 +121,23 @@ func (u *ui) dismiss() {
 // a takeover, an unlink, quitting mid-transfer.
 func (u *ui) confirm(title, body, confirmLabel string, onConfirm func()) {
 	fyne.Do(func() {
-		d := dialog.NewCustomConfirm(title, confirmLabel, "Cancel",
-			container.NewPadded(wrapped(body, colParchment)),
-			func(ok bool) {
-				if ok {
-					onConfirm()
-				}
-			}, u.win)
-		d.Resize(fyne.NewSize(460, 220))
+		// Built without Fyne's own button row so the two verbs wear the
+		// vault's chrome rather than a solid primary-coloured slab, and
+		// so the question itself sits in a scroll container — a long
+		// refusal must wrap and stay reachable, not push the buttons out
+		// of the box.
+		var d *dialog.CustomDialog
+		buttons := actions(
+			dangerButton(confirmLabel, func() {
+				d.Hide()
+				onConfirm()
+			}),
+			quietButton("Cancel", func() { d.Hide() }),
+		)
+		content := container.NewBorder(nil, container.NewPadded(buttons), nil, nil,
+			dialogBody(wrapped(body, colParchment)))
+		d = dialog.NewCustomWithoutButtons(title, content, u.win)
+		d.Resize(u.confirmSize())
 		d.Show()
 	})
 }
@@ -144,7 +217,7 @@ func (u *ui) showLinkGame(game companion.Game, byHand bool) {
 	// newWorldFields disappear when an existing world is chosen — there
 	// is nothing to name and nothing to seed.
 	newWorldFields := container.NewVBox(
-		text("New world's name", colMist, 11),
+		text("New world's name", colMist, szCaption),
 		name,
 		seed,
 	)
@@ -191,7 +264,7 @@ func (u *ui) showLinkGame(game companion.Game, byHand bool) {
 			}
 		})
 		candidates.SetSelected(paths[0])
-		form.Add(text("Save folder found on this machine", colMist, 11))
+		form.Add(text("Save folder found on this machine", colMist, szCaption))
 		form.Add(candidates)
 	} else {
 		form.Add(callout(colGold, wrapped(
@@ -200,9 +273,9 @@ func (u *ui) showLinkGame(game companion.Game, byHand bool) {
 	}
 
 	dirLabel := "Save folder (required)"
-	form.Add(text(dirLabel, colMist, 11))
+	form.Add(text(dirLabel, colMist, szCaption))
 	form.Add(container.NewBorder(nil, nil, nil, u.folderPickerButton(dir), dir))
-	form.Add(text("World on the service", colMist, 11))
+	form.Add(text("World on the service", colMist, szCaption))
 	form.Add(worlds)
 	form.Add(splitLine)
 	form.Add(newWorldFields)
@@ -285,7 +358,7 @@ func (u *ui) showLinkGame(game companion.Game, byHand bool) {
 
 	buttons := container.NewHBox(
 		primaryButton("Link", submit),
-		widget.NewButton("Cancel", func() { u.dismiss() }),
+		quietButton("Cancel", func() { u.dismiss() }),
 	)
 	if !byHand {
 		label := "Hide from shelf"
@@ -296,7 +369,7 @@ func (u *ui) showLinkGame(game companion.Game, byHand bool) {
 		// Offered wherever a shelf entry is open, because the entries
 		// worth hiding are exactly the ones you only notice by clicking
 		// them and finding they are not a game.
-		buttons.Add(widget.NewButton(label, func() {
+		buttons.Add(quietButton(label, func() {
 			key := game.Key
 			if key == "" {
 				key = gameKey(game.AppID, game.Name)
@@ -310,7 +383,9 @@ func (u *ui) showLinkGame(game companion.Game, byHand bool) {
 	if game.Name != "" {
 		title = "Link " + game.Name
 	}
-	body := container.NewBorder(nil, buttons, nil, nil, container.NewVScroll(form))
+	// The buttons are pinned outside the scroll: a form long enough to
+	// need scrolling must not hide its own Link button below the fold.
+	body := container.NewBorder(nil, container.NewPadded(buttons), nil, nil, dialogBody(form))
 	u.show(dialog.NewCustomWithoutButtons(title, body, u.win))
 	refreshSplit()
 }
@@ -357,10 +432,10 @@ func (u *ui) explainSplit(dir, leaf string, game companion.Game, into *fyne.Cont
 		}
 		lines := container.NewVBox(
 			wrapped("This world lives in a folder named "+leaf+". Point at the folder your game keeps its saves in above, and linking will "+verb+":", colParchment),
-			monoText(made, colGoldHi, 12),
+			monoText(made, colGoldHi, szCaption),
 		)
 		if !exists {
-			lines.Add(italicText("It does not exist yet — that is expected if you have never played this world.", colMist, 12))
+			lines.Add(italicText("It does not exist yet — that is expected if you have never played this world.", colMist, szCaption))
 		}
 		set(callout(colRune, lines))
 		return
@@ -408,7 +483,7 @@ func (u *ui) showLinkedGame(game companion.Game, link companion.WorldLink, world
 		probe.LaunchTarget = target.Text
 		var o fyne.CanvasObject
 		if opens := launchTargetOf(probe); opens != "" {
-			o = italicText("Checking this world out will open "+opens, colMist, 12)
+			o = italicText("Checking this world out will open "+opens, colMist, szCaption)
 		} else {
 			o = wrapped("Nothing here says what starts this game, so checking the world out will fetch the save and leave the game to you. A path or a URI the desktop can open — an .exe, a shortcut, another launcher's link. Not a command line; a shortcut carries its arguments already.", colMist)
 		}
@@ -429,7 +504,7 @@ func (u *ui) showLinkedGame(game companion.Game, link companion.WorldLink, world
 
 	body := container.NewVBox(
 		wrapped("Linked to "+worldName+" — check it out and in from Your worlds at the top of this window.", colParchment),
-		monoText(link.Dir, colMist, 12),
+		monoText(link.Dir, colMist, szCaption),
 		widget.NewSeparator(),
 		// What starts this game when the world is checked out. Steam
 		// games answer for themselves; this is for the ones that cannot
@@ -437,7 +512,7 @@ func (u *ui) showLinkedGame(game companion.Game, link companion.WorldLink, world
 		text("Launch target (optional)", colMist, 11),
 		container.NewBorder(nil, nil, nil, u.filePickerButton(target), target),
 		explain,
-		widget.NewButton("Save launch target", func() {
+		actions(quietButton("Save launch target", func() {
 			t := target.Text
 			msg := "launch target cleared"
 			if trim(t) != "" {
@@ -446,20 +521,20 @@ func (u *ui) showLinkedGame(game companion.Game, link companion.WorldLink, world
 			u.run(func() error {
 				return u.engine.EditLink(link.WorldID, companion.LinkEdit{LaunchTarget: &t})
 			}, msg)
-		}),
+		})),
 		widget.NewSeparator(),
-		container.NewHBox(
-			widget.NewButton("Unlink", func() {
+		actions(
+			dangerButton("Unlink", func() {
 				u.confirm("Unlink this game?", "Nothing is deleted.", "Unlink", func() {
 					u.run(func() error { return u.engine.Unlink(link.WorldID) }, "unlinked")
 					u.dismiss()
 				})
 			}),
-			widget.NewButton(hideLabel, func() {
+			quietButton(hideLabel, func() {
 				u.run(func() error { return u.engine.Hide(key, !game.Hidden) }, "")
 				u.dismiss()
 			}),
-			widget.NewButton("Close", func() { u.dismiss() }),
+			quietButton("Close", func() { u.dismiss() }),
 		),
 	)
 
@@ -467,7 +542,7 @@ func (u *ui) showLinkedGame(game companion.Game, link companion.WorldLink, world
 	if title == "" {
 		title = worldName
 	}
-	u.show(dialog.NewCustomWithoutButtons(title, container.NewVScroll(body), u.win))
+	u.show(dialog.NewCustomWithoutButtons(title, dialogBody(body), u.win))
 }
 
 // --- edit a world ---
@@ -489,11 +564,11 @@ func (u *ui) showEditWorld(link companion.WorldLink, world *companion.World) {
 	folderNote := container.NewStack()
 	if held {
 		folderNote.Objects = []fyne.CanvasObject{
-			italicText("Check this world in before pointing it at a different folder.", colMist, 12),
+			italicText("Check this world in before pointing it at a different folder.", colMist, szCaption),
 		}
 	}
 
-	saveFolder := widget.NewButton("Save folder", func() {
+	saveFolder := quietButton("Save folder", func() {
 		d := trim(dir.Text)
 		u.run(func() error {
 			return u.engine.EditLink(link.WorldID, companion.LinkEdit{Dir: &d})
@@ -504,23 +579,23 @@ func (u *ui) showEditWorld(link companion.WorldLink, world *companion.World) {
 	}
 
 	body := container.NewVBox(
-		text("World name", colMist, 11),
+		text("World name", colMist, szCaption),
 		name,
-		widget.NewButton("Save name", func() {
+		actions(quietButton("Save name", func() {
 			n := trim(name.Text)
 			u.run(func() error {
 				return u.engine.EditLink(link.WorldID, companion.LinkEdit{WorldName: &n})
 			}, "world renamed")
-		}),
+		})),
 		widget.NewSeparator(),
-		text("Local folder", colMist, 11),
+		text("Local folder", colMist, szCaption),
 		container.NewBorder(nil, nil, nil, u.folderPickerButton(dir), dir),
 		folderNote,
-		saveFolder,
+		actions(saveFolder),
 		widget.NewSeparator(),
-		container.NewHBox(widget.NewButton("Close", func() { u.dismiss() })),
+		actions(quietButton("Close", func() { u.dismiss() })),
 	)
-	u.show(dialog.NewCustomWithoutButtons("Edit world", container.NewVScroll(body), u.win))
+	u.show(dialog.NewCustomWithoutButtons("Edit world", dialogBody(body), u.win))
 }
 
 // --- settings ---
@@ -581,11 +656,11 @@ func (u *ui) showSettings() {
 	updateLine := container.NewStack(text(updateWord(st), colMist, 12))
 
 	body := container.NewVBox(
-		text("Save-sync service URL", colMist, 11),
+		text("Save-sync service URL", colMist, szCaption),
 		url,
-		text(tokenLabel, colMist, 11),
+		text(tokenLabel, colMist, szCaption),
 		token,
-		primaryButton("Save & connect", func() {
+		actions(primaryButton("Save & connect", func() {
 			serverURL := url.Text
 			tok := token.Text
 			u.run(func() error {
@@ -596,26 +671,29 @@ func (u *ui) showSettings() {
 				fyne.Do(func() { token.SetText("") })
 				return err
 			}, "connected")
-		}),
+		})),
 
 		widget.NewSeparator(),
-		text("Steam folder (blank = auto-detect)", colMist, 11),
+		text("Steam folder (blank = auto-detect)", colMist, szCaption),
 		container.NewBorder(nil, nil, nil, u.folderPickerButton(steam), steam),
-		italicText("Paste the Steam root, steamapps, or steamapps\\common — extra libraries on other drives are found from it.", colMist, 12),
-		widget.NewButton("Save folder & rescan", func() { u.saveSteamDir(steam.Text) }),
+		// Wrapped, not a one-line canvas.Text: this is a sentence, and a
+		// sentence in a dialog that can be narrower than the sentence has
+		// to reflow rather than run off the edge.
+		wrapped("Paste the Steam root, steamapps, or steamapps\\common — extra libraries on other drives are found from it.", colMist),
+		actions(quietButton("Save folder & rescan", func() { u.saveSteamDir(steam.Text) })),
 
 		widget.NewSeparator(),
 		launch,
-		italicText("The save is put in place first, then the game starts — never the other way round. Switch it off to take custody of a world without opening it. Games linked by hand carry nothing that says what starts them, so those check out without launching either way.", colMist, 12),
+		wrapped("The save is put in place first, then the game starts — never the other way round. Switch it off to take custody of a world without opening it. Games linked by hand carry nothing that says what starts them, so those check out without launching either way.", colMist),
 
 		widget.NewSeparator(),
 		notify,
 		autostart,
 
 		widget.NewSeparator(),
-		text("Companion version ("+st.Version+")", colMist, 11),
+		text("Companion version ("+st.Version+")", colMist, szCaption),
 		updateLine,
-		widget.NewButton("Check for update", func() {
+		actions(quietButton("Check for update", func() {
 			go func() {
 				up := u.engine.CheckUpdate(u.ctx())
 				switch {
@@ -627,12 +705,17 @@ func (u *ui) showSettings() {
 					u.say("you're up to date", false)
 				}
 			}()
-		}),
+		})),
 
 		widget.NewSeparator(),
-		container.NewHBox(widget.NewButton("Close", func() { u.dismiss() })),
 	)
-	u.show(dialog.NewCustomWithoutButtons("Settings", container.NewVScroll(body), u.win))
+	// Close is pinned below the scroll rather than at the bottom of it:
+	// the settings sheet is the longest thing in the app, and the way out
+	// of it must not be something you have to scroll to find.
+	sheet := container.NewBorder(nil,
+		container.NewPadded(actions(quietButton("Close", func() { u.dismiss() }))),
+		nil, nil, dialogBody(body))
+	u.show(dialog.NewCustomWithoutButtons("Settings", sheet, u.win))
 }
 
 func updateWord(st companion.State) string {

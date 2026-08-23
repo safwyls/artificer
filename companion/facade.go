@@ -516,6 +516,12 @@ func (a *App) RestartAfterUpdate() error {
 // is a sanity limit, not a real one.
 const maxCoverBytes = 8 << 20
 
+// ErrCoverUnresolved says the artwork lookup has not answered for this
+// game yet — which is not the same as the game having no cover, and must
+// not be remembered as one. A caller that gets it should draw its
+// fallback for now and ask again after Artwork() has returned.
+var ErrCoverUnresolved = errors.New("cover art has not been resolved for this game yet")
+
 // Cover fetches a game's cover art as bytes, cached forever per key —
 // including the misses, so a URL that 404s is asked about once.
 //
@@ -529,6 +535,19 @@ const maxCoverBytes = 8 << 20
 // The empty slice with a nil error means "there is no cover for this
 // game", which is an answer, not a failure: a shelf without covers is
 // still a shelf.
+//
+// The one thing that must not be cached is "I have not been told yet".
+// Artwork resolution is asynchronous — Artwork() asks the service, and
+// until it answers, a.art has no entry for this key at all. A caller
+// that asks for a cover in that window (a UI that draws its shelf before
+// the artwork round trip lands, which is the normal ordering) used to
+// find an empty URL, take it for "this game has no cover", and write
+// that into the permanent cache. Every subsequent ask then hit the
+// remembered miss, so the covers arrived and were never looked at again:
+// on the desktop shelf, every single tile fell back to its name for the
+// life of the process. So a key artwork has not answered for yet returns
+// ErrCoverUnresolved and caches nothing; the caller retries once the art
+// is in.
 func (a *App) Cover(key string) ([]byte, error) {
 	a.mu.Lock()
 	if a.covers == nil {
@@ -538,9 +557,13 @@ func (a *App) Cover(key string) ([]byte, error) {
 		a.mu.Unlock()
 		return data, nil
 	}
-	url := a.art[key].Cover
+	art, known := a.art[key]
+	url := art.Cover
 	a.mu.Unlock()
 
+	if !known {
+		return nil, ErrCoverUnresolved
+	}
 	if strings.TrimSpace(url) == "" {
 		a.rememberCover(key, nil)
 		return nil, nil
