@@ -22,9 +22,79 @@ const {
   spawnDaemon,
   waitForHealthy,
   killDaemon,
+  resolveDaemonCommandForApp,
+  resolvePackagedDaemonBin,
+  companiondBinaryName,
 } = require("../dist/daemon.js");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
+
+test("resolvePackagedDaemonBin joins resourcesPath and the platform binary name", () => {
+  assert.equal(
+    resolvePackagedDaemonBin({ platform: "linux", resourcesPath: "/opt/app/resources" }),
+    path.join("/opt/app/resources", "companiond")
+  );
+  assert.equal(
+    resolvePackagedDaemonBin({ platform: "win32", resourcesPath: "C:\\Program Files\\App\\resources" }),
+    path.join("C:\\Program Files\\App\\resources", "companiond.exe")
+  );
+  assert.equal(
+    resolvePackagedDaemonBin({ platform: "darwin", resourcesPath: "/Applications/App.app/Contents/Resources" }),
+    path.join("/Applications/App.app/Contents/Resources", "companiond")
+  );
+});
+
+test("companiondBinaryName picks .exe only on win32", () => {
+  assert.equal(companiondBinaryName("win32"), "companiond.exe");
+  assert.equal(companiondBinaryName("linux"), "companiond");
+  assert.equal(companiondBinaryName("darwin"), "companiond");
+});
+
+test("resolveDaemonCommandForApp: packaged uses the bundled resourcesPath binary", () => {
+  const result = resolveDaemonCommandForApp({
+    isPackaged: true,
+    platform: "linux",
+    resourcesPath: "/opt/reliquary-companion/resources",
+  });
+  assert.equal(result.cmd, path.join("/opt/reliquary-companion/resources", "companiond"));
+  assert.deepEqual(result.args, []);
+  assert.equal(result.cwd, "/opt/reliquary-companion/resources");
+});
+
+test("resolveDaemonCommandForApp: packaged on Windows uses companiond.exe", () => {
+  const result = resolveDaemonCommandForApp({
+    isPackaged: true,
+    platform: "win32",
+    resourcesPath: "C:\\Users\\test\\AppData\\Local\\Programs\\reliquary-companion\\resources",
+  });
+  assert.equal(
+    result.cmd,
+    path.join(
+      "C:\\Users\\test\\AppData\\Local\\Programs\\reliquary-companion\\resources",
+      "companiond.exe"
+    )
+  );
+});
+
+test("resolveDaemonCommandForApp: dev (not packaged) falls back to go run", () => {
+  const result = resolveDaemonCommandForApp(
+    { isPackaged: false, platform: "linux", resourcesPath: "/opt/whatever/resources" },
+    { repoRoot }
+  );
+  assert.equal(result.cmd, "go");
+  assert.deepEqual(result.args, ["run", "./cmd/companiond"]);
+  assert.equal(result.cwd, repoRoot);
+});
+
+test("resolveDaemonCommandForApp: an explicit companiondBin override wins even when packaged", () => {
+  const result = resolveDaemonCommandForApp(
+    { isPackaged: true, platform: "linux", resourcesPath: "/opt/whatever/resources" },
+    { companiondBin: "/custom/path/companiond", repoRoot }
+  );
+  assert.equal(result.cmd, "/custom/path/companiond");
+  assert.deepEqual(result.args, []);
+  assert.equal(result.cwd, repoRoot);
+});
 
 function isProcessAlive(pid) {
   try {

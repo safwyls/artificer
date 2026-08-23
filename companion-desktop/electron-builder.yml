@@ -1,0 +1,68 @@
+# electron-builder config for the Reliquary Companion desktop shell
+# (companion-cutover.md Phase 5). Identity per docs/reliquary-companion.md:
+# this is a *separate* release identity from the browser-and-tray build
+# (cmd/companion, "artificer-companion.exe" / "companion-latest") — this
+# app's own updater track is "reliquary-companion-latest" and it must
+# never be confused with, or overwrite, the browser build's install.
+#
+# extraResources carries the per-platform `companiond` binary built into
+# the staging dir below; see README.md's "Packaging" section for the
+# staging dir contract and how it's populated.
+appId: com.artificer.reliquarycompanion
+productName: Reliquary Companion
+copyright: Copyright (c) Artificer contributors
+
+# build/icon.png (256x256, generated from web/companion/public/favicon.ico —
+# see README.md's "Packaging" section) is electron-builder's default icon
+# source for this buildResources dir; used for Linux/Windows/macOS unless
+# a platform-specific `icon:` overrides it.
+directories:
+  output: release
+  buildResources: build
+
+# Only the compiled shell + its manifest travel into the package; source
+# and node_modules dev deps are excluded by electron-builder's defaults
+# for anything not matched below.
+files:
+  - dist/**/*
+  - package.json
+
+# The companiond binary for the platform being packaged, staged ahead of
+# time by `npm run build:daemon` (see README.md). electron-builder places
+# extraResources under `process.resourcesPath` at runtime, which is
+# exactly what src/daemon.ts's resolvePackagedDaemonBin expects.
+extraResources:
+  - from: resources/
+    to: .
+    filter:
+      - companiond
+      - companiond.exe
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  category: Game
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: "${productName}-Setup-${version}.${ext}"
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  category: public.app-category.utilities
+
+# Cross-platform builds (all three OSes from one CI run) happen in Phase
+# 6's CI matrix, not on a dev machine — see companion-cutover.md.

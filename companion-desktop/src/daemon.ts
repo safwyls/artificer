@@ -32,6 +32,12 @@ export interface SpawnOptions {
   handshakeTimeoutMs?: number;
   /** Extra env vars merged over process.env for the child. */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Packaged/dev branching info (Phase 5). When supplied and `isPackaged`
+   * is true (and no explicit bin override applies), the bundled
+   * `resourcesPath/companiond[.exe]` is spawned instead of `go run`.
+   */
+  appInfo?: PackagedAppInfo;
 }
 
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 15_000;
@@ -46,8 +52,8 @@ export function generateToken(): string {
  * from the repo root (two levels up from this package by default, since
  * companion-desktop/ sits alongside cmd/ in the repo). COMPANION_BIN (or
  * the companiondBin option) points at a prebuilt binary instead — the
- * seam Phase 5's app.isPackaged branching will extend to
- * process.resourcesPath.
+ * seam Phase 5's app.isPackaged branching extends below via
+ * resolvePackagedDaemonBin/resolveDaemonCommandForApp.
  */
 export function resolveDaemonCommand(opts: SpawnOptions = {}): {
   cmd: string;
@@ -63,6 +69,58 @@ export function resolveDaemonCommand(opts: SpawnOptions = {}): {
 }
 
 /**
+ * The subset of `app` (electron) this module needs, so the resolution
+ * logic can be exercised in plain Node without importing electron. See
+ * `electron-builder.yml`'s `extraResources`: the packaged app carries the
+ * platform's companiond binary at `resources/companiond` (or
+ * `companiond.exe` on Windows), which electron-builder places under
+ * `process.resourcesPath` at runtime.
+ */
+export interface PackagedAppInfo {
+  isPackaged: boolean;
+  platform: NodeJS.Platform;
+  resourcesPath: string;
+}
+
+/** Bare binary name (no directory) for the given platform. */
+export function companiondBinaryName(platform: NodeJS.Platform): string {
+  return platform === "win32" ? "companiond.exe" : "companiond";
+}
+
+/**
+ * Resolves the packaged companiond path: `<resourcesPath>/companiond[.exe]`.
+ * Pure function over the platform/resourcesPath, so it is testable without
+ * an actual Electron runtime.
+ */
+export function resolvePackagedDaemonBin(info: Pick<PackagedAppInfo, "platform" | "resourcesPath">): string {
+  return path.join(info.resourcesPath, companiondBinaryName(info.platform));
+}
+
+/**
+ * Phase 5's `app.isPackaged` branch: packaged runs use the bundled binary
+ * under `process.resourcesPath`; dev keeps the existing COMPANION_BIN /
+ * `go run` behavior from `resolveDaemonCommand`. Pure over `PackagedAppInfo`
+ * plus the existing `SpawnOptions`, so it stays testable without an
+ * `electron` import — main.ts only supplies the three `app` fields.
+ */
+export function resolveDaemonCommandForApp(
+  appInfo: PackagedAppInfo,
+  opts: SpawnOptions = {}
+): { cmd: string; args: string[]; cwd: string } {
+  // An explicit override (env var or option) always wins, packaged or not —
+  // useful for testing a packaged build against a different daemon binary.
+  const explicitBin = opts.companiondBin ?? process.env.COMPANION_BIN ?? process.env.COMPANIOND_BIN;
+  if (explicitBin) {
+    return resolveDaemonCommand(opts);
+  }
+  if (appInfo.isPackaged) {
+    const bin = resolvePackagedDaemonBin(appInfo);
+    return { cmd: bin, args: [], cwd: appInfo.resourcesPath };
+  }
+  return resolveDaemonCommand(opts);
+}
+
+/**
  * Spawns companiond with a fresh token in its environment, reads the
  * handshake line off stdout, and resolves once the address is known.
  * Remaining stdout is drained (ignored, per the contract — only the
@@ -73,7 +131,9 @@ export function spawnDaemon(
   opts: SpawnOptions & { onLog?: (line: string) => void } = {}
 ): Promise<DaemonHandle> {
   const token = generateToken();
-  const { cmd, args, cwd } = resolveDaemonCommand(opts);
+  const { cmd, args, cwd } = opts.appInfo
+    ? resolveDaemonCommandForApp(opts.appInfo, opts)
+    : resolveDaemonCommand(opts);
   const timeoutMs = opts.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS;
 
   const child = spawn(cmd, args, {

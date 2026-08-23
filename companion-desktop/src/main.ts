@@ -65,7 +65,14 @@ function startEventWatch() {
 }
 
 async function startDaemon(): Promise<DaemonHandle> {
-  const handle = await spawnDaemon({ onLog: (line) => log("companiond:", line) });
+  const handle = await spawnDaemon({
+    onLog: (line) => log("companiond:", line),
+    appInfo: {
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+      resourcesPath: process.resourcesPath,
+    },
+  });
   await waitForHealthy(handle.baseUrl, { timeoutMs: 20_000 });
   return handle;
 }
