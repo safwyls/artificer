@@ -51,6 +51,20 @@ const (
 	checkpointSettle = 60 * time.Second
 )
 
+// syncHolder is whoever is holding a world, as the service reports it.
+// Named rather than inline so a UI in this process can name it too: a
+// shell that has to re-declare an anonymous struct to read a field has
+// been handed a type it cannot use.
+type syncHolder struct {
+	SessionID int64     `json:"sessionId"`
+	Username  string    `json:"username"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	Claimable bool      `json:"claimable"`
+	// What the service is waiting for this hold to do, picked up on the
+	// next poll (answerHandback).
+	RequestedKind string `json:"requestedKind,omitempty"`
+}
+
 // syncWorldDTO is the service's world status, the subset this side reads.
 type syncWorldDTO struct {
 	World struct {
@@ -62,16 +76,8 @@ type syncWorldDTO struct {
 		SavePath    string `json:"savePath"`
 		HeadVersion *int64 `json:"headVersion"`
 	} `json:"world"`
-	Holder *struct {
-		SessionID int64     `json:"sessionId"`
-		Username  string    `json:"username"`
-		ExpiresAt time.Time `json:"expiresAt"`
-		Claimable bool      `json:"claimable"`
-		// What the service is waiting for this hold to do, picked up on
-		// the next poll (sync.go, answerHandback).
-		RequestedKind string `json:"requestedKind,omitempty"`
-	} `json:"holder,omitempty"`
-	ClaimedBy string `json:"claimedBy,omitempty"`
+	Holder    *syncHolder `json:"holder,omitempty"`
+	ClaimedBy string      `json:"claimedBy,omitempty"`
 	Head      *struct {
 		ID        int64     `json:"id"`
 		Bytes     int64     `json:"bytes"`

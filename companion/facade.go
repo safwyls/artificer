@@ -49,6 +49,8 @@ type (
 	Discovery = discovery
 	// World is the service's custody status for one world.
 	World = syncWorldDTO
+	// Holder is whoever holds a world, as the service reports it.
+	Holder = syncHolder
 	// SyncState is what the UI shows about custody.
 	SyncState = syncState
 	// UpdateState is what GitHub last said about this build.
