@@ -1,0 +1,130 @@
+name: Release (Reliquary Companion)
+
+# Publishes the in-development Electron shell (companion-desktop/) as a
+# rolling prerelease, separate from the shipping browser-and-tray
+# companion's `companion-latest` release (release-companion.yml). Per
+# docs/reliquary-companion.md this app is gated on a real-machine parity
+# smoke before it cuts over — this workflow exists so CI, not a dev
+# machine, produces the per-platform companiond binary electron-builder
+# packages (companion-cutover.md Phase 5 item 3), not to announce the
+# cutover itself.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            daemon_name: companiond
+            builder_flag: --linux AppImage
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            daemon_name: companiond.exe
+            builder_flag: --win nsis
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            daemon_name: companiond
+            builder_flag: --mac dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/companion/package-lock.json
+      # The shell loads the daemon's embedded page (same contract as
+      # cmd/companion), so the renderer has to be built before companiond.
+      - name: Companion frontend build
+        working-directory: web/companion
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go.sum
+      # Cross-compiled per target OS/arch here rather than on a dev
+      # machine, straight into the staging dir electron-builder.yml's
+      # extraResources picks up (companion-cutover.md Phase 5 item 3).
+      - name: Build companiond for this platform
+        shell: bash
+        run: |
+          mkdir -p companion-desktop/resources
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
+            go build -o companion-desktop/resources/${{ matrix.daemon_name }} ./cmd/companiond
+      - name: Electron shell dependencies
+        working-directory: companion-desktop
+        run: npm ci
+      - name: Package with electron-builder
+        working-directory: companion-desktop
+        run: npx electron-builder ${{ matrix.builder_flag }} --publish never
+      - name: Collect artifacts
+        shell: bash
+        working-directory: companion-desktop/release
+        run: |
+          mkdir -p ../../dist-out
+          find . -maxdepth 1 -type f \( -iname '*.AppImage' -o -iname '*.exe' -o -iname '*.dmg' \) \
+            -exec cp {} ../../dist-out/ \;
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reliquary-companion-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist-out/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten artifacts
+        run: |
+          mkdir -p out
+          find artifacts -type f -exec cp {} out/ \;
+          ls -la out
+      # Same rationale as release-companion.yml's manifests: a fact the
+      # updater can read (identity + integrity), not prose to parse. This
+      # shell has no updater yet, but the manifest keeps the two release
+      # tracks symmetric ahead of one landing.
+      - name: Version and checksum manifests
+        run: |
+          printf '%s' "${GITHUB_SHA::12}" > out/reliquary-companion-version.txt
+          ( cd out && sha256sum * > reliquary-companion-sha256.txt )
+          cat out/reliquary-companion-version.txt out/reliquary-companion-sha256.txt
+      - name: Rolling reliquary-companion-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: reliquary-companion-latest
+          name: Reliquary Companion (latest, in development)
+          body: |
+            **This is the in-development Electron shell, not the shipping companion.**
+            The Artificer Companion (`companion-latest`) remains the supported
+            player-side client until this shell passes the real-machine parity
+            checklist in `docs/reliquary-companion.md` and cuts over. Nothing
+            here is gated behind that checklist being complete — treat these
+            builds as pre-release and untested on real hardware beyond the
+            Linux CI runner.
+
+            Rebuilt from every push to main; the commit this build came from
+            is ${{ github.sha }}.
+          prerelease: true
+          files: |
+            out/*
