@@ -152,6 +152,21 @@ jobs:
       # window and asserts the app mounted, so it needs a display.
       - name: Install xvfb (the window smoke needs a display)
         run: sudo apt-get update && sudo apt-get install -y xvfb
+      # Chromium sandboxes renderers with unprivileged user namespaces
+      # where the kernel allows it, and falls back to a setuid helper
+      # where it does not. Ubuntu 24.04 restricts unprivileged userns
+      # through AppArmor, so the runner always falls back — and the
+      # helper npm unpacks is owned by the installing user and is not
+      # setuid, which Electron treats as fatal rather than quietly
+      # running unsandboxed. Fixing the helper rather than passing
+      # --no-sandbox keeps this check running against the same sandbox a
+      # shipped build uses, which matters here: the preload this window
+      # loads is a *sandboxed* preload, and that is exactly where it
+      # broke before.
+      - name: Let Electron use its sandbox helper
+        run: |
+          sudo chown root:root companion-desktop/node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 companion-desktop/node_modules/electron/dist/chrome-sandbox
       - name: Window smoke (the page renders, not an error body)
         working-directory: companion-desktop
         run: npm run smoke
