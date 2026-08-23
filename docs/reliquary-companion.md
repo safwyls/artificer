@@ -128,6 +128,11 @@ is an addition to the engine.
   Resolving a conflict moves a world's head, which is admin-only and
   deliberately *not* on the token tier: the view names where the ability
   lives rather than offering a button that would be refused.
+- **Diagnostics is a dialog**, opened from the status bar
+  (`DiagnosticsDialog.tsx`). Nothing in it is a setting, so it does not
+  live in Settings: the link used to switch you to a tab you had not
+  asked for and scroll you down it. One place, the same rule that took
+  the settings cog off the header.
 - **The chrome is two strips, not three.** The titlebar carries the app's
   name, which machine and account this is, and the whole sync report; the
   tab row carries the tabs and "Sync now"; the status bar carries what
@@ -266,6 +271,18 @@ confirming behavior — the checklist below stays open until someone does.
       aspect at every window width — both frames are cut to IGDB's
       264×374 `t_cover_big` now, so a poster is shown whole rather than
       cropped to a letterbox
+- [ ] Cover art survives a broken credential on the service: with IGDB
+      refusing, the shelf says why rather than going quietly blank, and
+      the covers come back **without restarting the companion** once the
+      credential works again. This was a real defect — a failed lookup
+      was cached as "IGDB has never heard of this game", on the service
+      for hours and on the companion until it was restarted, so a shelf
+      that lost its covers never got them back
+- [ ] "Start the companion when I sign in" survives closing and
+      reopening Settings, and the entry actually starts it minimized at
+      login. Reading the setting back has to ask about the *same* login
+      item that was written — path and args both — or Windows answers
+      about a different one
 - [ ] Activity and Conflicts against a reliquary new enough to have the
       world-detail route: entries appear, a world checked in from another
       machine shows up, a genuine conflict shows the badge and the tab

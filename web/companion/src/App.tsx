@@ -7,6 +7,7 @@ import { useLiveUpdates } from "./lib/events";
 import { useArtwork, useCompanionState, useHistory, useRefreshState, useSaveHints } from "./lib/state";
 import { ActivityTab } from "./components/ActivityTab";
 import { ConflictsTab, conflictCount } from "./components/ConflictsTab";
+import { DiagnosticsDialog } from "./components/DiagnosticsDialog";
 import { FirstRun } from "./components/FirstRun";
 import { StatusBar } from "./components/StatusBar";
 import { LinkGameDialog, byHandGame } from "./components/LinkGameDialog";
@@ -39,7 +40,7 @@ export function App() {
    * shelf so a poll that rebuilds tiles cannot close it. */
   const [open, setOpen] = useState<DiscoveredGame | null>(null);
   const [tab, setTab] = useState<Tab>("worlds");
-  const [toDiagnostics, setToDiagnostics] = useState(false);
+  const [diagnostics, setDiagnostics] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   // The vault's record of what happened, read only while one of the two
@@ -81,10 +82,7 @@ export function App() {
   // comes back on its own if every link is removed.
   const offline = configured && Boolean(state.sync?.lastError);
 
-  const goTab = (t: Tab) => {
-    setToDiagnostics(false);
-    setTab(t);
-  };
+  const goTab = (t: Tab) => setTab(t);
 
   const rescan = async () => {
     try {
@@ -223,18 +221,16 @@ export function App() {
           </PanelBoundary>
         ) : (
           <PanelBoundary name="settings">
-            <SettingsTab state={state} focusDiagnostics={toDiagnostics} />
+            <SettingsTab state={state} />
           </PanelBoundary>
         )}
       </main>
 
-      <StatusBar
-        state={state}
-        onDiagnostics={() => {
-          setTab("settings");
-          setToDiagnostics(true);
-        }}
-      />
+      <StatusBar state={state} onDiagnostics={() => setDiagnostics(true)} />
+
+      {diagnostics ? (
+        <DiagnosticsDialog state={state} onClose={() => setDiagnostics(false)} />
+      ) : null}
 
       {/* A linked entry opens what it points at; an unlinked one opens the
           link form. Both are dialogs, so the poll under them is free to

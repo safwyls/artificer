@@ -545,8 +545,8 @@ export default {
             date" line at the bottom of the page, and the scan trail's own summary. Three
             readings of one fact drift, and nothing tells a player which is current. It is
             said <b>once</b> now — a dot and a relative time — and the scan trail, the tried
-            paths and both build versions moved to Settings › Diagnostics, which the status
-            bar links to. Freshness runs on a clock of its own, because the poll it describes
+            paths and both build versions moved into Diagnostics, which the status bar
+            opens as a dialog. Freshness runs on a clock of its own, because the poll it describes
             may answer with an unchanged timestamp, and an age that stops moving reads as a
             frozen app.
             <br><br>
@@ -606,6 +606,7 @@ export default {
           ],
           rules: [
             "<b>One place.</b> The dot and the relative time are the whole sync report; everything else that used to say it is gone or has moved to Diagnostics.",
+            "<b>Diagnostics is a dialog, not a page.</b> Nothing in it is a setting — none of it is a thing you change — so the status bar opens it over whatever you were reading rather than dropping you on the Settings tab and scrolling you down it. Settings holds settings; this holds the drain.",
             "<b>One way into Settings.</b> There was a cog in the header as well as the tab a few pixels below it — two controls for one destination, and the cog was the one nothing else in the app referred to. The tab stays.",
             "The desktop shell's window is frameless, so the app draws its own titlebar and the OS only recolours the caption buttons over it. Hand-drawing those instead would cost Windows 11 its snap-layouts menu, which is a worse loss than a mismatched button shape.",
             "<b>The strip's height and usable width come from the OS</b>, as <code>env(titlebar-area-height)</code> and <code>env(titlebar-area-width)</code> — the overlay's own report of where it drew the buttons. A hand-agreed number cannot survive a display-scaling change.",
@@ -902,9 +903,10 @@ ${tile("Voyagers of Nera", "pick the folder yourself", false)}
           name: "Scan trail",
           subtitle: "Where it looked, and what it found",
           viewport: { width: 940, height: 560 },
-          intent: `Diagnostics, and nowhere else. This used to sit in the page chrome under the
+          intent: `Diagnostics, and nowhere else — a dialog the status bar opens, not a
+            section of Settings. This used to sit in the page chrome under the
             games grid, where it competed with the worlds for the eye and said the sync state a
-            second time; it lives in Settings › Diagnostics now, with the tried paths, the
+            second time; it lives in the Diagnostics dialog now, with the tried paths, the
             linked save folders and both build versions — what a bug report needs, and what
             nothing else needs. Discovery is a guess about someone else's machine, so it shows its working.
             Every probe is listed with its source, the path it tried, what it resolved to, and
@@ -930,7 +932,7 @@ ${tile("Voyagers of Nera", "pick the folder yourself", false)}
           ],
           sources: [
             "web/companion/src/components/ScanTrail.tsx",
-            "web/companion/src/components/SettingsTab.tsx",
+            "web/companion/src/components/DiagnosticsDialog.tsx",
           ],
         },
         {

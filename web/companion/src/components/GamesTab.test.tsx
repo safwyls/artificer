@@ -130,7 +130,7 @@ describe("GamesTab", () => {
 
   it("names its own cause when nothing was found", () => {
     show({ state: makeState({ discovered: { games: [], probes: [] } }) });
-    expect(screen.getByText(/Settings › Diagnostics has the scan trail/)).toBeInTheDocument();
+    expect(screen.getByText(/Diagnostics, at the bottom of the window, has the scan trail/)).toBeInTheDocument();
   });
 
   it("says so when every game found is hidden", () => {

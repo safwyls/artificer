@@ -207,7 +207,7 @@ export function GamesTab({
             ? `Nothing installed here matches “${query.trim()}”.`
             : hiddenCount && !showHidden
               ? "Every game found here is hidden."
-              : "No games found. Settings › Diagnostics has the scan trail — if your Steam folder is missing or was rejected, set it there. Any save folder can also be linked by hand."}
+              : "No games found. Diagnostics, at the bottom of the window, has the scan trail — if your Steam folder is missing or was rejected, set it in Settings. Any save folder can also be linked by hand."}
         </p>
       ) : null}
 
