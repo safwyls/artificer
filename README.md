@@ -24,7 +24,8 @@ see [the docs](https://safwyls.github.io/artificer/docs/save-sync.html).
 | Component | What it is | Image / download |
 |---|---|---|
 | reliquary | The save-sync service | `ghcr.io/safwyls/reliquary` |
-| Artificer Companion | The player-side client | [`companion-latest`](https://github.com/safwyls/artificer/releases/tag/companion-latest) |
+| Artificer Companion | The player-side client (browser-and-tray) | [`companion-latest`](https://github.com/safwyls/artificer/releases/tag/companion-latest) |
+| Reliquary Companion | The in-development native desktop shell for the same client | [`reliquary-companion-latest`](https://github.com/safwyls/artificer/releases/tag/reliquary-companion-latest) |
 
 ## Layout
 
@@ -34,6 +35,10 @@ see [the docs](https://safwyls.github.io/artificer/docs/save-sync.html).
 | `games/<game>/` | One directory per game: client, config codec, save/log readers, agent spec, contributed routes. |
 | `cmd/` | The binaries — each console main is thin wiring over `core`. |
 | `web/<console>/` | One React app per console, each themed for its game. |
+| `companion/` | The save-sync engine shared by both companion shells. |
+| `cmd/companion` | The shipping browser-and-tray companion shell. |
+| `cmd/companiond` | The headless companion daemon behind the Electron shell. |
+| `companion-desktop/` | The Reliquary Companion — an Electron shell over `web/companion` and `cmd/companiond`, in development pending a real-machine smoke (`docs/reliquary-companion.md`). Plain Node project, not a Go module. |
 | `anvil/` | The host provisioning service. Separate module; references no console. |
 | `deploy/` | Dockerfiles, one directory per console, plus `reliquary/`. |
 | `site/` | The public docs site and landing page, published to GitHub Pages. |
@@ -50,6 +55,12 @@ remains; every image publishes from here.
 
 The unification is complete through Phase 6 (2026-08-18).
 
+The companion's Electron shell (`companion-desktop/`) has replaced the
+earlier Fyne desktop app (`companion-cutover.md` is the plan of record);
+it ships builds under the separate `reliquary-companion-latest` release
+but is not yet the shipping client — `docs/reliquary-companion.md` has
+the cutover gate.
+
 - `docs/state-of-play.md` — **start here**: what is verified against real
   servers, what is still inference, and the traps that have actually bitten
 - `docs/roadmap.md` — what is next, per game and shared
@@ -57,6 +68,8 @@ The unification is complete through Phase 6 (2026-08-18).
 - `docs/sidecar-agent.md` — the agent design
 - `docs/save-sync-architecture.md` — shared world saves: the custody contract
 - `docs/companion.md` — the Artificer Companion, the player-side client
+- `companion-cutover.md` — the Fyne→Electron cutover plan of record for
+  `companion-desktop/`; `docs/reliquary-companion.md` covers the result
 - `docs/unification-plan.md` — the plan of record
 - `docs/drift-ledger.md` — per-file reconciliation decisions
 
