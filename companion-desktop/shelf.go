@@ -19,21 +19,31 @@ import (
 	"github.com/safwyls/artificer/companion"
 )
 
-// tileWidth matches the web grid's 130 px minimum column.
-const tileWidth = 130
+// tileWidth matches the web grid's 130 px minimum column, widened a
+// little: the type scale went up (theme.go), and a caption at 13 px
+// needs more room than one at 10 px before it starts losing words.
+const tileWidth = 148
+
+// tileCaptionWidth is how much of a tile a caption may use. The inset
+// leaves room for the tile's own border and padding, so a trimmed
+// caption stops short of the edge rather than touching it.
+const tileCaptionWidth = tileWidth - 18
+
+// tileHeight is the cover at 3:4 plus the two caption lines under it.
+const tileHeight = tileWidth*4/3 + 48
 
 func (u *ui) shelf(st companion.State) fyne.CanvasObject {
 	rows := container.NewVBox(sectionHeader(
 		"Installed games",
 		"linked games in colour — click a dimmed tile to link it",
-		widget.NewButton("Rescan", func() {
+		quietButton("Rescan", func() {
 			go func() {
 				u.engine.Rescan()
 				found := len(u.engine.Snapshot().Discovered.Games)
 				u.say("rescanned — "+plural(found, "game", "games")+" found", false)
 			}()
 		}),
-		widget.NewButton("Link a folder by hand…", func() { u.showLinkGame(companion.Game{}, true) }),
+		quietButton("Link a folder by hand…", func() { u.showLinkGame(companion.Game{}, true) }),
 	))
 
 	games := st.Discovered.Games
@@ -50,7 +60,7 @@ func (u *ui) shelf(st companion.State) fyne.CanvasObject {
 		}
 	}
 
-	tiles := container.NewGridWrap(fyne.NewSize(tileWidth, tileWidth*4/3+40))
+	tiles := container.NewGridWrap(fyne.NewSize(tileWidth, tileHeight))
 	for _, g := range shown {
 		tiles.Add(u.gameTile(st, g))
 	}
@@ -61,9 +71,9 @@ func (u *ui) shelf(st companion.State) fyne.CanvasObject {
 
 	switch {
 	case len(shown) == 0 && hiddenCount == 0:
-		rows.Add(italicText("No games found. The scan trail below says where it looked — if your Steam folder is missing or was rejected, set it in the settings. Any save folder can also be linked by hand.", colMist, 12))
+		rows.Add(italicText("No games found. The scan trail below says where it looked — if your Steam folder is missing or was rejected, set it in the settings. Any save folder can also be linked by hand.", colMist, szCaption))
 	case len(shown) == 0:
-		rows.Add(italicText("Every game found here is hidden.", colMist, 12))
+		rows.Add(italicText("Every game found here is hidden.", colMist, szCaption))
 	}
 
 	// Covers and save locations both degrade to nothing rather than to
@@ -75,17 +85,17 @@ func (u *ui) shelf(st companion.State) fyne.CanvasObject {
 	u.mu.Unlock()
 	switch {
 	case artError != "":
-		rows.Add(italicText("Cover art unavailable: "+artError, colEmber, 12))
+		rows.Add(italicText("Cover art unavailable: "+artError, colEmber, szCaption))
 	case artAsked > 0 && artCount == 0:
-		rows.Add(italicText("The sync service has no cover art for these games — check its Cover art panel.", colMist, 12))
+		rows.Add(italicText("The sync service has no cover art for these games — check its Cover art panel.", colMist, szCaption))
 	}
 	switch {
 	case hintsError != "":
-		rows.Add(italicText("Save-location catalogue unavailable: "+hintsError, colEmber, 12))
+		rows.Add(italicText("Save-location catalogue unavailable: "+hintsError, colEmber, szCaption))
 	case hintsOK:
 		rows.Add(italicText("Save locations known for "+itoa(int64(hintsKnown))+" of these games (Ludusavi manifest, via the sync service).", colMist, 12))
 	case st.Sync.Configured:
-		rows.Add(italicText("The sync service has no save-location catalogue loaded — folders are found by search alone.", colMist, 12))
+		rows.Add(italicText("The sync service has no save-location catalogue loaded — folders are found by search alone.", colMist, szCaption))
 	}
 
 	rows.Add(u.scanTrail(st, false))
@@ -117,9 +127,15 @@ func (u *ui) gameTile(st companion.State, g companion.Game) fyne.CanvasObject {
 
 	art := coverTile(u.cover(g.AppID, g.Name, u.redraw), label, tileWidth-2, !linked)
 
-	name := text(label, colParchment, 12)
-	name.TextStyle = fyne.TextStyle{Bold: true}
-	cap := text(caption, captionColor, 10)
+	// Both lines are trimmed to the tile. A game's name is whatever its
+	// publisher chose — "RuneScape: Dragonwilds" and "DragonSword:
+	// Awakening" both ran off their tiles and collided with the tile
+	// beside them — and canvas.Text does not truncate on its own. The
+	// full name is not lost: it is the tile's hover tip.
+	nameStyle := fyne.TextStyle{Bold: true}
+	name := text(ellipsize(label, tileCaptionWidth, szCaption, nameStyle), colParchment, szCaption)
+	name.TextStyle = nameStyle
+	cap := text(ellipsize(caption, tileCaptionWidth, szMicro, fyne.TextStyle{}), captionColor, szMicro)
 
 	frame := canvas.NewRectangle(colInk)
 	frame.StrokeColor = colEdge
@@ -132,7 +148,15 @@ func (u *ui) gameTile(st companion.State, g companion.Game) fyne.CanvasObject {
 	body := container.NewBorder(art, nil, nil, nil, container.NewVBox(name, cap))
 	// A whole-tile tap target rather than a button around it: Fyne's
 	// button would paint its own fill over the cover.
-	return container.NewStack(frame, body, newTapArea(func() { u.showGame(st, g) }))
+	tap := newTapArea(func() { u.showGame(st, g) })
+	// The full name, for the tiles whose captions had to be trimmed.
+	// Fyne 2.8 has no tooltip of its own, so tapArea grows one.
+	tip := label
+	if caption != "not linked" && caption != "hidden" && caption != "linked" {
+		tip += " — " + caption
+	}
+	tap.setTip(u.win, tip)
+	return container.NewStack(frame, body, tap)
 }
 
 // hiddenTile is the one dashed entry the put-away shelf items collapse
@@ -154,7 +178,7 @@ func (u *ui) hiddenTile(n int) fyne.CanvasObject {
 	}
 	lines := container.NewVBox(
 		text(itoa(int64(n))+" "+word, colMist, 12),
-		text(action, colGoldHi, 12),
+		text(action, colGoldHi, szCaption),
 	)
 	return container.NewStack(frame, container.NewCenter(lines), newTapArea(func() {
 		u.showHidden = !u.showHidden
@@ -224,11 +248,11 @@ func (u *ui) scanTrail(st companion.State, startOpen bool) fyne.CanvasObject {
 		}
 		lines.Add(container.NewHBox(
 			text(mark, markColor, 12),
-			boldText(p.Source, colMist, 12),
-			monoText(p.Path, colMist, 11),
+			boldText(p.Source, colMist, szCaption),
+			monoText(p.Path, colMist, szMicro),
 		))
 		if p.Resolved != "" && p.Resolved != p.Path {
-			lines.Add(monoText("    → "+p.Resolved, colMist, 11))
+			lines.Add(monoText("    → "+p.Resolved, colMist, szMicro))
 		}
 		if p.Note != "" {
 			c := colMist

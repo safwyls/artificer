@@ -331,6 +331,86 @@ func TestArtworkAsksOnceGamesAreKnown(t *testing.T) {
 	}
 }
 
+// A cover asked for before the artwork lookup has answered is not a
+// cover that does not exist.
+//
+// This is the bug that made every tile in the native desktop shelf show
+// its fallback name forever. The UI draws its shelf immediately and asks
+// each tile for its cover; the artwork round trip that produces the
+// cover *URL* has usually not landed yet. Cover() looked in a.art, found
+// nothing, read that as "this game has no cover", and wrote it into the
+// permanent miss cache — which is never re-asked, by design. So the art
+// arrived a moment later and nothing ever looked at it again.
+//
+// The fix is that "not resolved yet" is its own answer. It caches
+// nothing, and the caller retries once the art is in.
+func TestCoverBeforeArtworkResolvesIsNotCachedAsAMiss(t *testing.T) {
+	var coverHits int
+	mux := http.NewServeMux()
+	var srv *httptest.Server
+	mux.HandleFunc("/cover.png", func(w http.ResponseWriter, r *http.Request) {
+		coverHits++
+		w.Write([]byte("\x89PNG\r\n\x1a\n pretend this is a cover"))
+	})
+	mux.HandleFunc("/api/public/sync/tok/artwork", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"accepted": true,
+			"art": map[string]gameArt{
+				"app:111": {Name: "Palworld", Cover: srv.URL + "/cover.png"},
+			},
+		})
+	})
+	srv = httptest.NewServer(mux)
+	defer srv.Close()
+
+	a := NewApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+	a.mu.Lock()
+	a.discovered = discovery{Games: []discoveredGame{
+		{Name: "Palworld", AppID: "111"},
+		{Name: "Some Unknown Game", AppID: "222"},
+	}}
+	a.mu.Unlock()
+
+	// The UI draws first: it asks for a cover before artwork() has run.
+	if _, err := a.Cover("app:111"); !errors.Is(err, ErrCoverUnresolved) {
+		t.Fatalf("Cover before artwork = %v, want ErrCoverUnresolved", err)
+	}
+
+	// The artwork answer lands.
+	a.artwork()
+
+	// Now the same ask must produce the actual image — which is exactly
+	// what the old code could never do, because the first ask had already
+	// remembered a miss.
+	data, err := a.Cover("app:111")
+	if err != nil {
+		t.Fatalf("Cover after artwork: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("Cover after artwork returned no bytes — the miss was cached before the art arrived")
+	}
+
+	// And it is still cached forever: a redraw must not refetch.
+	if _, err := a.Cover("app:111"); err != nil {
+		t.Fatalf("second Cover: %v", err)
+	}
+	if coverHits != 1 {
+		t.Errorf("the cover was downloaded %d times, want once", coverHits)
+	}
+
+	// A game the service answered about but has no cover for is a real
+	// miss, and that one *is* remembered: it must not be retried.
+	if data, err := a.Cover("app:222"); err != nil || data != nil {
+		t.Errorf("Cover for a game with no art = (%v, %v), want (nil, nil)", data, err)
+	}
+	a.mu.Lock()
+	_, remembered := a.covers["app:222"]
+	a.mu.Unlock()
+	if !remembered {
+		t.Error("a genuine miss was not remembered, so it will be re-asked on every render")
+	}
+}
+
 // A service that cannot answer says so, instead of leaving a bare shelf
 // with no explanation.
 func TestArtworkFailureIsRecorded(t *testing.T) {

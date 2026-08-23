@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -61,6 +62,10 @@ type ui struct {
 	// so a rebuild reuses the same object and the image is not re-decoded
 	// or re-uploaded to the GPU.
 	covers map[string]fyne.Resource
+	// coverAsked is the fetches currently in flight, so a redraw landing
+	// while a cover is still downloading does not start a second
+	// download of the same image.
+	coverAsked map[string]bool
 
 	// content is the swappable middle of the window.
 	content *fyne.Container
@@ -254,8 +259,16 @@ func (u *ui) resolveAsides(st companion.State) {
 
 // gameSignature identifies the set of games, so the asides are re-asked
 // when it changes and not when a custody poll lands.
+// Connectedness is part of the signature because artwork resolution is
+// a call to the service: while the companion is unconfigured the lookup
+// returns nothing at all, and without this the set of games would look
+// unchanged after connecting and the covers would never be asked for
+// again until the next rescan.
 func gameSignature(st companion.State) string {
 	out := make([]byte, 0, 64)
+	if st.Sync.Configured {
+		out = append(out, "connected|"...)
+	}
 	for _, g := range st.Discovered.Games {
 		out = append(out, g.Key...)
 		out = append(out, '|')
@@ -283,14 +296,52 @@ func (u *ui) artFor(appID, name string) companion.Art {
 
 // cover hands back a decoded cover resource, fetching it at most once
 // per game and never on the UI's thread.
+//
+// The ordering here is the whole bug the desktop shelf had, and it is
+// worth being explicit about. A tile asks for its cover while the window
+// is being drawn; the artwork lookup that produces the cover *URL* is a
+// round trip to the service that has usually not landed yet. The first
+// cut asked the engine anyway, the engine found no URL, and both sides
+// wrote that down as "this game has no cover" — permanently. Every tile
+// in the app showed its fallback name for the life of the process, which
+// is exactly what the screenshots showed.
+//
+// So a cover is only *asked for* once the artwork answer that names it
+// has arrived: no art entry, or an entry with no cover URL, means draw
+// the fallback and ask nothing. resolveAsides redraws when the artwork
+// lands, and this runs again then with a URL to work from.
+//
+// Everything that arrives is cached forever, misses included, and the
+// cache is keyed per game — so a state poll rebuilding the shelf reuses
+// the same fyne.Resource objects and the tiles neither flicker nor
+// refetch. That is the web UI's rule, kept.
 func (u *ui) cover(appID, name string, then func()) fyne.Resource {
 	key := gameKey(appID, name)
 	u.mu.Lock()
-	res, ok := u.covers[key]
+	res, cached := u.covers[key]
+	art, resolved := u.art[key]
+	if !resolved && name != "" {
+		// A link recorded before app ids existed matches by title, the
+		// same fallback artFor makes.
+		art, resolved = u.art[gameKey("", name)]
+	}
+	inflight := u.coverAsked[key]
 	u.mu.Unlock()
-	if ok {
+	if cached {
 		return res
 	}
+	if !resolved || strings.TrimSpace(art.Cover) == "" {
+		// Nothing to fetch — either the artwork answer is still on its
+		// way, or it came back saying this game has no cover.
+		return nil
+	}
+	if inflight {
+		return nil
+	}
+	u.mu.Lock()
+	u.coverAsked[key] = true
+	u.mu.Unlock()
+
 	go func() {
 		data, err := u.engine.Cover(key)
 		if err != nil {
@@ -299,10 +350,16 @@ func (u *ui) cover(appID, name string, then func()) fyne.Resource {
 		}
 		var res fyne.Resource
 		if len(data) > 0 {
-			res = fyne.NewStaticResource(key, data)
+			// The name carries an extension because Fyne decides how to
+			// decode a resource by looking at it. The bytes are whatever
+			// the service served — jpeg or png — and image.Decode sniffs
+			// that for itself; what the name has to avoid is looking
+			// like ".svg".
+			res = fyne.NewStaticResource(key+".img", data)
 		}
 		u.mu.Lock()
 		u.covers[key] = res
+		delete(u.coverAsked, key)
 		u.mu.Unlock()
 		if then != nil {
 			fyne.Do(then)

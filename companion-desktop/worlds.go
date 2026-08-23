@@ -13,7 +13,6 @@ package main
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
 
 	"github.com/safwyls/artificer/companion"
 )
@@ -56,20 +55,22 @@ func (u *ui) worldRow(st companion.State, link companion.WorldLink) fyne.CanvasO
 
 	thumb := coverTile(u.cover(link.AppID, title, u.redraw), title, 56, false)
 
-	head := container.NewHBox(boldText(name, colParchment, 16))
+	head := container.NewHBox(serifBold(name, colParchment, szSubhead))
 	if link.GameTitle != "" {
 		// The game tag is rune-coloured everywhere in this app; it is a
 		// label the engine supplied, never something the UI decided.
-		head.Add(text(link.GameTitle, colRune, 12))
+		head.Add(text(link.GameTitle, colRune, szCaption))
 	}
 
 	lines := container.NewVBox(
 		container.NewBorder(nil, nil, head, custodyChip(c)),
 		text(custodyLine(c, link, world, me), colMist, 13),
-		// The folder, in full: the one thing in this row that is about
-		// this machine rather than the world, and the thing a player
-		// checks when a save goes to the wrong place.
-		monoText(link.Dir, colMist, 11),
+		// The folder: the one thing in this row that is about this machine
+		// rather than the world, and the thing a player checks when a save
+		// goes to the wrong place. Ellipsized to the row rather than drawn
+		// at full length — a deep save path is longer than any window, and
+		// it used to run straight out through the card's own border.
+		pathLine(link.Dir),
 		u.worldActions(st, link, world, c),
 	)
 	return panelCard(container.NewBorder(nil, nil, thumb, nil, lines))
@@ -96,7 +97,7 @@ func (u *ui) worldActions(st companion.State, link companion.WorldLink, world *c
 		if willPlay {
 			// The save alone, no launch — for taking custody without
 			// starting anything, regardless of the setting.
-			row.Add(widget.NewButton("Check out", func() { u.checkout(link, false, false) }))
+			row.Add(quietButton("Check out", func() { u.checkout(link, false, false) }))
 		}
 
 	case custodyMine:
@@ -106,17 +107,17 @@ func (u *ui) worldActions(st companion.State, link companion.WorldLink, world *c
 		// A checkpoint never moves the head; the service only keeps them
 		// for worlds that asked for them.
 		if world != nil && world.World.Checkpoints {
-			row.Add(widget.NewButton("Checkpoint now", func() {
+			row.Add(quietButton("Checkpoint now", func() {
 				u.run(func() error { return u.engine.Checkpoint(link.WorldID) }, "checkpoint pushed")
 			}))
 		}
-		row.Add(widget.NewButton("Renew hold", func() {
+		row.Add(quietButton("Renew hold", func() {
 			u.run(func() error { return u.engine.Renew(link.WorldID) }, "hold renewed")
 		}))
 		// The world is already here; this is for coming back to it later
 		// in the same hold, without checking anything out.
 		if launchable(link) {
-			row.Add(widget.NewButton("Play", func() {
+			row.Add(quietButton("Play", func() {
 				u.run(func() error { return u.engine.Launch(link.WorldID) }, "starting the game")
 			}))
 		}
@@ -133,7 +134,7 @@ func (u *ui) worldActions(st companion.State, link companion.WorldLink, world *c
 	}
 
 	if (c == custodyHeld || c == custodyExpired) && (world == nil || world.ClaimedBy == "") {
-		row.Add(widget.NewButton("Claim next", func() {
+		row.Add(quietButton("Claim next", func() {
 			u.run(func() error { return u.engine.Claim(link.WorldID) },
 				"you're next — the world downloads automatically when it frees up")
 		}))
@@ -142,8 +143,8 @@ func (u *ui) worldActions(st companion.State, link companion.WorldLink, world *c
 	// Edit and Unlink are offered in every state, including "gone": a
 	// world that has left the service is exactly the one a player needs
 	// to be able to unlink.
-	row.Add(widget.NewButton("Edit", func() { u.showEditWorld(link, world) }))
-	row.Add(widget.NewButton("Unlink", func() {
+	row.Add(quietButton("Edit", func() { u.showEditWorld(link, world) }))
+	row.Add(quietButton("Unlink", func() {
 		u.confirm("Unlink this world from its folder?", "Nothing is deleted.", "Unlink", func() {
 			u.run(func() error { return u.engine.Unlink(link.WorldID) }, "unlinked")
 		})

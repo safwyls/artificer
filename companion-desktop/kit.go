@@ -10,10 +10,12 @@ package main
 
 import (
 	"image/color"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -117,7 +119,7 @@ func chip(label string, fg, border, fill color.NRGBA) fyne.CanvasObject {
 	// Fyne has no true pill; the largest radius the theme uses reads as
 	// one at this height.
 	bg.CornerRadius = 9
-	t := text(label, fg, 11)
+	t := text(label, fg, szMicro)
 	return container.NewStack(bg, container.NewPadded(container.NewHBox(t)))
 }
 
@@ -141,7 +143,11 @@ func coverTile(res fyne.Resource, label string, width float32, dimmed bool) fyne
 	} else {
 		bg := canvas.NewRectangle(colFillCover)
 		bg.SetMinSize(size)
-		name := text(label, colMist, 11)
+		// Trimmed to the tile: a fallback that overflows its own cover
+		// and collides with the next tile is worse than a fallback that
+		// says half the name.
+		style := fyne.TextStyle{}
+		name := text(ellipsize(label, width-10, szMicro, style), colMist, szMicro)
 		name.Alignment = fyne.TextAlignCenter
 		art = container.NewStack(bg, container.NewCenter(name))
 	}
@@ -170,29 +176,80 @@ func rule() fyne.CanvasObject {
 
 // sectionHeader is the gold small-caps heading the page divides itself
 // with, with its actions pushed to the right.
-func sectionHeader(title, hint string, actions ...fyne.CanvasObject) fyne.CanvasObject {
-	left := container.NewHBox(boldText(title, colGold, 13))
+// The parameter is `acts` rather than `actions` because actions() is
+// now the function that lays a row of buttons out — see button.go.
+func sectionHeader(title, hint string, acts ...fyne.CanvasObject) fyne.CanvasObject {
+	left := container.NewHBox(serifBold(title, colGold, szSubhead))
 	if hint != "" {
-		left.Add(italicText(hint, colMist, 11))
+		left.Add(italicText(hint, colMist, szCaption))
 	}
-	if len(actions) == 0 {
+	if len(acts) == 0 {
 		return left
 	}
-	return container.NewBorder(nil, nil, left, container.NewHBox(actions...))
+	return container.NewBorder(nil, nil, left, container.NewHBox(acts...))
 }
 
-// primaryButton is the one gold button in a group. Fyne's HighImportance
-// paints it with the theme's primary colour, which is the vault's gold.
-func primaryButton(label string, tapped func()) *widget.Button {
-	b := widget.NewButton(label, tapped)
-	b.Importance = widget.HighImportance
-	return b
+// --- headings ---
+
+// serifText is the vault's voice: Gelasio, asked for explicitly through
+// canvas.Text's FontSource because Fyne's theme has no heading style bit
+// to hang it on.
+//
+// Only headings and titles use it. See the note on the faces in
+// theme.go: unhinted at body sizes the serif is what made the first cut
+// of this window hard to read, and at heading sizes it is what makes the
+// window look like the vault rather than like a toolkit demo.
+func serifText(s string, c color.Color, size float32) *canvas.Text {
+	t := text(s, c, size)
+	t.FontSource = resSerif
+	return t
 }
 
-// dangerButton is for the verbs that take something away — a takeover,
-// an unlink. Ember, and never the only button in a dialog.
-func dangerButton(label string, tapped func()) *widget.Button {
-	b := widget.NewButton(label, tapped)
-	b.Importance = widget.DangerImportance
-	return b
+func serifBold(s string, c color.Color, size float32) *canvas.Text {
+	t := text(s, c, size)
+	t.TextStyle = fyne.TextStyle{Bold: true}
+	t.FontSource = resSerifBold
+	return t
+}
+
+// pathLine is a filesystem path on one line, ellipsized to whatever
+// width it is given at layout time.
+//
+// A canvas.Text cannot do this: it needs the width up front, and a
+// world's folder is as long as the player's folder is long. Left
+// unbounded it ran off the right edge of its card — the row's own
+// panel border was drawn past the end of the text. widget.Label's
+// truncation happens during layout, which is the only place the real
+// width is known.
+func pathLine(s string) *widget.Label {
+	l := widget.NewLabel(s)
+	l.TextStyle = fyne.TextStyle{Monospace: true}
+	l.Truncation = fyne.TextTruncateEllipsis
+	l.SizeName = theme.SizeNameCaptionText
+	l.Importance = widget.LowImportance
+	return l
+}
+
+// ellipsize trims a label to fit and marks that it did.
+//
+// A shelf tile is 130 px wide and a game's name is whatever its
+// publisher felt like: "RuneScape: Dragonwilds" ran straight off its
+// tile and into the next one's. Fyne's canvas.Text does not truncate —
+// it draws the whole string and lets it overflow — so the trimming
+// happens here, against a width measured with the same font metrics the
+// text will be drawn with.
+//
+// The full name is not lost: the tile carries it as a hover tip.
+func ellipsize(s string, max, size float32, style fyne.TextStyle) string {
+	if max <= 0 || fyne.MeasureText(s, size, style).Width <= max {
+		return s
+	}
+	runes := []rune(s)
+	for n := len(runes) - 1; n > 0; n-- {
+		candidate := strings.TrimRight(string(runes[:n]), " ") + "…"
+		if fyne.MeasureText(candidate, size, style).Width <= max {
+			return candidate
+		}
+	}
+	return "…"
 }
