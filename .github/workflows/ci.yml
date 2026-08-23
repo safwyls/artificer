@@ -98,6 +98,41 @@ jobs:
         run: |
           GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" -o /dev/null ./cmd/companion
           GOOS=windows GOARCH=amd64 go vet ./cmd/companion
+      # companiond ships as extraResources inside the Electron shell for
+      # every platform electron-builder.yml targets (linux/amd64,
+      # windows/amd64, darwin/amd64+arm64), so a break in any of those
+      # builds is a release-time surprise if it isn't caught here first.
+      - name: companiond cross-compile (every platform the Electron shell packages for)
+        run: |
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /dev/null ./cmd/companiond
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go vet ./cmd/companiond
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o /dev/null ./cmd/companiond
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet ./cmd/companiond
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o /dev/null ./cmd/companiond
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./cmd/companiond
+
+  companion-desktop:
+    # The Electron shell's own test spawns `go run ./cmd/companiond`
+    # (test/daemon.test.js), so this job needs both Node and Go on the
+    # same runner rather than living in the anvil-less monorepo job.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: companion-desktop/package-lock.json
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go.sum
+      - name: Electron shell build & tests
+        working-directory: companion-desktop
+        run: |
+          npm ci
+          npm run build
+          npm test
 
   anvil:
     runs-on: ubuntu-latest
