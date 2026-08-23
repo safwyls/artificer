@@ -202,6 +202,38 @@ func TestSyncTokenTier(t *testing.T) {
 		t.Errorf("token download: got %d", rec.Code)
 	}
 
+	// One world's history, which is what the companion's Activity and
+	// Conflicts views are: a conflict is a flag on a version, and this
+	// tier is the only way the companion can ever see one.
+	rec = app.do(t, "GET", "/api/public/sync/"+token+"/worlds/1", nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("token world detail: got %d (body %s)", rec.Code, rec.Body)
+	}
+	detail := decodeMap(t, rec)
+	// The ack the whole tier carries: without it the companion's client
+	// treats the body as "something other than the service answered",
+	// which is what catches an Access login page returning 200.
+	if detail["accepted"] != true {
+		t.Errorf("world detail = %v, want the tier's accepted ack", detail)
+	}
+	versions, _ := detail["versions"].([]any)
+	if len(versions) != 1 {
+		t.Fatalf("versions = %v, want the one check-in above", detail["versions"])
+	}
+	if _, ok := detail["uploaders"].(map[string]any); !ok {
+		t.Errorf("no uploader names came back; a numeric id is not an author: %v", detail)
+	}
+	if detail["status"] == nil {
+		t.Error("world detail carries no custody status, so a row cannot say which version is head")
+	}
+
+	// Reading history is all this tier gets. Resolving a conflict moves
+	// the head, and that stays admin — the companion shows conflicts and
+	// names where they are settled.
+	if rec := app.do(t, "POST", "/api/public/sync/"+token+"/worlds/1/head", map[string]any{"versionId": 1}, nil); rec.Code == http.StatusOK {
+		t.Error("the sync-token tier could move a world's head; conflict resolution must stay admin")
+	}
+
 	// Revoking the grant kills the token even though it still exists.
 	rec = app.do(t, "GET", "/api/users", nil, admin)
 	if rec.Code != http.StatusOK {
