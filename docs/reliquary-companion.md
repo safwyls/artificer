@@ -74,6 +74,54 @@ is an addition to the engine.
   config — never in the shared config file, which the browser build
   reads. Size only: Fyne exposes no cross-platform window position.
 
+## The window, reorganised around custody (2026-08-22)
+
+The first native cut carried the browser build's information
+architecture across verbatim: "Your worlds" as one small card above an
+installed-games grid that took most of the screen. A maintainer-approved
+redesign reorganises the window around the question the app exists to
+answer — *can I take this world right now?* Five structural changes:
+
+1. **Worlds is the whole page.** The installed-games grid became its own
+   **Games** tab (`games.go`), with search, an All/Linked/Unlinked
+   filter, linked and unlinked sections, two-line tile names and hidden
+   entries as a line of prose rather than a fake tile in the grid.
+2. **Worlds are grouped by what you can do with them** — checked out to
+   you → free to take → held by someone else, plus a fourth group for
+   worlds that have left the vault. The grouping replaces the per-row
+   status prose.
+3. **One primary action per row**, one quiet second, and everything rare
+   or destructive behind a 3-dot overflow (open folder, copy path,
+   rename, edit link, unlink).
+4. **Sync state is reported exactly once** — the header's dot and one
+   relative time. The scan trail, the tried paths, the linked folders
+   and the build versions moved to **Settings › Diagnostics**, reachable
+   from the footer too.
+5. **Hold pressure is shown only when it is pressure** — a countdown
+   badge appears on somebody else's hold inside its last three hours and
+   not before.
+
+The invariant the design asks to be preserved: **the chip and the
+primary action are both derived from one `custodyOf(world)` result**
+(`model.go`'s `custodyInfo`), so a row cannot say "Free" beside a
+"Check in" button. `model_test.go` covers it.
+
+Two derived states join the tabs rather than being tabs: **first run**
+(connected, nothing linked — a three-step checklist) and **offline**
+(configured, last poll failed — a banner, the held world still playable,
+and the other worlds hidden behind "Show them read-only" because custody
+cannot be confirmed).
+
+What the design asked for that the engine cannot answer yet, and so is
+**not** shipped rather than shipped empty: an Activity tab (the engine
+has one overwritten `LastAction` string, not a feed), a Conflicts tab
+(no conflict exists in the engine at all), "Ask for it back" (the
+engine can queue you behind a holder — offered as **Ask to be next** —
+but has no verb to *request* a return), "Download a copy" of a world
+someone else holds, world history (only a single `Head`), and the
+offline "queued to send" list (nothing tracks unsent work; the banner
+ships without it). Each is an engine addition before it is a UI one.
+
 ## Identity
 
 The desktop build ships under its own name so the two updaters can never
@@ -132,6 +180,13 @@ runner.
       window
 - [ ] The window renders: fonts, theme, icon, and the layout at 1120×780
       and at a small window
+- [ ] The redesign on a real machine: the three custody groups, the
+      Games tab's search and filters, the overflow menu, first run and
+      offline
+- [ ] The two reported hover/render defects stay fixed on Windows — a
+      shelf tile's cover, tooltip and cursor hold steady while the
+      pointer moves across it, and a world row's 54×72 thumbnail keeps
+      its aspect at every window width
 
 ## Also still open
 

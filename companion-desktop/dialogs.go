@@ -598,6 +598,152 @@ func (u *ui) showEditWorld(link companion.WorldLink, world *companion.World) {
 	u.show(dialog.NewCustomWithoutButtons("Edit world", dialogBody(body), u.win))
 }
 
+// --- rename a world ---
+
+// showRenameWorld is the overflow menu's Rename: one field, one verb.
+//
+// Renaming used to be buried in the Edit dialog beside the folder
+// picker, which meant the commonest small edit was two clicks deeper
+// than the rarest. The folder still lives in Edit; the name has its own
+// door.
+func (u *ui) showRenameWorld(link companion.WorldLink, world *companion.World) {
+	name := widget.NewEntry()
+	current := ""
+	if world != nil {
+		current = world.World.Name
+	}
+	name.SetText(current)
+
+	var d *dialog.CustomDialog
+	save := func() {
+		n := trim(name.Text)
+		if n == "" || n == current {
+			d.Hide()
+			return
+		}
+		d.Hide()
+		u.run(func() error {
+			return u.engine.EditLink(link.WorldID, companion.LinkEdit{WorldName: &n})
+		}, "world renamed")
+	}
+	name.OnSubmitted = func(string) { save() }
+
+	body := container.NewVBox(
+		wrapped("The name everyone in your group sees for this world. It is stored on the vault, so renaming it here renames it for all of them.", colMist),
+		text("World name", colMist, szCaption),
+		name,
+	)
+	buttons := actions(
+		primaryButton("Rename", save),
+		quietButton("Cancel", func() { d.Hide() }),
+	)
+	content := container.NewBorder(nil, container.NewPadded(buttons), nil, nil, dialogBody(body))
+	d = dialog.NewCustomWithoutButtons("Rename world", content, u.win)
+	d.Resize(u.confirmSize())
+	d.Show()
+}
+
+// --- diagnostics ---
+
+// showDiagnostics is where the facts that are only interesting when
+// something is wrong now live: the scan trail, every path it tried, the
+// save-location catalogue's state, and the two build versions.
+//
+// All of it used to be in the window's chrome — the trail at the bottom
+// of the main screen, the versions in the footer, a save path in a well
+// on every world row. None of it is daily information, and having it in
+// the chrome is what made the window read as a debug console with a
+// custody app inside it.
+func (u *ui) showDiagnostics() {
+	st := u.snapshot()
+	u.mu.Lock()
+	artAsked, artCount, artError := u.artAsked, len(u.art), u.artError
+	hintsOK, hintsKnown, hintsError := u.hintsOK, u.hintsKnown, u.hintsError
+	u.mu.Unlock()
+
+	versions := "companion " + st.Version
+	switch {
+	case st.Sync.ServerVersion != "":
+		versions += " · vault " + st.Sync.ServerVersion
+	case st.Sync.Configured:
+		versions += " · vault version unknown"
+	}
+
+	body := container.NewVBox(
+		sectionLabel("Builds", colMist, ""),
+		monoText(versions, colMist, szMicro),
+	)
+
+	body.Add(widget.NewSeparator())
+	body.Add(sectionLabel("Vault", colMist, ""))
+	body.Add(monoText("url  "+orDash(st.Config.ServerURL), colMist, szMicro))
+	body.Add(monoText("as   "+orDash(st.Sync.Username), colMist, szMicro))
+	if st.Sync.PolledAt != nil {
+		body.Add(monoText("last poll  "+st.Sync.PolledAt.Local().Format("2 Jan 15:04:05"), colMist, szMicro))
+	}
+	if st.Sync.LastError != "" {
+		body.Add(wrapped("last error: "+st.Sync.LastError, colEmber))
+	}
+	if st.Sync.LastAction != "" {
+		body.Add(monoText("last action  "+st.Sync.LastAction, colMist, szMicro))
+	}
+
+	body.Add(widget.NewSeparator())
+	body.Add(sectionLabel("Game scan", colMist, ""))
+	body.Add(u.scanTrail(st, false))
+	switch {
+	case hintsError != "":
+		body.Add(wrapped("Save-location catalogue unavailable: "+hintsError, colEmber))
+	case hintsOK:
+		body.Add(wrapped("Save locations known for "+itoa(int64(hintsKnown))+" games (Ludusavi manifest, via the vault).", colMist))
+	case st.Sync.Configured:
+		body.Add(wrapped("The vault has no save-location catalogue loaded — folders are found by search alone.", colMist))
+	}
+	if artError != "" {
+		body.Add(wrapped("Cover art unavailable: "+artError, colEmber))
+	} else {
+		body.Add(monoText("cover art  "+itoa(int64(artCount))+" resolved of "+itoa(int64(artAsked))+" asked", colMist, szMicro))
+	}
+
+	// The save paths, all in one place. This is the fact the world rows
+	// used to carry in a well each, and the reason it is here is that
+	// you look it up when something has gone to the wrong folder — not
+	// every time you check a world out.
+	if len(st.Links) > 0 {
+		body.Add(widget.NewSeparator())
+		body.Add(sectionLabel("Linked folders", colMist, ""))
+		for _, l := range st.Links {
+			label := "world #" + itoa(l.WorldID)
+			if w := worldFor(st, l.WorldID); w != nil {
+				label = w.World.Name
+			}
+			body.Add(text(label, colParchment, szCaption))
+			body.Add(pathLine(l.Dir))
+		}
+		body.Add(actions(quietButton("Copy all save paths", func() {
+			var b strings.Builder
+			for _, l := range st.Links {
+				b.WriteString(l.Dir)
+				b.WriteByte('\n')
+			}
+			u.app.Clipboard().SetContent(b.String())
+			u.say("save paths copied", false)
+		})))
+	}
+
+	sheet := container.NewBorder(nil,
+		container.NewPadded(actions(quietButton("Close", func() { u.dismiss() }))),
+		nil, nil, dialogBody(body))
+	u.show(dialog.NewCustomWithoutButtons("Diagnostics", sheet, u.win))
+}
+
+func orDash(s string) string {
+	if trim(s) == "" {
+		return "—"
+	}
+	return s
+}
+
 // --- settings ---
 
 // showSettings holds everything that is not about one world: where the
@@ -689,6 +835,14 @@ func (u *ui) showSettings() {
 		widget.NewSeparator(),
 		notify,
 		autostart,
+
+		widget.NewSeparator(),
+		// The one door into the machine facts. Everything the window
+		// chrome used to carry — the scan trail, the tried paths, the
+		// save paths, the build versions — is behind it.
+		text("Diagnostics", colMist, szCaption),
+		wrapped("The game scan's trail, every path it tried, the folders this machine has linked, and which builds are talking to each other.", colMist),
+		actions(quietButton("Open diagnostics", func() { u.showDiagnostics() })),
 
 		widget.NewSeparator(),
 		text("Companion version ("+st.Version+")", colMist, szCaption),

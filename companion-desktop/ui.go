@@ -75,6 +75,10 @@ type ui struct {
 	// statusBox is the transient in-window feedback strip above the
 	// footer — the desktop's answer to the web UI's toasts.
 	statusBox *fyne.Container
+	// tipLayer is the hand-positioned layer hover tips are drawn into,
+	// stacked over the whole window. See taparea.go for why it is a
+	// layer rather than a Fyne popup.
+	tipLayer *fyne.Container
 
 	// selfCheckout is set while a checkout this window started is in
 	// flight, so its arriving hold is not announced as a surprise claim.
@@ -93,8 +97,21 @@ type ui struct {
 	// look at rather than anything the engine knows. They live here, not
 	// in the widgets, because a redraw throws the widgets away.
 
-	// showHidden is the put-away shelf entries being shown.
+	// tab is which page the window is showing. Derived states — first
+	// run and offline — are *not* tabs: they are computed from the
+	// snapshot, so this only ever holds a page the player chose.
+	tab tab
+	// showHidden is the put-away library entries being shown.
 	showHidden bool
+	// showOfflineWorlds is the player overriding the offline state's
+	// decision to hide the worlds this machine does not hold.
+	showOfflineWorlds bool
+	// gamesSearch and gamesFilter are the Games tab's own controls.
+	// They live here rather than in the widgets because a redraw throws
+	// the widgets away, and a search box that empties itself every time
+	// the engine polls is unusable.
+	gamesSearch string
+	gamesFilter gameFilter
 	// trailItem is the scan trail's current widget, kept so its open
 	// state can be read back before a rebuild discards it; trailChosen
 	// is the player's decision once they have made one, and trailSig
@@ -138,19 +155,26 @@ func (u *ui) refresh() {
 // under an open form. Must run on Fyne's thread.
 func (u *ui) redraw() {
 	st := u.snapshot()
-	u.headerBox.Objects = []fyne.CanvasObject{u.header(st)}
+	u.headerBox.Objects = []fyne.CanvasObject{u.chrome(st)}
 	u.headerBox.Refresh()
 	u.footerBox.Objects = []fyne.CanvasObject{u.footer(st)}
 	u.footerBox.Refresh()
 
-	var body fyne.CanvasObject
-	if st.Sync.Configured {
-		body = u.mainScreen(st)
-	} else {
-		body = u.firstRunScreen(st)
-	}
-	u.content.Objects = []fyne.CanvasObject{body}
+	u.content.Objects = []fyne.CanvasObject{u.body(st)}
 	u.content.Refresh()
+}
+
+// chrome is the header and, when there is more than one page to be on,
+// the tab bar under it.
+//
+// The tabs are hidden while the companion is unconfigured: there is
+// nothing on either page until it can reach a vault, and offering to
+// switch between two empty rooms is not navigation.
+func (u *ui) chrome(st companion.State) fyne.CanvasObject {
+	if !st.Sync.Configured {
+		return u.header(st)
+	}
+	return container.NewVBox(u.header(st), u.tabBar(st))
 }
 
 // build assembles the window's fixed frame: a header that says whether
@@ -162,24 +186,65 @@ func (u *ui) build() fyne.CanvasObject {
 	st := u.state
 	u.mu.Unlock()
 
-	u.headerBox = container.NewStack(u.header(st))
+	u.headerBox = container.NewStack(u.chrome(st))
 	u.footerBox = container.NewStack(u.footer(st))
 	u.statusBox = container.NewStack()
-	u.content = container.NewStack()
-	if st.Sync.Configured {
-		u.content.Objects = []fyne.CanvasObject{u.mainScreen(st)}
-	} else {
-		u.content.Objects = []fyne.CanvasObject{u.firstRunScreen(st)}
-	}
+	u.content = container.NewStack(u.body(st))
 
 	go u.resolveAsides(st)
 
 	bottom := container.NewVBox(u.statusBox, rule(), u.footerBox)
-	return container.NewBorder(
+	frame := container.NewBorder(
 		container.NewVBox(u.headerBox, rule()),
 		bottom, nil, nil,
 		container.NewVScroll(container.NewPadded(u.content)),
 	)
+
+	// The tooltip layer sits over everything, positioned by hand.
+	//
+	// It is a layer rather than a Fyne popup because a popup installs a
+	// canvas-wide input overlay, and that overlay stole the hover from
+	// the very tile the tip was explaining — see taparea.go for the
+	// flicker that caused. Nothing in this layer is Tappable or
+	// Hoverable, so the pointer passes through it untouched.
+	u.tipLayer = container.NewWithoutLayout()
+	return container.NewStack(frame, u.tipLayer)
+}
+
+// showTipAt puts one tooltip on the layer at a window position, keeping
+// it inside the window: a tip that hangs off the bottom or the right
+// edge is a tip nobody can read.
+func (u *ui) showTipAt(content fyne.CanvasObject, at fyne.Position) {
+	if u.tipLayer == nil {
+		return
+	}
+	size := content.MinSize()
+	win := u.win.Canvas().Size()
+	if at.X+size.Width > win.Width {
+		at.X = win.Width - size.Width
+	}
+	if at.X < 0 {
+		at.X = 0
+	}
+	if at.Y+size.Height > win.Height {
+		// No room below: flip above the widget the tip belongs to.
+		at.Y = at.Y - size.Height - tipGap*2
+	}
+	if at.Y < 0 {
+		at.Y = 0
+	}
+	content.Resize(size)
+	content.Move(at)
+	u.tipLayer.Objects = []fyne.CanvasObject{content}
+	u.tipLayer.Refresh()
+}
+
+func (u *ui) clearTip() {
+	if u.tipLayer == nil || len(u.tipLayer.Objects) == 0 {
+		return
+	}
+	u.tipLayer.Objects = nil
+	u.tipLayer.Refresh()
 }
 
 // watchEngine turns the engine's change nudges into redraws, and keeps
@@ -199,7 +264,7 @@ func (u *ui) watchEngine() {
 		for range time.Tick(time.Second) {
 			st := u.snapshot()
 			fyne.Do(func() {
-				u.headerBox.Objects = []fyne.CanvasObject{u.header(st)}
+				u.headerBox.Objects = []fyne.CanvasObject{u.chrome(st)}
 				u.headerBox.Refresh()
 			})
 		}

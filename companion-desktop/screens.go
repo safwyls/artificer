@@ -1,14 +1,20 @@
 package main
 
-// The window's fixed furniture and its two top-level screens.
+// The window's fixed furniture — header, tabs, footer — and the screens
+// that are not a tab.
 //
-// web/companion/src/components/HeaderBar.tsx and App.tsx are the
-// behavioural spec: the same header, the same footer, the same choice
-// between a first-run screen and the worlds-then-shelf body, and the
-// same four kinds of error surface.
+// The redesign's rule about this chrome: **sync state is reported in
+// exactly one place.** It used to be said three times over — a dot and
+// "up to date" in the header, a status line above the footer, and the
+// scan trail's own summary — which meant three things to keep in step
+// and three chances to disagree. Now it is the header's dot and one
+// relative time, and nothing else on screen restates it. The scan
+// trail, the tried paths and the build versions were never sync state
+// at all; they are diagnostics, and they have moved behind Settings.
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -16,48 +22,72 @@ import (
 	"github.com/safwyls/artificer/companion"
 )
 
-// header says the connection once, at the top: whether the vault is
-// reachable, as whom, how old what you are looking at is, and the two
-// things you might want to do about it.
+// tab is a page the player can choose.
+//
+// Two of them, and the reason there are not five is worth writing down.
+// The design also drew Activity and Conflicts tabs; the engine has
+// neither an activity feed (only one overwritten LastAction string) nor
+// any notion of a conflict, so shipping those tabs would mean shipping
+// two empty pages. A tab that is always empty teaches people not to
+// look at tabs. Settings stays a dialog rather than becoming a tab,
+// because it already is one and it works.
+type tab int
+
+const (
+	tabWorlds tab = iota
+	tabGames
+)
+
+func (t tab) label() string {
+	if t == tabGames {
+		return "Games"
+	}
+	return "Worlds"
+}
+
+// goTab switches page. The page a player is looking at is their
+// decision, so it lives on the ui and survives every redraw the
+// engine's polling causes.
+func (u *ui) goTab(t tab) {
+	u.tab = t
+	u.redraw()
+}
+
+// header says the connection once, at the top: who this machine syncs
+// as, how old what you are looking at is, and the two things you might
+// want to do about it.
 func (u *ui) header(st companion.State) fyne.CanvasObject {
 	// The window's own name is the one place the serif is unambiguously
 	// right: it is large, it is set once, and it is what makes the header
 	// read as the vault rather than as a toolkit's title bar.
-	title := container.NewVBox(
-		serifText("Reliquary Companion", colGold, szTitle),
-		text("shared world saves, synced from this machine", colMist, szCaption),
-	)
-
-	light := colMist
-	who := text("Not connected", colMist, szCaption)
-	switch {
-	case st.Sync.LastError != "":
-		light = colEmber
-	case st.Sync.Configured:
-		light = colOK
-	}
+	who := "shared world saves, synced from this machine"
 	if st.Sync.Configured {
 		name := st.Sync.Username
 		if name == "" {
 			name = "…"
 		}
-		who = text("Connected as "+name, colParchment, szCaption)
+		who = "this machine, syncing as " + name
 	}
+	title := container.NewVBox(
+		serifText("Reliquary Companion", colGold, szTitle),
+		text(who, colMist, szCaption),
+	)
 
-	right := container.NewHBox(dot(light), who)
+	right := container.NewHBox()
 	if st.Sync.Configured {
-		// The freshness line is mono because it is a measurement, and it
-		// yields to the transfer while one is running: what is moving
-		// matters more than how old the last poll is.
-		line := freshness(st.Sync.PolledAt)
-		if st.Sync.Busy {
-			line = "transfer in progress…"
+		// The single sync report: a light and a measurement. The light
+		// is green when the last poll landed, ember when it did not,
+		// and the time beside it is how old what you are reading is.
+		light, line := colOK, freshness(st.Sync.PolledAt)
+		switch {
+		case st.Sync.Busy:
+			// What is moving matters more than how old the last poll is.
+			line = "syncing…"
+		case offline(st):
+			light, line = colEmber, "offline"
 		}
-		// Padded so the measurement does not run straight into the
-		// account name beside it — an HBox packs its children edge to
-		// edge, and "Connected as safwyls" and "up to date" read as one
-		// run-on line without this.
-		right.Add(container.NewPadded(monoText(line, colMist, szCaption)))
+		right.Add(dot(light))
+		right.Add(container.NewPadded(monoText(line, colMist, szMicro)))
 		right.Add(iconButton("Sync now", theme.ViewRefreshIcon(), func() {
 			go func() {
 				worlds, err := u.engine.SyncNow()
@@ -68,42 +98,69 @@ func (u *ui) header(st companion.State) fyne.CanvasObject {
 				u.say("synced — "+plural(worlds, "world", "worlds")+" on the service", false)
 			}()
 		}))
+	} else {
+		right.Add(dot(colMist))
+		right.Add(container.NewPadded(monoText("not connected", colMist, szMicro)))
 	}
 	right.Add(iconButton("", theme.SettingsIcon(), func() { u.showSettings() }))
 
-	bar := container.NewBorder(nil, nil, title, right)
-	rows := container.NewVBox(bar)
-	// The standing error band: a poll that failed says so across the
-	// whole header, not in a corner.
-	if st.Sync.LastError != "" {
-		rows.Add(wrapped(st.Sync.LastError, colEmber))
-	}
-	return inset(rows)
+	return inset(container.NewBorder(nil, nil, title, right))
 }
 
-// footer names both builds side by side: which companion, and which
-// service it is talking to. A save-sync report that names one half names
-// nothing.
-func (u *ui) footer(st companion.State) fyne.CanvasObject {
-	versions := "companion " + st.Version
-	switch {
-	case st.Sync.ServerVersion != "":
-		versions += " · service " + st.Sync.ServerVersion
-	case st.Sync.Configured:
-		versions += " · service version unknown"
-	}
-	row := container.NewHBox(monoText(versions, colMist, szCaption))
-	if st.Sync.LastAction != "" {
-		row = container.NewBorder(nil, nil, row,
-			monoText("last action: "+st.Sync.LastAction, colMist, szCaption))
+// tabBar is the page switcher: the active tab in gold with a rule under
+// it, the rest in mist.
+//
+// Drawn rather than using container.AppTabs because that widget paints
+// its own chrome — its own underline colour, its own fill — and this
+// bar has to sit on the header's edge rule the way the design draws it.
+func (u *ui) tabBar(st companion.State) fyne.CanvasObject {
+	row := container.NewHBox()
+	for _, t := range []tab{tabWorlds, tabGames} {
+		active := u.tab == t
+		c := colMist
+		if active {
+			c = colGoldHi
+		}
+		label := text(t.label(), c, 14)
+		// The 2 px gold rule under the active tab, in the same colour
+		// the label is: one accent, said twice, is what makes a tab read
+		// as selected rather than merely different.
+		underline := canvas.NewRectangle(colGold)
+		underline.SetMinSize(fyne.NewSize(1, 2))
+		var mark fyne.CanvasObject = canvas.NewRectangle(colInk)
+		if active {
+			mark = underline
+		}
+		page := t
+		cell := container.NewBorder(nil, mark, nil, nil,
+			container.NewPadded(container.NewHBox(label)))
+		row.Add(container.NewStack(cell, newTapArea(func() { u.goTab(page) })))
 	}
 	return container.NewPadded(row)
+}
+
+// footer is one line of context and the way into diagnostics. The
+// version strings that used to sit here are diagnostics too, and have
+// gone with the rest of them.
+func (u *ui) footer(st companion.State) fyne.CanvasObject {
+	summary := ""
+	if st.Sync.Configured {
+		summary = plural(len(st.Sync.Worlds), "world", "worlds") + " · " +
+			plural(len(st.Links), "linked here", "linked here")
+	}
+	left := monoText(summary, colMist, szMicro)
+	return container.NewPadded(container.NewBorder(nil, nil, left,
+		linkText("Diagnostics", func() { u.showDiagnostics() })))
 }
 
 // say puts a line in the transient strip above the footer — the desktop
 // stand-in for the web UI's toasts. It stays put rather than sliding
 // away over the content, because a window has room for it and a message
 // that vanishes while someone reads it is a message that was not said.
+//
+// This is *action* feedback, not sync state: it says what a button the
+// player pressed did. The header's dot remains the only report of how
+// the syncing itself is going.
 func (u *ui) say(msg string, bad bool) {
 	c := colMist
 	if bad {
@@ -133,26 +190,22 @@ func (u *ui) run(fn func() error, okMsg string) {
 	}()
 }
 
-// mainScreen is the connected body: the update offer, the worlds this
-// machine has linked, and the shelf of installed games.
-func (u *ui) mainScreen(st companion.State) fyne.CanvasObject {
-	rows := container.NewVBox()
-	if banner := u.updateBanner(st); banner != nil {
-		rows.Add(banner)
+// body chooses the screen. Two of the four states the design describes
+// are derived rather than chosen — a machine with no linked worlds gets
+// the first-run checklist whichever tab it is on, and offline is a
+// variant of Worlds rather than a page of its own, so the Worlds tab
+// stays active while offline.
+func (u *ui) body(st companion.State) fyne.CanvasObject {
+	switch {
+	case !st.Sync.Configured:
+		return u.connectScreen(st)
+	case len(st.Links) == 0 && u.tab == tabWorlds:
+		return u.firstRunScreen(st)
+	case u.tab == tabGames:
+		return u.gamesPage(st)
+	default:
+		return u.worldsPage(st)
 	}
-
-	rows.Add(sectionHeader("Your worlds", ""))
-	if len(st.Links) == 0 {
-		rows.Add(italicText(
-			"Nothing linked yet — link an installed game below, or ask whoever runs your sync service which world to join.", colMist, szCaption))
-	}
-	for _, link := range st.Links {
-		rows.Add(u.worldRow(st, link))
-	}
-
-	rows.Add(widget.NewSeparator())
-	rows.Add(u.shelf(st))
-	return rows
 }
 
 // updateBanner offers a new build rather than imposing one. It says "a
@@ -167,7 +220,7 @@ func (u *ui) updateBanner(st companion.State) fyne.CanvasObject {
 	}
 	lines := container.NewVBox(
 		text("A different companion build is available.", colParchment, szBody),
-		monoText(up.Version, colMist, szCaption),
+		monoText(up.Version, colMist, szMicro),
 	)
 	if !up.Supported {
 		// Offering a button that cannot work is worse than saying why.
@@ -193,28 +246,129 @@ func (u *ui) updateBanner(st companion.State) fyne.CanvasObject {
 	if up.Applying {
 		apply.Disable()
 	}
-	return callout(colGold, container.NewBorder(nil, nil, nil, apply, lines))
+	return callout(colGold, container.NewBorder(nil, nil, nil, container.NewCenter(apply), lines))
 }
 
-// firstRunScreen is a deliberate state, not an empty page with forms at
-// the bottom. Until this companion is connected, the two things that
-// have to be true — it can reach a vault, and it can find your games —
-// are the whole screen, side by side, with the scan trail already
-// visible so "no games found" always names its own cause.
+// --- first run, in two parts ---
+
+// firstRunScreen is the checklist a connected machine with no linked
+// worlds sees: what is already true, and the one thing left to do.
+//
+// It is keyed on "no linked worlds" rather than on "not configured",
+// which is the design's definition — a machine can be perfectly
+// connected and still have nothing to sync, and that machine needs
+// telling what to do next rather than an empty Worlds page.
 func (u *ui) firstRunScreen(st companion.State) fyne.CanvasObject {
+	u.mu.Lock()
+	hintsOK, hintsKnown := u.hintsOK, u.hintsKnown
+	u.mu.Unlock()
+
+	games := 0
+	for _, g := range st.Discovered.Games {
+		if !g.Hidden {
+			games++
+		}
+	}
+
+	intro := container.NewVBox(
+		centered(serifText("No worlds on this machine yet", colGold, 21)),
+		wrappedCenter("A world is one save folder the vault holds for your group. Link a game's save folder and Reliquary starts keeping its history.", colMist),
+	)
+
+	// Step 1 — connected. The engine knows the account name and how
+	// many worlds the vault holds; it does not know an email address or
+	// how many people are in the group, so those are not claimed.
+	who := st.Sync.Username
+	if who == "" {
+		who = "this vault"
+	}
+	vault := plural(len(st.Sync.Worlds), "world in this vault", "worlds in this vault")
+
+	// Step 2 — the scan. Libraries and the save-location count are both
+	// facts the engine has; the trail that explains them is one click
+	// away in Diagnostics rather than sprawled across this screen.
+	scanSub := "Across " + plural(len(st.Discovered.Libraries), "library", "libraries") + "."
+	if hintsOK {
+		scanSub += " Save locations known for " + itoa(int64(hintsKnown)) + " of them."
+	}
+
+	steps := groupPanel(colEdge,
+		u.step(stepMarker("✓", colOK), "Connected as "+who, vault, nil, false),
+		u.step(stepMarker("✓", colOK), plural(games, "installed game found", "installed games found"), scanSub,
+			quietButton("Review", func() { u.goTab(tabGames) }), false),
+		u.step(stepMarker("3", colGold), "Link a game to make your first world",
+			"Pick the game and Reliquary suggests the save folder. You confirm it.",
+			primaryButton("Choose a game", func() { u.goTab(tabGames) }), true),
+	)
+
+	col := container.NewVBox(intro, steps)
+	// Only offered when there is actually a world to join: an invitation
+	// to join nothing is worse than no invitation.
+	if u.joinableWorlds(st) > 0 {
+		col.Add(centered(container.NewHBox(
+			text("Someone in your group already made worlds?", colMist, szCaption),
+			linkText("Join one instead", func() { u.showLinkGame(companion.Game{}, true) }),
+		)))
+	}
+	return container.NewPadded(container.NewCenter(container.NewGridWrap(fyne.NewSize(620, col.MinSize().Height), col)))
+}
+
+// joinableWorlds is how many worlds the vault holds that this machine
+// has not linked — the population "Join one instead" would draw from.
+func (u *ui) joinableWorlds(st companion.State) int {
+	n := 0
+	for _, w := range st.Sync.Worlds {
+		taken := false
+		for _, l := range st.Links {
+			if l.WorldID == w.World.ID {
+				taken = true
+			}
+		}
+		if !taken {
+			n++
+		}
+	}
+	return n
+}
+
+// step is one row of the first-run checklist.
+func (u *ui) step(marker fyne.CanvasObject, title, sub string, action fyne.CanvasObject, current bool) fyne.CanvasObject {
+	lines := container.NewVBox(text(title, colParchment, 14))
+	if sub != "" {
+		lines.Add(text(sub, colMist, szCaption))
+	}
+	row := container.NewBorder(nil, nil, container.NewCenter(marker), nil, lines)
+	if action != nil {
+		row = container.NewBorder(nil, nil, container.NewCenter(marker),
+			container.NewCenter(action), lines)
+	}
+	body := container.NewPadded(row)
+	if !current {
+		return body
+	}
+	// The step still to do sits on the well, so the eye lands on it
+	// without anything having to say "you are here".
+	bg := canvas.NewRectangle(colWell)
+	return container.NewStack(bg, body)
+}
+
+// connectScreen is what an unconfigured companion shows. It is a
+// different thing from the first-run checklist above: until this app can
+// reach a vault, there is no account to greet and no worlds to count,
+// and the two things that have to be true — it can reach a vault, and it
+// can find your games — are the whole screen.
+func (u *ui) connectScreen(st companion.State) fyne.CanvasObject {
 	url := widget.NewEntry()
 	url.SetPlaceHolder("https://vault.example.com")
 	url.SetText(st.Config.ServerURL)
 	token := widget.NewPasswordEntry()
 	token.SetPlaceHolder("paste the token from the service's page")
 
-	status := text(statusWord(st), colMist, 12)
-	status.TextStyle = fyne.TextStyle{Monospace: true}
+	status := monoText(statusWord(st), colMist, szMicro)
 
 	// The one place a full-width primary is right: this is a narrow card
-	// in a two-column first-run layout, and a button spanning it reads as
-	// the card's own call to action. Everywhere else a primary is compact
-	// and goes through actions().
+	// in a two-column layout, and a button spanning it reads as the
+	// card's own call to action. Everywhere else a primary is compact.
 	connect := wideButton("Save & connect", func() {
 		serverURL := url.Text
 		go func() {
@@ -266,14 +420,20 @@ func (u *ui) firstRunScreen(st companion.State) fyne.CanvasObject {
 	gamesCard := panelCard(container.NewVBox(
 		serifBold("Finding your games", colGold, szSubhead),
 		wrapped("Steam is detected automatically — the registry, then the usual install paths. Set a folder only if the scan misses a library.", colMist),
-		text("Steam folder (blank = auto-detect)", colMist, 11),
+		text("Steam folder (blank = auto-detect)", colMist, szCaption),
 		container.NewBorder(nil, nil, nil, u.folderPickerButton(steam), steam),
 		actions(quietButton("Save folder & rescan", func() { u.saveSteamDir(steam.Text) })),
+		// The trail stays on this one screen, because here "no games
+		// found" has nowhere else to explain itself yet.
 		inset(u.scanTrail(st, true)),
-		italicText(`"No games found" always names its own cause here.`, colMist, szCaption),
 	))
 
 	return container.NewPadded(container.NewGridWithColumns(2, connectCard, gamesCard))
+}
+
+// centered puts one object in the middle of whatever width it is given.
+func centered(o fyne.CanvasObject) fyne.CanvasObject {
+	return container.NewCenter(o)
 }
 
 func statusWord(st companion.State) string {

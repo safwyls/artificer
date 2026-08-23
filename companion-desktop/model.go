@@ -43,6 +43,71 @@ func gameKey(appID, name string) string {
 	return "name:" + strings.ToLower(strings.TrimSpace(name))
 }
 
+// custodyInfo is the single answer this UI is allowed to ask about a
+// world's custody: which state it is in, who has it, and until when.
+//
+// The design's main invariant lives here. The chip and the row's primary
+// action are both computed from one of these values and from nothing
+// else, so the two cannot disagree — a row can never show "Free" beside
+// a "Check in" button, because there is no second source either of them
+// could read.
+type custodyInfo struct {
+	State     custody
+	Holder    string
+	ExpiresAt time.Time
+	// NextClaim is who is queued behind the current holder, and
+	// NextIsMe says that queue position is this account's.
+	NextClaim string
+	NextIsMe  bool
+}
+
+// group is which of the page's three sections a world belongs in.
+// Derived from State alone — the sections *are* the custody states,
+// which is what lets the grouping replace the per-row status prose.
+type group int
+
+const (
+	groupMine group = iota
+	groupFree
+	groupHeld
+	groupGone
+)
+
+func (c custodyInfo) group() group {
+	switch c.State {
+	case custodyMine, custodyFetching:
+		return groupMine
+	case custodyFree:
+		return groupFree
+	case custodyGone:
+		return groupGone
+	default:
+		return groupHeld
+	}
+}
+
+// holdLeft is how long is left on the hold, or zero when nothing is
+// held or the moment has passed.
+func (c custodyInfo) holdLeft(now time.Time) time.Duration {
+	if c.ExpiresAt.IsZero() {
+		return 0
+	}
+	if d := c.ExpiresAt.Sub(now); d > 0 {
+		return d
+	}
+	return 0
+}
+
+// urgent is the design's "hold pressure is shown only when it is
+// pressure" rule: a countdown appears on a world someone else holds
+// only inside the last three hours of a 48-hour hold.
+const urgentWindow = 3 * time.Hour
+
+func (c custodyInfo) urgent(now time.Time) bool {
+	left := c.holdLeft(now)
+	return left > 0 && left < urgentWindow
+}
+
 // custodyOf reads a link and the service's word about its world into one
 // state.
 //
@@ -50,27 +115,34 @@ func gameKey(appID, name string) string {
 // world, but this machine has no session for it — another machine of
 // theirs took it, or a queued claim's download is still on its way here.
 // It offers no verbs, because the save is not here yet.
-func custodyOf(link companion.WorldLink, world *companion.World, me string, configured bool) custody {
+func custodyOf(link companion.WorldLink, world *companion.World, me string, configured bool) custodyInfo {
+	out := custodyInfo{State: custodyFree}
 	if world == nil {
 		if configured {
-			return custodyGone
+			out.State = custodyGone
 		}
-		return custodyFree
+		return out
+	}
+	if world.ClaimedBy != "" {
+		out.NextClaim = world.ClaimedBy
+		out.NextIsMe = world.ClaimedBy == me
 	}
 	h := world.Holder
 	if h == nil {
-		return custodyFree
+		return out
 	}
-	if h.Username == me {
-		if link.SessionID == h.SessionID {
-			return custodyMine
-		}
-		return custodyFetching
+	out.Holder, out.ExpiresAt = h.Username, h.ExpiresAt
+	switch {
+	case h.Username == me && link.SessionID == h.SessionID:
+		out.State = custodyMine
+	case h.Username == me:
+		out.State = custodyFetching
+	case h.Claimable:
+		out.State = custodyExpired
+	default:
+		out.State = custodyHeld
 	}
-	if h.Claimable {
-		return custodyExpired
-	}
-	return custodyHeld
+	return out
 }
 
 // launchTargetOf is what the companion will open to start this world's
@@ -120,49 +192,138 @@ func linkFor(g companion.Game, links []companion.WorldLink) *companion.WorldLink
 	return nil
 }
 
-// custodyLine is the sentence under the world's name: what the state
-// means for the player standing in front of it.
-func custodyLine(c custody, link companion.WorldLink, world *companion.World, me string) string {
-	var h *companion.Holder
+// custodyLine is the short sentence beside the chip. It is deliberately
+// *not* a restatement of the chip: the group heading and the chip
+// already say which state the world is in, so this says the one thing
+// they cannot — how long is left, or whose it is.
+func custodyLine(c custodyInfo, link companion.WorldLink, offline bool, now time.Time) string {
 	next := ""
-	if world != nil {
-		h = world.Holder
-		if world.ClaimedBy != "" {
-			if world.ClaimedBy == me {
-				next = " · you're next"
-			} else {
-				next = " · next claim: " + world.ClaimedBy
-			}
-		}
+	switch {
+	case c.NextIsMe:
+		next = " · you're next"
+	case c.NextClaim != "":
+		next = " · next in line: " + c.NextClaim
 	}
-	switch c {
+	switch c.State {
 	case custodyGone:
 		return fmt.Sprintf("world #%d is not on the service any more", link.WorldID)
 	case custodyFree:
 		return "nobody holds this world" + next
 	case custodyMine:
-		return "until " + fmtTime(holderExpiry(h)) + " · save is on this machine"
+		if offline {
+			// The whole point of the offline state: the hold does not
+			// lapse because the vault stopped answering.
+			return "the hold stands while you are offline" + holdSuffix(c, now)
+		}
+		return "yours" + holdSuffix(c, now)
 	case custodyFetching:
 		return "fetching it to this machine…"
 	case custodyExpired:
-		return "held by " + holderName(h) + " — the hold expired" + next
+		return "held by " + holderName(c) + " — the hold expired" + next
 	default:
-		return "held by " + holderName(h) + " until " + fmtTime(holderExpiry(h)) + next
+		return "held by " + holderName(c) + next
 	}
 }
 
-func holderName(h *companion.Holder) string {
-	if h == nil {
+// holdSuffix is the " — 47h left on the hold" tail, present only when
+// the service actually told us when the hold ends.
+func holdSuffix(c custodyInfo, now time.Time) string {
+	left := c.holdLeft(now)
+	if left <= 0 {
+		return ""
+	}
+	return " — " + fmtDuration(left) + " left on the hold"
+}
+
+func holderName(c custodyInfo) string {
+	if c.Holder == "" {
 		return "someone"
 	}
-	return h.Username
+	return c.Holder
 }
 
-func holderExpiry(h *companion.Holder) time.Time {
-	if h == nil {
-		return time.Time{}
+// fmtDuration says a remaining hold the way a person would: hours while
+// there are hours, minutes once it is down to them.
+func fmtDuration(d time.Duration) string {
+	if d < time.Minute {
+		return "under a minute"
 	}
-	return h.ExpiresAt
+	mins := int(d.Minutes())
+	h, m := mins/60, mins%60
+	switch {
+	case h == 0:
+		return fmt.Sprintf("%dm", m)
+	case m == 0:
+		return fmt.Sprintf("%dh", h)
+	default:
+		return fmt.Sprintf("%dh %dm", h, m)
+	}
+}
+
+// headMeta is the mono line on the right of a row: the version the
+// service holds, how big it is, and when it was written.
+//
+// Every field is optional, because the service answers with what it
+// has: a world nobody has ever pushed a save to has no head at all.
+// Only the parts that exist are rendered, and a world with none renders
+// nothing rather than a row of dashes.
+func headMeta(world *companion.World, now time.Time) string {
+	if world == nil {
+		return ""
+	}
+	parts := make([]string, 0, 3)
+	if v := world.World.HeadVersion; v != nil && *v > 0 {
+		parts = append(parts, "v"+itoa(*v))
+	}
+	if world.Head != nil {
+		if world.Head.Bytes > 0 {
+			parts = append(parts, fmtBytes(world.Head.Bytes))
+		}
+		if !world.Head.CreatedAt.IsZero() {
+			parts = append(parts, fmtWhen(world.Head.CreatedAt, now))
+		}
+	}
+	return strings.Join(parts, " · ")
+}
+
+// fmtBytes is a save's size at the precision anyone cares about.
+func fmtBytes(n int64) string {
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%.1f GB", float64(n)/float64(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%d MB", (n+(1<<19))/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%d KB", (n+(1<<9))/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
+}
+
+// fmtWhen says when a save was written, at the resolution that is
+// useful: a clock time today, a weekday this week, a date beyond that.
+func fmtWhen(t time.Time, now time.Time) string {
+	t, now = t.Local(), now.Local()
+	switch d := now.Sub(t); {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case sameDay(t, now):
+		return t.Format("15:04")
+	case sameDay(t, now.AddDate(0, 0, -1)):
+		return "yesterday"
+	case d < 7*24*time.Hour:
+		return t.Format("Monday")
+	default:
+		return t.Format("2 Jan")
+	}
+}
+
+func sameDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
 
 // fmtTime says a moment in the player's own locale and zone — a hold
@@ -194,6 +355,56 @@ func freshness(polledAt *time.Time) string {
 	default:
 		return fmt.Sprintf("synced %d min ago", (secs+30)/60)
 	}
+}
+
+// offline is the connectivity state the whole window keys off, derived
+// rather than stored: the companion is configured, so it should be able
+// to reach the vault, and the last poll says it could not.
+//
+// The engine has no offline flag — a failed poll leaving its error
+// behind is the only signal there is, which is exactly what this reads.
+func offline(st companion.State) bool {
+	return st.Sync.Configured && st.Sync.LastError != ""
+}
+
+// worldsOf splits the linked worlds into the page's sections, in the
+// order they are shown. One custodyOf call per world, and the section
+// it lands in comes from that call and nothing else.
+func worldsOf(st companion.State, now time.Time) map[group][]worldRowData {
+	out := map[group][]worldRowData{}
+	for _, link := range st.Links {
+		w := worldFor(st, link.WorldID)
+		c := custodyOf(link, w, st.Sync.Username, st.Sync.Configured)
+		out[c.group()] = append(out[c.group()], worldRowData{
+			link: link, world: w, custody: c,
+		})
+	}
+	return out
+}
+
+// worldRowData is one row's inputs, resolved once so the row builder
+// cannot go back and ask a second time.
+type worldRowData struct {
+	link    companion.WorldLink
+	world   *companion.World
+	custody custodyInfo
+}
+
+func (d worldRowData) name() string {
+	if d.world != nil && d.world.World.Name != "" {
+		return d.world.World.Name
+	}
+	return "world #" + itoa(d.link.WorldID)
+}
+
+func (d worldRowData) gameTitle() string {
+	if d.link.GameTitle != "" {
+		return d.link.GameTitle
+	}
+	if d.world != nil {
+		return d.world.World.GameTitle
+	}
+	return ""
 }
 
 // plural counts both halves of a scan trail's summary.
