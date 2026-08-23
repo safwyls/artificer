@@ -33,11 +33,22 @@ jobs:
             goarch: amd64
             daemon_name: companiond.exe
             builder_flag: --win nsis
+          # electron-builder.yml targets both Mac architectures, and the
+          # daemon that travels in extraResources is a native binary, not
+          # a universal one — so each dmg has to be packaged on a runner
+          # whose companiond matches its arch. Building both from one
+          # runner would put an arm64 daemon inside the Intel dmg, where
+          # it cannot exec at all. macos-13 is the Intel runner.
           - os: macos-latest
             goos: darwin
             goarch: arm64
             daemon_name: companiond
-            builder_flag: --mac dmg
+            builder_flag: --mac dmg --arm64
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+            daemon_name: companiond
+            builder_flag: --mac dmg --x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -71,6 +82,12 @@ jobs:
         run: npm ci
       - name: Package with electron-builder
         working-directory: companion-desktop
+        # There are no signing certificates in this repo, so tell
+        # electron-builder not to go looking for one: on the Mac runners
+        # its identity hunt is what turns "unsigned build" into a failed
+        # job. These are unsigned prereleases and the release notes say so.
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npx electron-builder ${{ matrix.builder_flag }} --publish never
       - name: Collect artifacts
         shell: bash
