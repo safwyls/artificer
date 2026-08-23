@@ -77,9 +77,15 @@ jobs:
           mkdir -p companion-desktop/resources
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
             go build -o companion-desktop/resources/${{ matrix.daemon_name }} ./cmd/companiond
-      - name: Electron shell dependencies
+      # `main` is dist/main.js, which tsc produces — electron-builder
+      # does not compile anything itself, it only packages what is on
+      # disk, and an uncompiled tree fails late with "application entry
+      # file does not exist" rather than at the missing build step.
+      - name: Electron shell dependencies & build
         working-directory: companion-desktop
-        run: npm ci
+        run: |
+          npm ci
+          npm run build
       - name: Package with electron-builder
         working-directory: companion-desktop
         # There are no signing certificates in this repo, so tell
