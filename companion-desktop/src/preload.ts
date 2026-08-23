@@ -12,13 +12,40 @@
 // just needs to be told where and with what credential.
 
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC, CompanionBridge } from "./ipc-contract";
+import type { CompanionBridge } from "./ipc-contract";
+
+/**
+ * The channel names, repeated from ipc-contract.ts rather than imported.
+ *
+ * A *sandboxed* preload — which this is, by main.ts's `sandbox: true` —
+ * is loaded as a single file: the `require` it gets resolves a short list
+ * of Electron built-ins and nothing else, so `require("./ipc-contract")`
+ * threw "module not found" and took the whole script with it. The page
+ * then had no `window.companion` at all, and nothing looked wrong,
+ * because the shell injects the daemon's bearer at the network layer
+ * (attachDaemonAuth) — so the app still loaded and still talked to the
+ * daemon while every native capability silently fell back to the browser
+ * build's answer: no OS folder picker, no "open the save folder", no
+ * autostart toggle.
+ *
+ * The type above is still imported, because `import type` is erased at
+ * compile time and never becomes a require. The values cannot be, so
+ * test/ipc-contract.test.js fails if these two copies ever disagree.
+ */
+const IPC = {
+  getConnection: "companion:getConnection",
+  pickFolder: "companion:pickFolder",
+  openPath: "companion:openPath",
+  setAutostart: "companion:setAutostart",
+  getAutostart: "companion:getAutostart",
+} as const;
 
 const connection = ipcRenderer.sendSync(IPC.getConnection) as { baseUrl: string; token: string };
 
 const bridge: CompanionBridge = {
   baseUrl: connection.baseUrl,
   token: connection.token,
+  platform: process.platform,
   pickFolder: (startDir?: string) => ipcRenderer.invoke(IPC.pickFolder, startDir),
   openPath: (path: string) => ipcRenderer.invoke(IPC.openPath, path),
   setAutostart: (enabled: boolean) => ipcRenderer.invoke(IPC.setAutostart, enabled),
