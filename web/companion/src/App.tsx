@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { api, errorText } from "./lib/api";
+import { useLiveUpdates } from "./lib/events";
 import { useArtwork, useCompanionState, useRefreshState, useSaveHints } from "./lib/state";
 import { FirstRun } from "./components/FirstRun";
 import { FooterBar, HeaderBar } from "./components/HeaderBar";
@@ -32,7 +33,11 @@ function NotHereYet({ title, body }: { title: string; body: string }) {
 
 export function App() {
   const refresh = useRefreshState();
-  const { data: state, isLoading, isError, error } = useCompanionState();
+  // The push stream first: while it is carrying, the poll drops to a
+  // heartbeat. It never stops — a dropped stream is invisible from both
+  // ends, and custody is the wrong thing to be quietly wrong about.
+  const live = useLiveUpdates();
+  const { data: state, isLoading, isError, error } = useCompanionState(live);
   const games = state?.discovered?.games ?? [];
   // Both of these ask when the *set* of games changes, never on the poll.
   const { art, empty: artEmpty, error: artError } = useArtwork(games);
