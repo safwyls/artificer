@@ -12,6 +12,22 @@ import * as path from "node:path";
 
 const DESKTOP_FILE_NAME = "reliquary-companion.desktop";
 
+/**
+ * The arguments the login entry carries, and the reason this is a
+ * constant rather than a literal at each call site.
+ *
+ * On Windows, `getLoginItemSettings` does not simply report "is there a
+ * Run entry" — it compares against a path and an argument list, both
+ * defaulting to `process.execPath` and *no arguments*. Registering with
+ * `["--minimized"]` and then asking with the default empty list is a
+ * mismatch, so the answer was always `openAtLogin: false`: the setting
+ * was written, and reading it back said it had not been. The checkbox
+ * turned itself off again the next time Settings was opened.
+ *
+ * Set and get have to agree, so they share this.
+ */
+const AUTOSTART_ARGS = ["--minimized"];
+
 function autostartDir(): string {
   const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
   return path.join(xdgConfig, "autostart");
@@ -33,8 +49,12 @@ X-GNOME-Autostart-enabled=true
 export interface AutostartApp {
   // Subset of Electron's app used here, so this module stays testable
   // without importing electron directly.
-  getLoginItemSettings(): { openAtLogin: boolean };
-  setLoginItemSettings(settings: { openAtLogin: boolean; args?: string[] }): void;
+  getLoginItemSettings(options?: { path?: string; args?: string[] }): { openAtLogin: boolean };
+  setLoginItemSettings(settings: {
+    openAtLogin: boolean;
+    path?: string;
+    args?: string[];
+  }): void;
   getPath(name: string): string;
 }
 
@@ -50,13 +70,20 @@ export function setAutostart(enabled: boolean, app: AutostartApp): void {
     }
     return;
   }
-  // win32 / darwin
-  app.setLoginItemSettings({ openAtLogin: enabled, args: enabled ? ["--minimized"] : [] });
+  // win32 / darwin. The path is passed explicitly so that what is
+  // written is what getAutostart below asks about.
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    path: process.execPath,
+    args: enabled ? AUTOSTART_ARGS : [],
+  });
 }
 
 export function getAutostart(app: AutostartApp): boolean {
   if (process.platform === "linux") {
     return fs.existsSync(desktopFilePath());
   }
-  return app.getLoginItemSettings().openAtLogin;
+  // The same path and arguments setAutostart registered. Asking with
+  // anything else is asking about a different login item.
+  return app.getLoginItemSettings({ path: process.execPath, args: AUTOSTART_ARGS }).openAtLogin;
 }
