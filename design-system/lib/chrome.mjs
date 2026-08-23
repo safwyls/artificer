@@ -28,6 +28,7 @@ export const icons = (cls) => ({
   play: svg('<polygon points="6 3 20 12 6 21 6 3"/>', cls),
   dotsVertical: svg('<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>', cls),
   search: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-4.3-4.3"/>', cls),
+  alert: svg('<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>', cls),
   wifiOff: svg('<path d="M2 8.8a16 16 0 0 1 20 0"/><path d="M6.5 12.8a10 10 0 0 1 11 0"/><circle cx="12" cy="19" r="1"/><path d="m2 2 20 20"/>', cls),
 });
 

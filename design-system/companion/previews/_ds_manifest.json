@@ -53,6 +53,16 @@
       }
     },
     {
+      "name": "Activity and Conflicts",
+      "path": "history.html",
+      "subtitle": "One read of the vault, filtered two ways",
+      "group": "Status",
+      "viewport": {
+        "width": 980,
+        "height": 720
+      }
+    },
+    {
       "name": "Section headers and panel failure",
       "path": "panel-failure.html",
       "subtitle": "A panel that fails, fails alone — and says which",

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { cn } from "../lib/utils";
 
 /**
@@ -6,6 +7,11 @@ import { cn } from "../lib/utils";
  *
  * Offline is not a tab — it is a variant of Worlds, so the Worlds tab
  * stays active while the vault is unreachable.
+ *
+ * The row also carries the window's one action, right-aligned on the
+ * same baseline as the tabs. It used to sit in a header bar of its own
+ * above this one; two full-width strips of chrome for five words and one
+ * button is a lot of window to spend before the worlds start.
  */
 export type Tab = "worlds" | "games" | "activity" | "conflicts" | "settings";
 
@@ -21,16 +27,20 @@ export function TabBar({
   tab,
   onTab,
   conflicts = 0,
+  actions,
 }: {
   tab: Tab;
   onTab: (t: Tab) => void;
   /** Shown as a badge, and only when non-zero: a "0" beside Conflicts is
    * a number nobody needs. */
   conflicts?: number;
+  /** Right-aligned in the same row, centred against the tab labels. */
+  actions?: ReactNode;
 }) {
   return (
-    <div role="tablist" aria-label="Companion sections" className="flex gap-1 border-b border-edge px-7 pt-4">
-      {TABS.map(({ id, label }) => {
+    <div className="flex flex-none items-stretch border-b border-edge px-7">
+      <div role="tablist" aria-label="Companion sections" className="flex items-stretch gap-1">
+        {TABS.map(({ id, label }) => {
         const active = tab === id;
         return (
           <button
@@ -40,9 +50,9 @@ export function TabBar({
             aria-selected={active}
             onClick={() => onTab(id)}
             className={cn(
-              // -1px so the active tab's rule sits *on* the header's own
+              // -1px so the active tab's rule sits *on* the row's own
               // border rather than under it.
-              "-mb-px flex items-center gap-2 border-b-2 px-3.5 pb-2.5 pt-2 text-[14.5px] transition-colors",
+              "-mb-px flex items-center gap-2 border-b-2 px-3.5 pb-[7px] pt-2 text-[13.5px] transition-colors",
               active
                 ? "border-gold text-goldhi"
                 : "border-transparent text-mist hover:text-parchment",
@@ -55,8 +65,12 @@ export function TabBar({
               </span>
             ) : null}
           </button>
-        );
-      })}
+          );
+        })}
+      </div>
+      {actions ? (
+        <div className="ml-auto flex items-center gap-3.5 pb-1 pl-5 pt-1">{actions}</div>
+      ) : null}
     </div>
   );
 }

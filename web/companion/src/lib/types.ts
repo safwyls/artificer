@@ -147,6 +147,51 @@ export interface CompanionState {
   sync: SyncState;
   version: string;
   update?: UpdateState;
+  /** What this computer calls itself. Optional because a locked-down
+   * host may decline to say and because an older daemon does not send
+   * it — both mean "fall back to naming no machine at all". */
+  hostname?: string;
+}
+
+/**
+ * One version in one world's history, as the vault records it.
+ *
+ * A conflict is not a separate kind of thing — it is this, with
+ * `conflict` set. The vault flags a check-in that arrived from an ended
+ * session, or from one whose base is no longer the head, and refuses to
+ * fast-forward onto it. Activity and Conflicts are one list read once and
+ * filtered two ways, so they cannot disagree about what happened.
+ */
+export interface HistoryEntry {
+  worldId: number;
+  worldName: string;
+  gameTitle?: string;
+  versionId: number;
+  /** "checkin" | "checkpoint" | "import" — the verb that made it. */
+  kind: string;
+  conflict: boolean;
+  /** This is the version a checkout would hand you right now. */
+  head: boolean;
+  bytes: number;
+  uploader?: string;
+  createdAt: string;
+}
+
+/** A world whose history could not be read. Named rather than dropped: a
+ * short list that looks complete is worse than an error, in a view whose
+ * whole purpose is noticing something you did not do yourself. */
+export interface HistoryFailure {
+  worldId: number;
+  worldName: string;
+  error: string;
+}
+
+export interface History {
+  entries: HistoryEntry[];
+  failed: HistoryFailure[];
+  fetchedAt: string;
+  /** More worlds are linked than were read this pass. */
+  truncated?: number;
 }
 
 export interface Artwork {

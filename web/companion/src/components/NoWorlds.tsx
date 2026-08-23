@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { VaultMark } from "./HeaderBar";
+import { VaultMark } from "./VaultMark";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import type { CompanionState } from "../lib/types";
@@ -63,7 +63,7 @@ export function NoWorlds({ state, onOpenGames }: { state: CompanionState; onOpen
     <div className="flex justify-center px-7 py-[60px]">
       <div className="flex w-full max-w-[620px] flex-col gap-[22px]">
         <div className="flex flex-col items-center gap-2 text-center">
-          <VaultMark className="h-[34px] w-[34px] text-gold" strokeWidth={1.1} />
+          <VaultMark className="h-[34px] w-[34px] text-gold" />
           <h1 className="text-[21px] tracking-[0.05em] text-gold">No worlds on this machine yet</h1>
           <p className="max-w-[46ch] text-[14px] text-mist">
             A world is one save folder the vault holds for your group. Link a game&apos;s save folder

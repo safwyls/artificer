@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiUrl, authHeaders, bridge, getAutostart, nativeFolders, openPath, pickFolder, setAutostart } from "./runtime";
+import { apiUrl, authHeaders, bridge, getAutostart, inShell, nativeFolders, openPath, pickFolder, setAutostart, shellPlatform } from "./runtime";
 import { call } from "./api";
 import type { CompanionBridge } from "./runtime";
 
@@ -28,6 +28,10 @@ describe("runtime — the browser build", () => {
     expect(apiUrl("/api/state")).toBe("/api/state");
     expect(authHeaders()).toEqual({});
     expect(nativeFolders()).toBe(false);
+    // No shell means no window chrome to draw: a browser tab has a
+    // titlebar of its own already.
+    expect(inShell()).toBe(false);
+    expect(shellPlatform()).toBeUndefined();
   });
 
   it("answers 'cannot' rather than pretending, for every native capability", async () => {
@@ -108,5 +112,22 @@ describe("the api client follows the runtime", () => {
       .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     await call("GET", "/api/state");
     expect(fetchMock).toHaveBeenCalledWith("/api/state", expect.objectContaining({ headers: {} }));
+  });
+});
+
+// The titlebar has to know which end of the strip the OS will draw the
+// window's caption buttons over, and that is the shell's answer to give.
+describe("runtime — which machine the shell is on", () => {
+  it("reports the shell's platform", () => {
+    install({ platform: "win32" });
+    expect(inShell()).toBe(true);
+    expect(shellPlatform()).toBe("win32");
+  });
+
+  it("says 'a shell, of some kind' when an older one sends no platform", () => {
+    install();
+    // Not undefined: undefined means "browser build, draw no chrome",
+    // and a frameless window with no titlebar cannot be moved.
+    expect(shellPlatform()).toBe("unknown");
   });
 });

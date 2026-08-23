@@ -21,6 +21,42 @@ let sse: SSEHandle | null = null;
 const notifyPolicy = new NotifyPolicyState();
 let quitting = false;
 
+// electron-builder's productName, repeated for the window title, the tray
+// and the dialogs. The browser-and-tray build (cmd/companion) is the
+// *Artificer* Companion and is a separate product with its own release
+// track — see docs/reliquary-companion.md.
+const APP_NAME = "Reliquary Companion";
+
+// electron-builder.yml's `appId`, and it has to stay equal to it —
+// test/app-identity.test.js holds the two together.
+//
+// Windows uses the AppUserModelID to decide which taskbar button a window
+// belongs to and whose icon and name a toast notification carries. With
+// none set, an unpackaged run is grouped under electron.exe and wears
+// Electron's identity instead of ours — which is why a dev build could
+// show the wrong icon no matter what `build/icon.png` contained. It also
+// matters for the three notifications this shell raises. A no-op on
+// macOS and Linux.
+const APP_ID = "com.artificer.reliquarycompanion";
+
+// The window wears the app's chrome, not the platform's. web/companion
+// draws a titlebar into the top of the page (TitleBar.tsx) and marks it
+// draggable; the OS still draws the caption buttons, recoloured to sit
+// in that strip.
+//
+// `titleBarOverlay` rather than buttons of our own: it is what keeps
+// Windows 11 snap layouts appearing on hover, and losing those to match
+// a palette would be a bad trade.
+//
+// The height here is a *request*. What the OS actually drew is reported
+// back to the page as the Window Controls Overlay's `env(titlebar-area-*)`,
+// and TitleBar.tsx sizes itself from that rather than from this number —
+// the two disagreeing is what put the caption buttons across the strip's
+// bottom rule.
+const TITLEBAR_HEIGHT = 38;
+const TITLEBAR_BG = "#100d17"; // --ink
+const TITLEBAR_FG = "#e8e0cf"; // --parchment
+
 function log(...args: unknown[]) {
   // eslint-disable-next-line no-console
   console.error("[companion-desktop]", ...args);
@@ -175,6 +211,51 @@ async function runSmoke(win: BrowserWindow) {
   });
 }
 
+/**
+ * The frameless-window options, which differ by platform in where the
+ * caption buttons land: three at the right on Windows and Linux, the
+ * traffic lights at the left on macOS. TitleBar.tsx reserves the
+ * matching end of the strip.
+ */
+function titleBarOptions() {
+  if (process.platform === "darwin") {
+    return {
+      titleBarStyle: "hidden" as const,
+      // Centred vertically in a 36px strip: the lights are 12px tall.
+      trafficLightPosition: { x: 14, y: 12 },
+    };
+  }
+  return {
+    titleBarStyle: "hidden" as const,
+    titleBarOverlay: {
+      color: TITLEBAR_BG,
+      symbolColor: TITLEBAR_FG,
+      height: TITLEBAR_HEIGHT,
+    },
+  };
+}
+
+/**
+ * The menu bar is chrome this app never used: every command it held is
+ * on the page or in the tray, and a grey native menu strip above a dark
+ * window reads as two applications stacked. It goes entirely on Windows
+ * and Linux.
+ *
+ * macOS is the exception, and not a cosmetic one — its menu is not in
+ * the window, and removing it takes Cmd+Q, Cmd+C and Cmd+V with it. So
+ * that platform keeps a role-only menu, which is the standard set and
+ * nothing of ours.
+ */
+function installAppMenu() {
+  if (process.platform !== "darwin") {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }]),
+  );
+}
+
 function createWindow() {
   if (!daemon) throw new Error("createWindow called before daemon is ready");
 
@@ -183,6 +264,10 @@ function createWindow() {
     height: 780,
     show: false,
     icon: iconPath(),
+    // The page ground, so a frameless window does not flash white in the
+    // gap between "created" and "painted".
+    backgroundColor: TITLEBAR_BG,
+    ...titleBarOptions(),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -201,9 +286,31 @@ function createWindow() {
     event.returnValue = { baseUrl: daemon!.baseUrl, token: daemon!.token };
   });
 
+  // The window is the Reliquary Companion; the page it loads is titled
+  // for the browser build it is also served to. Without this the OS
+  // taskbar and alt-tab take the document's title and call this window
+  // by the other product's name.
+  mainWindow.setTitle(APP_NAME);
+  mainWindow.on("page-title-updated", (e) => e.preventDefault());
+
   void mainWindow.loadURL(target);
 
   if (process.env.COMPANION_SMOKE) void runSmoke(mainWindow);
+
+  // With no menu there is no F12 accelerator either, and the devtools are
+  // the first thing anyone reaches for when the renderer misbehaves. Only
+  // in an unpackaged build: a shipped app should not open them by
+  // accident.
+  if (!app.isPackaged) {
+    mainWindow.webContents.on("before-input-event", (event, input) => {
+      const devtools =
+        input.key === "F12" || (input.control && input.shift && input.key.toLowerCase() === "i");
+      if (input.type === "keyDown" && devtools) {
+        mainWindow?.webContents.toggleDevTools();
+        event.preventDefault();
+      }
+    });
+  }
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
@@ -224,7 +331,7 @@ function createWindow() {
 
 function createTray() {
   tray = new Tray(trayImage());
-  tray.setToolTip("Reliquary Companion");
+  tray.setToolTip(APP_NAME);
   const menu = Menu.buildFromTemplate([
     {
       label: "Show",
@@ -283,13 +390,16 @@ function registerIpcHandlers() {
 }
 
 async function bootstrap() {
+  // Before the first window and the first notification: both read it.
+  app.setAppUserModelId(APP_ID);
+
   try {
     daemon = await startDaemon();
   } catch (err) {
     log("failed to start companiond:", err);
     await dialog.showMessageBox({
       type: "error",
-      title: "Reliquary Companion",
+      title: APP_NAME,
       message: "Could not start the companion background service.",
       detail: String(err),
     });
@@ -297,6 +407,7 @@ async function bootstrap() {
     return;
   }
 
+  installAppMenu();
   registerIpcHandlers();
   createWindow();
   createTray();

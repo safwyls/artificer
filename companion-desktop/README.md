@@ -133,26 +133,51 @@ without needing a packaged build or a display.
 
 ### Icon
 
-`build/icon.png` (1024x1024, committed) is rasterized from
-`web/reliquary/public/favicon.svg` — the Reliquary mark on its rounded
-ink tile. This app is the Reliquary Companion, so it wears the Reliquary
-mark; the browser build keeps its own `web/companion/public/favicon.ico`,
-which is deliberately tray-sized (16 and 32 only) and has no artwork
-large enough to be an app icon. macOS requires at least 512x512, so
-upscaling that favicon is not an option even where it is technically
-allowed — it only produces a blurry icon that passes a size check.
+`build/icon.png` (1024x1024, committed) is the **vault mark** — a gold
+diamond — on a rounded ink tile. It is the same shape the app draws in
+its titlebar and its empty state.
 
-Regenerate it if the mark changes:
+The mark used to be that diamond sitting on a wider kite. It does not
+survive being an icon: at 16, 32 and 48px the composition stops reading
+as a vault and starts reading as a small person, the diamond a head and
+the kite a body. That is invisible in the 1024px master and obvious the
+moment it is rendered at the sizes an OS actually asks for — which is
+the check to run before believing an icon works. The kite is gone from
+the app entirely, so the icon and the component draw one shape.
+
+It is generated, not drawn:
 
 ```
-magick -background none -density 3072 \
-  ../web/reliquary/public/favicon.svg -depth 8 build/icon.png
+npm run icon        # electron scripts/make-icon.js
 ```
 
-`-density` is what does the work: it rasterizes the vector *at* 1024px
-(96dpi x 1024/32). Rendering at the SVG's intrinsic 32px and passing
-`-resize 1024x1024` upscales 32px of pixels and looks it. Requires
-ImageMagick with the librsvg delegate (`magick -list format | grep SVG`).
+`scripts/make-icon.js` strokes the diamond of
+`web/companion/src/components/VaultMark.tsx` in the `--ink`/`--gold`
+values from `web/companion/src/index.css`. It stays line art rather than
+a solid silhouette, which is how everything else in this app is drawn,
+and its stroke is set by ratio — 8.5% of the tile on a diamond 32% of it
+— which is where `VaultMark`'s default `strokeWidth` comes from, so the
+drawn mark and the rasterised one are the same weight. A generator rather than a checked-in drawing so the
+icon cannot drift from the app's colours, and Electron rather than a
+rasterizer so there is no dependency this project does not already have
+— it draws into a `<canvas>` and reads `toDataURL`, so the rounded
+corners come out genuinely transparent rather than composited against
+something.
+
+The app also sets `app.setAppUserModelId` to electron-builder's `appId`.
+Windows picks a taskbar button's grouping, and a toast's icon and name,
+from that — with none set, an unpackaged run is grouped under
+`electron.exe` and wears Electron's identity whatever `icon.png`
+contains. `test/app-identity.test.js` holds the two strings equal.
+
+It used to be the Reliquary *shrine* mark, rasterized from
+`web/reliquary/public/favicon.svg` with ImageMagick. That mark belongs to
+the service; this app is the player-side half. The browser build keeps its own
+`web/companion/public/favicon.ico`, which is deliberately tray-sized (16
+and 32 only) and has no artwork large enough to be an app icon — macOS
+requires at least 512x512, so upscaling it is not an option even where it
+is technically allowed.
+
 
 ### Window smoke
 

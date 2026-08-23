@@ -78,6 +78,62 @@ is an addition to the engine.
 - **Autostart** — an HKCU `…\CurrentVersion\Run` entry passing
   `--minimized`, so login brings it up in the tray. Windows only; other
   platforms answer with a reason rather than a broken checkbox.
+- **Its own window chrome.** The window is frameless
+  (`titleBarStyle: "hidden"`) and the page draws the titlebar —
+  `web/companion`'s `TitleBar.tsx`. The caption buttons stay the
+  platform's, recoloured through `titleBarOverlay` to sit in that strip:
+  hand-drawn ones would cost Windows 11 its snap-layouts menu on hover,
+  which is a worse loss than a mismatched button shape.
+  `TITLEBAR_HEIGHT` in `main.ts` is only a *request*; the strip sizes
+  itself from `env(titlebar-area-height)` and bounds its content with
+  `env(titlebar-area-width)`, which are the Window Controls Overlay's own
+  report of where the OS actually drew those buttons. A number agreed by
+  hand across the two builds cannot survive a change of display scaling.
+  The strip is then **one pixel taller than that reported height**: the
+  overlay paints its own background across every pixel it claims, so a
+  1px bottom rule counted inside that height sits under the caption
+  buttons and disappears. The content box is the reported height and the
+  rule goes below it — see `.app-titlebar` in `web/companion/src/index.css`.
+  The **menu bar is gone** on Windows and Linux (`Menu.setApplicationMenu(null)`);
+  every command it held is on the page or in the tray. macOS keeps a
+  role-only menu, because its menu is not in the window and removing it
+  takes Cmd+Q/C/V with it.
+  The window's title is pinned to `APP_NAME` (`page-title-updated` is
+  cancelled), so the taskbar and alt-tab say *Reliquary Companion* rather
+  than the document title the browser build ships.
+- **Scrollbars in the app's palette**, which is a Chromium trap worth
+  knowing: it ignores *every* `::-webkit-scrollbar` rule on any element
+  that also sets the standard `scrollbar-color`/`scrollbar-width`. The
+  two are mutually exclusive, so declaring both threw all the styling
+  away and left the platform's plain bar. The standard properties are
+  behind `@supports not selector(::-webkit-scrollbar)`, which is exactly
+  Firefox.
+- **The titlebar names the machine**, from `os.Hostname()` on the
+  engine's `State` (`companion/facade.go`, asked once — `Snapshot` runs
+  on every poll and every change nudge). "This machine" was a truism on
+  the screen in front of you; a name stops being one as soon as a second
+  PC syncs under the same account, which is the case custody exists to
+  disambiguate. An empty hostname is a real answer on a locked-down host,
+  not an error, and falls back to the old wording.
+- **Activity and Conflicts read the vault.** Both are one call —
+  `GET /api/history` on the daemon, which reads
+  `GET /api/public/sync/{token}/worlds/{id}` per linked world and merges
+  the version lists. A conflict is not a separate record: it is a version
+  the vault flagged because the check-in came from a session that had
+  ended, or from one whose base was no longer the head
+  (`core/savesync.Checkin`). So Conflicts is Activity filtered, and the
+  two cannot disagree about what happened. **The world-detail route on
+  the companion tier is new** (2026-08-23) — against an older reliquary
+  both tabs report, correctly, that the worlds could not be read.
+  Resolving a conflict moves a world's head, which is admin-only and
+  deliberately *not* on the token tier: the view names where the ability
+  lives rather than offering a button that would be refused.
+- **The chrome is two strips, not three.** The titlebar carries the app's
+  name, which machine and account this is, and the whole sync report; the
+  tab row carries the tabs and "Sync now"; the status bar carries what
+  this machine holds and the way into Diagnostics. The separate header
+  bar that used to sit under the titlebar is gone — it repeated the name
+  and spent about 90px of window on one button.
 - **Second-launch raise** via one additive `POST /api/raise`. Old builds
   404 it harmlessly and the caller opens the page instead.
 - **Window size persistence**, via Electron's own `BrowserWindow` bounds
@@ -206,8 +262,45 @@ confirming behavior — the checklist below stays open until someone does.
       offline
 - [ ] The two reported hover/render defects stay fixed on Windows — a
       shelf tile's cover, tooltip and cursor hold steady while the
-      pointer moves across it, and a world row's 54×72 thumbnail keeps
-      its aspect at every window width
+      pointer moves across it, and a world row's thumbnail keeps its
+      aspect at every window width — both frames are cut to IGDB's
+      264×374 `t_cover_big` now, so a poster is shown whole rather than
+      cropped to a letterbox
+- [ ] Activity and Conflicts against a reliquary new enough to have the
+      world-detail route: entries appear, a world checked in from another
+      machine shows up, a genuine conflict shows the badge and the tab
+      count, and a world the vault refuses is named as unread rather than
+      silently dropped
+- [ ] The window's own chrome: drag by the titlebar, double-click to
+      maximize, Windows 11 snap layouts still appear on hover over the
+      caption buttons, and no menu bar anywhere. Check it at a display
+      scaling other than 100%, which is the case `env(titlebar-area-*)`
+      exists to survive
+- [ ] The vault mark reads as a diamond everywhere it is worn — the
+      titlebar, the empty state, and the icon at every size the OS asks
+      for: taskbar, alt-tab, tray, installer, and the shortcut. The mark
+      was a diamond on a wider kite until 2026-08-23; at 16-48px that
+      pair reads as a small person (diamond a head, kite a body), which
+      is invisible in the 1024px master. Check icons at the sizes an OS
+      asks for, not at the size they are drawn. Regenerate with
+      `npm run icon`
+- [ ] The taskbar shows this app's own icon and groups its windows under
+      one button, and a toast carries the app's name — all three come
+      from the AppUserModelID (`APP_ID` in `main.ts`), not from
+      `icon.png`, and without it an unpackaged run wears Electron's
+      identity instead
+- [ ] The native capabilities actually reach the page. They did not
+      until 2026-08-23: `preload.ts` is a *sandboxed* preload, loaded as
+      a single file whose `require` resolves only Electron built-ins, so
+      its `require("./ipc-contract")` threw and killed the whole script.
+      `window.companion` was undefined in every build, and nothing looked
+      wrong — the shell injects the daemon's bearer at the network layer,
+      so the page loaded and synced while the folder picker, "open the
+      save folder" and the autostart toggle silently fell back to the
+      browser build's "this build cannot answer". The channel names are
+      duplicated into `preload.ts` now, with
+      `test/ipc-contract.test.js` holding the copies to each other and
+      failing on any relative `require`
 
 ## Also still open
 

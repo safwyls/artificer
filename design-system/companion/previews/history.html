@@ -1,10 +1,10 @@
-<!-- @dsCard group="Patterns" name="No worlds yet" subtitle="Derived from “nothing linked”, never from a stored flag" width="980" height="640" -->
+<!-- @dsCard group="Status" name="Activity and Conflicts" subtitle="One read of the vault, filtered two ways" width="980" height="720" -->
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Artificer Companion · No worlds yet</title>
+    <title>Artificer Companion · Activity and Conflicts</title>
     <style>
       :root {
         --ink: 16 13 23; /* #100d17 — the page ground */
@@ -485,56 +485,79 @@
   </head>
   <body class="ds-page">
     <header class="ds-head">
-      <p class="ds-eyebrow">Artificer Companion · Patterns</p>
-      <h1 class="ds-title">No worlds yet</h1>
-      <p class="ds-sub">Derived from “nothing linked”, never from a stored flag</p>
-      <p class="ds-intent">The machine is connected to a vault and holds no worlds. Keying this on
-            <b>no linked worlds</b> rather than on a first-run flag means it comes back on its
-            own if every link is removed — it is a description of the machine, not a memory of
-            one. It says what is already true before it asks for anything, because both facts a
-            player needs in order to trust the next step — the vault answered, and these games
-            were found — are already known by the time this renders.</p>
+      <p class="ds-eyebrow">Artificer Companion · Status</p>
+      <h1 class="ds-title">Activity and Conflicts</h1>
+      <p class="ds-sub">One read of the vault, filtered two ways</p>
+      <p class="ds-intent">Both tabs are the same call. The companion asks the vault for every linked
+            world's version list and merges it; <b>Activity</b> is that list by day,
+            <b>Conflicts</b> is that list filtered to the flagged rows. Fetching them
+            separately would let two views disagree about what happened.
+            <br><br>
+            A conflict is not a separate record — it is a version the vault refused to
+            fast-forward onto, because the check-in arrived from a hold that had already
+            ended or from one whose starting point had moved. So the conflict marking lives
+            on the <i>row</i>, and is recognisable in Activity too.
+            <br><br>
+            This is the vault's record, not this machine's, and that is the point: the
+            companion already knows what it did itself and says so in the titlebar. What it
+            cannot know without asking is that someone else checked a world in an hour ago.</p>
     </header>
     <main class="ds-body">
       <section class="ds-specimen">
-<p class="ds-caption">The three steps</p>
+<p class="ds-caption">A day of activity — the current version is marked, and so is a refused one</p>
         <div class="ds-stage ds-stage--block">
-          <div style="max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:22px">
-            <div style="text-align:center">
-              <div class="vk-h1" style="font-size:21px">No worlds on this machine yet</div>
-              <div style="margin:8px auto 0;max-width:46ch;font-size:14px;color:rgb(var(--mist))">A world is one save folder the vault holds for your group. Link a game's save folder and the vault starts keeping its history.</div>
-            </div>
-            <div class="vk-group-body">
-              <div class="vk-step">
-                <span class="vk-step-mark vk-step-mark--done">✓</span>
-                <div class="vk-step-body"><div class="vk-step-title">Signed in as hazel</div><div class="vk-step-sub">https://vault.example.com</div></div>
-              </div>
-              <div class="vk-step">
-                <span class="vk-step-mark vk-step-mark--done">✓</span>
-                <div class="vk-step-body"><div class="vk-step-title">Found 13 installed games</div><div class="vk-step-sub">Across 4 libraries. A save folder is already known for 7 of them.</div></div>
-                <button class="vk-btn vk-btn--quiet">Review</button>
-              </div>
-              <div class="vk-step vk-step--now">
-                <span class="vk-step-mark vk-step-mark--now">3</span>
-                <div class="vk-step-body"><div class="vk-step-title">Link a game to make your first world</div><div class="vk-step-sub">Pick the game and the companion suggests the save folder. You confirm it.</div></div>
-                <button class="vk-btn vk-btn--primary vk-btn--lg">Choose a game</button>
-              </div>
-            </div>
+          <h3 class="vk-section-h" style="margin-bottom:10px">Today · 3</h3>
+          <div class="vk-group-body">
+            <div class="vk-hrow"><span class="vk-hrow-world">Ashwood Hollow</span><span class="vk-hrow-who"><b>rook</b> checked in</span><span class="vk-htag vk-htag--head">current</span><span class="vk-hrow-meta">v24 · 16 KB · 2 min ago</span></div>
+            <div class="vk-hrow"><span class="vk-hrow-world">Embervale</span><span class="vk-hrow-who"><b>hazel</b> checked in</span><span class="vk-htag vk-htag--conflict">conflict</span><span class="vk-hrow-meta">v23 · 15 KB · 1 h ago</span></div>
+            <div class="vk-hrow"><span class="vk-hrow-world">Embervale</span><span class="vk-hrow-who"><b>hazel</b> checkpointed</span><span class="vk-hrow-meta">v22 · 15 KB · 3 h ago</span></div>
+          </div>
+        </div>
+      </section>
+      <section class="ds-specimen">
+<p class="ds-caption">Conflicts: grouped by world, and honest that this window cannot settle one</p>
+        <div class="ds-stage ds-stage--block">
+          <h3 class="vk-section-h" style="color:rgb(var(--gold));margin-bottom:10px">Embervale · 2</h3>
+          <div class="vk-group-body" style="margin-bottom:14px">
+            <div class="vk-hrow"><span class="vk-hrow-who"><b>hazel</b> checked in</span><span class="vk-htag vk-htag--conflict">conflict</span><span class="vk-hrow-meta">v23 · 15 KB · 1 h ago</span></div>
+            <div class="vk-hrow"><span class="vk-hrow-who"><b>rook</b> checked in</span><span class="vk-htag vk-htag--conflict">conflict</span><span class="vk-hrow-meta">v21 · 14 KB · 5 h ago</span></div>
+          </div>
+          <div style="border-radius:8px;border:1px dashed rgb(var(--edge));background:rgb(var(--well));padding:12px 18px;font-size:12.5px;color:rgb(var(--mist))">
+            Nothing is lost while this is unresolved: a flagged save is kept whatever else is pruned.
+            Choosing which one becomes the world&rsquo;s current save is done on the sync service by an
+            administrator — this window deliberately cannot.
+          </div>
+        </div>
+      </section>
+      <section class="ds-specimen">
+<p class="ds-caption">A list that is not the whole truth says so</p>
+        <div class="ds-stage ds-stage--block">
+          <div class="vk-incomplete">
+            <div class="vk-incomplete-lead"><svg class="vk-i vk-i--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>2 worlds could not be read, so this list is incomplete.</div>
+            <div class="vk-incomplete-why">Cinderfall: service answered 502</div>
+            <div class="vk-incomplete-why">Verdant Reach: dial tcp: no such host</div>
           </div>
         </div>
       </section>
       <section class="ds-meta">
         <h2 class="ds-meta-h">Rules</h2>
         <ul class="ds-rules">
-            <li>Done steps are marked in <code>ok</code>; the step still to do is gold and its row carries a well's ground, so “where am I” is answered before anything is read.</li>
-            <li>Both call-to-action buttons go to the same place — the games library — because linking a game is the only way to make a world. Two doors to one room is not a choice.</li>
-            <li>The screen states the vault URL and the library count as facts, not as a summary: if either is wrong, that is the thing the player needs to see before linking anything.</li>
+            <li><b>One read, filtered twice.</b> Activity and Conflicts never fetch separately — two views of one history that could disagree about what happened would be worse than one view.</li>
+            <li><b>The conflict badge is on the row, not the tab.</b> A refused check-in is recognisable in Activity as well, which is where someone is most likely to be looking when it happens.</li>
+            <li><b>An incomplete list says it is incomplete.</b> A world the vault would not answer for is named, with the reason. These views exist to notice something you did not do yourself; a short list that looks complete is worse than an error.</li>
+            <li><b>This window cannot resolve a conflict, and says so.</b> Moving a world's head decides for everyone and is admin-only on the vault; the companion holds one player's credential. The view names where the ability lives rather than offering a button that would be refused — the same rule a console follows when a game cannot support a feature.</li>
+            <li><b>Read only while one of the two tabs is open.</b> It is one request per linked world, and neither view is needed to sync a save.</li>
+            <li>Grouped by day in Activity, because that is how the question gets asked; by world in Conflicts, because a conflict is one world having two futures.</li>
         </ul>
       </section>
       <section class="ds-meta">
         <h2 class="ds-meta-h">Implemented by</h2>
         <ul class="ds-paths">
-            <li><code>web/companion/src/components/NoWorlds.tsx</code></li>
+            <li><code>web/companion/src/components/ActivityTab.tsx</code></li>
+            <li><code>web/companion/src/components/ConflictsTab.tsx</code></li>
+            <li><code>web/companion/src/components/HistoryView.tsx</code></li>
+            <li><code>companion/history.go</code></li>
+            <li><code>core/api/savesync.go</code></li>
         </ul>
       </section>
     </main>

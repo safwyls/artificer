@@ -60,6 +60,22 @@ describe("groupOf", () => {
 });
 
 describe("WorldsTab", () => {
+  // A row's overflow menu is positioned inside the group card. The card
+  // used to clip to its own rounded corners, which cut the menu off at
+  // the row it opened from — the save path in its header was sliced in
+  // half. The corners are kept by rounding the first and last rows, so
+  // the one word that would bring the bug back is the one asserted here.
+  it("does not clip the card its rows' menus open inside", () => {
+    const { container } = show();
+    const card = container.querySelector(".rounded-panel.border.bg-panel");
+    expect(card).not.toBeNull();
+    expect(card!.className).not.toContain("overflow-hidden");
+    // What the clip was actually for: a row's hover fill squaring off the
+    // card's corner.
+    expect(card!.className).toContain("[&>*:first-child]:rounded-t-panel");
+    expect(card!.className).toContain("[&>*:last-child]:rounded-b-panel");
+  });
+
   it("groups worlds by what you can do with them, and counts each group", () => {
     show();
     expect(screen.getByText("Checked out to you")).toBeInTheDocument();

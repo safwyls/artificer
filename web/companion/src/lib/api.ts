@@ -1,5 +1,5 @@
 import { apiUrl, authHeaders } from "./runtime";
-import type { Browse, CompanionState, Artwork, SplitInfo, UpdateState } from "./types";
+import type { Browse, CompanionState, Artwork, History, SplitInfo, UpdateState } from "./types";
 
 /**
  * The companion's API answers `{ok: false, error}` rather than HTTP
@@ -68,6 +68,11 @@ export const api = {
     call<{ art?: Record<string, Artwork>; asked?: boolean; error?: string }>("GET", "/api/artwork"),
   saveHints: () =>
     call<{ available?: boolean; known?: number; error?: string }>("GET", "/api/savehints"),
+  /** Every linked world's version history, merged. Backs both the
+   * Activity and the Conflicts views — `refresh` skips the companion's
+   * short cache, for the views' own refresh control. */
+  history: (refresh = false) =>
+    call<History>("GET", `/api/history${refresh ? "?refresh=1" : ""}`),
   browse: (path: string) =>
     call<{ browse: Browse }>("GET", `/api/browse?path=${encodeURIComponent(path || "")}`),
   splitSavePath: (dir: string, appId: string, name: string) =>

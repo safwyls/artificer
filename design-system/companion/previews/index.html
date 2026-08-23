@@ -224,7 +224,9 @@
         border-bottom: 1px solid rgb(var(--edge)); background: rgb(var(--well)); padding: 16px 28px;
       }
       .vk-header .vk-i--xl { width: 24px; height: 24px; color: rgb(var(--gold)); stroke-width: 1.3; }
-      .vk-header-name { font-size: 18px; letter-spacing: 0.05em; color: rgb(var(--gold)); }
+      /* The one large gold heading. It was the header bar's name; the header
+         bar is gone, and the empty state (NoWorlds.tsx) is what wears it now. */
+      .vk-header-name { font-size: 21px; letter-spacing: 0.05em; color: rgb(var(--gold)); }
       .vk-header-tag { font-size: 11px; color: rgb(var(--mist)); }
       .vk-header-right { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
       .vk-conn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
@@ -253,8 +255,10 @@
       .vk-tile--unlinked { border-color: rgb(var(--edge)); background: rgb(var(--well)); opacity: 0.72; }
       .vk-tile--unlinked:hover { opacity: 1; border-color: rgb(var(--gold) / 0.5); }
       .vk-tile--active { border-color: rgb(var(--goldhi)); opacity: 1; }
+      /* Covers are IGDB's t_cover_big, 264x374, and both frames are cut to
+         that ratio. A 132px-tall tile cropped the middle out of every one. */
       .vk-tile-art {
-        width: 100%; height: 132px; display: flex; align-items: center; justify-content: center;
+        width: 100%; aspect-ratio: 264 / 374; display: flex; align-items: center; justify-content: center;
         background: var(--fill-cover); padding: 10px; text-align: center; font-size: 12px;
         line-height: 1.2; color: rgb(var(--mist));
       }
@@ -266,12 +270,99 @@
       .vk-tile-note--linked { color: rgb(var(--goldhi)); }
       .vk-tile-link { white-space: nowrap; font-size: 11.5px; color: rgb(var(--goldhi)); }
       
+      /* ---- history rows (Activity and Conflicts) ---------------------------- */
+      /* One row serves both views, so a conflict is recognisable wherever it
+         turns up rather than only in the tab named after it. */
+      .vk-hrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 18px; }
+      .vk-hrow-world { font-size: 14px; color: rgb(var(--parchment)); }
+      .vk-hrow-who { font-size: 13px; color: rgb(var(--mist)); }
+      .vk-hrow-who b { font-weight: 400; color: rgb(var(--parchment)); }
+      .vk-hrow-meta { margin-left: auto; white-space: nowrap; font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
+      .vk-htag {
+        border-radius: 3px; border: 1px solid; padding: 1px 6px; font-family: var(--mono);
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+      }
+      .vk-htag--conflict { border-color: rgb(var(--ember) / 0.5); color: rgb(var(--ember)); }
+      .vk-htag--head { border-color: rgb(var(--gold) / 0.5); color: rgb(var(--gold)); }
+      /* A history that could not be fully read has to say so: these views exist
+         to notice something you did not do yourself. */
+      .vk-incomplete {
+        display: flex; flex-direction: column; gap: 6px; border-radius: 8px;
+        border: 1px dashed rgb(var(--ember) / 0.5); background: rgb(var(--well)); padding: 12px 18px;
+      }
+      .vk-incomplete-lead { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: rgb(var(--ember)); }
+      .vk-incomplete-why { font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
+      
+      /* ---- chrome's button ------------------------------------------------- */
+      /* A fourth button, and not one of the three the shared kit carries: for a
+         control that sits on a rule rather than in a panel, where a frame draws
+         a box on the rule. It is companion-only -- lib/vault.mjs is what this
+         app and reliquary share verbatim, and reliquary has nothing that sits
+         on chrome like this. Wordless too, in its one use, because what it
+         would say is already said in the titlebar above it. */
+      .vk-btn--bare { border-color: transparent; color: rgb(var(--mist)); }
+      .vk-btn--bare:hover,
+      .vk-btn.is-hover.vk-btn--bare { background: rgb(var(--panel)); color: rgb(var(--goldhi)); }
+      
+      /* ---- the desktop shell's titlebar ------------------------------------ */
+      /* The Electron shell asks the OS for a frameless window, so this strip is
+         the titlebar: it is what the window is dragged by. Only the caption
+         buttons are still the platform's, recoloured to sit in it — hand-drawn
+         ones cost Windows 11 its snap-layouts menu. The reserved end of the
+         strip is where the OS draws them. Nothing of this exists in the browser
+         build, which is served into a tab that has a titlebar already. */
+      .vk-titlebar {
+        /* 39, not 38: the app's strip is calc(env(titlebar-area-height) + 1px).
+           The OS paints its caption buttons -- and the overlay's background --
+           across the full height it reports, so a 1px bottom rule counted
+           inside that height disappears behind them. */
+        display: flex; height: 39px; flex: none; align-items: center; gap: 12px;
+        border-bottom: 1px solid rgb(var(--edge)); background: rgb(var(--ink));
+        padding: 0 16px 0 14px; user-select: none;
+      }
+      /* In the app these two are env(titlebar-area-width) and
+         env(titlebar-area-height) -- the overlay's own report of where the OS
+         drew the caption buttons. The specimen stands in a fixed number for
+         them because there is no OS drawing on this page. */
+      .vk-titlebar--win { padding-right: 152px; }
+      .vk-titlebar--mac { padding-left: 80px; }
+      .vk-titlebar-mark { width: 14px; height: 14px; flex: none; color: rgb(var(--gold)); }
+      /* The app's name is set in the app's own face, not the mono the rest of
+         the chrome uses -- and that is a weight decision, not a taste one. The
+         mono stack resolves to Consolas on Windows, which ships Regular and
+         Bold and nothing between, so font-weight 600 and 700 render the same
+         pixels: the strip had already asked for everything that face had.
+         Georgia has the weight, and it is what the rest of the app speaks in. */
+      .vk-titlebar-name {
+        flex: none; font-family: Georgia, "Times New Roman", serif; font-size: 13px;
+        font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+        color: rgb(var(--gold));
+      }
+      .vk-titlebar-machine { font-size: 12.5px; color: rgb(var(--mist)); }
+      .vk-titlebar-sync {
+        margin-left: auto; flex: none; display: flex; align-items: center; gap: 7px;
+        font-family: var(--mono); font-size: 11px; color: rgb(var(--mist));
+      }
+      /* Only ever drawn in a specimen: the real ones belong to the OS. */
+      .vk-caption { margin-left: auto; display: flex; gap: 2px; }
+      .vk-caption span {
+        display: flex; width: 46px; height: 36px; align-items: center; justify-content: center;
+        font-family: var(--mono); font-size: 11px; color: rgb(var(--parchment));
+      }
+      
       /* ---- the window's tab bar -------------------------------------------- */
-      .vk-tabs { display: flex; gap: 4px; border-bottom: 1px solid rgb(var(--edge)); padding: 16px 28px 0; }
+      /* One row, not two: the tabs and the window's single action share it.
+         There used to be a full-width header strip above this one carrying a
+         name, a line of text and a button. */
+      .vk-tabs {
+        display: flex; align-items: stretch; border-bottom: 1px solid rgb(var(--edge)); padding: 0 28px;
+      }
+      .vk-tabs-list { display: flex; align-items: stretch; gap: 4px; }
+      .vk-tabs-acts { margin-left: auto; display: flex; align-items: center; gap: 14px; padding: 4px 0 4px 20px; }
       .vk-tab {
         display: flex; align-items: center; gap: 8px; margin-bottom: -1px;
         border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
-        padding: 8px 14px 10px; font-family: inherit; font-size: 14.5px; color: rgb(var(--mist));
+        padding: 8px 14px 7px; font-family: inherit; font-size: 13.5px; color: rgb(var(--mist));
         transition: color 0.12s ease, border-color 0.12s ease;
       }
       .vk-tab:hover { color: rgb(var(--parchment)); }
@@ -287,7 +378,13 @@
       .vk-group-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--mist)); }
       .vk-group-label--gold { color: rgb(var(--gold)); }
       .vk-group-sub { font-size: 12.5px; color: rgb(var(--mist)); }
-      .vk-group-body { overflow: hidden; border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+      /* Not overflow:hidden, however much the rounded corners want it -- a
+         row's overflow menu is positioned inside this card, and clipping the
+         card clipped the menu to the row it opened from. The corners are kept
+         by rounding the first and last rows, which is what the clip was for. */
+      .vk-group-body { border: 1px solid rgb(var(--edge)); background: rgb(var(--panel)); border-radius: 8px; }
+      .vk-group-body > :first-child { border-top-left-radius: 8px; border-top-right-radius: 8px; }
+      .vk-group-body > :last-child { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
       .vk-group-body--gold { border-color: rgb(var(--gold) / 0.45); }
       .vk-group-body > * + * { border-top: 1px solid rgb(var(--edge)); }
       
@@ -347,7 +444,7 @@
       .vk-worldrow { display: flex; align-items: center; gap: 16px; padding: 15px 18px; }
       .vk-worldrow:hover { background: rgb(var(--well)); }
       .vk-worldrow-art {
-        width: 54px; height: 72px; flex: none; display: flex; align-items: center;
+        width: 54px; aspect-ratio: 264 / 374; flex: none; display: flex; align-items: center;
         justify-content: center; border: 1px solid rgb(var(--edge)); border-radius: 5px;
         background: var(--fill-cover); padding: 5px; text-align: center; font-size: 9.5px;
         line-height: 1.15; color: rgb(var(--mist));
@@ -430,6 +527,10 @@
           <li>
             <a class="ds-idx-link" href="connection.html">Window chrome</a>
             <span class="ds-idx-sub">Reachable, as whom, how fresh — said exactly once</span>
+          </li>
+          <li>
+            <a class="ds-idx-link" href="history.html">Activity and Conflicts</a>
+            <span class="ds-idx-sub">One read of the vault, filtered two ways</span>
           </li>
           <li>
             <a class="ds-idx-link" href="panel-failure.html">Section headers and panel failure</a>

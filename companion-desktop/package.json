@@ -11,7 +11,8 @@
     "test": "npm run build && node --test test/*.test.js",
     "build:daemon": "node scripts/build-daemon.js",
     "package": "npm run build && npm run build:daemon && electron-builder",
-    "smoke": "npm run build && node scripts/smoke.js"
+    "smoke": "npm run build && node scripts/smoke.js",
+    "icon": "electron scripts/make-icon.js"
   },
   "dependencies": {},
   "devDependencies": {
