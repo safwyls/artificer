@@ -151,7 +151,7 @@ export function spawnDaemon(
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error(`companiond did not print an address within ${timeoutMs}ms`));
+      reject(new Error(withStderr(`companiond did not print an address within ${timeoutMs}ms`)));
       try {
         child.kill("SIGKILL");
       } catch {
@@ -181,15 +181,33 @@ export function spawnDaemon(
     });
 
     let stderrBuf = "";
+    // Keep the daemon's last words. When it dies before the handshake it has
+    // almost always just said why — a Go build error, a missing embedded
+    // bundle, a locked file — and reporting only "exited (code=1)" throws
+    // away the one piece of information that would end the guessing.
+    const recentStderr: string[] = [];
+    const remember = (line: string) => {
+      if (!line.trim()) return;
+      recentStderr.push(line);
+      if (recentStderr.length > 12) recentStderr.shift();
+    };
     child.stderr.on("data", (chunk: Buffer) => {
       stderrBuf += chunk.toString("utf8");
       let idx;
       while ((idx = stderrBuf.indexOf("\n")) !== -1) {
         const line = stderrBuf.slice(0, idx);
         stderrBuf = stderrBuf.slice(idx + 1);
+        remember(line);
         opts.onLog?.(line);
       }
     });
+
+    // A process that dies mid-line still told us something; include the
+    // unterminated tail rather than dropping it.
+    const withStderr = (msg: string) => {
+      const tail = [...recentStderr, stderrBuf].filter((l) => l.trim()).join("\n");
+      return tail ? `${msg}\n\ncompaniond said:\n${tail}` : msg;
+    };
 
     child.once("error", (err) => {
       if (settled) return;
@@ -202,7 +220,7 @@ export function spawnDaemon(
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error(`companiond exited before handshake (code=${code} signal=${signal})`));
+      reject(new Error(withStderr(`companiond exited before handshake (code=${code} signal=${signal})`)));
     });
   });
 }
