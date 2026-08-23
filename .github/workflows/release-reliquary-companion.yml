@@ -1,12 +1,16 @@
 name: Release (reliquary-companion)
 
-# Publishes the Wails desktop build of the companion — its own rolling
+# Publishes the native desktop build of the companion — its own rolling
 # release, separate from `companion-latest`, so the two builds' in-place
 # updaters can never swap one in for the other (each build pins its own
 # tag and asset names in its entrypoint). Windows only: that is what
-# players run, and it is the one Wails target that cross-builds CGO-free
-# from a Linux runner. This is the parallel build; once it replaces
+# players run. Fyne needs CGO, so this cross-builds with mingw-w64 from
+# the Linux runner. This is the parallel build; once it replaces
 # cmd/companion the browser build's release retires with it.
+#
+# The tag, the asset name and the two manifest files are unchanged from
+# when this shell was a Wails window: installed dev builds pin them, and
+# a rename here would strand every one of them.
 on:
   push:
     branches: [main]
@@ -39,19 +43,30 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26"
-          cache-dependency-path: companion-wails/go.sum
+          cache-dependency-path: companion-desktop/go.sum
+      - name: mingw-w64 (Fyne's Windows target needs a CGO cross-compiler)
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
       - name: Build reliquary-companion (Windows)
-        working-directory: companion-wails
+        working-directory: companion-desktop
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "1"
+          CC: x86_64-w64-mingw32-gcc
         run: |
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
-            go build -tags desktop,production \
-            -ldflags="-H windowsgui -X main.version=${GITHUB_SHA::12}" \
+          # -s -w halves the exe (55 MB to 26 MB): Fyne and the embedded
+          # frontend make this a much bigger binary than the browser
+          # build, and every push to main is a rolling download players'
+          # updaters fetch. Panics still carry their stack; only the
+          # DWARF tables and the symbol table go.
+          go build \
+            -ldflags="-H windowsgui -s -w -X main.version=${GITHUB_SHA::12}" \
             -o reliquary-companion.exe .
       # Same identity-not-ordering contract as the browser build's
       # release: the version file says which build this is, and the
       # checksum is what the updater verifies a download against.
       - name: Version and checksum manifests
-        working-directory: companion-wails
+        working-directory: companion-desktop
         run: |
           printf '%s' "${GITHUB_SHA::12}" > companion-version.txt
           sha256sum reliquary-companion.exe > companion-sha256.txt
@@ -63,11 +78,11 @@ jobs:
           tag_name: reliquary-companion-latest
           name: Reliquary Companion (latest)
           body: |
-            The Reliquary Companion — the save-sync client in its own desktop window (Wails/WebView2).
+            The Reliquary Companion — the save-sync client as a native desktop application.
             Rebuilt from every push to main; the commit this build came from is ${{ github.sha }}.
             This is the in-development desktop shell; the browser-based build lives on the `companion-latest` release until the cutover.
           prerelease: true
           files: |
-            companion-wails/reliquary-companion.exe
-            companion-wails/companion-version.txt
-            companion-wails/companion-sha256.txt
+            companion-desktop/reliquary-companion.exe
+            companion-desktop/companion-version.txt
+            companion-desktop/companion-sha256.txt

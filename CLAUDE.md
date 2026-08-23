@@ -56,9 +56,9 @@ The vanilla `cmd/reliquary/ui` and `cmd/companion/ui` pages they
 replaced are gone.
 The companion's engine lives in the importable `companion/` package
 (2026-08-22) with two shells around it: `cmd/companion`, the shipping
-browser-and-tray build, and `companion-wails/` (its own Go module —
-Wails needs CGO on Linux), the in-development **Reliquary Companion**
-desktop window that will replace it after a real-machine smoke —
+browser-and-tray build, and `companion-desktop/` (its own Go module —
+Fyne needs CGO everywhere), the in-development **Reliquary Companion**
+native desktop app that will replace it after a real-machine smoke —
 `docs/reliquary-companion.md` has the split, the separate release
 identity (`reliquary-companion-latest`) and the cutover gate.
 

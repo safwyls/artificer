@@ -14,8 +14,8 @@
 //
 // The engine — discovery, custody sync, the local server, in-place
 // updates — lives in the importable companion package; this entrypoint
-// is the browser-and-tray shell around it. The Wails desktop shell
-// (companion-wails, shipping as reliquary-companion) wraps the same
+// is the browser-and-tray shell around it. The native desktop shell
+// (companion-desktop, shipping as reliquary-companion) wraps the same
 // package in its own window.
 //
 // On Windows it lives in the system tray (build with
