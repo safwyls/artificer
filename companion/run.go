@@ -5,11 +5,12 @@
 // (reliquary), and moves the saves.
 //
 // Two entrypoints share it: cmd/companion, the original tray-and-browser
-// build, and companion-desktop, the native desktop shell
-// (reliquary-companion). Both wire the same App, HTTP routes and loops;
-// only the window and the process shell differ. The desktop shell also
-// uses the in-process facade in facade.go rather than polling the
-// routes.
+// build, and cmd/companiond, the headless daemon an Electron shell
+// spawns (companion-cutover.md). Both wire the same App, HTTP routes and
+// loops; only the process shell differs. The in-process facade in
+// facade.go stays for a shell that lives in this process; the daemon's
+// shell is out of process and reads the same state over the routes and
+// the SSE stream.
 package companion
 
 import (

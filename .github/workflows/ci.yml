@@ -94,31 +94,10 @@ jobs:
             -ico web/companion/public/favicon.ico -arch amd64 -o /tmp/rsrc.syso
           cmp /tmp/rsrc.syso cmd/companion/rsrc_windows_amd64.syso \
             || { echo "cmd/companion/rsrc_windows_amd64.syso is stale — run: go generate ./cmd/companion"; exit 1; }
-          cmp /tmp/rsrc.syso companion-desktop/rsrc_windows_amd64.syso \
-            || { echo "companion-desktop/rsrc_windows_amd64.syso is stale — run: go generate ./... in companion-desktop"; exit 1; }
       - name: companion Windows build (players run Windows; the tray code is windows-only)
         run: |
           GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" -o /dev/null ./cmd/companion
           GOOS=windows GOARCH=amd64 go vet ./cmd/companion
-      # The native desktop shell (reliquary-companion) is its own module:
-      # Fyne needs CGO and OpenGL on every platform, which would drag
-      # both into `go build ./...` if it lived in the root module. A
-      # native Linux build would also need libgl1-mesa-dev and xorg-dev;
-      # players run Windows, so the Windows target is what is verified
-      # here, cross-compiled with mingw-w64. It wraps the same companion
-      # package the tray build uses.
-      - name: mingw-w64 (Fyne's Windows target needs a CGO cross-compiler)
-        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
-      - name: reliquary-companion Windows build (native shell)
-        working-directory: companion-desktop
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: "1"
-          CC: x86_64-w64-mingw32-gcc
-        run: |
-          go build -ldflags="-H windowsgui" -o /dev/null .
-          go vet .
 
   anvil:
     runs-on: ubuntu-latest
