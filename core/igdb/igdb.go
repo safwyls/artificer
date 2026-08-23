@@ -251,10 +251,19 @@ func (q Query) Key() string {
 // An app id that IGDB's external-id table doesn't carry falls back to a
 // name search under the same key, so a game whose Steam entry is missing
 // from IGDB still gets its cover from its title.
-func (c *Client) Lookup(ctx context.Context, queries []Query) map[string]Game {
+// Lookup resolves cover art for a batch, answering with whatever it
+// could resolve and, separately, why anything is missing.
+//
+// The error is not decoration. A miss is remembered for hours so a
+// rescan does not re-ask about games IGDB has never heard of — but a
+// lookup that *failed* has learned nothing, and remembering it as a miss
+// turns a transient credential problem into a library with no covers
+// that no amount of rescanning will fix. So a failure is returned and
+// never cached, and only a real "IGDB does not have this" is.
+func (c *Client) Lookup(ctx context.Context, queries []Query) (map[string]Game, error) {
 	out := map[string]Game{}
 	if !c.Configured() {
-		return out
+		return out, nil
 	}
 	var needAppIDs []Query
 	var needNames []Query
@@ -283,12 +292,16 @@ func (c *Client) Lookup(ctx context.Context, queries []Query) map[string]Game {
 	}
 	c.mu.Unlock()
 
+	var failure error
 	if len(needAppIDs) > 0 {
 		ids := make([]string, 0, len(needAppIDs))
 		for _, q := range needAppIDs {
 			ids = append(ids, q.AppID)
 		}
-		found := c.byAppIDs(ctx, ids)
+		found, err := c.byAppIDs(ctx, ids)
+		if err != nil {
+			failure = err
+		}
 		for _, q := range needAppIDs {
 			if g, ok := found[q.AppID]; ok {
 				c.remember(q.Key(), g, false)
@@ -299,20 +312,29 @@ func (c *Client) Lookup(ctx context.Context, queries []Query) map[string]Game {
 				needNames = append(needNames, q)
 				continue
 			}
-			c.remember(q.Key(), Game{}, true)
+			// Only when the batch actually came back. Otherwise this
+			// game was never asked about, and saying so is a lie that
+			// lasts hours.
+			if err == nil {
+				c.remember(q.Key(), Game{}, true)
+			}
 		}
 	}
 	for i, q := range needNames {
 		if i >= maxNameLookups {
 			break
 		}
-		g, ok := c.byName(ctx, q.Name)
+		g, ok, err := c.byName(ctx, q.Name)
+		if err != nil {
+			failure = err
+			continue
+		}
 		c.remember(q.Key(), g, !ok)
 		if ok {
 			out[q.Key()] = g
 		}
 	}
-	return out
+	return out, failure
 }
 
 func ttlFor(e entry) time.Duration {
@@ -453,19 +475,24 @@ type externalRow struct {
 // the id came from the game's own Steam manifest. It tries each known
 // spelling of the Steam filter until one is accepted, then sticks with
 // it.
-func (c *Client) byAppIDs(ctx context.Context, ids []string) map[string]Game {
+func (c *Client) byAppIDs(ctx context.Context, ids []string) (map[string]Game, error) {
 	quoted := make([]string, 0, len(ids))
 	for _, id := range ids {
 		quoted = append(quoted, `"`+id+`"`)
 	}
 	uids := strings.Join(quoted, ",")
 
+	// The last error survives the loop: every spelling failing for the
+	// same reason (an expired credential, say) must come back as that
+	// reason, not as "IGDB knows none of these games".
+	var lastErr error
 	for _, filter := range c.filterOrder() {
 		body := fmt.Sprintf(
 			`fields uid,game.name,game.slug,game.summary,game.cover.image_id; where %s & uid = (%s); limit %d;`,
 			filter, uids, len(ids))
 		var rows []externalRow
 		if err := c.query(ctx, "external_games", body, &rows); err != nil {
+			lastErr = err
 			continue
 		}
 		c.rememberFilter(filter)
@@ -481,9 +508,9 @@ func (c *Client) byAppIDs(ctx context.Context, ids []string) map[string]Game {
 				IGDBSlug: r.Game.Slug,
 			}
 		}
-		return out
+		return out, nil
 	}
-	return nil
+	return nil, lastErr
 }
 
 // filterOrder puts the filter shape that last worked first, so the
@@ -514,7 +541,7 @@ func (c *Client) rememberFilter(filter string) {
 // byName is the fallback for a game with no Steam app id — a folder
 // name from common/, say — and for one whose app id IGDB has no external
 // record of.
-func (c *Client) byName(ctx context.Context, name string) (Game, bool) {
+func (c *Client) byName(ctx context.Context, name string) (Game, bool, error) {
 	safe := strings.ReplaceAll(name, `"`, "")
 	body := fmt.Sprintf(`search "%s"; fields name,slug,summary,cover.image_id; limit 1;`, safe)
 	var rows []struct {
@@ -525,9 +552,15 @@ func (c *Client) byName(ctx context.Context, name string) (Game, bool) {
 			ImageID string `json:"image_id"`
 		} `json:"cover"`
 	}
-	if err := c.query(ctx, "games", body, &rows); err != nil || len(rows) == 0 {
-		return Game{}, false
+	// These two used to be one branch, and that was the bug: a request
+	// that could not be made looked exactly like a game IGDB has never
+	// heard of, and got cached as one.
+	if err := c.query(ctx, "games", body, &rows); err != nil {
+		return Game{}, false, err
+	}
+	if len(rows) == 0 {
+		return Game{}, false, nil
 	}
 	r := rows[0]
-	return Game{Name: r.Name, Cover: coverURL(r.Cover.ImageID), Summary: r.Summary, IGDBSlug: r.Slug}, true
+	return Game{Name: r.Name, Cover: coverURL(r.Cover.ImageID), Summary: r.Summary, IGDBSlug: r.Slug}, true, nil
 }

@@ -95,13 +95,24 @@ func (s *Server) handleSyncArtwork(w http.ResponseWriter, r *http.Request) {
 	if len(in.Games) > 500 {
 		in.Games = in.Games[:500]
 	}
-	art := s.Artwork.Lookup(r.Context(), in.Games)
+	art, err := s.Artwork.Lookup(r.Context(), in.Games)
 	if art == nil {
 		art = map[string]igdb.Game{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"accepted":  true,
 		"available": s.Artwork.Configured(),
 		"art":       art,
-	})
+	}
+	// A lookup that could not be made is not a library IGDB has never
+	// heard of, and the difference has to survive the wire: the caller
+	// caches what comes back, and caching this as "no such game" is what
+	// turned an expired credential into a permanently blank shelf.
+	//
+	// Still a 200 — cover art is decoration and never an error the
+	// caller should treat as fatal — but the reason travels with it.
+	if err != nil {
+		out["error"] = err.Error()
+	}
+	writeJSON(w, http.StatusOK, out)
 }

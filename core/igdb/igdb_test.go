@@ -113,7 +113,7 @@ func TestAppIDFilterFallback(t *testing.T) {
 	f := newFakeIGDB(t, "external_game_source = 1")
 	c := newClient(t, f)
 
-	art := c.Lookup(context.Background(), []igdb.Query{{AppID: "111", Name: "Palworld"}})
+	art, _ := c.Lookup(context.Background(), []igdb.Query{{AppID: "111", Name: "Palworld"}})
 	got, ok := art["app:111"]
 	if !ok {
 		t.Fatalf("no art for app 111; the client asked: %q", f.asked())
@@ -132,7 +132,7 @@ func TestAppIDFilterFallback(t *testing.T) {
 
 	// The learned shape is used first next time: one request, not two.
 	before := len(f.asked())
-	c.Lookup(context.Background(), []igdb.Query{{AppID: "999", Name: ""}})
+	c.Lookup(context.Background(), []igdb.Query{{AppID: "999", Name: ""}}) //nolint:errcheck // priming the cache
 	if n := len(f.asked()) - before; n != 1 {
 		t.Errorf("second batch made %d external_games requests, want 1 now the shape is known", n)
 	}
@@ -148,7 +148,8 @@ func TestCoverURLShape(t *testing.T) {
 	f := newFakeIGDB(t, "external_game_source = 1")
 	c := newClient(t, f)
 
-	got := c.Lookup(context.Background(), []igdb.Query{{AppID: "111"}})["app:111"]
+	found, _ := c.Lookup(context.Background(), []igdb.Query{{AppID: "111"}})
+	got := found["app:111"]
 	const want = "https://images.igdb.com/igdb/image/upload/t_cover_big/co1.jpg"
 	if got.Cover != want {
 		t.Errorf("cover URL =\n  %s\nwant\n  %s", got.Cover, want)
@@ -160,7 +161,7 @@ func TestCoverURLShape(t *testing.T) {
 func TestAppIDFilterFallbackReversed(t *testing.T) {
 	f := newFakeIGDB(t, "category = 1")
 	c := newClient(t, f)
-	if _, ok := c.Lookup(context.Background(), []igdb.Query{{AppID: "111"}})["app:111"]; !ok {
+	if art, _ := c.Lookup(context.Background(), []igdb.Query{{AppID: "111"}}); art["app:111"].Name == "" {
 		t.Fatalf("no art for app 111 on the older filter; asked: %q", f.asked())
 	}
 }
@@ -172,7 +173,7 @@ func TestNameFallbackForUnknownAppID(t *testing.T) {
 	f := newFakeIGDB(t, "external_game_source = 1")
 	c := newClient(t, f)
 
-	art := c.Lookup(context.Background(), []igdb.Query{{AppID: "222", Name: "Enshrouded"}})
+	art, _ := c.Lookup(context.Background(), []igdb.Query{{AppID: "222", Name: "Enshrouded"}})
 	got, ok := art["app:222"]
 	if !ok {
 		t.Fatalf("no art for app 222; asked: %q", f.asked())
@@ -192,7 +193,7 @@ func TestBadCredentialsAreVisible(t *testing.T) {
 	f.mu.Unlock()
 	c := newClient(t, f)
 
-	if art := c.Lookup(context.Background(), []igdb.Query{{AppID: "111"}}); len(art) != 0 {
+	if art, _ := c.Lookup(context.Background(), []igdb.Query{{AppID: "111"}}); len(art) != 0 {
 		t.Errorf("art = %v with a rejected credential, want none", art)
 	}
 	st := c.Status()
@@ -213,11 +214,71 @@ func TestBadCredentialsAreVisible(t *testing.T) {
 	f.tokenStatus = http.StatusOK
 	f.mu.Unlock()
 	c.SetCredentials("client", "better-secret", "settings")
-	if _, ok := c.Lookup(context.Background(), []igdb.Query{{AppID: "111"}})["app:111"]; !ok {
+	if art, _ := c.Lookup(context.Background(), []igdb.Query{{AppID: "111"}}); art["app:111"].Name == "" {
 		t.Fatalf("no art after fixing the credential; asked: %q", f.asked())
 	}
 	if st := c.Status(); st.LastError != "" || st.Source != "settings" {
 		t.Errorf("status = %+v, want no error and the settings source", st)
+	}
+}
+
+// The failure this could not previously distinguish: a lookup that could
+// not be made looked exactly like a game IGDB has never heard of, and was
+// remembered as one for missTTL.
+//
+// That is how an expired credential became permanent. The shelf went
+// blank, and it stayed blank after the credential was working again —
+// SetCredentials clears cached misses, but only when the value actually
+// changes, so re-saving the same secret cleared nothing and every game
+// stayed "IGDB does not have this" for hours.
+//
+// Nothing is re-credentialed here on purpose: recovery must come from the
+// lookup working again, not from someone happening to edit a setting.
+func TestAFailedLookupIsNotRememberedAsAMiss(t *testing.T) {
+	f := newFakeIGDB(t, "external_game_source = 1")
+	f.mu.Lock()
+	f.tokenStatus = http.StatusUnauthorized
+	f.mu.Unlock()
+	c := newClient(t, f)
+
+	art, err := c.Lookup(context.Background(), []igdb.Query{{AppID: "111", Name: "Palworld"}})
+	if len(art) != 0 {
+		t.Errorf("art = %v with a rejected credential, want none", art)
+	}
+	if err == nil {
+		t.Fatal("a lookup that could not be made returned no error, so nothing downstream can tell it from an empty library")
+	}
+
+	// The credential starts working again. No SetCredentials call: the
+	// same client, the same secret, a token that now mints.
+	f.mu.Lock()
+	f.tokenStatus = http.StatusOK
+	f.mu.Unlock()
+
+	art, err = c.Lookup(context.Background(), []igdb.Query{{AppID: "111", Name: "Palworld"}})
+	if err != nil {
+		t.Fatalf("second lookup failed: %v", err)
+	}
+	if art["app:111"].Name == "" {
+		t.Fatalf("still no art after the credential recovered — the failure was cached as a miss; asked: %q", f.asked())
+	}
+}
+
+// The other half of the same rule: a game IGDB genuinely does not have
+// *is* remembered, or a rescan re-asks about it every time.
+func TestAGenuineMissIsStillRemembered(t *testing.T) {
+	f := newFakeIGDB(t, "external_game_source = 1")
+	c := newClient(t, f)
+
+	if _, err := c.Lookup(context.Background(), []igdb.Query{{AppID: "404404"}}); err != nil {
+		t.Fatalf("lookup: %v", err)
+	}
+	before := len(f.asked())
+	if _, err := c.Lookup(context.Background(), []igdb.Query{{AppID: "404404"}}); err != nil {
+		t.Fatalf("lookup: %v", err)
+	}
+	if len(f.asked()) != before {
+		t.Errorf("asked IGDB again about a game it does not have: %q", f.asked())
 	}
 }
 
@@ -231,14 +292,15 @@ func TestUnconfiguredIsQuiet(t *testing.T) {
 	if c.Configured() {
 		t.Error("Configured() is true with no credentials")
 	}
-	if art := c.Lookup(context.Background(), []igdb.Query{{Name: "Palworld"}}); len(art) != 0 {
+	if art, _ := c.Lookup(context.Background(), []igdb.Query{{Name: "Palworld"}}); len(art) != 0 {
 		t.Errorf("art = %v with no credentials, want none", art)
 	}
 	if err := c.Test(context.Background()); err == nil {
 		t.Error("Test passed with no credentials configured")
 	}
 	var nilClient *igdb.Client
-	if nilClient.Configured() || len(nilClient.Lookup(context.Background(), []igdb.Query{{Name: "x"}})) != 0 {
+	nilArt, _ := nilClient.Lookup(context.Background(), []igdb.Query{{Name: "x"}})
+	if nilClient.Configured() || len(nilArt) != 0 {
 		t.Error("a nil client must answer nothing rather than panic")
 	}
 }

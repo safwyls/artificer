@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -408,6 +409,131 @@ func TestCoverBeforeArtworkResolvesIsNotCachedAsAMiss(t *testing.T) {
 	a.mu.Unlock()
 	if !remembered {
 		t.Error("a genuine miss was not remembered, so it will be re-asked on every render")
+	}
+}
+
+// The shelf that never came back.
+//
+// When the service reaches IGDB and IGDB refuses — an expired credential
+// — the request still succeeds and the art map is simply empty. Caching
+// that as a miss is indistinguishable from "IGDB has never heard of
+// these games", so every cover stayed gone: rescanning re-asked nothing,
+// resyncing does not touch artwork, and only restarting the companion
+// cleared it.
+func TestAFailedArtworkLookupIsNotCachedAsAMiss(t *testing.T) {
+	var mu sync.Mutex
+	failing := true
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		if failing {
+			// What the service answers when the credential is dead: a
+			// good request, an empty answer, and the reason.
+			io.WriteString(w, `{"accepted":true,"available":true,"art":{},"error":"igdb: invalid client secret"}`)
+			return
+		}
+		io.WriteString(w, `{"accepted":true,"available":true,"art":{"app:111":{"name":"Palworld","cover":"https://img/co1.jpg"}}}`)
+	}))
+	defer srv.Close()
+
+	a := NewApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+	a.mu.Lock()
+	a.discovered = discovery{Games: []discoveredGame{{Name: "Palworld", AppID: "111"}}}
+	a.mu.Unlock()
+
+	if art := a.artwork(); len(art) != 0 {
+		t.Errorf("art = %v while the credential is dead, want none", art)
+	}
+	a.mu.Lock()
+	failure := a.artError
+	a.mu.Unlock()
+	if failure == "" {
+		t.Error("the service named the reason and the companion dropped it; the shelf has nothing to explain itself with")
+	}
+
+	// The credential is fixed on the service. Nothing about this machine
+	// changed, and nobody restarted anything.
+	mu.Lock()
+	failing = false
+	mu.Unlock()
+
+	art := a.artwork()
+	if art["app:111"].Cover == "" {
+		t.Fatal("covers never came back after the service recovered — the failure was cached as a miss")
+	}
+	a.mu.Lock()
+	failure = a.artError
+	a.mu.Unlock()
+	if failure != "" {
+		t.Errorf("artError = %q after a successful lookup, want it cleared", failure)
+	}
+}
+
+// The other half: a game the service really has no art for is remembered,
+// or every render re-asks about it.
+func TestAGenuineArtworkMissIsRemembered(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"accepted":true,"available":true,"art":{}}`)
+	}))
+	defer srv.Close()
+
+	a := NewApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+	a.mu.Lock()
+	a.discovered = discovery{Games: []discoveredGame{{Name: "Nobody Has This", AppID: "999"}}}
+	a.mu.Unlock()
+
+	a.artwork()
+	a.artwork()
+	mu.Lock()
+	got := calls
+	mu.Unlock()
+	if got != 1 {
+		t.Errorf("asked the service %d times about a genuine miss, want 1", got)
+	}
+}
+
+// A rescan is the gesture for "look at my library again", so it is also
+// the way back from a blank shelf: cached misses are dropped, hits kept.
+func TestRescanReasksAboutMissingCovers(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"accepted":true,"available":true,"art":{}}`)
+	}))
+	defer srv.Close()
+
+	a := NewApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+	a.mu.Lock()
+	a.art = map[string]gameArt{
+		"app:111": {},                                         // a miss
+		"app:222": {Name: "Enshrouded", Cover: "https://c/2"}, // a hit
+	}
+	a.mu.Unlock()
+
+	a.Rescan()
+
+	a.mu.Lock()
+	_, missKept := a.art["app:111"]
+	hit := a.art["app:222"]
+	a.mu.Unlock()
+	if missKept {
+		t.Error("a rescan kept a cached miss, so a blank shelf stays blank")
+	}
+	if hit.Cover == "" {
+		t.Error("a rescan dropped a resolved cover; hits do not change and refetching them is what the cache is for")
 	}
 }
 
