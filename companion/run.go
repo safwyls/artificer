@@ -47,7 +47,17 @@ func (a *App) WatchLoop() {
 // SetupLogging mirrors logs into a file beside the config: a windowed
 // build has no console, and "why didn't it sync" must be answerable
 // after the fact.
-func SetupLogging(cfgPath string) {
+func SetupLogging(cfgPath string) { SetupLoggingTo(cfgPath, os.Stdout) }
+
+// SetupLoggingTo is SetupLogging with the console half chosen by the
+// caller. The daemon build passes os.Stderr: its stdout is a handshake
+// channel whose first line is the listen address and which carries
+// nothing else, so a log line on it would be read as protocol.
+func SetupLoggingTo(cfgPath string, console io.Writer) {
+	// The console half is set first and unconditionally: if the log file
+	// cannot be opened, the daemon must still not fall back to stdout,
+	// which is its handshake channel.
+	log.SetOutput(console)
 	logPath := filepath.Join(filepath.Dir(cfgPath), "companion.log")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err != nil {
 		return
@@ -56,7 +66,7 @@ func SetupLogging(cfgPath string) {
 	if err != nil {
 		return
 	}
-	log.SetOutput(io.MultiWriter(os.Stdout, f))
+	log.SetOutput(io.MultiWriter(console, f))
 }
 
 // AlreadyRunning checks whether the listen address is a live companion.

@@ -95,6 +95,11 @@ func (a *App) Snapshot() State {
 
 	st := a.worldSync
 	st.Configured = a.cfg.configured()
+	// Empty, not absent — see the note above, and syncState.Queue for why
+	// this one is always empty.
+	if st.Queue == nil {
+		st.Queue = []QueuedWork{}
+	}
 
 	links := append([]WorldLink{}, a.cfg.Links...)
 
