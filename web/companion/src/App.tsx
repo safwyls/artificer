@@ -11,7 +11,7 @@ import { SettingsTab } from "./components/SettingsTab";
 import { TabBar, type Tab } from "./components/TabBar";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Shelf, linkFor } from "./components/Shelf";
-import { WorldRow } from "./components/WorldRow";
+import { WorldsTab } from "./components/WorldsTab";
 import { tileKey } from "./components/GameTile";
 import type { CompanionState, DiscoveredGame } from "./lib/types";
 
@@ -114,34 +114,18 @@ export function App() {
             </div>
           </PanelBoundary>
         ) : tab === "worlds" ? (
-          <div className="flex flex-col gap-5 px-7 pb-6 pt-5">
-            <PanelBoundary name="update">
-              <UpdateBanner update={state.update} />
-            </PanelBoundary>
+          <>
+            {state.update?.available ? (
+              <div className="px-7 pt-5">
+                <PanelBoundary name="update">
+                  <UpdateBanner update={state.update} />
+                </PanelBoundary>
+              </div>
+            ) : null}
             <PanelBoundary name="worlds">
-              <section className="flex flex-col gap-2.5">
-                <SectionHeader title="Your worlds" />
-                {links.length ? (
-                  links.map((link) => (
-                    <WorldRow
-                      key={link.worldId}
-                      link={link}
-                      world={worlds.find((w) => w.world.id === link.worldId)}
-                      me={state.sync?.username}
-                      art={art}
-                      configured
-                      launchOnCheckout={state.config?.launchOnCheckout ?? true}
-                    />
-                  ))
-                ) : (
-                  <p className="text-[13px] italic text-mist">
-                    Nothing linked yet — link an installed game from the Games tab, or ask whoever
-                    runs your sync service which world to join.
-                  </p>
-                )}
-              </section>
+              <WorldsTab state={state} art={art} onOpenGames={() => goTab("games")} />
             </PanelBoundary>
-          </div>
+          </>
         ) : tab === "games" ? (
           <div className="flex flex-col gap-5 px-7 pb-6 pt-5">
             <PanelBoundary name="shelf">

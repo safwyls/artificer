@@ -27,7 +27,7 @@ export function CoverArt({
   const shape =
     variant === "tile"
       ? "w-full aspect-[3/4]"
-      : "w-14 aspect-[3/4] flex-none rounded border border-edge";
+      : "w-[54px] h-[72px] flex-none rounded-[5px] border border-edge";
   if (!found.cover || broken) {
     return (
       <div

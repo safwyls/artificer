@@ -1,0 +1,150 @@
+import type { ReactNode } from "react";
+import { custodyOf, type Artwork, type CompanionState, type CustodyState, type Link, type SyncWorld } from "../lib/types";
+import { cn } from "../lib/utils";
+import { WorldRow } from "./WorldRow";
+
+/**
+ * A group of worlds, and the whole reason the Worlds tab is readable:
+ * grouping by what you can do with a world replaces the status prose
+ * that used to sit on every row.
+ *
+ * The group you hold is bordered in gold, so the one world locked to this
+ * machine is findable at a glance in a list of any length.
+ */
+export function WorldGroup({
+  label,
+  sub,
+  count,
+  gold,
+  children,
+}: {
+  label: string;
+  sub?: string;
+  count?: number;
+  gold?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-baseline gap-3">
+        <h2
+          className={cn(
+            "font-mono text-[10px] uppercase tracking-[0.12em]",
+            gold ? "text-gold" : "text-mist",
+          )}
+        >
+          {label}
+          {count !== undefined ? ` · ${count}` : ""}
+        </h2>
+        {sub ? <span className="text-[12.5px] text-mist">{sub}</span> : null}
+      </div>
+      <div
+        className={cn(
+          "overflow-hidden rounded-panel border bg-panel [&>*+*]:border-t [&>*+*]:border-edge",
+          gold ? "border-gold/45" : "border-edge",
+        )}
+      >
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** Which group a world belongs in. Derived from custody and stored
+ * nowhere — the same rule the chip and the primary action read. */
+export function groupOf(state: CustodyState): "yours" | "free" | "held" {
+  if (state === "mine" || state === "fetching") return "yours";
+  if (state === "free") return "free";
+  return "held";
+}
+
+/**
+ * The Worlds tab: everything this machine has linked, in three groups —
+ * what you hold, what you can take, and what someone else has.
+ */
+export function WorldsTab({
+  state,
+  art,
+  offline,
+  onOpenGames,
+}: {
+  state: CompanionState;
+  art: Record<string, Artwork>;
+  offline?: boolean;
+  onOpenGames: () => void;
+}) {
+  const links = state.links ?? [];
+  const worlds = state.sync?.worlds ?? [];
+  const me = state.sync?.username;
+  const launchOnCheckout = state.config?.launchOnCheckout ?? true;
+  const worldFor = (l: Link): SyncWorld | undefined => worlds.find((w) => w.world.id === l.worldId);
+
+  const grouped: Record<"yours" | "free" | "held", Link[]> = { yours: [], free: [], held: [] };
+  for (const link of links) {
+    grouped[groupOf(custodyOf(link, worldFor(link), me, true).state)].push(link);
+  }
+
+  const row = (link: Link) => (
+    <WorldRow
+      key={link.worldId}
+      link={link}
+      world={worldFor(link)}
+      me={me}
+      art={art}
+      configured
+      offline={offline}
+      launchOnCheckout={launchOnCheckout}
+    />
+  );
+
+  const games = (state.discovered?.games ?? []).filter((g) => !g.hidden);
+  const linkedGames = new Set(links.map((l) => l.gameTitle).filter(Boolean));
+
+  return (
+    <div className="flex flex-col gap-[22px] px-7 pb-[26px] pt-[22px]">
+      {grouped.yours.length ? (
+        <WorldGroup
+          label="Checked out to you"
+          sub={
+            offline
+              ? "playable offline — the hold stands until the vault answers"
+              : "locked to this machine until you check it in"
+          }
+          gold
+        >
+          {grouped.yours.map(row)}
+        </WorldGroup>
+      ) : null}
+
+      {grouped.free.length ? (
+        <WorldGroup label="Free to take" count={grouped.free.length}>
+          {grouped.free.map(row)}
+        </WorldGroup>
+      ) : null}
+
+      {grouped.held.length ? (
+        <WorldGroup label="Held by someone else" count={grouped.held.length}>
+          {grouped.held.map(row)}
+        </WorldGroup>
+      ) : null}
+
+      {links.length ? null : (
+        <p className="text-[13px] italic text-mist">
+          Nothing linked yet — link an installed game from the Games tab, or ask whoever runs your
+          sync service which world to join.
+        </p>
+      )}
+
+      {/* The only pointer to the Games tab from Worlds. */}
+      <div className="flex flex-wrap items-center gap-2.5 rounded-panel border border-dashed border-edge bg-well px-[18px] py-3 text-[12.5px] text-mist">
+        <span>
+          {games.length} game{games.length === 1 ? "" : "s"} installed on this machine,{" "}
+          {linkedGames.size} linked to a world.
+        </span>
+        <button type="button" onClick={onOpenGames} className="rounded-[3px] text-goldhi hover:text-gold hover:underline">
+          Open the games library
+        </button>
+      </div>
+    </div>
+  );
+}

@@ -126,11 +126,11 @@ describe("App — connected", () => {
   it("keeps the installed-games grid off the Worlds tab", async () => {
     vi.spyOn(api, "state").mockResolvedValue(connected());
     renderWithProviders(<App />);
-    expect(await screen.findByText("Your worlds")).toBeInTheDocument();
+    expect(await screen.findByText("Open the games library")).toBeInTheDocument();
     expect(screen.queryByText("Installed games")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Games" }));
     expect(await screen.findByText("Installed games")).toBeInTheDocument();
-    expect(screen.queryByText("Your worlds")).not.toBeInTheDocument();
+    expect(screen.queryByText("Open the games library")).not.toBeInTheDocument();
   });
 
   // Neither has a backing surface on the companion's API yet, so each

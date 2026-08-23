@@ -65,7 +65,7 @@ export function HoldCountdown({ custody, now = Date.now() }: { custody: Custody;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-[3px] border border-ember/45 px-[7px] py-px font-mono text-[11px] text-ember">
       <Clock className="h-2.5 w-2.5" aria-hidden />
-      {fmtSpan(holdLeft(custody, now))} left
+      {`${fmtSpan(holdLeft(custody, now))} left`}
     </span>
   );
 }
