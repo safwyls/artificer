@@ -1,4 +1,4 @@
-package main
+package companion
 
 // Browsing this machine's folders, so the save folder can be picked
 // rather than typed.
@@ -126,14 +126,14 @@ func browse(path string) browseResult {
 	return res
 }
 
-func (a *app) handleBrowse(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	out := browse(r.URL.Query().Get("path"))
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"ok": true, "browse": out})
 }
 
 // handleHide puts a shelf entry away, or brings it back.
-func (a *app) handleHide(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleHide(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Key    string `json:"key"`
 		Hidden bool   `json:"hidden"`

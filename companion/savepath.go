@@ -1,4 +1,4 @@
-package main
+package companion
 
 // Where a world lives, split into the part that differs per machine and
 // the part that does not.

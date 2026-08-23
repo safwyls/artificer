@@ -1,4 +1,4 @@
-package main
+package companion
 
 import (
 	"errors"
@@ -51,7 +51,7 @@ func launchable(l *WorldLink) bool { return launchTarget(l) != "" }
 // URI scheme all open the same way. It deliberately does not parse a
 // command line — quoting a Windows path with spaces into arguments is a
 // bug generator, and a shortcut carries the arguments already.
-func (a *app) launch(worldID int64) error {
+func (a *App) launch(worldID int64) error {
 	l := a.link(worldID)
 	if l == nil {
 		return errors.New("link this world to a save folder first")
@@ -69,12 +69,12 @@ func (a *app) launch(worldID int64) error {
 
 // openLaunchURI is the seam a test swaps: starting a real game from a
 // unit test is not a thing to do by accident.
-var openLaunchURI = openURI
+var openLaunchURI = OpenURI
 
-// openURI hands a URI or path to the desktop's own opener. Best-effort
+// OpenURI hands a URI or path to the desktop's own opener. Best-effort
 // and asynchronous: a launcher that takes ten seconds to show a window
 // must not hold up the answer to the page.
-func openURI(uri string) error {
+func OpenURI(uri string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":

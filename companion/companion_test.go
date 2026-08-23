@@ -1,4 +1,4 @@
-package main
+package companion
 
 import (
 	"bytes"
@@ -287,7 +287,7 @@ func TestArtworkAsksOnceGamesAreKnown(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := newApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
 
 	// Discovery hasn't run: nothing to ask about, and nothing asked.
 	if art := a.artwork(); len(art) != 0 {
@@ -340,7 +340,7 @@ func TestArtworkFailureIsRecorded(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := newApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
 	a.mu.Lock()
 	a.discovered = discovery{Games: []discoveredGame{{Name: "Palworld", AppID: "111"}}}
 	a.mu.Unlock()
@@ -365,7 +365,7 @@ func TestArtworkFailureIsRecorded(t *testing.T) {
 // companion with nothing linked yet therefore showed no games at all,
 // and it read as three unrelated faults rather than one.
 func TestStateNeverMarshalsNullArrays(t *testing.T) {
-	a := newApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
 	rec := httptest.NewRecorder()
 	a.handleState(rec, httptest.NewRequest("GET", "/api/state", nil))
 	if rec.Code != http.StatusOK {
@@ -421,7 +421,7 @@ func TestCreateWorldChecksTheFolderBeforeCreatingAnything(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := newApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{ServerURL: srv.URL, Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
 
 	for _, tc := range []struct{ name, dir, want string }{
 		{"no folder at all", "", "a link needs a save folder"},
@@ -783,7 +783,7 @@ func TestPrepareWorldDir(t *testing.T) {
 // the tray was the only way to see it, because that called the refresh
 // directly.
 func TestPagePollDrivesFreshness(t *testing.T) {
-	a := newApp(Config{ServerURL: "http://example.invalid", Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{ServerURL: "http://example.invalid", Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
 
 	a.mu.Lock()
 	idle := a.pollIntervalLocked()
@@ -829,8 +829,8 @@ func TestPagePollDrivesFreshness(t *testing.T) {
 // that URL — so a refused connection printed the credential into the
 // page's error line, and into any screenshot sent for help.
 func TestSyncErrorsDoNotLeakTheToken(t *testing.T) {
-	a := newApp(Config{ServerURL: "http://127.0.0.1:1", Token: "supersecrettoken"}, filepath.Join(t.TempDir(), "config.json"))
-	err := a.syncRefresh()
+	a := NewApp(Config{ServerURL: "http://127.0.0.1:1", Token: "supersecrettoken"}, filepath.Join(t.TempDir(), "config.json"))
+	err := a.SyncRefresh()
 	if err == nil {
 		t.Fatal("a refused connection reported success")
 	}
@@ -877,7 +877,7 @@ func TestLaunchTarget(t *testing.T) {
 }
 
 func TestLaunchRefusesWhatItCannotStart(t *testing.T) {
-	a := newApp(Config{Links: []WorldLink{{WorldID: 1, Dir: t.TempDir()}}}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{Links: []WorldLink{{WorldID: 1, Dir: t.TempDir()}}}, filepath.Join(t.TempDir(), "config.json"))
 	opened := 0
 	restore := stubLaunch(func(string) error { opened++; return nil })
 	defer restore()
@@ -928,7 +928,7 @@ func TestCheckoutInstallsTheSaveBeforeStartingTheGame(t *testing.T) {
 
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "World.sav"), []byte("stale local save"), 0o600)
-	a := newApp(Config{
+	a := NewApp(Config{
 		ServerURL: srv.URL,
 		Token:     "tok",
 		Links:     []WorldLink{{WorldID: 1, Dir: dir, AppID: "1623730"}},
@@ -1044,7 +1044,7 @@ func TestLaunchOnCheckoutSetting(t *testing.T) {
 
 func TestUpdateLinkStoresTheLaunchTarget(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
-	a := newApp(Config{Links: []WorldLink{{WorldID: 1, Dir: t.TempDir(), AppID: "1623730"}}}, path)
+	a := NewApp(Config{Links: []WorldLink{{WorldID: 1, Dir: t.TempDir(), AppID: "1623730"}}}, path)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, "/api/links/1", strings.NewReader(`{"launchTarget":"  D:\\Games\\modded.lnk  "}`))
@@ -1093,7 +1093,7 @@ func stubLaunch(fn func(string) error) func() {
 
 // appWithCheckoutStub is an app pointed at a service that hands out one
 // checkout and one (empty) version, linked to a real folder.
-func appWithCheckoutStub(t *testing.T, appID string) (*app, string) {
+func appWithCheckoutStub(t *testing.T, appID string) (*App, string) {
 	t.Helper()
 	source := t.TempDir()
 	os.WriteFile(filepath.Join(source, "World.sav"), []byte("checked out"), 0o600)
@@ -1114,7 +1114,7 @@ func appWithCheckoutStub(t *testing.T, appID string) (*app, string) {
 	}))
 	t.Cleanup(srv.Close)
 	dir := t.TempDir()
-	return newApp(Config{
+	return NewApp(Config{
 		ServerURL: srv.URL,
 		Token:     "tok",
 		Links:     []WorldLink{{WorldID: 1, Dir: dir, AppID: appID}},
@@ -1131,14 +1131,14 @@ func TestTrayStatusLine(t *testing.T) {
 	longPath := `linked world 3 to C:\Users\safwyl\AppData\Local\RSDragonwilds\Saved\SaveGames\K2hAc0p_LH74aymwOemkgg`
 
 	t.Run("unconfigured says where to go", func(t *testing.T) {
-		a := newApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
-		if got := a.statusLine(); got != "Not connected — open the page to set up" {
+		a := NewApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
+		if got := a.StatusLine(); got != "Not connected — open the page to set up" {
 			t.Errorf("statusLine = %q", got)
 		}
 	})
 
 	t.Run("a held world is named, and no path comes with it", func(t *testing.T) {
-		a := newApp(Config{
+		a := NewApp(Config{
 			ServerURL: "https://vault.example.test",
 			Token:     "tok",
 			Links:     []WorldLink{{WorldID: 3, Dir: `C:\saves`, SessionID: 9}},
@@ -1148,7 +1148,7 @@ func TestTrayStatusLine(t *testing.T) {
 		a.worldSync.Worlds = []syncWorldDTO{makeDTO(3, "Emberfall")}
 		a.mu.Unlock()
 
-		got := a.statusLine()
+		got := a.StatusLine()
 		if got != "Holding Emberfall" {
 			t.Errorf("statusLine = %q, want the world named", got)
 		}
@@ -1158,18 +1158,18 @@ func TestTrayStatusLine(t *testing.T) {
 	})
 
 	t.Run("a world the poll has not named yet still counts", func(t *testing.T) {
-		a := newApp(Config{
+		a := NewApp(Config{
 			ServerURL: "https://vault.example.test",
 			Token:     "tok",
 			Links:     []WorldLink{{WorldID: 3, SessionID: 9}},
 		}, filepath.Join(t.TempDir(), "config.json"))
-		if got := a.statusLine(); got != "Holding 1 world" {
+		if got := a.StatusLine(); got != "Holding 1 world" {
 			t.Errorf("statusLine = %q, want a count when there is no name", got)
 		}
 	})
 
 	t.Run("several holds are counted", func(t *testing.T) {
-		a := newApp(Config{
+		a := NewApp(Config{
 			ServerURL: "https://vault.example.test",
 			Token:     "tok",
 			Links: []WorldLink{
@@ -1178,7 +1178,7 @@ func TestTrayStatusLine(t *testing.T) {
 				{WorldID: 3},
 			},
 		}, filepath.Join(t.TempDir(), "config.json"))
-		if got := a.statusLine(); got != "Holding 2 worlds" {
+		if got := a.StatusLine(); got != "Holding 2 worlds" {
 			t.Errorf("statusLine = %q, want only the held ones counted", got)
 		}
 	})
@@ -1186,7 +1186,7 @@ func TestTrayStatusLine(t *testing.T) {
 	// The one thing the player can do from this menu is quit, and during
 	// a transfer it is the one thing they must not do.
 	t.Run("a running transfer outranks everything", func(t *testing.T) {
-		a := newApp(Config{
+		a := NewApp(Config{
 			ServerURL: "https://vault.example.test",
 			Token:     "tok",
 			Links:     []WorldLink{{WorldID: 3, SessionID: 9}},
@@ -1196,28 +1196,28 @@ func TestTrayStatusLine(t *testing.T) {
 		a.worldSync.LastError = "something older"
 		a.worldSync.Worlds = []syncWorldDTO{makeDTO(3, "Emberfall")}
 		a.mu.Unlock()
-		if got := a.statusLine(); got != "Transferring a save — don't quit yet" {
+		if got := a.StatusLine(); got != "Transferring a save — don't quit yet" {
 			t.Errorf("statusLine = %q, want the transfer warning", got)
 		}
 	})
 
 	t.Run("an error points at the page rather than repeating itself", func(t *testing.T) {
-		a := newApp(Config{ServerURL: "https://vault.example.test", Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+		a := NewApp(Config{ServerURL: "https://vault.example.test", Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
 		a.mu.Lock()
 		a.worldSync.LastError = "service answered 502: " + strings.Repeat("blah ", 40)
 		a.mu.Unlock()
-		got := a.statusLine()
+		got := a.StatusLine()
 		if got != "Sync error — open the page for details" {
 			t.Errorf("statusLine = %q", got)
 		}
 	})
 
 	t.Run("connected and idle", func(t *testing.T) {
-		a := newApp(Config{ServerURL: "https://vault.example.test", Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
+		a := NewApp(Config{ServerURL: "https://vault.example.test", Token: "tok"}, filepath.Join(t.TempDir(), "config.json"))
 		a.mu.Lock()
 		a.worldSync.LastAction = longPath
 		a.mu.Unlock()
-		if got := a.statusLine(); got != "Connected — no worlds held" {
+		if got := a.StatusLine(); got != "Connected — no worlds held" {
 			t.Errorf("statusLine = %q", got)
 		}
 	})
@@ -1225,7 +1225,7 @@ func TestTrayStatusLine(t *testing.T) {
 	// A world's name comes from whoever created it, so it is the one
 	// variable-length thing here and has to be bounded.
 	t.Run("an absurd world name is cut short", func(t *testing.T) {
-		a := newApp(Config{
+		a := NewApp(Config{
 			ServerURL: "https://vault.example.test",
 			Token:     "tok",
 			Links:     []WorldLink{{WorldID: 3, SessionID: 9}},
@@ -1233,7 +1233,7 @@ func TestTrayStatusLine(t *testing.T) {
 		a.mu.Lock()
 		a.worldSync.Worlds = []syncWorldDTO{makeDTO(3, strings.Repeat("long ", 40))}
 		a.mu.Unlock()
-		got := a.statusLine()
+		got := a.StatusLine()
 		if len([]rune(got)) > len("Holding ")+trayNameMax {
 			t.Errorf("statusLine is %d runes: %q", len([]rune(got)), got)
 		}
@@ -1319,7 +1319,7 @@ func TestUpdateCheckAndApply(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	a := newApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
 
 	t.Run("a matching build is not an update", func(t *testing.T) {
 		restore := stubVersion(remoteVersion)
@@ -1415,7 +1415,7 @@ func TestUpdateRefusesAMismatchedDownload(t *testing.T) {
 	dir := t.TempDir()
 	exe := filepath.Join(dir, "companion-under-test")
 	os.WriteFile(exe, []byte("the build that is running"), 0o755)
-	a := newApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
 
 	err := a.swapInUpdateFrom(context.Background(), srv.URL, exe)
 	if err == nil || !strings.Contains(err.Error(), "checksum") {
@@ -1450,7 +1450,7 @@ func TestUpdateRefusesNonExecutablePayloads(t *testing.T) {
 // Replacing the binary underneath a save transfer would kill the save
 // in flight.
 func TestUpdateWaitsForATransfer(t *testing.T) {
-	a := newApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
 	a.mu.Lock()
 	a.worldSync.Busy = true
 	a.mu.Unlock()
@@ -1469,7 +1469,7 @@ func TestUpdateIsQuietAboutReleasesThatPredateIt(t *testing.T) {
 		})
 	}))
 	defer srv.Close()
-	a := newApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
+	a := NewApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
 	st, err := a.fetchUpdateStateFrom(context.Background(), srv.URL)
 	if err == nil || !strings.Contains(err.Error(), "predates") {
 		t.Errorf("error = %v, want it to explain the release is too old", err)
@@ -1491,9 +1491,9 @@ func fakeBinary(body string) []byte {
 }
 
 func stubVersion(v string) func() {
-	prev := version
-	version = v
-	return func() { version = prev }
+	prev := Version
+	Version = v
+	return func() { Version = prev }
 }
 
 func srvURL(r *http.Request) string { return "http://" + r.Host }

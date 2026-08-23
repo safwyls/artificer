@@ -1,4 +1,4 @@
-package main
+package companion
 
 // Installed-game discovery: find what this machine plays and where those
 // games keep their saves, so linking a save folder to a world is a pick,

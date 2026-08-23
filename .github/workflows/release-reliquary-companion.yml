@@ -1,0 +1,73 @@
+name: Release (reliquary-companion)
+
+# Publishes the Wails desktop build of the companion — its own rolling
+# release, separate from `companion-latest`, so the two builds' in-place
+# updaters can never swap one in for the other (each build pins its own
+# tag and asset names in its entrypoint). Windows only: that is what
+# players run, and it is the one Wails target that cross-builds CGO-free
+# from a Linux runner. This is the parallel build; once it replaces
+# cmd/companion the browser build's release retires with it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/companion/package-lock.json
+      # The page is embedded in the exe (web/companion — the same
+      # frontend the browser build ships), so it has to exist before the
+      # Go build runs.
+      - name: Companion frontend build
+        working-directory: web/companion
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: companion-wails/go.sum
+      - name: Build reliquary-companion (Windows)
+        working-directory: companion-wails
+        run: |
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -tags desktop,production \
+            -ldflags="-H windowsgui -X main.version=${GITHUB_SHA::12}" \
+            -o reliquary-companion.exe .
+      # Same identity-not-ordering contract as the browser build's
+      # release: the version file says which build this is, and the
+      # checksum is what the updater verifies a download against.
+      - name: Version and checksum manifests
+        working-directory: companion-wails
+        run: |
+          printf '%s' "${GITHUB_SHA::12}" > companion-version.txt
+          sha256sum reliquary-companion.exe > companion-sha256.txt
+          cat companion-version.txt companion-sha256.txt
+      - name: Rolling reliquary-companion-latest release (main)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: reliquary-companion-latest
+          name: Reliquary Companion (latest)
+          body: |
+            The Reliquary Companion — the save-sync client in its own desktop window (Wails/WebView2).
+            Rebuilt from every push to main; the commit this build came from is ${{ github.sha }}.
+            This is the in-development desktop shell; the browser-based build lives on the `companion-latest` release until the cutover.
+          prerelease: true
+          files: |
+            companion-wails/reliquary-companion.exe
+            companion-wails/companion-version.txt
+            companion-wails/companion-sha256.txt

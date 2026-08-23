@@ -1,4 +1,4 @@
-package main
+package companion
 
 import (
 	"encoding/json"
@@ -147,7 +147,7 @@ func parseConfig(data []byte) (Config, error) {
 	return cfg, nil
 }
 
-func loadConfig() (Config, string, error) {
+func LoadConfig() (Config, string, error) {
 	path, err := configPath()
 	if err != nil {
 		return Config{}, "", err

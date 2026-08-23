@@ -2,15 +2,12 @@
 
 package main
 
-import "os"
+import "github.com/safwyls/artificer/companion"
 
 // runUI on non-Windows platforms is a plain foreground process: the game
 // client only exists on Windows, so anything else running this is a
-// developer with a terminal.
-func runUI(a *app, url string) {
+// developer with a terminal. The default companion.ExitForRestart (a
+// plain exit) is right here — nothing to tear down.
+func runUI(a *companion.App, url string) {
 	select {}
 }
-
-// exitForRestart ends this process so the replacement started by
-// restartSelf takes over. Nothing to tear down here.
-func exitForRestart() { os.Exit(0) }
