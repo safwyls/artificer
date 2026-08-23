@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { api, errorText } from "../lib/api";
 import { getAutostart, setAutostart } from "../lib/runtime";
 import { useRefreshState, useSeededField } from "../lib/state";
-import { ScanTrail } from "./ScanTrail";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -23,30 +22,24 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
  * this machine that is worth having in a bug report and worth nobody's
  * attention the rest of the time.
  *
- * The scan trail, the tried paths and the two build versions used to sit
- * in the page chrome, where they competed with the worlds for the eye and
- * said the sync state a second and third time. They are diagnostics, so
- * they live under a Diagnostics heading, and the footer link comes here.
+ * Settings holds settings, and nothing else. The scan trail, the tried
+ * paths and the build versions are not settings — nothing there is a
+ * thing you change — so they are a dialog the status bar opens
+ * (DiagnosticsDialog), not a section at the bottom of this page that a
+ * link had to scroll you to.
  */
 export function SettingsTab({
   state,
-  focusDiagnostics,
 }: {
   state: CompanionState;
-  /** Set when the player arrived by way of the footer's Diagnostics link,
-   * so the page opens where they were going rather than at the top. */
-  focusDiagnostics?: boolean;
 }) {
   const refresh = useRefreshState();
   const url = useSeededField(state.config?.serverUrl ?? "");
   const steam = useSeededField(state.config?.steamDirs?.[0] ?? "");
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [autostart, setAutostartState] = useState<boolean | undefined>(undefined);
-  const diagnostics = useRef<HTMLDivElement | null>(null);
   const launchOnCheckout = state.config?.launchOnCheckout ?? true;
-  const update = state.update;
 
   // Only the shell can answer this, and only some shells can. `undefined`
   // keeps the switch off the screen entirely rather than drawing one that
@@ -59,24 +52,6 @@ export function SettingsTab({
     };
   }, []);
 
-  useEffect(() => {
-    if (focusDiagnostics) diagnostics.current?.scrollIntoView({ block: "start" });
-  }, [focusDiagnostics]);
-
-  const checkUpdate = async () => {
-    setCheckingUpdate(true);
-    try {
-      const { update: u } = await api.checkUpdate();
-      if (u?.error) toast.error(u.error);
-      else if (u?.available) toast.success(`update available: ${u.version}`);
-      else toast.success("you're up to date");
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setCheckingUpdate(false);
-      refresh();
-    }
-  };
 
   const connect = async (e: FormEvent) => {
     e.preventDefault();
@@ -112,8 +87,6 @@ export function SettingsTab({
     }
   };
 
-  const links = state.links ?? [];
-  const probes = state.discovered?.probes ?? [];
 
   return (
     <div className="flex max-w-[720px] flex-col gap-4 px-7 pb-6 pt-5">
@@ -195,7 +168,14 @@ export function SettingsTab({
                 if (!(await setAutostart(want))) {
                   setAutostartState(!want);
                   toast.error("this build could not change the autostart setting");
+                  return;
                 }
+                // Read it back rather than trust the write. The setting
+                // lives in the OS, not in this page, and a switch that
+                // shows what was *asked for* is how this one came to
+                // look like it worked when it did not.
+                const actual = await getAutostart();
+                if (actual !== undefined) setAutostartState(actual);
               }}
             />
             <span>
@@ -209,69 +189,6 @@ export function SettingsTab({
         ) : null}
       </Card>
 
-      <div ref={diagnostics} className="scroll-mt-4">
-        <Card title="Diagnostics">
-          <p className="text-[12.5px] text-mist">
-            Nothing here is needed to use the companion. It is what a bug report needs.
-          </p>
-
-          <div className="mt-1 font-mono text-[11px] text-mist">
-            companion {state.version || "dev"}
-            {state.sync?.serverVersion
-              ? ` · service ${state.sync.serverVersion}`
-              : state.sync?.configured
-                ? " · service version unknown"
-                : ""}
-          </div>
-          {state.sync?.lastAction ? (
-            <div className="font-mono text-[11px] text-mist">
-              last action: {state.sync.lastAction}
-            </div>
-          ) : null}
-          {state.sync?.lastError ? (
-            <div className="font-mono text-[11px] text-ember">
-              last error: {state.sync.lastError}
-            </div>
-          ) : null}
-
-          <div className="mt-2 rounded border border-edge bg-ink px-2.5 py-2">
-            <ScanTrail probes={probes} />
-            {probes.length ? null : (
-              <p className="font-mono text-[12px] text-mist">no scan has run yet</p>
-            )}
-          </div>
-
-          <div className="mt-2">
-            <div className="text-[11px] uppercase tracking-[0.1em] text-mist">Linked save folders</div>
-            {links.length ? (
-              <ul className="mt-1 flex flex-col gap-1">
-                {links.map((l) => (
-                  <li key={l.worldId} className="break-all font-mono text-[11px] text-mist">
-                    #{l.worldId} → {l.dir}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1 font-mono text-[11px] text-mist">nothing linked on this machine</p>
-            )}
-          </div>
-
-          <div className="mt-3">
-            <p className="text-[12px] italic text-mist">
-              {update?.error
-                ? `last update check failed: ${update.error}`
-                : update?.available
-                  ? `a different build is available: ${update.version}`
-                  : update?.checkedAt
-                    ? "up to date, as of the last check"
-                    : "checked automatically every few hours"}
-            </p>
-            <Button type="button" className="mt-2" disabled={checkingUpdate} onClick={checkUpdate}>
-              Check for update
-            </Button>
-          </div>
-        </Card>
-      </div>
     </div>
   );
 }

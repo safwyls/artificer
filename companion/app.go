@@ -76,6 +76,16 @@ func (a *App) Rescan() {
 	found := discoverGames(extra)
 	a.mu.Lock()
 	a.discovered = found
+	// Rescanning is the gesture for "look at my library again", so it is
+	// also the way back from a shelf with no covers. Cached misses are
+	// dropped and re-asked; hits are kept, because a cover that resolved
+	// does not change and re-fetching them all is what the cache exists
+	// to avoid.
+	for key, hit := range a.art {
+		if hit.Name == "" && hit.Cover == "" {
+			delete(a.art, key)
+		}
+	}
 	a.mu.Unlock()
 	a.changed()
 }

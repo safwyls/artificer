@@ -1066,6 +1066,11 @@ func (a *App) artwork() map[string]gameArt {
 	a.mu.Unlock()
 	var resp struct {
 		Art map[string]gameArt `json:"art"`
+		// Set when the service reached IGDB and IGDB refused — an
+		// expired credential, most often. The request succeeded; the
+		// lookup did not, and the difference decides whether what came
+		// back is worth remembering.
+		Error string `json:"error"`
 	}
 	if err := a.syncDo(http.MethodPost, "/artwork", map[string]any{"games": need}, &resp); err != nil {
 		// Artwork never blocks custody, so this stays out of the sync
@@ -1079,11 +1084,19 @@ func (a *App) artwork() map[string]gameArt {
 		return out
 	}
 	a.mu.Lock()
-	a.artError = ""
+	a.artError = resp.Error
 	for _, q := range need {
 		key := artKey(q)
-		hit := resp.Art[key] // a miss caches as empty, so it isn't re-asked every rescan
-		a.art[key] = hit
+		hit := resp.Art[key]
+		// A miss caches as empty so a rescan does not re-ask about games
+		// IGDB has never heard of — but only when the service actually
+		// looked. A lookup that failed has learned nothing about this
+		// game, and remembering it as a miss is what turned an expired
+		// credential on the service into a library that never got its
+		// covers back, however many times it was rescanned or resynced.
+		if resp.Error == "" || hit.Name != "" || hit.Cover != "" {
+			a.art[key] = hit
+		}
 		if hit.Name != "" || hit.Cover != "" {
 			out[key] = hit
 		}

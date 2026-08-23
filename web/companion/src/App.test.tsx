@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { api } from "./lib/api";
 import { App } from "./App";
@@ -126,7 +126,7 @@ describe("App — connected", () => {
   // they competed with the worlds for the eye. A save-sync report that
   // names one half names nothing, so an unknown service version is still
   // said out loud — just in the one place diagnostics live.
-  it("keeps both builds in Settings › Diagnostics, not in the chrome", async () => {
+  it("keeps both builds in Diagnostics, not in the chrome", async () => {
     vi.spyOn(api, "state").mockResolvedValue({
       ...connected(),
       sync: { ...connected().sync, serverVersion: "v1.4.2" },
@@ -136,6 +136,36 @@ describe("App — connected", () => {
     expect(screen.queryByText(/companion v1.4.2/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Diagnostics" }));
     expect(await screen.findByText("companion v1.4.2 · service v1.4.2")).toBeInTheDocument();
+  });
+
+  // Diagnostics is a dialog now, not a section at the bottom of the
+  // settings page. Nothing in it is a setting — none of it is a thing you
+  // change — and the status bar's link used to drop you on a tab you had
+  // not asked for and scroll you down it.
+  it("opens diagnostics over the page instead of navigating to Settings", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "Diagnostics" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Diagnostics")).toBeInTheDocument();
+    // Still on Worlds: the tab you were reading is the tab you come back
+    // to when the dialog closes. `hidden` because a modal marks the rest
+    // of the page aria-hidden, which is exactly what it should do.
+    expect(screen.getByRole("tab", { name: "Worlds", hidden: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  // One place, the same rule that took the settings cog off the header.
+  it("does not also keep a diagnostics section inside Settings", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    renderWithProviders(<App />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Settings" }));
+    // Settings is there and is settings; the drain is not in it.
+    expect(await screen.findByLabelText(/Start the game when I check a world out/)).toBeInTheDocument();
+    expect(screen.queryByText(/what a bug report needs/)).not.toBeInTheDocument();
   });
 
   it("admits when it does not know the service's build", async () => {
