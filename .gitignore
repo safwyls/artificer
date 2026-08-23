@@ -15,3 +15,8 @@ web/*/dist/
 web/*/dist-demo/
 web/*/node_modules/
 web/*/tsconfig.tsbuildinfo
+
+# Windows tags a Zone.Identifier ADS file onto anything downloaded from
+# the internet; these leak into a repo when files are dragged in from a
+# Windows machine rather than authored in place.
+*:Zone.Identifier
