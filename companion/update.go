@@ -124,7 +124,10 @@ func (a *App) checkUpdate(ctx context.Context) {
 	st, err := a.fetchUpdateStateFrom(ctx, a.releaseAPIBase())
 	now := time.Now()
 	a.mu.Lock()
+	// Defers run last-registered-first: the nudge goes out while the lock
+	// is still held, then the lock is released.
 	defer a.mu.Unlock()
+	defer a.changedLocked()
 	st.CheckedAt = &now
 	st.Supported, st.Why = a.canSelfUpdateLocked()
 	if err != nil {
@@ -267,6 +270,7 @@ func (a *App) applyUpdate(ctx context.Context) error {
 	}
 	a.update.Applying = true
 	a.mu.Unlock()
+	a.changed()
 
 	err := a.doApplyUpdate(ctx)
 
@@ -276,6 +280,7 @@ func (a *App) applyUpdate(ctx context.Context) error {
 		a.update.Error = err.Error()
 	}
 	a.mu.Unlock()
+	a.changed()
 	return err
 }
 

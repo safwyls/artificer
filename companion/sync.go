@@ -51,6 +51,20 @@ const (
 	checkpointSettle = 60 * time.Second
 )
 
+// syncHolder is whoever is holding a world, as the service reports it.
+// Named rather than inline so a UI in this process can name it too: a
+// shell that has to re-declare an anonymous struct to read a field has
+// been handed a type it cannot use.
+type syncHolder struct {
+	SessionID int64     `json:"sessionId"`
+	Username  string    `json:"username"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	Claimable bool      `json:"claimable"`
+	// What the service is waiting for this hold to do, picked up on the
+	// next poll (answerHandback).
+	RequestedKind string `json:"requestedKind,omitempty"`
+}
+
 // syncWorldDTO is the service's world status, the subset this side reads.
 type syncWorldDTO struct {
 	World struct {
@@ -62,16 +76,8 @@ type syncWorldDTO struct {
 		SavePath    string `json:"savePath"`
 		HeadVersion *int64 `json:"headVersion"`
 	} `json:"world"`
-	Holder *struct {
-		SessionID int64     `json:"sessionId"`
-		Username  string    `json:"username"`
-		ExpiresAt time.Time `json:"expiresAt"`
-		Claimable bool      `json:"claimable"`
-		// What the service is waiting for this hold to do, picked up on
-		// the next poll (sync.go, answerHandback).
-		RequestedKind string `json:"requestedKind,omitempty"`
-	} `json:"holder,omitempty"`
-	ClaimedBy string `json:"claimedBy,omitempty"`
+	Holder    *syncHolder `json:"holder,omitempty"`
+	ClaimedBy string      `json:"claimedBy,omitempty"`
 	Head      *struct {
 		ID        int64     `json:"id"`
 		Bytes     int64     `json:"bytes"`
@@ -108,7 +114,11 @@ func (a *App) syncBase() string {
 
 func (a *App) setSyncErr(err error) {
 	a.mu.Lock()
+	// Defers run last-registered-first, so the nudge happens while the
+	// lock is still held; changedLocked's sends are non-blocking, so it
+	// cannot deadlock behind a subscriber.
 	defer a.mu.Unlock()
+	defer a.changedLocked()
 	if err == nil {
 		a.worldSync.LastError = ""
 		return
@@ -122,6 +132,7 @@ func (a *App) noteSync(action string) {
 	a.worldSync.LastAction = action
 	a.worldSync.LastError = ""
 	a.mu.Unlock()
+	a.changed()
 	log.Printf("sync: %s", action)
 }
 
@@ -216,6 +227,7 @@ func (a *App) SyncRefresh() error {
 	a.worldSync.PolledAt = &now
 	a.worldSync.LastError = ""
 	a.mu.Unlock()
+	a.changed()
 	return nil
 }
 
@@ -823,7 +835,11 @@ func (a *App) unlink(worldID int64) error {
 
 func (a *App) setBusy(busy bool) bool {
 	a.mu.Lock()
+	// Defers run last-registered-first, so the nudge happens while the
+	// lock is still held; changedLocked's sends are non-blocking, so it
+	// cannot deadlock behind a subscriber.
 	defer a.mu.Unlock()
+	defer a.changedLocked()
 	if busy && a.worldSync.Busy {
 		return false
 	}

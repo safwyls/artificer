@@ -5,9 +5,11 @@
 // (reliquary), and moves the saves.
 //
 // Two entrypoints share it: cmd/companion, the original tray-and-browser
-// build, and companion-wails, the Wails desktop shell (reliquary-companion).
-// Both wire the same App, HTTP routes and loops; only the window and the
-// process shell differ.
+// build, and companion-desktop, the native desktop shell
+// (reliquary-companion). Both wire the same App, HTTP routes and loops;
+// only the window and the process shell differ. The desktop shell also
+// uses the in-process facade in facade.go rather than polling the
+// routes.
 package companion
 
 import (

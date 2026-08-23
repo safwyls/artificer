@@ -142,10 +142,7 @@ func (a *App) handleHide(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "invalid body"})
 		return
 	}
-	a.mu.Lock()
-	a.cfg.setHidden(strings.TrimSpace(in.Key), in.Hidden)
-	a.mu.Unlock()
-	if err := a.saveCfg(); err != nil {
+	if err := a.Hide(in.Key, in.Hidden); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
