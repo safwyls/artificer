@@ -108,7 +108,11 @@ func (a *App) syncBase() string {
 
 func (a *App) setSyncErr(err error) {
 	a.mu.Lock()
+	// Defers run last-registered-first, so the nudge happens while the
+	// lock is still held; changedLocked's sends are non-blocking, so it
+	// cannot deadlock behind a subscriber.
 	defer a.mu.Unlock()
+	defer a.changedLocked()
 	if err == nil {
 		a.worldSync.LastError = ""
 		return
@@ -122,6 +126,7 @@ func (a *App) noteSync(action string) {
 	a.worldSync.LastAction = action
 	a.worldSync.LastError = ""
 	a.mu.Unlock()
+	a.changed()
 	log.Printf("sync: %s", action)
 }
 
@@ -216,6 +221,7 @@ func (a *App) SyncRefresh() error {
 	a.worldSync.PolledAt = &now
 	a.worldSync.LastError = ""
 	a.mu.Unlock()
+	a.changed()
 	return nil
 }
 
@@ -823,7 +829,11 @@ func (a *App) unlink(worldID int64) error {
 
 func (a *App) setBusy(busy bool) bool {
 	a.mu.Lock()
+	// Defers run last-registered-first, so the nudge happens while the
+	// lock is still held; changedLocked's sends are non-blocking, so it
+	// cannot deadlock behind a subscriber.
 	defer a.mu.Unlock()
+	defer a.changedLocked()
 	if busy && a.worldSync.Busy {
 		return false
 	}

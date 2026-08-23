@@ -51,6 +51,15 @@ type App struct {
 	// refreshing single-flights the status poll: the page asks on every
 	// render, and a slow service must not stack requests.
 	refreshing bool
+	// subs are the in-process change subscribers (facade.go). Empty for
+	// the browser build, which polls instead; a desktop shell registers
+	// one and re-renders on the nudge.
+	subs map[chan struct{}]bool
+	// covers caches cover-art *bytes* per game key, misses included, for
+	// an in-process UI that cannot hand a URL to a browser and forget
+	// about it. Never evicted: a shelf's worth of small JPEGs, and a
+	// cover re-fetched on a poll is a cover that flickers.
+	covers map[string][]byte
 }
 
 // rescan re-runs game discovery with the configured Steam folders.
@@ -62,6 +71,7 @@ func (a *App) Rescan() {
 	a.mu.Lock()
 	a.discovered = found
 	a.mu.Unlock()
+	a.changed()
 }
 
 func NewApp(cfg Config, cfgPath string) *App {
@@ -78,7 +88,12 @@ func (a *App) saveCfg() error {
 	a.mu.Lock()
 	cfg, path := a.cfg, a.cfgPath
 	a.mu.Unlock()
-	return saveConfig(path, cfg)
+	err := saveConfig(path, cfg)
+	// The config *is* the links and the settings, so every write to it is
+	// a change a UI wants to see — nudge even when the write failed, since
+	// the in-memory state moved either way.
+	a.changed()
+	return err
 }
 
 // trayNameMax bounds the one variable-length thing the tray shows. A
