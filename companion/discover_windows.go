@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package companion
 
 import (
 	"golang.org/x/sys/windows/registry"

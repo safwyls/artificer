@@ -1,4 +1,4 @@
-package main
+package companion
 
 // Finding a game's save folder — the heuristic half of discovery, and
 // the half that decides whether the panel is useful or just a list of

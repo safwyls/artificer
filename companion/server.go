@@ -1,4 +1,4 @@
-package main
+package companion
 
 import (
 	"context"
@@ -28,7 +28,7 @@ var ui = func() fs.FS {
 	return dist
 }()
 
-func (a *app) routes() http.Handler {
+func (a *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 	// The page and its assets. Everything that is not /api is the
 	// frontend; there is no router in it, so index.html is the only
@@ -53,21 +53,21 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("POST /api/links", a.handleAddLink)
 	mux.HandleFunc("POST /api/links/create", a.handleCreateWorld)
 	mux.HandleFunc("PUT /api/links/{worldID}", a.handleUpdateLink)
-	mux.HandleFunc("POST /api/links/{worldID}/launch", a.linkAction((*app).launch))
+	mux.HandleFunc("POST /api/links/{worldID}/launch", a.linkAction((*App).launch))
 	// Keeping this build current (update.go). Local-only like the rest;
 	// what it reaches out to is GitHub's public release API.
 	mux.HandleFunc("POST /api/update/check", a.handleCheckUpdate)
 	mux.HandleFunc("POST /api/update/apply", a.handleApplyUpdate)
-	mux.HandleFunc("DELETE /api/links/{worldID}", a.linkAction(func(a *app, id int64) error { return a.unlink(id) }))
+	mux.HandleFunc("DELETE /api/links/{worldID}", a.linkAction(func(a *App, id int64) error { return a.unlink(id) }))
 	mux.HandleFunc("POST /api/links/{worldID}/checkout", a.handleCheckout)
-	mux.HandleFunc("POST /api/links/{worldID}/checkin", a.linkAction((*app).syncCheckin))
-	mux.HandleFunc("POST /api/links/{worldID}/checkpoint", a.linkAction((*app).syncCheckpointNow))
-	mux.HandleFunc("POST /api/links/{worldID}/renew", a.linkAction((*app).syncRenew))
-	mux.HandleFunc("POST /api/links/{worldID}/claim", a.linkAction((*app).syncClaim))
+	mux.HandleFunc("POST /api/links/{worldID}/checkin", a.linkAction((*App).syncCheckin))
+	mux.HandleFunc("POST /api/links/{worldID}/checkpoint", a.linkAction((*App).syncCheckpointNow))
+	mux.HandleFunc("POST /api/links/{worldID}/renew", a.linkAction((*App).syncRenew))
+	mux.HandleFunc("POST /api/links/{worldID}/claim", a.linkAction((*App).syncClaim))
 	return mux
 }
 
-func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleState(w http.ResponseWriter, r *http.Request) {
 	// Someone is looking. Note it, and start a poll if the view has gone
 	// stale — in the background, because the page asks every few seconds
 	// and must not wait on the service to render. The next ask shows the
@@ -111,7 +111,7 @@ func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
 		"links":      links,
 		"discovered": discovered,
 		"sync":       st,
-		"version":    version,
+		"version":    Version,
 		"update":     a.update,
 	}
 	a.mu.Unlock()
@@ -125,7 +125,7 @@ func (a *app) handleState(w http.ResponseWriter, r *http.Request) {
 // a typo'd token should fail here, not silently every minute forever;
 // an empty token keeps the saved one. New Steam folders trigger a
 // rescan.
-func (a *app) handleSetConfig(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		ServerURL        *string   `json:"serverUrl"`
 		Token            string    `json:"token"`
@@ -162,10 +162,10 @@ func (a *app) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.SteamDirs != nil {
-		a.rescan()
+		a.Rescan()
 	}
-	if in.ServerURL != nil && a.syncConfigured() {
-		if err := a.syncRefresh(); err != nil {
+	if in.ServerURL != nil && a.SyncConfigured() {
+		if err := a.SyncRefresh(); err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
@@ -173,8 +173,8 @@ func (a *app) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-func (a *app) handleDiscover(w http.ResponseWriter, r *http.Request) {
-	a.rescan()
+func (a *App) handleDiscover(w http.ResponseWriter, r *http.Request) {
+	a.Rescan()
 	a.mu.Lock()
 	found := len(a.discovered.Games)
 	a.mu.Unlock()
@@ -183,7 +183,7 @@ func (a *app) handleDiscover(w http.ResponseWriter, r *http.Request) {
 
 // handleArtwork answers cover art for the discovered games, resolved
 // through the sync service (which holds the IGDB credentials).
-func (a *app) handleArtwork(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	art := a.artwork()
 	a.mu.Lock()
 	failure, asked := a.artError, a.artAsked
@@ -196,12 +196,12 @@ func (a *app) handleArtwork(w http.ResponseWriter, r *http.Request) {
 // this is for the moment someone wants to be certain rather than
 // patient — and for saying plainly when the service cannot be reached,
 // which a silent background poll never does.
-func (a *app) handleSyncNow(w http.ResponseWriter, r *http.Request) {
-	if !a.syncConfigured() {
+func (a *App) handleSyncNow(w http.ResponseWriter, r *http.Request) {
+	if !a.SyncConfigured() {
 		writeJSON(w, map[string]any{"ok": false, "error": "not connected — set the service URL and your token in Settings"})
 		return
 	}
-	if err := a.syncRefresh(); err != nil {
+	if err := a.SyncRefresh(); err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
@@ -214,7 +214,7 @@ func (a *app) handleSyncNow(w http.ResponseWriter, r *http.Request) {
 // handleSaveHints asks the service for the catalogue's locations and
 // folds them into the discovered games' candidates. Driven by the page
 // when the game set changes, like artwork.
-func (a *app) handleSaveHints(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleSaveHints(w http.ResponseWriter, r *http.Request) {
 	a.saveHints()
 	a.mu.Lock()
 	failure, available := a.hintsError, a.hintsAvailable
@@ -232,7 +232,7 @@ func (a *app) handleSaveHints(w http.ResponseWriter, r *http.Request) {
 // part a joining player supplies and the part the world carries with it.
 // The page shows the answer before anything is recorded, because a guess
 // nobody can see is a guess nobody can correct.
-func (a *app) handleSplitSavePath(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleSplitSavePath(w http.ResponseWriter, r *http.Request) {
 	dir := cleanPastedPath(r.URL.Query().Get("dir"))
 	if dir == "" {
 		writeJSON(w, map[string]any{"ok": false, "error": "no folder given"})
@@ -263,7 +263,7 @@ func (a *app) handleSplitSavePath(w http.ResponseWriter, r *http.Request) {
 // second player to take a world cannot type an opaque id they have never
 // seen, so they supply the half they know and the companion makes the
 // rest.
-func (a *app) handleResolveSavePath(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleResolveSavePath(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Root   string `json:"root"`
 		Leaf   string `json:"leaf"`
@@ -291,7 +291,7 @@ func (a *app) handleResolveSavePath(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "dir": dir, "exists": exists})
 }
 
-func (a *app) handleAddLink(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleAddLink(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		WorldID   int64  `json:"worldId"`
 		GameTitle string `json:"gameTitle"`
@@ -310,7 +310,7 @@ func (a *app) handleAddLink(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-func (a *app) handleCreateWorld(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleCreateWorld(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Name      string `json:"name"`
 		GameTitle string `json:"gameTitle"`
@@ -335,7 +335,7 @@ func (a *app) handleCreateWorld(w http.ResponseWriter, r *http.Request) {
 // world has something to start, plays it. The answer says which of those
 // happened: a save on disk with a game that would not start is a real
 // outcome the page has to be able to explain.
-func (a *app) handleCheckout(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Takeover bool  `json:"takeover"`
 		Play     *bool `json:"play"`
@@ -346,7 +346,7 @@ func (a *app) handleCheckout(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": "invalid world id"})
 		return
 	}
-	if !a.syncConfigured() {
+	if !a.SyncConfigured() {
 		writeJSON(w, map[string]any{"ok": false, "error": "set the server URL and token first"})
 		return
 	}
@@ -376,7 +376,7 @@ func (a *app) handleCheckout(w http.ResponseWriter, r *http.Request) {
 
 // handleCheckUpdate asks GitHub now rather than waiting for the timer —
 // the same "be certain rather than patient" the sync-now button serves.
-func (a *app) handleCheckUpdate(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleCheckUpdate(w http.ResponseWriter, r *http.Request) {
 	a.checkUpdate(r.Context())
 	a.mu.Lock()
 	st := a.update
@@ -389,7 +389,7 @@ func (a *app) handleCheckUpdate(w http.ResponseWriter, r *http.Request) {
 // by the process that is about to exit — a reply written afterwards
 // would never arrive, and the player would see a failed request for an
 // update that actually worked.
-func (a *app) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 	// Not r.Context(): that is cancelled the moment this response is
 	// written, and the download outlives it.
 	if err := a.applyUpdate(context.Background()); err != nil {
@@ -407,14 +407,14 @@ func (a *app) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 			log.Printf("update: restarting: %v", err)
 			return
 		}
-		exitForRestart()
+		ExitForRestart()
 	}()
 }
 
 // handleUpdateLink edits the parts of a link the player owns: the launch
 // target, the local folder it points at, and — since that lives on the
 // service, not here — the world's name.
-func (a *app) handleUpdateLink(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleUpdateLink(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("worldID"), 10, 64)
 	if err != nil {
 		writeJSON(w, map[string]any{"ok": false, "error": "invalid world id"})
@@ -462,7 +462,7 @@ func (a *app) handleUpdateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.WorldName != nil {
-		if !a.syncConfigured() {
+		if !a.SyncConfigured() {
 			writeJSON(w, map[string]any{"ok": false, "error": "set the server URL and token first"})
 			return
 		}
@@ -475,14 +475,14 @@ func (a *app) handleUpdateLink(w http.ResponseWriter, r *http.Request) {
 }
 
 // linkAction adapts a per-world verb into a local handler.
-func (a *app) linkAction(fn func(*app, int64) error) http.HandlerFunc {
+func (a *App) linkAction(fn func(*App, int64) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(r.PathValue("worldID"), 10, 64)
 		if err != nil {
 			writeJSON(w, map[string]any{"ok": false, "error": "invalid world id"})
 			return
 		}
-		if !a.syncConfigured() {
+		if !a.SyncConfigured() {
 			writeJSON(w, map[string]any{"ok": false, "error": "set the server URL and token first"})
 			return
 		}

@@ -10,6 +10,7 @@ import (
 
 	"fyne.io/systray"
 
+	"github.com/safwyls/artificer/companion"
 	web "github.com/safwyls/artificer/web/companion"
 )
 
@@ -31,23 +32,24 @@ func trayIcon() []byte {
 	return data
 }
 
-// exitForRestart ends this process so the replacement started by
-// restartSelf takes over. The tray icon has to go first: systray owns a
-// window and a shell notification-area entry, and a process that exits
-// without giving it up leaves a ghost icon behind until someone hovers
-// over it.
-func exitForRestart() {
-	systray.Quit()
-	// systray.Quit returns before the icon is actually gone; give the
-	// shell a moment rather than racing it.
-	time.Sleep(250 * time.Millisecond)
-	os.Exit(0)
+// init replaces the restart exit with one that takes the tray icon down
+// first: systray owns a window and a shell notification-area entry, and
+// a process that exits without giving it up leaves a ghost icon behind
+// until someone hovers over it.
+func init() {
+	companion.ExitForRestart = func() {
+		systray.Quit()
+		// systray.Quit returns before the icon is actually gone; give the
+		// shell a moment rather than racing it.
+		time.Sleep(250 * time.Millisecond)
+		os.Exit(0)
+	}
 }
 
 // runUI parks the companion in the system tray: open the page, sync on
 // demand, read the custody state at a glance, quit. The page is the UI —
 // the tray is the handle.
-func runUI(a *app, url string) {
+func runUI(a *companion.App, url string) {
 	// A console-subsystem build (plain `go build`) double-clicked from
 	// Explorer drags a console window along; close it once startup has
 	// printed the URL. See console_windows.go.
@@ -69,7 +71,7 @@ func runUI(a *app, url string) {
 		// The status line follows the app state; a menu the player only
 		// glances at occasionally doesn't need to be fresher than this.
 		ticker := time.NewTicker(5 * time.Second)
-		update := func() { status.SetTitle(a.statusLine()) }
+		update := func() { status.SetTitle(a.StatusLine()) }
 		update()
 
 		go func() {
@@ -79,11 +81,11 @@ func runUI(a *app, url string) {
 					openBrowser(url)
 				case <-syncNow.ClickedCh:
 					go func() {
-						if a.syncConfigured() {
-							a.syncRefresh()
-							for _, id := range a.linkedWorldIDs() {
-								a.adoptHandoff(id)
-								a.autoCheckpoint(id)
+						if a.SyncConfigured() {
+							a.SyncRefresh()
+							for _, id := range a.LinkedWorldIDs() {
+								a.AdoptHandoff(id)
+								a.AutoCheckpoint(id)
 							}
 						} else {
 							openBrowser(url) // nothing to sync: the setup lives on the page

@@ -1,4 +1,4 @@
-package main
+package companion
 
 // Turning the manifest's path templates into folders on this machine.
 //

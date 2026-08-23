@@ -1,4 +1,4 @@
-package main
+package companion
 
 // Save-sync custody, from the player's side of the wire
 // (docs/save-sync-architecture.md): link installed games' save folders
@@ -94,19 +94,19 @@ type syncState struct {
 	ServerVersion string `json:"serverVersion,omitempty"`
 }
 
-func (a *app) syncConfigured() bool {
+func (a *App) SyncConfigured() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.cfg.configured()
 }
 
-func (a *app) syncBase() string {
+func (a *App) syncBase() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return normalizeServerURL(a.cfg.ServerURL) + "/api/public/sync/" + a.cfg.Token
 }
 
-func (a *app) setSyncErr(err error) {
+func (a *App) setSyncErr(err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err == nil {
@@ -117,7 +117,7 @@ func (a *app) setSyncErr(err error) {
 	log.Printf("sync: %v", err)
 }
 
-func (a *app) noteSync(action string) {
+func (a *App) noteSync(action string) {
 	a.mu.Lock()
 	a.worldSync.LastAction = action
 	a.worldSync.LastError = ""
@@ -133,7 +133,7 @@ func (a *app) noteSync(action string) {
 // lives in that URL — so a refused connection would print the
 // credential onto the screen, and into any screenshot sent to whoever
 // runs the vault.
-func (a *app) scrubToken(err error) error {
+func (a *App) scrubToken(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -150,11 +150,11 @@ func (a *app) scrubToken(err error) error {
 	return errors.New(msg)
 }
 
-func (a *app) syncDo(method, path string, body any, out any) error {
+func (a *App) syncDo(method, path string, body any, out any) error {
 	return a.scrubToken(a.syncDoRaw(method, path, body, out))
 }
 
-func (a *app) syncDoRaw(method, path string, body any, out any) error {
+func (a *App) syncDoRaw(method, path string, body any, out any) error {
 	var payload io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -198,7 +198,7 @@ func (a *app) syncDoRaw(method, path string, body any, out any) error {
 }
 
 // syncRefresh polls the service's custody status.
-func (a *app) syncRefresh() error {
+func (a *App) SyncRefresh() error {
 	var out struct {
 		Username      string         `json:"username"`
 		Worlds        []syncWorldDTO `json:"worlds"`
@@ -222,7 +222,7 @@ func (a *app) syncRefresh() error {
 // refreshIfStale polls the service when the view has aged past the
 // current interval. Single-flight: the page asks on every render, and a
 // slow service must not stack requests behind each other.
-func (a *app) refreshIfStale() {
+func (a *App) refreshIfStale() {
 	a.mu.Lock()
 	stale := a.worldSync.PolledAt == nil || time.Since(*a.worldSync.PolledAt) >= a.pollIntervalLocked()
 	if !stale || a.refreshing || a.worldSync.Busy || !a.cfg.configured() {
@@ -236,13 +236,13 @@ func (a *app) refreshIfStale() {
 		a.refreshing = false
 		a.mu.Unlock()
 	}()
-	a.syncRefresh()
+	a.SyncRefresh()
 }
 
 // pollIntervalLocked is how stale the custody view may get: a few
 // seconds while someone has the page open, a minute otherwise. Caller
 // holds the lock.
-func (a *app) pollIntervalLocked() time.Duration {
+func (a *App) pollIntervalLocked() time.Duration {
 	if !a.pageSeen.IsZero() && time.Since(a.pageSeen) < pageWatchWindow {
 		return syncPollWatching
 	}
@@ -257,8 +257,8 @@ func (a *app) pollIntervalLocked() time.Duration {
 // checkpoint could only ever be noticed on the same beat the status was
 // fetched, and only once a minute at that. Refreshing and reacting are
 // different jobs on different clocks.
-func (a *app) syncTick() {
-	if !a.syncConfigured() {
+func (a *App) SyncTick() {
+	if !a.SyncConfigured() {
 		return
 	}
 	a.refreshIfStale()
@@ -269,17 +269,17 @@ func (a *app) syncTick() {
 	if busy || !polled {
 		return
 	}
-	for _, worldID := range a.linkedWorldIDs() {
-		a.adoptHandoff(worldID)
+	for _, worldID := range a.LinkedWorldIDs() {
+		a.AdoptHandoff(worldID)
 		// Before the automatic checkpoint, because a standing request is
 		// somebody waiting: answering it now beats answering it after
 		// the settle window decides the folder is quiet enough.
 		a.answerHandback(worldID)
-		a.autoCheckpoint(worldID)
+		a.AutoCheckpoint(worldID)
 	}
 }
 
-func (a *app) linkedWorldIDs() []int64 {
+func (a *App) LinkedWorldIDs() []int64 {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	ids := make([]int64, 0, len(a.cfg.Links))
@@ -291,7 +291,7 @@ func (a *app) linkedWorldIDs() []int64 {
 
 // world returns the polled status for one world, nil when the service
 // doesn't list it.
-func (a *app) world(worldID int64) *syncWorldDTO {
+func (a *App) world(worldID int64) *syncWorldDTO {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for i := range a.worldSync.Worlds {
@@ -307,7 +307,7 @@ func (a *app) world(worldID int64) *syncWorldDTO {
 // world while nobody was looking — a queued claim consumed by someone
 // else's check-in — and fetches it, so "your companion will fetch it" is
 // a promise this code keeps.
-func (a *app) adoptHandoff(worldID int64) {
+func (a *App) AdoptHandoff(worldID int64) {
 	world := a.world(worldID)
 	a.mu.Lock()
 	link := a.cfg.link(worldID)
@@ -336,7 +336,7 @@ func (a *app) adoptHandoff(worldID int64) {
 // autoCheckpoint pushes a checkpoint when a held world's folder has
 // changed and settled. Failures are recorded, not fatal — the next tick
 // retries.
-func (a *app) autoCheckpoint(worldID int64) {
+func (a *App) AutoCheckpoint(worldID int64) {
 	world := a.world(worldID)
 	a.mu.Lock()
 	link := a.cfg.link(worldID)
@@ -372,7 +372,7 @@ func (a *app) autoCheckpoint(worldID int64) {
 // is where it lands. It fires only for a hold this machine actually
 // owns: the flag is on the session, and a session belongs to one
 // companion.
-func (a *app) answerHandback(worldID int64) {
+func (a *App) answerHandback(worldID int64) {
 	world := a.world(worldID)
 	if world == nil || world.Holder == nil || world.Holder.RequestedKind == "" {
 		return
@@ -407,7 +407,7 @@ func (a *app) answerHandback(worldID int64) {
 }
 
 // syncCheckout acquires a linked world and installs its head locally.
-func (a *app) syncCheckout(worldID int64, takeover bool) error {
+func (a *App) syncCheckout(worldID int64, takeover bool) error {
 	if !a.setBusy(true) {
 		return errors.New("a transfer is already running")
 	}
@@ -435,7 +435,7 @@ func (a *app) syncCheckout(worldID int64, takeover bool) error {
 		return err
 	}
 	a.noteSync(fmt.Sprintf("checked out %q", out.World))
-	a.syncRefresh()
+	a.SyncRefresh()
 	return nil
 }
 
@@ -452,7 +452,7 @@ func (a *app) syncCheckout(worldID int64, takeover bool) error {
 // explicit checkout launches — adopting a queued claim (syncTick) fetches
 // the world in the background, possibly while nobody is at the machine,
 // and starting a game there would be a surprise, not a convenience.
-func (a *app) checkoutAndPlay(worldID int64, takeover bool) (launched bool, launchErr error, err error) {
+func (a *App) checkoutAndPlay(worldID int64, takeover bool) (launched bool, launchErr error, err error) {
 	if err := a.syncCheckout(worldID, takeover); err != nil {
 		return false, nil, err
 	}
@@ -468,7 +468,7 @@ func (a *app) checkoutAndPlay(worldID int64, takeover bool) (launched bool, laun
 	return true, nil, nil
 }
 
-func (a *app) link(worldID int64) *WorldLink {
+func (a *App) link(worldID int64) *WorldLink {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	l := a.cfg.link(worldID)
@@ -482,7 +482,7 @@ func (a *app) link(worldID int64) *WorldLink {
 // installHold records the session and places its base version into the
 // linked folder. base 0 means a world with no versions yet: nothing to
 // download, the folder as it stands is the starting point.
-func (a *app) installHold(worldID, sessionID, base int64) error {
+func (a *App) installHold(worldID, sessionID, base int64) error {
 	if base != 0 {
 		if err := a.installVersion(worldID, base); err != nil {
 			return err
@@ -500,7 +500,7 @@ func (a *app) installHold(worldID, sessionID, base int64) error {
 // folder: extract beside it, keep one .pre-checkout copy of what was
 // there, rename into place — a torn download never leaves the folder
 // half-new, and the previous local state survives one level of regret.
-func (a *app) installVersion(worldID, versionID int64) error {
+func (a *App) installVersion(worldID, versionID int64) error {
 	link := a.link(worldID)
 	if link == nil || link.Dir == "" {
 		return errors.New("no save folder linked for this world")
@@ -545,7 +545,7 @@ func (a *app) installVersion(worldID, versionID int64) error {
 // folder must be settled — committing a torn save as the canonical
 // version is the one unforgivable failure here, so close the game and
 // let it finish saving first.
-func (a *app) syncCheckin(worldID int64) error {
+func (a *App) syncCheckin(worldID int64) error {
 	if !a.setBusy(true) {
 		return errors.New("a transfer is already running")
 	}
@@ -573,12 +573,12 @@ func (a *app) syncCheckin(worldID int64) error {
 		return err
 	}
 	a.noteSync("checked in — the world is free")
-	a.syncRefresh()
+	a.SyncRefresh()
 	return nil
 }
 
 // syncCheckpointNow is the page's manual checkpoint button.
-func (a *app) syncCheckpointNow(worldID int64) error {
+func (a *App) syncCheckpointNow(worldID int64) error {
 	link := a.link(worldID)
 	if link == nil || link.SessionID == 0 {
 		return errors.New("no hold to checkpoint")
@@ -595,7 +595,7 @@ func (a *app) syncCheckpointNow(worldID int64) error {
 }
 
 // pushBundle streams a packaged world folder to the service.
-func (a *app) pushBundle(dir string, sessionID int64, verb string) error {
+func (a *App) pushBundle(dir string, sessionID int64, verb string) error {
 	pr, pw := io.Pipe()
 	go func() { pw.CloseWithError(packageWorldDir(dir, pw)) }()
 	req, err := http.NewRequest(http.MethodPost, a.syncBase()+fmt.Sprintf("/sessions/%d/%s", sessionID, verb), pr)
@@ -629,7 +629,7 @@ func (a *app) pushBundle(dir string, sessionID int64, verb string) error {
 	return nil
 }
 
-func (a *app) syncRenew(worldID int64) error {
+func (a *App) syncRenew(worldID int64) error {
 	link := a.link(worldID)
 	if link == nil || link.SessionID == 0 {
 		return errors.New("no hold to renew")
@@ -639,11 +639,11 @@ func (a *app) syncRenew(worldID int64) error {
 		return err
 	}
 	a.noteSync("hold renewed")
-	a.syncRefresh()
+	a.SyncRefresh()
 	return nil
 }
 
-func (a *app) syncClaim(worldID int64) error {
+func (a *App) syncClaim(worldID int64) error {
 	if a.link(worldID) == nil {
 		return errors.New("link this world to a save folder first — the handoff needs somewhere to land")
 	}
@@ -652,7 +652,7 @@ func (a *app) syncClaim(worldID int64) error {
 		return err
 	}
 	a.noteSync("claimed the next hold")
-	a.syncRefresh()
+	a.SyncRefresh()
 	return nil
 }
 
@@ -678,7 +678,7 @@ func checkSaveDir(dir string) error {
 	return nil
 }
 
-func (a *app) linkWorld(worldID int64, gameTitle, dir, meta, appID string) error {
+func (a *App) linkWorld(worldID int64, gameTitle, dir, meta, appID string) error {
 	if err := checkSaveDir(dir); err != nil {
 		return err
 	}
@@ -704,14 +704,14 @@ func (a *app) linkWorld(worldID int64, gameTitle, dir, meta, appID string) error
 		return err
 	}
 	a.noteSync(fmt.Sprintf("linked world %d to %s", worldID, dir))
-	a.syncRefresh()
+	a.SyncRefresh()
 	return nil
 }
 
 // renameWorld changes a world's name on the service. Unlike linkWorld's
 // meta call this carries none of the game-info fields, so the service
 // leaves gameTitle/saveHint/gameMeta exactly as they were.
-func (a *app) renameWorld(worldID int64, name string) error {
+func (a *App) renameWorld(worldID int64, name string) error {
 	if name == "" {
 		return errors.New("a world needs a name")
 	}
@@ -720,13 +720,13 @@ func (a *app) renameWorld(worldID int64, name string) error {
 		return err
 	}
 	a.noteSync(fmt.Sprintf("renamed the world to %q", name))
-	a.syncRefresh()
+	a.SyncRefresh()
 	return nil
 }
 
 // createWorld makes a world on the service from a discovered game, links
 // it, and optionally seeds it with the folder's current save.
-func (a *app) createWorld(name, gameTitle, dir, meta, appID, savePath string, seed bool) error {
+func (a *App) createWorld(name, gameTitle, dir, meta, appID, savePath string, seed bool) error {
 	if name == "" {
 		return errors.New("a world needs a name")
 	}
@@ -769,13 +769,13 @@ func (a *app) createWorld(name, gameTitle, dir, meta, appID, savePath string, se
 	} else {
 		a.noteSync(fmt.Sprintf("created %q", name))
 	}
-	a.syncRefresh()
+	a.SyncRefresh()
 	return nil
 }
 
 // seedWorld imports the folder's current save as the world's first
 // version.
-func (a *app) seedWorld(worldID int64, dir string) error {
+func (a *App) seedWorld(worldID int64, dir string) error {
 	if !a.setBusy(true) {
 		return errors.New("a transfer is already running")
 	}
@@ -808,7 +808,7 @@ func (a *app) seedWorld(worldID int64, dir string) error {
 	return nil
 }
 
-func (a *app) unlink(worldID int64) error {
+func (a *App) unlink(worldID int64) error {
 	a.mu.Lock()
 	links := a.cfg.Links[:0]
 	for _, l := range a.cfg.Links {
@@ -821,7 +821,7 @@ func (a *app) unlink(worldID int64) error {
 	return a.saveCfg()
 }
 
-func (a *app) setBusy(busy bool) bool {
+func (a *App) setBusy(busy bool) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if busy && a.worldSync.Busy {
@@ -990,7 +990,7 @@ func artKey(q artQuery) string {
 // artwork resolves covers for the discovered games, asking the service
 // only for what isn't already cached here. Failures are silent by
 // design — a shelf without covers is still a shelf.
-func (a *app) artwork() map[string]gameArt {
+func (a *App) artwork() map[string]gameArt {
 	a.mu.Lock()
 	games := append([]discoveredGame(nil), a.discovered.Games...)
 	if a.art == nil {
@@ -1058,7 +1058,7 @@ func (a *app) artwork() map[string]gameArt {
 // changes what the player is offered, so the expansion — and the
 // decision about which template applies to this machine — happens here,
 // where the placeholders actually mean something.
-func (a *app) saveHints() {
+func (a *App) saveHints() {
 	a.mu.Lock()
 	games := append([]discoveredGame(nil), a.discovered.Games...)
 	libs := append([]string(nil), a.discovered.Libraries...)
@@ -1119,7 +1119,7 @@ func (q savehintQuery) Key() string {
 // catalogue offered. Recomputed rather than appended, so the ordering
 // rules in saveCandidatesFor apply to the whole set and a second call
 // cannot stack duplicates.
-func (a *app) applyHints(libs []string) {
+func (a *App) applyHints(libs []string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if len(libs) == 0 {

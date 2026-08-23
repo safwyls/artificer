@@ -1,4 +1,4 @@
-package main
+package companion
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type app struct {
+type App struct {
 	cfgPath string
 	client  *http.Client
 
@@ -54,7 +54,7 @@ type app struct {
 }
 
 // rescan re-runs game discovery with the configured Steam folders.
-func (a *app) rescan() {
+func (a *App) Rescan() {
 	a.mu.Lock()
 	extra := append([]string(nil), a.cfg.SteamDirs...)
 	a.mu.Unlock()
@@ -64,8 +64,8 @@ func (a *app) rescan() {
 	a.mu.Unlock()
 }
 
-func newApp(cfg Config, cfgPath string) *app {
-	return &app{
+func NewApp(cfg Config, cfgPath string) *App {
+	return &App{
 		cfg:            cfg,
 		cfgPath:        cfgPath,
 		client:         &http.Client{Timeout: 15 * time.Second},
@@ -74,7 +74,7 @@ func newApp(cfg Config, cfgPath string) *app {
 }
 
 // saveCfg persists the current config under the lock's protection.
-func (a *app) saveCfg() error {
+func (a *App) saveCfg() error {
 	a.mu.Lock()
 	cfg, path := a.cfg, a.cfgPath
 	a.mu.Unlock()
@@ -96,7 +96,7 @@ const trayNameMax = 32
 // screen. What belongs in a tray is what a glance needs to decide
 // something: whether a transfer is running, whether anything is wrong,
 // and what this machine is holding.
-func (a *app) statusLine() string {
+func (a *App) StatusLine() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !a.cfg.configured() {
@@ -133,7 +133,7 @@ func (a *app) statusLine() string {
 // worldNameLocked names a world from the last custody poll. Empty when
 // the poll has not landed yet, or when the world has left the service —
 // the caller falls back to counting rather than showing a bare id.
-func (a *app) worldNameLocked(worldID int64) string {
+func (a *App) worldNameLocked(worldID int64) string {
 	for _, w := range a.worldSync.Worlds {
 		if w.World.ID == worldID {
 			return w.World.Name

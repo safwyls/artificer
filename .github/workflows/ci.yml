@@ -96,8 +96,19 @@ jobs:
             || { echo "cmd/companion/rsrc_windows_amd64.syso is stale — run: go generate ./cmd/companion"; exit 1; }
       - name: companion Windows build (players run Windows; the tray code is windows-only)
         run: |
-          GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" ./cmd/companion
+          GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" -o /dev/null ./cmd/companion
           GOOS=windows GOARCH=amd64 go vet ./cmd/companion
+      # The Wails desktop shell (reliquary-companion) is its own module:
+      # its Linux build needs webkit2gtk headers, so only the Windows
+      # target — which is CGO-free — is verified here. It wraps the same
+      # companion package the tray build uses.
+      - name: reliquary-companion Windows build (Wails shell)
+        working-directory: companion-wails
+        run: |
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -tags desktop,production -ldflags="-H windowsgui" -o /dev/null .
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go vet -tags desktop,production .
 
   anvil:
     runs-on: ubuntu-latest

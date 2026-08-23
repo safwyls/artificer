@@ -1,4 +1,4 @@
-package main
+package companion
 
 // In-place updates from GitHub releases.
 //
@@ -39,10 +39,6 @@ const (
 	// updateRepo is where releases come from. Overridable so a fork
 	// updates from itself rather than from upstream.
 	defaultUpdateRepo = "safwyls/artificer"
-	// updateTag is the rolling release every push to main republishes.
-	// Tagged releases exist too, but this is the one that is always the
-	// current build.
-	updateTag = "companion-latest"
 	// updateCheckEvery paces the background check. The answer changes
 	// when someone pushes to main, so this is generous; unauthenticated
 	// GitHub allows 60 requests an hour and this uses two.
@@ -81,16 +77,23 @@ func updateRepo() string {
 	return defaultUpdateRepo
 }
 
-// updateAssetName is the release asset for this platform. The names are
-// frozen: players hold links to them.
+// UpdateTag is the rolling release every push to main republishes.
+// Tagged releases exist too, but this is the one that is always the
+// current build. A different entrypoint (reliquary-companion) sets its
+// own tag so the two builds never replace each other.
+var UpdateTag = "companion-latest"
+
+// UpdateAssets names the release asset per GOOS. The default names are
+// frozen: players hold links to them. An entrypoint shipping under its
+// own name replaces this map before starting the update watcher.
+var UpdateAssets = map[string]string{
+	"windows": "artificer-companion.exe",
+	"linux":   "artificer-companion-linux",
+}
+
+// updateAssetName is the release asset for this platform.
 func updateAssetName() string {
-	switch runtime.GOOS {
-	case "windows":
-		return "artificer-companion.exe"
-	case "linux":
-		return "artificer-companion-linux"
-	}
-	return ""
+	return UpdateAssets[runtime.GOOS]
 }
 
 type ghAsset struct {
@@ -117,7 +120,7 @@ func (r ghRelease) asset(name string) (ghAsset, bool) {
 // records whether it is this one. Errors are recorded, never returned to
 // a caller that would treat them as fatal: not knowing about an update
 // is not a problem with the companion.
-func (a *app) checkUpdate(ctx context.Context) {
+func (a *App) checkUpdate(ctx context.Context) {
 	st, err := a.fetchUpdateStateFrom(ctx, a.releaseAPIBase())
 	now := time.Now()
 	a.mu.Lock()
@@ -132,11 +135,11 @@ func (a *app) checkUpdate(ctx context.Context) {
 
 // releaseAPIBase is the repository's release API root. Split out so a
 // test can point the whole flow at a stand-in GitHub.
-func (a *app) releaseAPIBase() string {
+func (a *App) releaseAPIBase() string {
 	return "https://api.github.com/repos/" + updateRepo()
 }
 
-func (a *app) fetchUpdateStateFrom(ctx context.Context, base string) (updateState, error) {
+func (a *App) fetchUpdateStateFrom(ctx context.Context, base string) (updateState, error) {
 	var st updateState
 	asset := updateAssetName()
 	if asset == "" {
@@ -166,13 +169,13 @@ func (a *app) fetchUpdateStateFrom(ctx context.Context, base string) (updateStat
 	}
 	// A development build ("dev", a plain `go build`) is not something
 	// anyone wants replaced out from under them by a release.
-	st.Available = version != "dev" && st.Version != version
+	st.Available = Version != "dev" && st.Version != Version
 	return st, nil
 }
 
-func (a *app) fetchRelease(ctx context.Context, base string) (ghRelease, error) {
+func (a *App) fetchRelease(ctx context.Context, base string) (ghRelease, error) {
 	var rel ghRelease
-	url := fmt.Sprintf("%s/releases/tags/%s", strings.TrimRight(base, "/"), updateTag)
+	url := fmt.Sprintf("%s/releases/tags/%s", strings.TrimRight(base, "/"), UpdateTag)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return rel, err
@@ -187,7 +190,7 @@ func (a *app) fetchRelease(ctx context.Context, base string) (ghRelease, error) 
 		return rel, errors.New("GitHub is rate-limiting this machine; the next check will try again")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return rel, fmt.Errorf("GitHub answered %d looking for the %s release", resp.StatusCode, updateTag)
+		return rel, fmt.Errorf("GitHub answered %d looking for the %s release", resp.StatusCode, UpdateTag)
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rel); err != nil {
 		return rel, fmt.Errorf("reading the release: %w", err)
@@ -195,7 +198,7 @@ func (a *app) fetchRelease(ctx context.Context, base string) (ghRelease, error) 
 	return rel, nil
 }
 
-func (a *app) fetchText(ctx context.Context, url string, limit int64) (string, error) {
+func (a *App) fetchText(ctx context.Context, url string, limit int64) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
@@ -215,7 +218,7 @@ func (a *app) fetchText(ctx context.Context, url string, limit int64) (string, e
 // canSelfUpdateLocked reports whether this install can replace itself,
 // and why not when it cannot. Checked before offering the button rather
 // than after pressing it.
-func (a *app) canSelfUpdateLocked() (bool, string) {
+func (a *App) canSelfUpdateLocked() (bool, string) {
 	exe, err := os.Executable()
 	if err != nil {
 		return false, "this build has no executable to replace"
@@ -246,7 +249,7 @@ func (a *app) canSelfUpdateLocked() (bool, string) {
 // renames stay on one volume and cannot half-happen; if the second
 // rename fails the first is undone, so a failed update leaves the
 // working companion exactly where it was.
-func (a *app) applyUpdate(ctx context.Context) error {
+func (a *App) applyUpdate(ctx context.Context) error {
 	a.mu.Lock()
 	if a.worldSync.Busy {
 		a.mu.Unlock()
@@ -276,7 +279,7 @@ func (a *app) applyUpdate(ctx context.Context) error {
 	return err
 }
 
-func (a *app) doApplyUpdate(ctx context.Context) error {
+func (a *App) doApplyUpdate(ctx context.Context) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -293,7 +296,7 @@ func (a *app) doApplyUpdate(ctx context.Context) error {
 // verifies it, and puts it at exe. Takes both the API root and the
 // target path so a test can exercise the whole thing without a network
 // or a real installed companion.
-func (a *app) swapInUpdateFrom(ctx context.Context, base, exe string) error {
+func (a *App) swapInUpdateFrom(ctx context.Context, base, exe string) error {
 	rel, err := a.fetchRelease(ctx, base)
 	if err != nil {
 		return err
@@ -351,7 +354,7 @@ func (a *app) swapInUpdateFrom(ctx context.Context, base, exe string) error {
 // releaseChecksum pulls this asset's expected SHA-256 out of the
 // release's checksum manifest (the `sha256sum` format: hash, spaces,
 // filename, one per line).
-func (a *app) releaseChecksum(ctx context.Context, rel ghRelease, asset string) (string, error) {
+func (a *App) releaseChecksum(ctx context.Context, rel ghRelease, asset string) (string, error) {
 	manifest, ok := rel.asset("companion-sha256.txt")
 	if !ok {
 		return "", errors.New("the latest release publishes no checksums, so a download cannot be verified")
@@ -385,7 +388,7 @@ func checksumFor(manifest, asset string) string {
 	return ""
 }
 
-func (a *app) downloadTo(ctx context.Context, dst io.Writer, url string) (string, int64, error) {
+func (a *App) downloadTo(ctx context.Context, dst io.Writer, url string) (string, int64, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", 0, err
@@ -436,7 +439,7 @@ func verifyExecutable(path string) error {
 // clearOldBinary removes the previous build left beside this one by an
 // update. Called at startup, which is the first moment it is no longer
 // running and can be deleted.
-func clearOldBinary() {
+func ClearOldBinary() {
 	exe, err := os.Executable()
 	if err != nil {
 		return
@@ -465,7 +468,7 @@ func restartSelf() error {
 // watchUpdates checks on start and then occasionally. The first check is
 // delayed a little: a companion that has just launched has a page to
 // render and a service to poll, and neither should queue behind GitHub.
-func (a *app) watchUpdates(ctx context.Context) {
+func (a *App) WatchUpdates(ctx context.Context) {
 	timer := time.NewTimer(20 * time.Second)
 	defer timer.Stop()
 	for {
