@@ -89,6 +89,21 @@ export interface SyncWorld {
   head?: { id: number; bytes: number; createdAt: string };
 }
 
+/**
+ * One transfer waiting for the vault to come back. The engine records
+ * none of these today and the field is always empty — deliberately, so
+ * the offline screen can say "nothing queued" honestly rather than
+ * inventing a manifest (companion/sync.go says the same at length). The
+ * shape is fixed here so the renderer and a future queue agree.
+ */
+export interface QueuedWork {
+  what: string;
+  worldId: number;
+  worldName?: string;
+  time: string;
+  size?: number;
+}
+
 export interface SyncState {
   configured: boolean;
   username?: string;
@@ -98,6 +113,8 @@ export interface SyncState {
   lastAction?: string;
   polledAt?: string;
   serverVersion?: string;
+  /** Always empty today — see QueuedWork. */
+  queue?: QueuedWork[];
 }
 
 /** What GitHub last said about the current release (cmd/companion:

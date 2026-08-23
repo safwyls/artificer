@@ -1,29 +1,44 @@
 import { useEffect, useState } from "react";
-import { Laptop, RefreshCw, Settings } from "lucide-react";
-import { toast } from "sonner";
-import { api, errorText } from "../lib/api";
+import { RefreshCw, Settings } from "lucide-react";
 import { freshness } from "../lib/format";
-import { useRefreshState } from "../lib/state";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import type { CompanionState } from "../lib/types";
 
+/** The Reliquary mark: the vault's diamond, drawn once here and reused
+ * by the empty state at a larger size. */
+export function VaultMark({ className, strokeWidth = 1.4 }: { className?: string; strokeWidth?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} className={className} aria-hidden>
+      <path d="M12 2l4 4-4 4-4-4z" />
+      <path d="M4 12l8 10 8-10-8-4z" />
+    </svg>
+  );
+}
+
 /**
- * The connection, said once at the top instead of in a panel at the
- * bottom: whether the vault is reachable, as whom, how old what you are
- * looking at is, and the two things you might want to do about it.
+ * Sync state, said in exactly one place: a dot and a relative time.
+ *
+ * It used to be said three times — here, again in a line at the bottom of
+ * the page, and a third time in the scan trail's summary. Three readings
+ * of one fact drift, and the player has no way to tell which is current.
+ * The scan trail, the tried paths and the build hashes are diagnostics
+ * now and live in Settings.
  */
 export function HeaderBar({
   state,
+  syncing,
+  onSyncNow,
   onOpenSettings,
 }: {
   state: CompanionState | undefined;
+  syncing: boolean;
+  onSyncNow: () => void;
   onOpenSettings: () => void;
 }) {
-  const refresh = useRefreshState();
-  const [syncing, setSyncing] = useState(false);
   const sync = state?.sync;
   const configured = Boolean(sync?.configured);
+  const offline = Boolean(sync?.lastError);
 
   // Freshness is an age, so it has to be recomputed on a clock of its own
   // — the poll it describes may answer with an unchanged timestamp.
@@ -33,54 +48,40 @@ export function HeaderBar({
     return () => clearInterval(t);
   }, []);
 
-  // Asking now rather than waiting for the poll. The page keeps itself
-  // current while it is open, so this is for being certain rather than
-  // patient — and for hearing plainly when the service cannot be reached,
-  // which a background poll never says out loud.
-  const syncNow = async () => {
-    setSyncing(true);
-    try {
-      const out = await api.syncNow();
-      toast.success(`synced — ${out.worlds} world${out.worlds === 1 ? "" : "s"} on the service`);
-    } catch (err) {
-      toast.error(errorText(err));
-    } finally {
-      setSyncing(false);
-      refresh();
-    }
-  };
-
   return (
-    <header className="flex flex-wrap items-center gap-3.5 border-b border-edge bg-well px-7 py-4">
-      <Laptop className="h-6 w-6 flex-none text-gold" strokeWidth={1.3} aria-hidden />
+    <header className="flex flex-wrap items-end justify-between gap-6 px-7 pt-5">
       <div>
-        <div className="text-[18px] tracking-[0.05em] text-gold">Artificer Companion</div>
-        <div className="text-[11px] text-mist">shared world saves, synced from this machine</div>
+        <div className="text-[22px] tracking-[0.05em] text-gold">Artificer Companion</div>
+        <div className="mt-0.5 text-[12.5px] text-mist">
+          {configured
+            ? `this machine, syncing as ${sync?.username ?? "…"}`
+            : "this machine — not connected to a vault yet"}
+        </div>
       </div>
-      <div className="ml-auto flex flex-wrap items-center gap-3">
-        <span className="inline-flex items-center gap-1.5 text-[13px]">
-          <span
-            className={cn(
-              "inline-block h-[7px] w-[7px] rounded-full",
-              sync?.lastError ? "bg-ember" : configured ? "bg-ok" : "bg-mist",
-            )}
-            aria-hidden
-          />
-          {configured ? (
-            <>
-              Connected as <b className="ml-1">{sync?.username ?? "…"}</b>
-            </>
-          ) : (
-            <span className="text-mist">Not connected</span>
-          )}
-        </span>
+      <div className="flex flex-wrap items-center gap-3.5 pb-1">
         {configured ? (
-          <span className="font-mono text-[12px] text-mist">
-            {sync?.busy ? "transfer in progress…" : freshness(sync?.polledAt)}
+          <span className="flex items-center gap-[7px] font-mono text-[11px] text-mist">
+            {syncing || sync?.busy ? (
+              <RefreshCw className="h-[9px] w-[9px] animate-spin text-gold" aria-hidden />
+            ) : (
+              <span
+                className={cn("h-[7px] w-[7px] rounded-full", offline ? "bg-ember" : "bg-ok")}
+                aria-hidden
+              />
+            )}
+            <span>
+              {syncing
+                ? "syncing…"
+                : sync?.busy
+                  ? "transfer in progress…"
+                  : offline
+                    ? "the vault is unreachable"
+                    : freshness(sync?.polledAt)}
+            </span>
           </span>
         ) : null}
         {configured ? (
-          <Button onClick={syncNow} disabled={syncing}>
+          <Button onClick={onSyncNow} disabled={syncing}>
             <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} aria-hidden />
             {syncing ? "Syncing…" : "Sync now"}
           </Button>
@@ -89,32 +90,44 @@ export function HeaderBar({
           <Settings className="h-3.5 w-3.5" aria-hidden />
         </Button>
       </div>
-      {sync?.lastError ? (
-        <div className="w-full text-[13px] text-ember">{sync.lastError}</div>
-      ) : null}
     </header>
   );
 }
 
 /**
- * Both builds, side by side: which companion, and which service it is
- * talking to. A save-sync report that names one half names nothing.
+ * The status bar: what this machine holds, in one line, and the way into
+ * diagnostics. Versions and build hashes left the footer — they are the
+ * first thing a bug report needs and the last thing a player does, so
+ * they sit in Settings › Diagnostics with everything else of that kind.
  */
-export function FooterBar({ state }: { state: CompanionState | undefined }) {
-  const server = state?.sync?.serverVersion;
-  const versions =
-    `companion ${state?.version || "dev"}` +
-    (server
-      ? ` · service ${server}`
-      : state?.sync?.configured
-        ? " · service version unknown"
-        : "");
+export function FooterBar({
+  state,
+  onDiagnostics,
+}: {
+  state: CompanionState | undefined;
+  onDiagnostics: () => void;
+}) {
+  const links = state?.links ?? [];
+  const worlds = state?.sync?.worlds ?? [];
+  const games = (state?.discovered?.games ?? []).filter((g) => !g.hidden);
+  const n = (count: number, one: string, many: string) =>
+    `${count} ${count === 1 ? one : many}`;
+  const left = state?.sync?.configured
+    ? `${n(worlds.length, "world", "worlds")} · ${n(games.length, "game", "games")} installed, ${
+        links.length
+      } linked`
+    : `${n(games.length, "game", "games")} found · nothing linked yet`;
+
   return (
-    <footer className="flex flex-wrap items-center gap-2.5 border-t border-edge px-7 py-2.5 font-mono text-[11px] text-mist">
-      <span>{versions}</span>
-      {state?.sync?.lastAction ? (
-        <span className="ml-auto">last action: {state.sync.lastAction}</span>
-      ) : null}
+    <footer className="flex items-center gap-4 border-t border-edge bg-well px-7 py-2.5 text-[12px] text-mist">
+      <span>{left}</span>
+      <button
+        type="button"
+        onClick={onDiagnostics}
+        className="ml-auto rounded-[3px] text-[12px] text-goldhi hover:text-gold hover:underline"
+      >
+        Diagnostics
+      </button>
     </footer>
   );
 }
