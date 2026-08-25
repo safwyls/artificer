@@ -12,6 +12,7 @@ export const IPC = {
   openPath: "companion:openPath",
   setAutostart: "companion:setAutostart",
   getAutostart: "companion:getAutostart",
+  runInstaller: "companion:runInstaller",
 } as const;
 
 /** What contextBridge exposes on window.companion in the renderer. */
@@ -26,4 +27,10 @@ export interface CompanionBridge {
   openPath(path: string): Promise<void>;
   setAutostart(enabled: boolean): Promise<void>;
   getAutostart(): Promise<boolean>;
+  /** Run a downloaded, verified installer and quit, so it can replace
+   * the app that is running. The daemon stages it but cannot do this:
+   * it is a file inside the application being replaced. Resolves only if
+   * the installer could not be started — on success this process is on
+   * its way out. */
+  runInstaller(path: string): Promise<void>;
 }

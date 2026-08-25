@@ -64,6 +64,7 @@ Routes as of this inventory (`companion/server.go`, all under
 | `GET /api/artwork` | request/response | `Artwork`, `ArtStatus` | |
 | `POST /api/sync/refresh` | request/response | `SyncNow` | |
 | `GET /api/savehints` | request/response | `SaveHints` | |
+| `POST /api/update/apply` (installer mode) | request/response | `ApplyUpdate` + `StagedInstaller` | Answers with `installer` instead of `restarting`: the daemon stages a verified installer and the shell runs it over IPC (`companion:runInstaller`), because quitting the app being replaced is not something a process inside it can do |
 | `GET /api/history` | request/response | `History` / `RefreshHistory` (history.go) | Backs Activity **and** Conflicts — one merged read of every linked world's version list, filtered two ways. `?refresh=1` skips the 20s cache. Read only while one of those tabs is open |
 | `GET /api/browse` | request/response | (browse.go) | Folder browser for the web page (native picker replaces it in Electron) |
 | `GET /api/savepath/split` | request/response | `SplitSavePath` | |

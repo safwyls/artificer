@@ -75,6 +75,17 @@ is an addition to the engine.
 - **Close-to-tray.** The window is a view over a resident sync process;
   closing it hides it and syncing continues. Quit lives in the tray menu
   and confirms first while a transfer is running.
+- **Self-update**, in a different shape from the browser build's. That
+  one replaces its own exe and restarts, which is right for a single file
+  a player keeps wherever they like. This app is installed, so its
+  release asset is an *installer* and the thing being replaced is the
+  whole application — companiond is one file inside it, and on Windows a
+  running executable cannot be overwritten at all. So the daemon
+  downloads and verifies (`UpdateInstalls` mode in `companion/update.go`)
+  and stops; the shell runs the installer and quits, because quitting the
+  app being replaced is the one step a process inside it cannot take.
+  macOS says it installs by hand: a dmg is mounted and dragged, not run,
+  and these builds are unsigned.
 - **Autostart** — an HKCU `…\CurrentVersion\Run` entry passing
   `--minimized`, so login brings it up in the tray. Windows only; other
   platforms answer with a reason rather than a broken checkbox.
@@ -253,11 +264,15 @@ confirming behavior — the checklist below stays open until someone does.
 - [ ] Tray: open/raise, sync now, status line truncation, quit
 - [ ] Close-to-tray, autostart minimized, second-launch raise,
       window-state persistence
-- [ ] Self-update from `reliquary-companion-latest` end-to-end, including
-      restart and `.old` cleanup — **not yet implemented**: `companion`'s
-      update watcher is wired into `cmd/companion` only; the Electron
-      shell has no updater code yet, so this item blocks on that work
-      landing before it can be checked
+- [ ] Self-update from `reliquary-companion-latest` end-to-end: the
+      banner appears against a real release, the installer downloads and
+      verifies, running it closes the app and replaces it, and the new
+      build comes up with its config and links intact. **Implemented but
+      never run end-to-end** — the logic is unit-tested against a
+      stand-in GitHub, and no part of the real path (a published
+      installer, an actual NSIS run over a live install) has been
+      exercised. It is an update mechanism, so it is the last thing that
+      should be taken on trust: check it before the download cuts over
 - [ ] `127.0.0.1:8377` page still fully works in a browser alongside the
       window
 - [ ] The window renders: fonts, theme, icon, and the layout at 1120×780

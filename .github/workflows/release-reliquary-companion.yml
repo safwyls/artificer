@@ -70,8 +70,15 @@ jobs:
         shell: bash
         run: |
           mkdir -p companion-desktop/resources
+          # Stamped with the same SHA the release's version manifest
+          # carries, the way deploy/reliquary/Dockerfile stamps the other
+          # companion. The updater compares its own stamp against that
+          # manifest to answer "am I running this build?" — a plain
+          # `go build` leaves it "dev", which never matches and so reads
+          # as permanently out of date.
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
-            go build -o companion-desktop/resources/${{ matrix.daemon_name }} ./cmd/companiond
+            go build -ldflags="-X main.version=${GITHUB_SHA::12}" \
+              -o companion-desktop/resources/${{ matrix.daemon_name }} ./cmd/companiond
       # `main` is dist/main.js, which tsc produces — electron-builder
       # does not compile anything itself, it only packages what is on
       # disk, and an uncompiled tree fails late with "application entry
@@ -119,9 +126,10 @@ jobs:
           find artifacts -type f -exec cp {} out/ \;
           ls -la out
       # Same rationale as release-companion.yml's manifests: a fact the
-      # updater can read (identity + integrity), not prose to parse. This
-      # shell has no updater yet, but the manifest keeps the two release
-      # tracks symmetric ahead of one landing.
+      # updater can read (identity + integrity), not prose to parse. The
+      # shell's updater reads both — the version manifest answers "am I
+      # running this build?" and the checksum manifest is what a
+      # downloaded installer is verified against before it is run.
       - name: Version and checksum manifests
         run: |
           printf '%s' "${GITHUB_SHA::12}" > out/reliquary-companion-version.txt

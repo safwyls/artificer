@@ -36,6 +36,10 @@ export interface CompanionBridge {
   openPath(path: string): Promise<void>;
   setAutostart(enabled: boolean): Promise<void>;
   getAutostart(): Promise<boolean>;
+  /** Run a staged installer and quit. Optional: a shell built before
+   * updates existed does not have it, and the page must say so rather
+   * than call into nothing. */
+  runInstaller?(path: string): Promise<void>;
 }
 
 declare global {
@@ -132,6 +136,24 @@ export async function getAutostart(): Promise<boolean | undefined> {
     return await b.getAutostart();
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Hand a downloaded installer to the shell, which runs it and quits.
+ *
+ * `false` means this build cannot: the browser build has no shell to ask,
+ * and a shell older than this feature has no such call. Either way the
+ * page has to say so instead of reporting an update that never happened.
+ */
+export async function runInstaller(path: string): Promise<boolean> {
+  const b = bridge();
+  if (!b || typeof b.runInstaller !== "function") return false;
+  try {
+    await b.runInstaller(path);
+    return true;
+  } catch {
+    return false;
   }
 }
 

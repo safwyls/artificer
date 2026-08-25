@@ -48,6 +48,8 @@ linux:
       arch:
         - x64
   category: Game
+  # Frozen, for the same reason as nsis.artifactName above.
+  artifactName: "Reliquary-Companion.${ext}"
 
 win:
   target:
@@ -58,7 +60,18 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  artifactName: "${productName}-Setup-${version}.${ext}"
+  # No ${version} in the name, deliberately. The updater resolves a
+  # release asset by exact name (companion/update.go's UpdateAssets: "the
+  # default names are frozen: players hold links to them"), and a name
+  # carrying the version cannot be known before the release exists. Which
+  # build this is comes from reliquary-companion-version.txt, which the
+  # release publishes for exactly that purpose — the version was never
+  # the filename's job.
+  #
+  # Hyphens rather than ${productName}: the product name has a space in
+  # it, and GitHub rewrites spaces to dots when a release asset is
+  # uploaded, so the name here would not be the name to ask for.
+  artifactName: "Reliquary-Companion-Setup.${ext}"
 
 # arm64 only: the Intel runner (macos-13) is being retired and its jobs
 # queue indefinitely, so an x64 dmg cannot be built alongside a companiond
@@ -69,6 +82,8 @@ mac:
       arch:
         - arm64
   category: public.app-category.utilities
+  # Frozen, for the same reason as nsis.artifactName above.
+  artifactName: "Reliquary-Companion.${ext}"
 
 # Cross-platform builds (all three OSes from one CI run) happen in Phase
 # 6's CI matrix, not on a dev machine — see companion-cutover.md.

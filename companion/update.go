@@ -68,6 +68,10 @@ type updateState struct {
 	// so rather than offering a button that will fail.
 	Supported bool   `json:"supported"`
 	Why       string `json:"why,omitempty"`
+	// Installer is where a downloaded, verified installer is waiting,
+	// set only in UpdateInstalls mode. The shell runs it and quits; this
+	// daemon cannot, because it is running inside what gets replaced.
+	Installer string `json:"installer,omitempty"`
 }
 
 func updateRepo() string {
@@ -82,6 +86,38 @@ func updateRepo() string {
 // current build. A different entrypoint (reliquary-companion) sets its
 // own tag so the two builds never replace each other.
 var UpdateTag = "companion-latest"
+
+// UpdateVersionAsset and UpdateShaAsset name the release's two manifests
+// — which build it is, and what its files hash to. Overridable for the
+// same reason UpdateTag is: a second entrypoint has its own release
+// track, and its manifests are named after it. Both are facts a machine
+// reads, never prose to parse.
+var (
+	UpdateVersionAsset = "companion-version.txt"
+	UpdateShaAsset     = "companion-sha256.txt"
+)
+
+// StagedInstaller is where a downloaded, verified installer is waiting,
+// or "" when this build replaces itself instead. Read after a successful
+// apply: it is what tells the two flows apart.
+func (a *App) StagedInstaller() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.update.Installer
+}
+
+// UpdateInstalls marks a build whose release asset is an *installer*
+// rather than a replacement for this executable.
+//
+// The default flow replaces the running binary in place, which is right
+// for a single exe a player downloaded and keeps wherever they like. The
+// Reliquary Companion is not that: its release asset installs an
+// application — and the thing that would have to be replaced is not
+// companiond, which is one file inside it, but the whole app. So in this
+// mode applying stops one step earlier: download, verify, and report
+// where the installer was put. Running it means quitting the app it
+// replaces, which only the shell around this daemon can do.
+var UpdateInstalls = false
 
 // UpdateAssets names the release asset per GOOS. The default names are
 // frozen: players hold links to them. An entrypoint shipping under its
@@ -152,7 +188,7 @@ func (a *App) fetchUpdateStateFrom(ctx context.Context, base string) (updateStat
 	if err != nil {
 		return st, err
 	}
-	verAsset, ok := rel.asset("companion-version.txt")
+	verAsset, ok := rel.asset(UpdateVersionAsset)
 	if !ok {
 		// Releases published before this feature existed do not say
 		// which build they are. Saying nothing beats guessing — the next
@@ -222,12 +258,24 @@ func (a *App) fetchText(ctx context.Context, url string, limit int64) (string, e
 // and why not when it cannot. Checked before offering the button rather
 // than after pressing it.
 func (a *App) canSelfUpdateLocked() (bool, string) {
+	if updateAssetName() == "" {
+		return false, "no release is published for " + runtime.GOOS
+	}
+	if UpdateInstalls {
+		// Nothing here is replaced in place, so none of the executable
+		// checks below apply — the installer is staged in a temp
+		// directory and run by the shell.
+		if runtime.GOOS == "darwin" {
+			// A dmg is mounted and dragged, not run, and these builds
+			// are unsigned besides. Saying so beats a button that
+			// downloads 90MB and then cannot do anything with it.
+			return false, "macOS builds are installed by hand from the .dmg — download it from the release"
+		}
+		return true, ""
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return false, "this build has no executable to replace"
-	}
-	if updateAssetName() == "" {
-		return false, "no release is published for " + runtime.GOOS
 	}
 	// Replacing means writing a new file into the exe's own directory
 	// and renaming over it, so that directory has to be writable. A
@@ -285,6 +333,16 @@ func (a *App) applyUpdate(ctx context.Context) error {
 }
 
 func (a *App) doApplyUpdate(ctx context.Context) error {
+	if UpdateInstalls {
+		path, err := a.stageUpdateFrom(ctx, a.releaseAPIBase())
+		if err != nil {
+			return err
+		}
+		a.mu.Lock()
+		a.update.Installer = path
+		a.mu.Unlock()
+		return nil
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -295,6 +353,63 @@ func (a *App) doApplyUpdate(ctx context.Context) error {
 		exe = resolved
 	}
 	return a.swapInUpdateFrom(ctx, a.releaseAPIBase(), exe)
+}
+
+// stageUpdateFrom downloads the release's installer for this platform
+// and verifies it against the release's checksum, replacing nothing. The
+// caller is handed the path and is responsible for running it.
+//
+// Staged into a directory of its own under the OS temp dir rather than
+// beside the running binary: an installer is not going anywhere near the
+// application it is about to overwrite, and a half-finished download
+// next to a live app is the kind of file that gets picked up by
+// something else.
+func (a *App) stageUpdateFrom(ctx context.Context, base string) (string, error) {
+	rel, err := a.fetchRelease(ctx, base)
+	if err != nil {
+		return "", err
+	}
+	name := updateAssetName()
+	asset, ok := rel.asset(name)
+	if !ok {
+		return "", fmt.Errorf("the latest release has no %s", name)
+	}
+	want, err := a.releaseChecksum(ctx, rel, name)
+	if err != nil {
+		return "", err
+	}
+
+	dir, err := os.MkdirTemp("", "reliquary-companion-update-")
+	if err != nil {
+		return "", fmt.Errorf("making room for the download: %w", err)
+	}
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		os.RemoveAll(dir)
+		return "", fmt.Errorf("making room for the download: %w", err)
+	}
+	sum, size, err := a.downloadTo(ctx, f, asset.URL)
+	f.Close()
+	if err != nil {
+		os.RemoveAll(dir)
+		return "", err
+	}
+	if sum != want {
+		os.RemoveAll(dir)
+		return "", fmt.Errorf("the download does not match the release's checksum (%d bytes) — nothing was installed", size)
+	}
+	if err := verifyExecutable(path); err != nil {
+		os.RemoveAll(dir)
+		return "", err
+	}
+	// Executable in its own right on Linux, where the AppImage *is* the
+	// installer and has to be runnable.
+	if err := os.Chmod(path, 0o755); err != nil {
+		os.RemoveAll(dir)
+		return "", fmt.Errorf("making the installer runnable: %w", err)
+	}
+	return path, nil
 }
 
 // swapInUpdateFrom downloads the release's binary for this platform,
@@ -360,7 +475,7 @@ func (a *App) swapInUpdateFrom(ctx context.Context, base, exe string) error {
 // release's checksum manifest (the `sha256sum` format: hash, spaces,
 // filename, one per line).
 func (a *App) releaseChecksum(ctx context.Context, rel ghRelease, asset string) (string, error) {
-	manifest, ok := rel.asset("companion-sha256.txt")
+	manifest, ok := rel.asset(UpdateShaAsset)
 	if !ok {
 		return "", errors.New("the latest release publishes no checksums, so a download cannot be verified")
 	}

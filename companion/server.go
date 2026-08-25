@@ -462,6 +462,14 @@ func (a *App) handleApplyUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
+	// In installer mode nothing was replaced and there is nothing to
+	// restart: an installer is waiting, and running it is the shell's
+	// job because it means quitting the app this daemon lives inside.
+	// The path goes back so the page can hand it over.
+	if staged := a.StagedInstaller(); staged != "" {
+		writeJSON(w, map[string]any{"ok": true, "installer": staged})
+		return
+	}
 	writeJSON(w, map[string]any{"ok": true, "restarting": true})
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()

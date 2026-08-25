@@ -38,6 +38,7 @@ const IPC = {
   openPath: "companion:openPath",
   setAutostart: "companion:setAutostart",
   getAutostart: "companion:getAutostart",
+  runInstaller: "companion:runInstaller",
 } as const;
 
 const connection = ipcRenderer.sendSync(IPC.getConnection) as { baseUrl: string; token: string };
@@ -50,6 +51,7 @@ const bridge: CompanionBridge = {
   openPath: (path: string) => ipcRenderer.invoke(IPC.openPath, path),
   setAutostart: (enabled: boolean) => ipcRenderer.invoke(IPC.setAutostart, enabled),
   getAutostart: () => ipcRenderer.invoke(IPC.getAutostart),
+  runInstaller: (path: string) => ipcRenderer.invoke(IPC.runInstaller, path),
 };
 
 contextBridge.exposeInMainWorld("companion", bridge);
