@@ -29,7 +29,7 @@
     height: 100%;
   }
   body {
-    @apply bg-ink font-serif text-[15px] leading-normal text-parchment antialiased;
+    @apply bg-ink font-sans text-[15px] leading-normal text-parchment antialiased;
   }
   /* Panel headings: uppercase, letterspaced, gold — the one heading
      treatment, used everywhere a panel names itself. */

@@ -33,13 +33,19 @@
   #root {
     height: 100%;
   }
+  /* Sans is the default because most of what this app says is small
+     secondary text, and there is far more of it than there is voice:
+     ~110 places set a size under 14px against ~20 above it. Marking the
+     voice is a handful of edits; marking the interface would have been a
+     hundred, and every one missed would be a place that stayed hard to
+     read. */
   body {
-    @apply bg-ink font-serif text-[15px] leading-normal text-parchment antialiased;
+    @apply bg-ink font-sans text-[15px] leading-normal text-parchment antialiased;
   }
   /* Panel headings: uppercase, letterspaced, gold — the one heading
      treatment, used everywhere a panel names itself. */
   h1 {
-    @apply text-[22px] tracking-[0.05em] text-gold;
+    @apply font-serif text-[22px] tracking-[0.05em] text-gold;
   }
   a {
     @apply text-goldhi hover:text-gold;

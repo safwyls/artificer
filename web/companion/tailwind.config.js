@@ -26,8 +26,31 @@ export default {
         rune: "rgb(var(--rune) / <alpha-value>)",
       },
       fontFamily: {
-        // Georgia for everything: the vault's voice. Gelasio is the
-        // metric-compatible webfont for machines without it.
+        // Two faces, and the split is what each is for rather than where
+        // it happens to be.
+        //
+        // `sans` is the interface: counts, hints, captions, field labels,
+        // status lines — the small text there is a lot of. Georgia's
+        // serifs smear at 12px on a dark ground, and most of what this
+        // app says is 12px.
+        //
+        // `serif` is the vault's voice, and stays Georgia: names,
+        // headings, buttons, the wordmark. A world called Ashwood Hollow
+        // and a button that says "Check out & play" are the app talking;
+        // "16 games installed, 1 linked" is the app reporting.
+        //
+        // System faces only, both of them. The companion runs on the
+        // player's own machine and must render with no network at all
+        // (index.html says the same about the webfont it does not load).
+        sans: [
+          "Segoe UI Variable Text",
+          "Segoe UI",
+          "system-ui",
+          "-apple-system",
+          "Helvetica Neue",
+          "Arial",
+          "sans-serif",
+        ],
         serif: ["Georgia", "Times New Roman", "serif"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },

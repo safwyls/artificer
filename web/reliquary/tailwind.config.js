@@ -26,8 +26,25 @@ export default {
         rune: "rgb(var(--rune) / <alpha-value>)",
       },
       fontFamily: {
-        // Georgia for everything: the vault's voice. Gelasio is the
-        // metric-compatible webfont for machines without it.
+        // Two faces, split by what each is for — the same rule the
+        // companion follows, because they are two halves of one flow and
+        // have to keep reading as one thing.
+        //
+        // `sans` is the interface: counts, hints, captions, field labels,
+        // table cells. Georgia's serifs smear at 12px on a dark ground,
+        // and most of what a vault page says is 12px.
+        //
+        // `serif` is the vault's voice, and stays Georgia: world names,
+        // headings, buttons, the mark.
+        sans: [
+          "Segoe UI Variable Text",
+          "Segoe UI",
+          "system-ui",
+          "-apple-system",
+          "Helvetica Neue",
+          "Arial",
+          "sans-serif",
+        ],
         serif: ["Georgia", "Gelasio", "Times New Roman", "serif"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },

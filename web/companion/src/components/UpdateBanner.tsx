@@ -159,7 +159,7 @@ function Banner({
     <div className="flex flex-wrap items-center gap-3 rounded-panel border border-gold/50 bg-[#23180c] px-5 py-3">
       <ArrowUpCircle className="h-5 w-5 flex-none text-gold" strokeWidth={1.4} aria-hidden />
       <div className="flex-1 text-[13px]">
-        <span className="text-[14px] text-parchment">
+        <span className="font-serif text-[14px] text-parchment">
           A different companion build is available.
         </span>{" "}
         {version ? <span className="font-mono text-mist">{version}</span> : null}

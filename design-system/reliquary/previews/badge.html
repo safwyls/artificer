@@ -19,6 +19,7 @@
         --ember: 212 115 94; /* #d4735e — danger, conflict, an expired hold */
         --rune: 157 127 196; /* #9d7fc4 — game tags, info, the CHECKPOINT badge */
         --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+        --voice: Georgia, Gelasio, "Times New Roman", serif;
         --primary-fill: linear-gradient(to bottom, #2a2416, #1e1a10);
         --fill-free: #14200f;
         --fill-held: #23180c;
@@ -35,7 +36,7 @@
         --ds-muted: rgb(var(--mist));
         --ds-accent: rgb(var(--gold));
         --ds-accent-hi: rgb(var(--goldhi));
-        --ds-body: Georgia, Gelasio, "Times New Roman", serif;
+        --ds-body: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
         --ds-mono: var(--mono);
         color-scheme: dark;
       }
@@ -125,6 +126,7 @@
       }
       
       .vk-btn {
+        font-family: var(--voice);
         display: inline-flex; align-items: center; justify-content: center; gap: 8px;
         border: 1px solid transparent; border-radius: 4px; white-space: nowrap;
         font-family: inherit; padding: 6px 16px; font-size: 13px; cursor: pointer;

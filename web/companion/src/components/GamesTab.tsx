@@ -169,7 +169,7 @@ export function GamesTab({
             placeholder="Search installed games"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full rounded border border-edge bg-ink py-2 pl-8 pr-2.5 font-serif text-[13.5px] text-parchment placeholder:text-mist/60"
+            className="w-full rounded border border-edge bg-ink py-2 pl-8 pr-2.5 text-[13.5px] text-parchment placeholder:text-mist/60"
           />
         </div>
         <Segmented value={filter} onChange={setFilter} counts={counts} />

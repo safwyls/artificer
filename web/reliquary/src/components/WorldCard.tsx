@@ -29,7 +29,7 @@ export function WorldCard({ status }: { status: WorldStatus }) {
       </Link>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex flex-wrap items-baseline gap-2.5">
-          <Link to={`/worlds/${w.id}`} className="text-[18px] font-bold text-parchment no-underline hover:text-goldhi">
+          <Link to={`/worlds/${w.id}`} className="font-serif text-[18px] font-bold text-parchment no-underline hover:text-goldhi">
             {w.name}
           </Link>
           {w.gameTitle ? <span className="text-[12px] text-rune">{w.gameTitle}</span> : null}

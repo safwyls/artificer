@@ -34,6 +34,12 @@ export const vaultColors = [
  *  writes outside its `:root`. */
 export const vaultDerived = {
   mono: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  // The vault's voice: names, headings, actions. The page's own face is
+  // the interface one (vaultChrome.body) — there is far more small
+  // secondary text than there is voice, and Georgia's serifs smear at
+  // 12px on a dark ground. Both apps follow the same split, because they
+  // are two halves of one flow rather than two products that match.
+  voice: 'Georgia, Gelasio, "Times New Roman", serif',
   "primary-fill": "linear-gradient(to bottom, #2a2416, #1e1a10)",
   "fill-free": "#14200f",
   "fill-held": "#23180c",
@@ -53,7 +59,7 @@ export const vaultChrome = {
   muted: "rgb(var(--mist))",
   accent: "rgb(var(--gold))",
   "accent-hi": "rgb(var(--goldhi))",
-  body: 'Georgia, Gelasio, "Times New Roman", serif',
+  body: '"Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif',
   mono: "var(--mono)",
 };
 
@@ -128,6 +134,7 @@ export const vaultKit = `
 }
 
 .vk-btn {
+  font-family: var(--voice);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   border: 1px solid transparent; border-radius: 4px; white-space: nowrap;
   font-family: inherit; padding: 6px 16px; font-size: 13px; cursor: pointer;

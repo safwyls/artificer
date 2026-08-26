@@ -150,7 +150,7 @@ export function WorldDetail() {
           <CoverArt world={world} size="detail" />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex flex-wrap items-baseline gap-3">
-              <span className="text-[24px] font-bold">{world.name}</span>
+              <span className="font-serif text-[24px] font-bold">{world.name}</span>
               {world.gameTitle ? <span className="text-[13px] text-rune">{world.gameTitle}</span> : null}
             </div>
             <div className="flex flex-wrap items-center gap-2.5">

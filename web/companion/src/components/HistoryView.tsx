@@ -32,7 +32,7 @@ export function HistoryRow({
 }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-[18px] py-3">
-      {showWorld ? <span className="text-[14px] text-parchment">{entry.worldName}</span> : null}
+      {showWorld ? <span className="font-serif text-[14px] text-parchment">{entry.worldName}</span> : null}
       <span className="text-[13px] text-mist">
         {entry.uploader ? <span className="text-parchment">{entry.uploader}</span> : "someone"}{" "}
         {kindOf(entry)}
