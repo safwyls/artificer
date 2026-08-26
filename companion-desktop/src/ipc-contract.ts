@@ -47,6 +47,13 @@ export interface UpdateStatus {
   version?: string;
   /** 0-100 while downloading. */
   percent?: number;
+  /** Bytes fetched so far, and how many this download is. Carried
+   * because they are the only way to see whether a differential update
+   * happened: an update that pulls the whole ~82MB installer works
+   * exactly like one that pulls two, and "it felt fast" is not a
+   * measurement. */
+  transferred?: number;
+  total?: number;
   why?: string;
 }
 

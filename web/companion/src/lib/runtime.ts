@@ -64,6 +64,11 @@ export interface ShellUpdate {
     | "unsupported";
   version?: string;
   percent?: number;
+  /** Bytes fetched, and how many this download is — see the shell's
+   * ipc-contract.ts. Shown so a differential update is visible rather
+   * than inferred from how long it felt. */
+  transferred?: number;
+  total?: number;
   why?: string;
 }
 

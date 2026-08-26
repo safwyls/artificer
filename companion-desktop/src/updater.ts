@@ -93,11 +93,26 @@ export function initUpdater(win: BrowserWindow, log: (...args: unknown[]) => voi
     set({ state: "available", version: info?.version }),
   );
   autoUpdater.on("download-progress", (p) =>
-    set({ state: "downloading", version: status.version, percent: Math.round(p?.percent ?? 0) }),
+    set({
+      state: "downloading",
+      version: status.version,
+      percent: Math.round(p?.percent ?? 0),
+      transferred: p?.transferred,
+      total: p?.total,
+    }),
   );
-  autoUpdater.on("update-downloaded", (info) =>
-    set({ state: "ready", version: info?.version }),
-  );
+  autoUpdater.on("update-downloaded", (info) => {
+    // What a differential update looks like from here, recorded where a
+    // bug report can find it: a download much smaller than the installer
+    // means the blockmap matched, and one the same size means it did not.
+    const total = status.total;
+    log(
+      "updater: downloaded",
+      info?.version,
+      total ? `(${Math.round(total / 1_000_000)} MB fetched)` : "(size unknown)",
+    );
+    set({ state: "ready", version: info?.version, total });
+  });
   autoUpdater.on("error", (err) =>
     // Never fatal. Not knowing about an update is not a problem with the
     // companion, and it must never look like one: custody is unaffected.

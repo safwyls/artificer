@@ -143,13 +143,29 @@ describe("UpdateBanner — the installed app", () => {
     expect(bridge.installUpdate).toHaveBeenCalled();
   });
 
+  // "It felt fast" is not a measurement. The byte counts are shown
+  // because they are the only place a differential update is visible: one
+  // that pulls the whole ~82MB installer behaves exactly like one that
+  // pulls two megabytes.
+  it("shows how much of the update is actually being downloaded", async () => {
+    const { push } = shellWithUpdate({ state: "available", version: "0.2.2" });
+    renderWithProviders(<UpdateBanner update={undefined} />);
+    await screen.findByRole("button", { name: "Download update" });
+
+    push({ state: "downloading", version: "0.2.2", percent: 50, transferred: 1_000_000, total: 2_000_000 });
+    expect(await screen.findByText(/1(\.0)? MB of 2(\.0)? MB/)).toBeInTheDocument();
+
+    push({ state: "ready", version: "0.2.2", total: 2_000_000 });
+    expect(await screen.findByText(/2(\.0)? MB downloaded/)).toBeInTheDocument();
+  });
+
   it("shows progress while it downloads, and does not offer a second click", async () => {
     const { push } = shellWithUpdate({ state: "available", version: "abcdef123456" });
     renderWithProviders(<UpdateBanner update={undefined} />);
     await screen.findByRole("button", { name: "Download update" });
 
     push({ state: "downloading", version: "abcdef123456", percent: 42 });
-    expect(await screen.findByText(/downloading, 42%/)).toBeInTheDocument();
+    expect(await screen.findByText(/downloading 42%/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Downloading…" })).toBeDisabled();
   });
 
