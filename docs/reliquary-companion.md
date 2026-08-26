@@ -308,23 +308,27 @@ confirming behavior — the checklist below stays open until someone does.
 - [ ] Tray: open/raise, sync now, status line truncation, quit
 - [ ] Close-to-tray, autostart minimized, second-launch raise,
       window-state persistence
-- [ ] Self-update from `reliquary-companion-latest` end-to-end: the
-      banner appears against a real release, the download shows progress,
-      installing closes the app and reopens it, and the new build comes
-      up with its config and links intact. Then do it a *second* time and
-      confirm the download is small — that is the blockmap working, and
-      it is the difference between an update and a re-download.
-      **Never run against a real release.** The packaging half is
-      verified — a local `electron-builder --win nsis` produces the
-      installer, `latest.yml` at the version from package.json, and the
-      blockmap, and the packaged app carries electron-updater and an
-      `app-update.yml` naming the GitHub provider — but no published
-      release has ever been checked against, downloaded, or installed.
-      It is an update mechanism, so it is the last thing to take on
-      trust: check it before the download cuts over.
-      The first release will be **v0.2.0**, not v0.1.0: every build
-      installed so far reports 0.1.0, and a release at that version would
-      be invisible to exactly the people who already have the app
+- [x] **Self-update end-to-end — done, 2026-08-26.** v0.2.0 was
+      installed on a real Windows machine, found v0.2.1, downloaded it
+      and installed it, and came back with its config and links intact.
+
+      Two defects made a working updater look broken, and both are worth
+      remembering because neither showed up as an error. The banner was
+      mounted behind the *daemon's* `update.available`, which is
+      permanently false in the shell — so the startup check ran, found
+      the update, and had nowhere to put the answer. And Diagnostics'
+      "Check for update" asked the daemon's updater, which points at the
+      browser build's release track; it reported that a different build
+      of a different product was available, which flipped the daemon's
+      flag, which opened the gate, which mounted the banner. The update
+      installed correctly through a door held open by a wrong answer.
+- [ ] **Differential download — still unmeasured.** A second update is
+      the test: the banner shows bytes rather than only a percentage
+      precisely because that is the only place the blockmap is visible.
+      An update that pulls the whole ~82MB installer behaves exactly like
+      one that pulls two megabytes — same banner, same percentage, same
+      result — so "it felt fast" settles nothing. The shell logs the same
+      number when the download finishes
 - [ ] `127.0.0.1:8377` page still fully works in a browser alongside the
       window
 - [ ] The window renders: fonts, theme, icon, and the layout at 1120×780
