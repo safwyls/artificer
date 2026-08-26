@@ -16,6 +16,8 @@ export const IPC = {
   downloadUpdate: "companion:downloadUpdate",
   installUpdate: "companion:installUpdate",
   updateStatus: "companion:updateStatus",
+  getStartMinimized: "companion:getStartMinimized",
+  setStartMinimized: "companion:setStartMinimized",
 } as const;
 
 /**
@@ -83,4 +85,8 @@ export interface CompanionBridge {
   updateStatus(): Promise<UpdateStatus>;
   /** Subscribe to status changes. Returns the unsubscribe. */
   onUpdateStatus(fn: (s: UpdateStatus) => void): () => void;
+  /** Open into the tray instead of showing the window. A shell setting,
+   * like autostart: the daemon has no window to hide. */
+  getStartMinimized(): Promise<boolean>;
+  setStartMinimized(enabled: boolean): Promise<void>;
 }

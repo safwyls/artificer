@@ -10,6 +10,7 @@ import { app, BrowserWindow, Tray, Menu, dialog, shell, ipcMain, Notification, n
 import * as path from "node:path";
 import { spawnDaemon, waitForHealthy, killDaemon, DaemonHandle } from "./daemon";
 import { setAutostart, getAutostart } from "./autostart";
+import { readPrefs, shouldStartMinimized, writePrefs } from "./prefs";
 import { IPC } from "./ipc-contract";
 import { watchEvents, SSEHandle } from "./sse";
 import {
@@ -325,8 +326,17 @@ function createWindow() {
   initUpdater(mainWindow, log);
   checkOnStartup();
 
+  // Into the tray, when asked. Either the stored preference or the
+  // `--minimized` the login item passes — and that argument was being
+  // passed to nothing until now: autostart registered it, no code read
+  // it, and logging in put a window in your face regardless.
+  //
+  // The window is still created either way, so the tray can raise it
+  // instantly and the daemon is already being watched.
+  const minimized = shouldStartMinimized(app.getPath("userData"), process.argv);
+  if (minimized) log("starting minimized to the tray");
   mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
+    if (!minimized) mainWindow?.show();
   });
 
   // Close-to-tray: closing the window hides it rather than quitting, since
@@ -399,6 +409,13 @@ function registerIpcHandlers() {
 
   ipcMain.handle(IPC.getAutostart, async () => {
     return getAutostart(app);
+  });
+
+  ipcMain.handle(IPC.getStartMinimized, async () => {
+    return readPrefs(app.getPath("userData")).startMinimized;
+  });
+  ipcMain.handle(IPC.setStartMinimized, async (_event, enabled: boolean) => {
+    writePrefs(app.getPath("userData"), { startMinimized: Boolean(enabled) });
   });
 
   ipcMain.handle(IPC.checkForUpdate, () => checkForUpdate());

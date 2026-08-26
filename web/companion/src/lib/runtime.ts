@@ -44,6 +44,11 @@ export interface CompanionBridge {
   installUpdate?(): Promise<void>;
   updateStatus?(): Promise<ShellUpdate>;
   onUpdateStatus?(fn: (s: ShellUpdate) => void): () => void;
+  /** Open into the tray instead of showing the window. Optional: a shell
+   * built before this has no such call, and the setting stays off the
+   * screen rather than drawing one that does nothing. */
+  getStartMinimized?(): Promise<boolean>;
+  setStartMinimized?(enabled: boolean): Promise<void>;
 }
 
 /**
@@ -189,6 +194,29 @@ export function shellUpdater() {
     install: () => b.installUpdate!(),
     subscribe: (fn: (s: ShellUpdate) => void) => b.onUpdateStatus!(fn),
   };
+}
+
+/** Whether this app opens into the tray, or `undefined` where nothing
+ * can answer — the browser build has no window of its own to hide. */
+export async function getStartMinimized(): Promise<boolean | undefined> {
+  const b = bridge();
+  if (!b || typeof b.getStartMinimized !== "function") return undefined;
+  try {
+    return await b.getStartMinimized();
+  } catch {
+    return undefined;
+  }
+}
+
+export async function setStartMinimized(enabled: boolean): Promise<boolean> {
+  const b = bridge();
+  if (!b || typeof b.setStartMinimized !== "function") return false;
+  try {
+    await b.setStartMinimized(enabled);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function setAutostart(enabled: boolean): Promise<boolean> {
