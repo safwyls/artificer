@@ -148,27 +148,33 @@ export function App() {
         }
       />
 
+      {/* Once, above whatever tab is open, and gated by nothing here.
+          It used to be wrapped in `state.update?.available` — the
+          *daemon's* update state — in two places. Inside the shell the
+          daemon does not watch for updates at all, so that flag is
+          permanently false and the banner could never mount, however
+          much electron-updater had to say. The banner already returns
+          null when there is nothing to offer; that is the only thing
+          that should decide whether it appears.
+
+          Above `main` rather than inside a tab, because it is the only
+          place the update can be acted on: a banner that shows on
+          Worlds and nowhere else is unreachable from Settings. */}
+      <div className="flex-none empty:hidden [&>*]:px-7 [&>*]:pt-4">
+        <PanelBoundary name="update">
+          <UpdateBanner update={state.update} />
+        </PanelBoundary>
+      </div>
+
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {!configured ? (
           <PanelBoundary name="setup">
             <div className="flex flex-1 flex-col">
-              {state.update?.available ? (
-                <div className="px-7 pt-6">
-                  <UpdateBanner update={state.update} />
-                </div>
-              ) : null}
               <FirstRun state={state} />
             </div>
           </PanelBoundary>
         ) : tab === "worlds" ? (
           <>
-            {state.update?.available ? (
-              <div className="px-7 pt-5">
-                <PanelBoundary name="update">
-                  <UpdateBanner update={state.update} />
-                </PanelBoundary>
-              </div>
-            ) : null}
             <PanelBoundary name="worlds">
               {links.length ? (
                 <WorldsTab

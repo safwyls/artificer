@@ -14,7 +14,13 @@ beforeEach(() => {
   vi.spyOn(api, "saveHints").mockResolvedValue({ available: true, known: 5 });
   vi.spyOn(api, "splitSavePath").mockResolvedValue({ split: null });
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  // A shell bridge left behind would put every later test into the
+  // desktop build, where the chrome, the updater and the folder picker
+  // all behave differently. Most of this file is the browser build.
+  delete window.companion;
+});
 
 describe("App — setup", () => {
   it("shows the connect card and the game-finding card side by side, not an empty page", async () => {
@@ -84,6 +90,32 @@ describe("App — setup", () => {
   });
 });
 
+/**
+ * A shell with a working updater. `update` on the daemon's state is left
+ * absent on purpose: inside the shell companiond does not watch for
+ * updates at all, so anything that depends on it is depending on a flag
+ * that is permanently false.
+ */
+function shellWithUpdate(status: {
+  state: string;
+  version?: string;
+  why?: string;
+}) {
+  const check = vi.fn(async () => status);
+  window.companion = {
+    baseUrl: "http://127.0.0.1:41234",
+    token: "tok",
+    pickFolder: vi.fn(async () => null),
+    openPath: vi.fn(async () => {}),
+    updateStatus: vi.fn(async () => status),
+    checkForUpdate: check,
+    downloadUpdate: vi.fn(async () => {}),
+    installUpdate: vi.fn(async () => {}),
+    onUpdateStatus: vi.fn(() => () => {}),
+  } as never;
+  return { check };
+}
+
 describe("App — connected", () => {
   const connected = () =>
     makeState({
@@ -114,6 +146,52 @@ describe("App — connected", () => {
     expect(button).toHaveTextContent("");
     await userEvent.click(button);
     await waitFor(() => expect(syncNow).toHaveBeenCalled());
+  });
+
+  // The update banner was mounted behind `state.update?.available` — the
+  // *daemon's* update state. Inside the shell the daemon does not watch
+  // for updates, so that flag never becomes true and the banner could
+  // never appear, however much electron-updater had found. It looked
+  // like the startup check was broken; the check was fine and its result
+  // had nowhere to go.
+  it("shows the shell's update without the daemon saying anything", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    shellWithUpdate({ state: "available", version: "0.2.1" });
+    renderWithProviders(<App />);
+
+    expect(await screen.findByText(/A different companion build is available/)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Download update" })).toBeInTheDocument();
+  });
+
+  // And it has to be reachable from wherever you are: the banner is the
+  // only place an update can be acted on, and it used to render on the
+  // Worlds tab alone.
+  it("keeps the update reachable from every tab", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    shellWithUpdate({ state: "available", version: "0.2.1" });
+    renderWithProviders(<App />);
+    await screen.findByRole("button", { name: "Download update" });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    expect(await screen.findByRole("button", { name: "Download update" })).toBeInTheDocument();
+  });
+
+  // Diagnostics used to always ask the daemon's updater, which inside
+  // the shell points at `companion-latest` — the browser-and-tray
+  // build's release track. It reported that a different build of a
+  // different product was available, which is true and useless.
+  it("checks the updater this build actually uses", async () => {
+    vi.spyOn(api, "state").mockResolvedValue(connected());
+    const daemonCheck = vi.spyOn(api, "checkUpdate");
+    const { check } = shellWithUpdate({ state: "current", version: "0.2.1" });
+    renderWithProviders(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Diagnostics" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Check for update" }));
+
+    await waitFor(() => expect(check).toHaveBeenCalled());
+    expect(daemonCheck).not.toHaveBeenCalled();
   });
 
   it("names who it is connected as, once, in the header", async () => {

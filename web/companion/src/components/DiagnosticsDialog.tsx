@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { api, errorText } from "../lib/api";
+import { shellUpdater } from "../lib/runtime";
 import { ScanTrail } from "./ScanTrail";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
@@ -28,17 +29,34 @@ export function DiagnosticsDialog({
   onClose: () => void;
 }) {
   const [checking, setChecking] = useState(false);
+  const shell = shellUpdater();
   const probes = state.discovered?.probes ?? [];
   const links = state.links ?? [];
   const update = state.update;
 
+  // Ask whichever updater this build actually has.
+  //
+  // This used to always ask the daemon's, which inside the shell is the
+  // wrong product entirely: companiond does not watch for updates here,
+  // and its checker points at `companion-latest` — the browser-and-tray
+  // build's release track. Clicking this reported that a different
+  // build of *that* was available, which is true and useless.
   const checkUpdate = async () => {
     setChecking(true);
     try {
-      const { update: u } = await api.checkUpdate();
-      if (u?.error) toast.error(u.error);
-      else if (u?.available) toast.success(`update available: ${u.version}`);
-      else toast.success("up to date");
+      if (shell) {
+        const status = await shell.check();
+        if (status.state === "error") toast.error(status.why ?? "the check failed");
+        else if (status.state === "available" || status.state === "ready") {
+          toast.success(`update available: ${status.version ?? "a different build"}`);
+        } else if (status.state === "unsupported") toast.info(status.why ?? "this build cannot update itself");
+        else toast.success("up to date");
+      } else {
+        const { update: u } = await api.checkUpdate();
+        if (u?.error) toast.error(u.error);
+        else if (u?.available) toast.success(`update available: ${u.version}`);
+        else toast.success("up to date");
+      }
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -100,13 +118,15 @@ export function DiagnosticsDialog({
 
         <div className="mt-4">
           <p className="text-[12px] italic text-mist">
-            {update?.error
-              ? `last update check failed: ${update.error}`
-              : update?.available
-                ? `a different build is available: ${update.version}`
-                : update?.checkedAt
-                  ? "up to date, as of the last check"
-                  : "checked automatically every few hours"}
+            {shell
+              ? "this app checks for its own updates shortly after it starts"
+              : update?.error
+                ? `last update check failed: ${update.error}`
+                : update?.available
+                  ? `a different build is available: ${update.version}`
+                  : update?.checkedAt
+                    ? "up to date, as of the last check"
+                    : "checked automatically every few hours"}
           </p>
           <Button type="button" className="mt-2" disabled={checking} onClick={checkUpdate}>
             Check for update
