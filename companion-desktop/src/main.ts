@@ -12,6 +12,14 @@ import { spawnDaemon, waitForHealthy, killDaemon, DaemonHandle } from "./daemon"
 import { setAutostart, getAutostart } from "./autostart";
 import { IPC } from "./ipc-contract";
 import { watchEvents, SSEHandle } from "./sse";
+import {
+  checkForUpdate,
+  checkOnStartup,
+  downloadUpdate,
+  initUpdater,
+  installUpdate,
+  updateStatus,
+} from "./updater";
 import { NotifyPolicyState, StateSnapshot } from "./notifications";
 
 let daemon: DaemonHandle | null = null;
@@ -312,6 +320,11 @@ function createWindow() {
     });
   }
 
+  // Updates are the shell's job (updater.ts): companiond does not watch
+  // for them, because the thing replaced is the application it is inside.
+  initUpdater(mainWindow, log);
+  checkOnStartup();
+
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
   });
@@ -386,6 +399,17 @@ function registerIpcHandlers() {
 
   ipcMain.handle(IPC.getAutostart, async () => {
     return getAutostart(app);
+  });
+
+  ipcMain.handle(IPC.checkForUpdate, () => checkForUpdate());
+  ipcMain.handle(IPC.updateStatus, () => updateStatus());
+  ipcMain.handle(IPC.downloadUpdate, () => downloadUpdate());
+  ipcMain.handle(IPC.installUpdate, async () => {
+    // The daemon goes down with us through the usual will-quit path, so
+    // the installer is not racing a live companiond for its files.
+    installUpdate(() => {
+      quitting = true;
+    });
   });
 }
 

@@ -12,7 +12,43 @@ export const IPC = {
   openPath: "companion:openPath",
   setAutostart: "companion:setAutostart",
   getAutostart: "companion:getAutostart",
+  checkForUpdate: "companion:checkForUpdate",
+  downloadUpdate: "companion:downloadUpdate",
+  installUpdate: "companion:installUpdate",
+  updateStatus: "companion:updateStatus",
 } as const;
+
+/**
+ * Update status, pushed to the page as it changes rather than polled.
+ *
+ * The shell owns updates here — companiond does not watch for them,
+ * because the thing that gets replaced is the application it lives
+ * inside. So this is the page's only source of update state, and it is
+ * one source on purpose.
+ */
+export const UpdateStatus = {
+  /** main → renderer, on every change. */
+  channel: "companion:updateStatus:changed",
+} as const;
+
+export interface UpdateStatus {
+  state:
+    | "idle"
+    | "checking"
+    /** The release ships the build already running. */
+    | "current"
+    | "available"
+    | "downloading"
+    /** Downloaded and verified; installing is one call away. */
+    | "ready"
+    | "error"
+    /** This build cannot update itself, and `why` says so. */
+    | "unsupported";
+  version?: string;
+  /** 0-100 while downloading. */
+  percent?: number;
+  why?: string;
+}
 
 /** What contextBridge exposes on window.companion in the renderer. */
 export interface CompanionBridge {
@@ -26,4 +62,18 @@ export interface CompanionBridge {
   openPath(path: string): Promise<void>;
   setAutostart(enabled: boolean): Promise<void>;
   getAutostart(): Promise<boolean>;
+  /** Ask the update feed now, and answer with what it said. */
+  checkForUpdate(): Promise<UpdateStatus>;
+  /** Download the update the last check found. Progress arrives on the
+   * subscription below, not here. */
+  downloadUpdate(): Promise<void>;
+  /** Install what was downloaded and relaunch. Resolves only if the
+   * install could not be started — on success this process is going
+   * away. */
+  installUpdate(): Promise<void>;
+  /** Current status, for a page that has just loaded and missed the
+   * events so far. */
+  updateStatus(): Promise<UpdateStatus>;
+  /** Subscribe to status changes. Returns the unsubscribe. */
+  onUpdateStatus(fn: (s: UpdateStatus) => void): () => void;
 }

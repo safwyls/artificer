@@ -30,6 +30,34 @@ files:
   # The window and tray icons are loaded from inside the asar at runtime
   # (src/main.ts iconPath), so the image has to travel with the app.
   - build/icon.png
+  # electron-updater is required at runtime, so it has to be in the
+  # package. electron-builder filters this to production dependencies —
+  # the devDependencies above (electron itself, its builder, tsc) are
+  # never copied.
+  - node_modules/**/*
+
+# Where the app looks for updates, and what electron-builder writes the
+# update manifest (latest.yml) for.
+#
+# The GitHub provider resolves the repository's latest release and reads
+# latest.yml from it. Two properties make that safe in a monorepo:
+#
+#   - It runs every tag through semver.valid() and skips what does not
+#     parse (GitHubProvider.js: "skip non-semver tags (e.g. doc/website
+#     releases in monorepos)"). So `v0.2.0` is a companion release and
+#     nothing else in this repository is, as long as nothing else here
+#     ever publishes a bare semver tag. That is this app's tag namespace.
+#   - It resolves through /releases/latest, which excludes prereleases.
+#     The companion's releases are the only normal ones published here.
+#
+# Nothing is signed, so there is no publisher name for Windows to check a
+# downloaded installer against. The release's sha256 manifest is still
+# published for anyone verifying by hand, and electron-updater checks the
+# size and sha512 in latest.yml regardless.
+publish:
+  provider: github
+  owner: safwyls
+  repo: artificer
 
 # The companiond binary for the platform being packaged, staged ahead of
 # time by `npm run build:daemon` (see README.md). electron-builder places
@@ -48,6 +76,8 @@ linux:
       arch:
         - x64
   category: Game
+  # Frozen, for the same reason as nsis.artifactName above.
+  artifactName: "Reliquary-Companion.${ext}"
 
 win:
   target:
@@ -58,7 +88,18 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  artifactName: "${productName}-Setup-${version}.${ext}"
+  # No ${version} in the name, deliberately. The updater resolves a
+  # release asset by exact name (companion/update.go's UpdateAssets: "the
+  # default names are frozen: players hold links to them"), and a name
+  # carrying the version cannot be known before the release exists. Which
+  # build this is comes from reliquary-companion-version.txt, which the
+  # release publishes for exactly that purpose — the version was never
+  # the filename's job.
+  #
+  # Hyphens rather than ${productName}: the product name has a space in
+  # it, and GitHub rewrites spaces to dots when a release asset is
+  # uploaded, so the name here would not be the name to ask for.
+  artifactName: "Reliquary-Companion-Setup.${ext}"
 
 # arm64 only: the Intel runner (macos-13) is being retired and its jobs
 # queue indefinitely, so an x64 dmg cannot be built alongside a companiond
@@ -69,6 +110,8 @@ mac:
       arch:
         - arm64
   category: public.app-category.utilities
+  # Frozen, for the same reason as nsis.artifactName above.
+  artifactName: "Reliquary-Companion.${ext}"
 
 # Cross-platform builds (all three OSes from one CI run) happen in Phase
 # 6's CI matrix, not on a dev machine — see companion-cutover.md.

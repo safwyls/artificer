@@ -12,7 +12,7 @@
 // just needs to be told where and with what credential.
 
 import { contextBridge, ipcRenderer } from "electron";
-import type { CompanionBridge } from "./ipc-contract";
+import type { CompanionBridge, UpdateStatus } from "./ipc-contract";
 
 /**
  * The channel names, repeated from ipc-contract.ts rather than imported.
@@ -38,7 +38,16 @@ const IPC = {
   openPath: "companion:openPath",
   setAutostart: "companion:setAutostart",
   getAutostart: "companion:getAutostart",
+  checkForUpdate: "companion:checkForUpdate",
+  downloadUpdate: "companion:downloadUpdate",
+  installUpdate: "companion:installUpdate",
+  updateStatus: "companion:updateStatus",
 } as const;
+
+/** Must match UpdateStatus.channel in ipc-contract.ts, for the same
+ * reason the names above are repeated: a sandboxed preload cannot
+ * import them. test/ipc-contract.test.js holds the copies together. */
+const UPDATE_STATUS_CHANNEL = "companion:updateStatus:changed";
 
 const connection = ipcRenderer.sendSync(IPC.getConnection) as { baseUrl: string; token: string };
 
@@ -50,6 +59,19 @@ const bridge: CompanionBridge = {
   openPath: (path: string) => ipcRenderer.invoke(IPC.openPath, path),
   setAutostart: (enabled: boolean) => ipcRenderer.invoke(IPC.setAutostart, enabled),
   getAutostart: () => ipcRenderer.invoke(IPC.getAutostart),
+  checkForUpdate: () => ipcRenderer.invoke(IPC.checkForUpdate),
+  downloadUpdate: () => ipcRenderer.invoke(IPC.downloadUpdate),
+  installUpdate: () => ipcRenderer.invoke(IPC.installUpdate),
+  updateStatus: () => ipcRenderer.invoke(IPC.updateStatus),
+  onUpdateStatus: (fn: (s: UpdateStatus) => void) => {
+    // The listener is wrapped rather than passed through: what arrives
+    // from main carries an IpcRendererEvent the page has no business
+    // seeing, and handing a renderer callback straight to ipcRenderer
+    // would leak it across the bridge.
+    const listener = (_event: unknown, status: UpdateStatus) => fn(status);
+    ipcRenderer.on(UPDATE_STATUS_CHANNEL, listener);
+    return () => ipcRenderer.removeListener(UPDATE_STATUS_CHANNEL, listener);
+  },
 };
 
 contextBridge.exposeInMainWorld("companion", bridge);

@@ -79,6 +79,11 @@ Routes as of this inventory (`companion/server.go`, all under
 | `POST /api/links/{worldID}/checkpoint` | request/response | `Checkpoint` | |
 | `POST /api/links/{worldID}/renew` | request/response | `Renew` | |
 | `POST /api/links/{worldID}/claim` | request/response | `Claim` | |
+<!-- Updates are the browser build's here. The Electron shell does not
+     use these routes and companiond does not watch for updates when it
+     runs inside it: electron-updater owns that, because what gets
+     replaced is the application companiond lives inside. See
+     companion-desktop/src/updater.ts. -->
 | `POST /api/update/check` | request/response | `CheckUpdate` | |
 | `POST /api/update/apply` | request/response | `ApplyUpdate` + `RestartAfterUpdate` | Response is written before the process restarts |
 | `GET /healthz` | request/response | — | **Added in Phase 1.** Liveness only (`{ok, version}`), and the one route outside the bearer check: a shell polls it before it has proven anything |

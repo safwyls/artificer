@@ -1,7 +1,7 @@
 {
   "name": "reliquary-companion",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Electron shell for the Artificer/Reliquary Companion (companion-cutover.md Phase 3): wraps the companiond daemon and web/companion's built renderer in a native window, tray, and OS integrations.",
   "author": "Artificer contributors",
   "main": "dist/main.js",
@@ -14,7 +14,9 @@
     "smoke": "npm run build && node scripts/smoke.js",
     "icon": "electron scripts/make-icon.js"
   },
-  "dependencies": {},
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
   "devDependencies": {
     "@types/node": "^22.7.5",
     "electron": "^32.2.0",

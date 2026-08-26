@@ -34,3 +34,40 @@ test("the window title is the packaged productName", () => {
 
   assert.strictEqual(built[1], packaged[1]);
 });
+
+// electron-builder's `-c.extraMetadata.version` rewrites package.json
+// while it packages and restores it afterwards — but only if it gets
+// that far. A run that fails partway (a missing signing toolchain, say)
+// leaves the rewritten one behind: version bumped to the synthesized
+// build number, and `scripts` and `devDependencies` gone entirely.
+//
+// That is quiet, survives a commit, and takes the build, test, package
+// and smoke scripts with it. This is the tripwire.
+test("package.json was not left rewritten by a packaging run", () => {
+  const pkg = JSON.parse(read("package.json"));
+
+  // Not compared against a fixed number: package.json's version is the
+  // source of truth now and moves on purpose. What a rewritten one loses
+  // is the rest of the file — scripts and devDependencies go entirely,
+  // which is both the louder signal and the one that actually breaks
+  // things.
+  //
+  // The version is still checked for *shape*: the updater compares
+  // versions with semver, so one it cannot parse means an app that can
+  // never find its own updates.
+  assert.match(
+    pkg.version,
+    /^\d+\.\d+\.\d+$/,
+    `package.json version "${pkg.version}" is not plain semver, so electron-updater cannot order it`,
+  );
+  for (const script of ["build", "test", "package", "smoke"]) {
+    assert.ok(pkg.scripts?.[script], `package.json lost its "${script}" script`);
+  }
+  assert.ok(pkg.devDependencies?.electron, "package.json lost its devDependencies");
+  // electron-updater has to be a *production* dependency or it is not
+  // packaged, and the app cannot update itself.
+  assert.ok(
+    pkg.dependencies?.["electron-updater"],
+    "electron-updater is not a production dependency, so it will not be packaged",
+  );
+});

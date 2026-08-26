@@ -75,6 +75,61 @@ is an addition to the engine.
 - **Close-to-tray.** The window is a view over a resident sync process;
   closing it hides it and syncing continues. Quit lives in the tray menu
   and confirms first while a transfer is running.
+- **Self-update, through `electron-updater`** — the standard Electron
+  mechanism, and owned entirely by the shell (`src/updater.ts`).
+  companiond does **not** watch for updates here, unlike in the browser
+  build: the thing being replaced is the application it lives inside, and
+  two checkers would be two answers to one question.
+
+  The two builds update in genuinely different shapes. `cmd/companion` is
+  a single exe a player keeps wherever they like, and it replaces itself.
+  This app is installed, so its release asset is an installer, the whole
+  application is what changes, and on Windows a running executable cannot
+  be overwritten at all. electron-updater handles that properly:
+  differential downloads against the NSIS blockmap (a small change is a
+  small download, not the whole ~77MB), progress, resume, and
+  `quitAndInstall` — which installs and relaunches rather than leaving
+  someone clicking through a wizard.
+
+  The feed is the **`github` provider**, and two properties of it make
+  that safe in a monorepo. It runs every tag through `semver.valid()` and
+  skips what does not parse — its own source says "skip non-semver tags
+  (e.g. doc/website releases in monorepos)" — and it resolves through
+  `/releases/latest`, which excludes prereleases. So `v*` is **this app's
+  tag namespace in this repository**, and nothing else here may publish a
+  bare semver tag or a normal (non-prerelease) GitHub release without
+  taking the companion's updates with it.
+
+  `latest.yml` and the `.blockmap` are **published with the installers**:
+  the installers are useless to an updater without the first, and the
+  second is what makes an update a small download rather than the whole
+  ~77MB again.
+
+  macOS is not offered updates at all: Squirrel.Mac verifies a code
+  signature before swapping an app in, and these builds are unsigned, so
+  a check would download and then refuse. It says it installs by hand.
+
+- **Versions are deliberate, and only go up.**
+  `companion-desktop/package.json` is the source of truth: a release
+  happens because someone bumped it, not because someone pushed. Pushes
+  without a bump still build and test — they publish nothing, so the
+  update banner means "there is something new" rather than "someone
+  merged something".
+
+  CI enforces the one-direction rule rather than trusting it. If the tag
+  already exists it skips the release; if the version is lower than one
+  already published it fails the build, because an installed app updates
+  by comparing versions — a release numbered below one already out there
+  is invisible to exactly the people who have that one, and unpublishing
+  is not a thing.
+
+  This replaced identity-by-commit-SHA, which the browser build still
+  uses. SHAs cannot be ordered, and an updater that downloads has to know
+  which of two builds is later. The commit is still recorded — in the
+  release body and in `reliquary-companion-version.txt` — as provenance
+  rather than as the version. `companiond` is stamped with the
+  application's version too, so the two halves of one app do not report
+  different things.
 - **Autostart** — an HKCU `…\CurrentVersion\Run` entry passing
   `--minimized`, so login brings it up in the tray. Windows only; other
   platforms answer with a reason rather than a broken checkbox.
@@ -253,11 +308,23 @@ confirming behavior — the checklist below stays open until someone does.
 - [ ] Tray: open/raise, sync now, status line truncation, quit
 - [ ] Close-to-tray, autostart minimized, second-launch raise,
       window-state persistence
-- [ ] Self-update from `reliquary-companion-latest` end-to-end, including
-      restart and `.old` cleanup — **not yet implemented**: `companion`'s
-      update watcher is wired into `cmd/companion` only; the Electron
-      shell has no updater code yet, so this item blocks on that work
-      landing before it can be checked
+- [ ] Self-update from `reliquary-companion-latest` end-to-end: the
+      banner appears against a real release, the download shows progress,
+      installing closes the app and reopens it, and the new build comes
+      up with its config and links intact. Then do it a *second* time and
+      confirm the download is small — that is the blockmap working, and
+      it is the difference between an update and a re-download.
+      **Never run against a real release.** The packaging half is
+      verified — a local `electron-builder --win nsis` produces the
+      installer, `latest.yml` at the version from package.json, and the
+      blockmap, and the packaged app carries electron-updater and an
+      `app-update.yml` naming the GitHub provider — but no published
+      release has ever been checked against, downloaded, or installed.
+      It is an update mechanism, so it is the last thing to take on
+      trust: check it before the download cuts over.
+      The first release will be **v0.2.0**, not v0.1.0: every build
+      installed so far reports 0.1.0, and a release at that version would
+      be invisible to exactly the people who already have the app
 - [ ] `127.0.0.1:8377` page still fully works in a browser alongside the
       window
 - [ ] The window renders: fonts, theme, icon, and the layout at 1120×780

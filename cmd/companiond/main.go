@@ -88,7 +88,15 @@ func main() {
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	go app.WatchLoop()
-	go app.WatchUpdates(ctx)
+	// No update watcher here, deliberately. This daemon is one file
+	// inside an installed application, and the application updates
+	// itself: the Electron shell runs electron-updater, which is the
+	// only thing that can replace what companiond lives inside. A second
+	// checker would be a second answer to "is there an update", and two
+	// readings of one fact drift.
+	//
+	// cmd/companion — the browser-and-tray build, which really is a
+	// single exe that replaces itself — keeps the engine's watcher.
 
 	srv := &http.Server{Handler: app.RoutesWithOptions(companion.ServerOptions{
 		Token: token,

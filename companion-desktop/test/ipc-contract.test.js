@@ -38,6 +38,20 @@ test("the preload's channel names match ipc-contract's, exactly", () => {
   assert.deepStrictEqual(copy, { ...IPC }, "preload.js and ipc-contract.ts disagree");
 });
 
+// The same rule for the one channel that goes the other way: main pushes
+// update status to the page, and the preload has its own copy of that
+// channel name for the same reason it has its own copy of the verbs.
+// A mismatch here is a page that simply never hears about an update.
+test("the preload's push channel matches the contract's", () => {
+  const contract = readFileSync(path.join(__dirname, "..", "dist", "ipc-contract.js"), "utf8").match(/channel:\s*"([^"]+)"/);
+  assert.ok(contract, "ipc-contract.js declares no push channel");
+
+  const copy = preloadCode().match(/UPDATE_STATUS_CHANNEL\s*=\s*"([^"]+)"/);
+  assert.ok(copy, "preload.js declares no copy of the push channel");
+
+  assert.strictEqual(copy[1], contract[1]);
+});
+
 test("the preload requires nothing a sandbox cannot give it", () => {
   const src = preloadCode();
   // Electron's sandboxed loader resolves `electron` and a few built-ins.
