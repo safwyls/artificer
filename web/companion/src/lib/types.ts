@@ -132,10 +132,6 @@ export interface UpdateState {
    * directory, or a platform with no published release. */
   supported: boolean;
   why?: string;
-  /** Where a downloaded, verified installer is waiting. Set only by a
-   * build whose release installs an application rather than replacing a
-   * single file — the daemon stages it, the shell runs it. */
-  installer?: string;
 }
 
 export interface CompanionState {

@@ -59,25 +59,6 @@ func main() {
 	tokenFlag := flag.String("token", "", "bearer token to require, for standalone runs; prefer "+tokenEnv)
 	flag.Parse()
 	companion.Version = version
-	// This entrypoint ships as the Reliquary Companion, on its own
-	// release track with its own artifacts. Without these it would watch
-	// `companion-latest` — the *browser-and-tray* build's track — and
-	// report that a different product's release is an update to this
-	// one, comparing its own stamp against a build it is not.
-	//
-	// The engine's update.go anticipates exactly this: "a different
-	// entrypoint (reliquary-companion) sets its own tag so the two builds
-	// never replace each other".
-	companion.UpdateTag = "reliquary-companion-latest"
-	companion.UpdateVersionAsset = "reliquary-companion-version.txt"
-	companion.UpdateShaAsset = "reliquary-companion-sha256.txt"
-	// The asset installs an application; it does not replace this file.
-	companion.UpdateInstalls = true
-	companion.UpdateAssets = map[string]string{
-		"windows": "Reliquary-Companion-Setup.exe",
-		"linux":   "Reliquary-Companion.AppImage",
-		"darwin":  "Reliquary-Companion.dmg",
-	}
 
 	token := *tokenFlag
 	if token == "" {
@@ -107,7 +88,15 @@ func main() {
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	go app.WatchLoop()
-	go app.WatchUpdates(ctx)
+	// No update watcher here, deliberately. This daemon is one file
+	// inside an installed application, and the application updates
+	// itself: the Electron shell runs electron-updater, which is the
+	// only thing that can replace what companiond lives inside. A second
+	// checker would be a second answer to "is there an update", and two
+	// readings of one fact drift.
+	//
+	// cmd/companion — the browser-and-tray build, which really is a
+	// single exe that replaces itself — keeps the engine's watcher.
 
 	srv := &http.Server{Handler: app.RoutesWithOptions(companion.ServerOptions{
 		Token: token,

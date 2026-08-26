@@ -89,8 +89,7 @@ export const api = {
   /** Replace this build and restart into the new one. The companion
    * answers before it restarts, so a success here means the swap
    * happened and the process is about to go. */
-  applyUpdate: () =>
-    call<{ restarting?: boolean; installer?: string }>("POST", "/api/update/apply"),
+  applyUpdate: () => call<{ restarting?: boolean }>("POST", "/api/update/apply"),
 
   addLink: (input: LinkInput) => call("POST", "/api/links", input),
   createWorld: (input: CreateWorldInput) => call("POST", "/api/links/create", input),

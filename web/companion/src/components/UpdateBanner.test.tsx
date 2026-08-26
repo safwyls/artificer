@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { UpdateBanner } from "./UpdateBanner";
 import { renderWithProviders } from "../test/utils";
 import type { UpdateState } from "../lib/types";
+import type { ShellUpdate } from "../lib/runtime";
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn(), loading: vi.fn() },
@@ -17,7 +18,40 @@ const update = (o: Partial<UpdateState> = {}): UpdateState => ({
   ...o,
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete window.companion;
+});
+
+/**
+ * A shell whose updater is wired, with a status the test controls.
+ *
+ * The installed app does not poll the daemon for updates — the daemon
+ * does not watch for them at all, because what gets replaced is the
+ * application it lives inside. Status is pushed from the shell, so the
+ * fake has to push too.
+ */
+function shellWithUpdate(initial: ShellUpdate) {
+  let push: ((s: ShellUpdate) => void) | undefined;
+  const bridge = {
+    baseUrl: "http://127.0.0.1:41234",
+    token: "tok",
+    pickFolder: vi.fn(async () => null),
+    openPath: vi.fn(async () => {}),
+    updateStatus: vi.fn(async () => initial),
+    checkForUpdate: vi.fn(async () => initial),
+    downloadUpdate: vi.fn(async () => {}),
+    installUpdate: vi.fn(async () => {}),
+    onUpdateStatus: vi.fn((fn: (s: ShellUpdate) => void) => {
+      push = fn;
+      return () => {
+        push = undefined;
+      };
+    }),
+  };
+  window.companion = bridge;
+  return { bridge, push: (s: ShellUpdate) => push?.(s) };
+}
 
 describe("UpdateBanner", () => {
   it("stays out of the way when there is nothing to offer", () => {
@@ -71,5 +105,70 @@ describe("UpdateBanner", () => {
   it("shows an apply already running as in progress", () => {
     renderWithProviders(<UpdateBanner update={update({ applying: true })} />);
     expect(screen.getByRole("button", { name: "Updating…" })).toBeDisabled();
+  });
+});
+
+// The installed app's half. Everything here goes through the shell,
+// because electron-updater is what can actually replace an installed
+// application — the daemon is one file inside it.
+describe("UpdateBanner — the installed app", () => {
+  it("says nothing when there is nothing to do about it", async () => {
+    shellWithUpdate({ state: "current", version: "abcdef123456" });
+    const { container } = renderWithProviders(<UpdateBanner update={undefined} />);
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+  });
+
+  // A build that cannot update itself does not need to announce that on
+  // every screen — Diagnostics carries it.
+  it("stays quiet on a build that cannot update itself", async () => {
+    shellWithUpdate({ state: "unsupported", why: "macOS builds are unsigned" });
+    const { container } = renderWithProviders(<UpdateBanner update={undefined} />);
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+  });
+
+  // Downloading is a separate step from installing, and offered rather
+  // than taken: it is ~90MB on a connection this app knows nothing about.
+  it("offers the download first, and the install only once it is ready", async () => {
+    const { bridge, push } = shellWithUpdate({ state: "available", version: "abcdef123456" });
+    renderWithProviders(<UpdateBanner update={undefined} />);
+
+    const download = await screen.findByRole("button", { name: "Download update" });
+    await userEvent.click(download);
+    expect(bridge.downloadUpdate).toHaveBeenCalled();
+    expect(bridge.installUpdate).not.toHaveBeenCalled();
+
+    push({ state: "ready", version: "abcdef123456" });
+    const install = await screen.findByRole("button", { name: "Install and reopen" });
+    await userEvent.click(install);
+    expect(bridge.installUpdate).toHaveBeenCalled();
+  });
+
+  it("shows progress while it downloads, and does not offer a second click", async () => {
+    const { push } = shellWithUpdate({ state: "available", version: "abcdef123456" });
+    renderWithProviders(<UpdateBanner update={undefined} />);
+    await screen.findByRole("button", { name: "Download update" });
+
+    push({ state: "downloading", version: "abcdef123456", percent: 42 });
+    expect(await screen.findByText(/downloading, 42%/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Downloading…" })).toBeDisabled();
+  });
+
+  // Updates are a convenience and never fatal — but a failure the player
+  // was watching for has to be visible, not swallowed.
+  it("says why an update they asked for failed", async () => {
+    shellWithUpdate({ state: "error", version: "abcdef123456", why: "net::ERR_CONNECTION_RESET" });
+    renderWithProviders(<UpdateBanner update={undefined} />);
+    expect(await screen.findByText(/net::ERR_CONNECTION_RESET/)).toBeInTheDocument();
+  });
+
+  // The daemon's own update state is the *browser* build's, and inside
+  // the shell it is not watched at all. Rendering it here would be a
+  // second answer to a question with one owner.
+  it("ignores the daemon's update state entirely", async () => {
+    shellWithUpdate({ state: "current" });
+    const { container } = renderWithProviders(
+      <UpdateBanner update={{ available: true, version: "deadbeef", supported: true }} />,
+    );
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 });

@@ -75,17 +75,37 @@ is an addition to the engine.
 - **Close-to-tray.** The window is a view over a resident sync process;
   closing it hides it and syncing continues. Quit lives in the tray menu
   and confirms first while a transfer is running.
-- **Self-update**, in a different shape from the browser build's. That
-  one replaces its own exe and restarts, which is right for a single file
-  a player keeps wherever they like. This app is installed, so its
-  release asset is an *installer* and the thing being replaced is the
-  whole application — companiond is one file inside it, and on Windows a
-  running executable cannot be overwritten at all. So the daemon
-  downloads and verifies (`UpdateInstalls` mode in `companion/update.go`)
-  and stops; the shell runs the installer and quits, because quitting the
-  app being replaced is the one step a process inside it cannot take.
-  macOS says it installs by hand: a dmg is mounted and dragged, not run,
-  and these builds are unsigned.
+- **Self-update, through `electron-updater`** — the standard Electron
+  mechanism, and owned entirely by the shell (`src/updater.ts`).
+  companiond does **not** watch for updates here, unlike in the browser
+  build: the thing being replaced is the application it lives inside, and
+  two checkers would be two answers to one question.
+
+  The two builds update in genuinely different shapes. `cmd/companion` is
+  a single exe a player keeps wherever they like, and it replaces itself.
+  This app is installed, so its release asset is an installer, the whole
+  application is what changes, and on Windows a running executable cannot
+  be overwritten at all. electron-updater handles that properly:
+  differential downloads against the NSIS blockmap (a small change is a
+  small download, not the whole ~77MB), progress, resume, and
+  `quitAndInstall` — which installs and relaunches rather than leaving
+  someone clicking through a wizard.
+
+  Three things this needs, and each was a defect before it: the feed is
+  the **generic** provider pointed at the rolling tag's download URL, not
+  the `github` provider, because that one enumerates the repository's
+  releases and would happily offer `companion-latest` — the *other*
+  product's rolling release — as an update to this one. The version is
+  **synthesized at package time** (`extraMetadata.version=0.1.$RUN`),
+  because electron-updater compares versions and `package.json` says
+  `0.1.0` forever; the commit SHA remains the honest identity of a build
+  and is still what Diagnostics shows. And `latest.yml` and the blockmap
+  are **published with the installers**, since the installers are useless
+  to an updater without them.
+
+  macOS is not offered updates at all: Squirrel.Mac verifies a code
+  signature before swapping an app in, and these builds are unsigned, so
+  a check would download and then refuse. It says it installs by hand.
 - **Autostart** — an HKCU `…\CurrentVersion\Run` entry passing
   `--minimized`, so login brings it up in the tray. Windows only; other
   platforms answer with a reason rather than a broken checkbox.
@@ -265,14 +285,18 @@ confirming behavior — the checklist below stays open until someone does.
 - [ ] Close-to-tray, autostart minimized, second-launch raise,
       window-state persistence
 - [ ] Self-update from `reliquary-companion-latest` end-to-end: the
-      banner appears against a real release, the installer downloads and
-      verifies, running it closes the app and replaces it, and the new
-      build comes up with its config and links intact. **Implemented but
-      never run end-to-end** — the logic is unit-tested against a
-      stand-in GitHub, and no part of the real path (a published
-      installer, an actual NSIS run over a live install) has been
-      exercised. It is an update mechanism, so it is the last thing that
-      should be taken on trust: check it before the download cuts over
+      banner appears against a real release, the download shows progress,
+      installing closes the app and reopens it, and the new build comes
+      up with its config and links intact. Then do it a *second* time and
+      confirm the download is small — that is the blockmap working, and
+      it is the difference between an update and a re-download.
+      **Never run against a real release.** The packaging half is
+      verified (a local `electron-builder --win nsis` produces the
+      installer, `latest.yml` and the blockmap, and the app carries
+      electron-updater and the right feed), but no published release has
+      ever been checked against, downloaded, or installed. It is an
+      update mechanism, so it is the last thing to take on trust: check
+      it before the download cuts over
 - [ ] `127.0.0.1:8377` page still fully works in a browser alongside the
       window
 - [ ] The window renders: fonts, theme, icon, and the layout at 1120×780

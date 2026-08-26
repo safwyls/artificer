@@ -96,14 +96,36 @@ jobs:
         # job. These are unsigned prereleases and the release notes say so.
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder ${{ matrix.builder_flag }} --publish never
+        # The version is synthesized here rather than kept in
+        # package.json, which stays 0.1.0 and never moves.
+        #
+        # electron-updater compares versions, not identities: it reads
+        # latest.yml's version against app.getVersion() and offers an
+        # update when the former is greater. A static 0.1.0 would compare
+        # equal on every release and no update would ever be seen. The
+        # run number is monotonic and needs nobody to remember to bump it.
+        #
+        # The commit SHA is still the honest identity of a build, and is
+        # still published in reliquary-companion-version.txt — that is
+        # what Diagnostics shows and what a bug report needs. This number
+        # exists so an updater can order two builds; it is not a claim
+        # that anything here is semantically versioned.
+        run: |
+          npx electron-builder ${{ matrix.builder_flag }} --publish never -c.extraMetadata.version=0.1.${{ github.run_number }}
       - name: Collect artifacts
         shell: bash
         working-directory: companion-desktop/release
         run: |
           mkdir -p ../../dist-out
-          find . -maxdepth 1 -type f \( -iname '*.AppImage' -o -iname '*.exe' -o -iname '*.dmg' \) \
+          # latest*.yml is what electron-updater actually reads — the
+          # installers are useless to it without them. The .blockmap
+          # beside a Windows installer is what makes an update a small
+          # download rather than the whole ~90MB again.
+          find . -maxdepth 1 -type f \( \
+              -iname '*.AppImage' -o -iname '*.exe' -o -iname '*.dmg' \
+              -o -iname '*.blockmap' -o -iname 'latest*.yml' \) \
             -exec cp {} ../../dist-out/ \;
+          ls -la ../../dist-out
       - uses: actions/upload-artifact@v4
         with:
           name: reliquary-companion-${{ matrix.goos }}-${{ matrix.goarch }}

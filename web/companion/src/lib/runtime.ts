@@ -36,10 +36,35 @@ export interface CompanionBridge {
   openPath(path: string): Promise<void>;
   setAutostart(enabled: boolean): Promise<void>;
   getAutostart(): Promise<boolean>;
-  /** Run a staged installer and quit. Optional: a shell built before
-   * updates existed does not have it, and the page must say so rather
-   * than call into nothing. */
-  runInstaller?(path: string): Promise<void>;
+  /** Updates, in the shell. Optional as a group: a shell built before
+   * this existed has none of them, and the page has to fall back to the
+   * daemon's own updater rather than call into nothing. */
+  checkForUpdate?(): Promise<ShellUpdate>;
+  downloadUpdate?(): Promise<void>;
+  installUpdate?(): Promise<void>;
+  updateStatus?(): Promise<ShellUpdate>;
+  onUpdateStatus?(fn: (s: ShellUpdate) => void): () => void;
+}
+
+/**
+ * What the shell says about updates. Mirrors UpdateStatus in
+ * companion-desktop/src/ipc-contract.ts — duplicated rather than
+ * imported, like CompanionBridge above, because the two are separate
+ * builds and drift shows up as a type error.
+ */
+export interface ShellUpdate {
+  state:
+    | "idle"
+    | "checking"
+    | "current"
+    | "available"
+    | "downloading"
+    | "ready"
+    | "error"
+    | "unsupported";
+  version?: string;
+  percent?: number;
+  why?: string;
 }
 
 declare global {
@@ -140,21 +165,25 @@ export async function getAutostart(): Promise<boolean | undefined> {
 }
 
 /**
- * Hand a downloaded installer to the shell, which runs it and quits.
+ * The shell's updater, or undefined when there is not one.
  *
- * `false` means this build cannot: the browser build has no shell to ask,
- * and a shell older than this feature has no such call. Either way the
- * page has to say so instead of reporting an update that never happened.
+ * Undefined means the page falls back to the daemon's updater, which is
+ * how the browser build has always worked: that build really is a single
+ * exe that replaces itself. This app is installed, so the shell replaces
+ * it — see companion-desktop/src/updater.ts.
  */
-export async function runInstaller(path: string): Promise<boolean> {
+export function shellUpdater() {
   const b = bridge();
-  if (!b || typeof b.runInstaller !== "function") return false;
-  try {
-    await b.runInstaller(path);
-    return true;
-  } catch {
-    return false;
+  if (!b || typeof b.updateStatus !== "function" || typeof b.onUpdateStatus !== "function") {
+    return undefined;
   }
+  return {
+    status: () => b.updateStatus!(),
+    check: () => b.checkForUpdate!(),
+    download: () => b.downloadUpdate!(),
+    install: () => b.installUpdate!(),
+    subscribe: (fn: (s: ShellUpdate) => void) => b.onUpdateStatus!(fn),
+  };
 }
 
 export async function setAutostart(enabled: boolean): Promise<boolean> {

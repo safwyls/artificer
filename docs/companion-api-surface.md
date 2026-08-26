@@ -64,7 +64,6 @@ Routes as of this inventory (`companion/server.go`, all under
 | `GET /api/artwork` | request/response | `Artwork`, `ArtStatus` | |
 | `POST /api/sync/refresh` | request/response | `SyncNow` | |
 | `GET /api/savehints` | request/response | `SaveHints` | |
-| `POST /api/update/apply` (installer mode) | request/response | `ApplyUpdate` + `StagedInstaller` | Answers with `installer` instead of `restarting`: the daemon stages a verified installer and the shell runs it over IPC (`companion:runInstaller`), because quitting the app being replaced is not something a process inside it can do |
 | `GET /api/history` | request/response | `History` / `RefreshHistory` (history.go) | Backs Activity **and** Conflicts — one merged read of every linked world's version list, filtered two ways. `?refresh=1` skips the 20s cache. Read only while one of those tabs is open |
 | `GET /api/browse` | request/response | (browse.go) | Folder browser for the web page (native picker replaces it in Electron) |
 | `GET /api/savepath/split` | request/response | `SplitSavePath` | |
@@ -80,6 +79,11 @@ Routes as of this inventory (`companion/server.go`, all under
 | `POST /api/links/{worldID}/checkpoint` | request/response | `Checkpoint` | |
 | `POST /api/links/{worldID}/renew` | request/response | `Renew` | |
 | `POST /api/links/{worldID}/claim` | request/response | `Claim` | |
+<!-- Updates are the browser build's here. The Electron shell does not
+     use these routes and companiond does not watch for updates when it
+     runs inside it: electron-updater owns that, because what gets
+     replaced is the application companiond lives inside. See
+     companion-desktop/src/updater.ts. -->
 | `POST /api/update/check` | request/response | `CheckUpdate` | |
 | `POST /api/update/apply` | request/response | `ApplyUpdate` + `RestartAfterUpdate` | Response is written before the process restarts |
 | `GET /healthz` | request/response | — | **Added in Phase 1.** Liveness only (`{ok, version}`), and the one route outside the bearer check: a shell polls it before it has proven anything |

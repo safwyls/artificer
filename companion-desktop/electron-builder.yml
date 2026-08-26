@@ -30,6 +30,29 @@ files:
   # The window and tray icons are loaded from inside the asar at runtime
   # (src/main.ts iconPath), so the image has to travel with the app.
   - build/icon.png
+  # electron-updater is required at runtime, so it has to be in the
+  # package. electron-builder filters this to production dependencies —
+  # the devDependencies above (electron itself, its builder, tsc) are
+  # never copied.
+  - node_modules/**/*
+
+# Where the app looks for updates, and what electron-builder writes the
+# update manifest (latest.yml) for.
+#
+# `generic` against the rolling tag's download URL, not the `github`
+# provider — deliberately. The GitHub provider enumerates the
+# repository's releases and picks the newest, and this repository
+# publishes *two* rolling releases: this app's and the browser-and-tray
+# companion's `companion-latest`. It would happily offer one product's
+# release as an update to the other. A fixed tag makes the download URLs
+# stable, so pointing straight at them names exactly one release forever.
+publish:
+  provider: generic
+  url: https://github.com/safwyls/artificer/releases/download/reliquary-companion-latest
+  # Nothing is signed, so there is no publisher name to check a
+  # downloaded installer against. The release's own sha256 manifest is
+  # still published beside it for anyone verifying by hand.
+  # (electron-updater verifies the blockmap/size regardless.)
 
 # The companiond binary for the platform being packaged, staged ahead of
 # time by `npm run build:daemon` (see README.md). electron-builder places

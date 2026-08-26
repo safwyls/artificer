@@ -8,12 +8,18 @@
 
 import { app, BrowserWindow, Tray, Menu, dialog, shell, ipcMain, Notification, nativeImage, session, Session } from "electron";
 import * as path from "node:path";
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
 import { spawnDaemon, waitForHealthy, killDaemon, DaemonHandle } from "./daemon";
 import { setAutostart, getAutostart } from "./autostart";
 import { IPC } from "./ipc-contract";
 import { watchEvents, SSEHandle } from "./sse";
+import {
+  checkForUpdate,
+  checkOnStartup,
+  downloadUpdate,
+  initUpdater,
+  installUpdate,
+  updateStatus,
+} from "./updater";
 import { NotifyPolicyState, StateSnapshot } from "./notifications";
 
 let daemon: DaemonHandle | null = null;
@@ -314,6 +320,11 @@ function createWindow() {
     });
   }
 
+  // Updates are the shell's job (updater.ts): companiond does not watch
+  // for them, because the thing replaced is the application it is inside.
+  initUpdater(mainWindow, log);
+  checkOnStartup();
+
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
   });
@@ -390,37 +401,15 @@ function registerIpcHandlers() {
     return getAutostart(app);
   });
 
-  /**
-   * Run a staged installer and get out of its way.
-   *
-   * The daemon downloads and verifies it (companion/update.go's
-   * UpdateInstalls mode) but cannot run it: companiond is a file inside
-   * the application the installer replaces, and on Windows a running
-   * executable cannot be overwritten. So the shell starts it detached,
-   * unreferenced from this process, and quits — the installer then finds
-   * nothing of ours holding a file open.
-   *
-   * Quitting is the last thing, and only once the child is actually
-   * spawned: exiting first would leave the player with no app and no
-   * installer running.
-   */
-  ipcMain.handle(IPC.runInstaller, async (_event, installerPath: string) => {
-    if (!installerPath || !existsSync(installerPath)) {
-      throw new Error(`the installer is not where the daemon left it (${installerPath})`);
-    }
-    const child = spawn(installerPath, [], { detached: true, stdio: "ignore" });
-    await new Promise<void>((resolve, reject) => {
-      // "spawn" fires once the process is actually running; "error"
-      // covers the cases spawn() reports asynchronously, which is most
-      // of them.
-      child.once("spawn", () => resolve());
-      child.once("error", (err) => reject(err));
-    });
-    child.unref();
+  ipcMain.handle(IPC.checkForUpdate, () => checkForUpdate());
+  ipcMain.handle(IPC.updateStatus, () => updateStatus());
+  ipcMain.handle(IPC.downloadUpdate, () => downloadUpdate());
+  ipcMain.handle(IPC.installUpdate, async () => {
     // The daemon goes down with us through the usual will-quit path, so
-    // the installer is not racing a live companiond either.
-    quitting = true;
-    app.quit();
+    // the installer is not racing a live companiond for its files.
+    installUpdate(() => {
+      quitting = true;
+    });
   });
 }
 
