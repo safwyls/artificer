@@ -80,7 +80,7 @@ export function ConflictsTab({
           </p>
           {worlds.map((w) => (
             <section key={w.worldId} className="flex flex-col gap-2">
-              <h3 className="font-mono text-[10px] uppercase tracking-[0.12em] text-gold">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gold">
                 {w.name || "world #" + w.worldId} · {w.entries.length}
               </h3>
               <HistoryCard>

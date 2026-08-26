@@ -60,7 +60,7 @@ export function ActivityTab({
         <div className="flex flex-col gap-4">
           {days.map((day) => (
             <section key={day.label} className="flex flex-col gap-2">
-              <h3 className="font-mono text-[10px] uppercase tracking-[0.12em] text-mist">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-mist">
                 {day.label} · {day.entries.length}
               </h3>
               <HistoryCard>

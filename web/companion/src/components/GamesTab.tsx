@@ -70,7 +70,7 @@ function Section({ label, count, sub, gold, children }: {
       <div className="flex flex-wrap items-baseline gap-3">
         <h2
           className={cn(
-            "font-mono text-[10px] uppercase tracking-[0.12em]",
+            "text-[11px] font-semibold uppercase tracking-[0.12em]",
             gold ? "text-gold" : "text-mist",
           )}
         >

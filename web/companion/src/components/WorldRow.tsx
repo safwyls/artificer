@@ -165,7 +165,7 @@ export function WorldRow({
       </div>
 
       {meta.length ? (
-        <div className="text-right font-mono text-[11px] leading-[1.5] text-mist">
+        <div className="text-right text-[11.5px] leading-[1.5] text-mist">
           {meta.map((m) => (
             <div key={m}>{m}</div>
           ))}

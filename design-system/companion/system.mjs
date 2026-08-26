@@ -58,7 +58,9 @@ ${vaultKit}
 .vk-footer-last { margin-left: auto; }
 
 .vk-section { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
-.vk-section-h { margin: 0; font-size: 12px; font-weight: normal; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--gold)); }
+/* A label, not machine data — so the interface face, and heavy enough
+   to carry uppercase at this size. */
+.vk-section-h { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--gold)); }
 .vk-section-hint { font-size: 12px; font-style: italic; color: rgb(var(--mist)); }
 .vk-section-acts { margin-left: auto; display: flex; gap: 8px; }
 
@@ -413,25 +415,34 @@ export default {
         {
           slug: "typography",
           name: "Type",
-          subtitle: "Georgia, and mono for anything about this machine",
+          subtitle: "Three faces, and what each one is for",
           viewport: { width: 900, height: 700 },
-          intent: `The vault's type scale, with one role the service does not have: a
-            <b>filesystem path</b>. Paths are mono and shown in full, never truncated to an
-            ellipsis — the folder is the one thing on the page that is about this machine
-            rather than the world, and it is the thing a player checks when a save goes to the
-            wrong place.`,
+          intent: `Three faces, and the split is what each is <i>for</i> rather than where it
+            happens to be.
+            <br><br>
+            <b>Sans is the interface</b> and the page's default: counts, hints, captions,
+            labels, sizes, dates — the small text there is a lot of. <b>Georgia is the
+            vault's voice</b>: world names, game titles, headings, buttons, the mark. A world
+            called Ashwood Hollow is the app talking; "16 games installed, 1 linked" is the
+            app reporting.
+            <br><br>
+            <b>Mono is for what you compare character by character</b>: filesystem paths,
+            build hashes, hostnames. That rule used to read "anything about this machine",
+            which swept in labels, sizes and dates and left them at 10-11px in a face that
+            smears at that size. A path is still shown in full and never truncated to an
+            ellipsis — it is the thing a player checks when a save goes to the wrong place.`,
           specimens: [
             {
               stage: "block",
               caption: "Scale",
               html: [
                 typeRow("heading · 21px / 0.05em / gold", `<span class="vk-header-name">No worlds on this machine yet</span>`),
-                typeRow("section · 12px / 0.12em / caps", `<span class="vk-section-h">Linked worlds</span>`),
+                typeRow("section · 11px / 600 / 0.12em / caps", `<span class="vk-section-h">Linked worlds</span>`),
                 typeRow("world name · 16px / bold", `<span class="vk-worldrow-name">Ashwood Hollow</span>`),
                 typeRow("body · 15px", `Everything the app says in a sentence.`),
                 typeRow("secondary · 13px / mist", `<span style="font-size:13px;color:rgb(var(--mist))">until 21:14 · save is on this machine</span>`),
                 typeRow("hint · 12px / italic / mist", `<span class="vk-section-hint">nothing here yet — link a game from the shelf</span>`),
-                typeRow("path · 11px / mono, never truncated", `<span class="vk-dir">C:\\Users\\hazel\\AppData\\Local\\Dragonwilds\\Saved\\SaveGames\\AshwoodHollow</span>`),
+                typeRow("path · 12px / mono, never truncated", `<span class="vk-dir">C:\\Users\\hazel\\AppData\\Local\\Dragonwilds\\Saved\\SaveGames\\AshwoodHollow</span>`),
                 typeRow("builds · 11px / mono", `<span class="vk-footer" style="border:0;padding:0">companion v0.9.4 · service v1.9.2</span>`),
               ].join("\n"),
             },

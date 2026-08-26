@@ -74,7 +74,7 @@ export function DiagnosticsDialog({
           Nothing here is needed to use the companion. It is what a bug report needs.
         </p>
 
-        <div className="mt-3 font-mono text-[11px] text-mist">
+        <div className="mt-3 font-mono text-[12px] text-parchment/80">
           companion {state.version || "dev"}
           {state.sync?.serverVersion
             ? ` · service ${state.sync.serverVersion}`
@@ -83,13 +83,13 @@ export function DiagnosticsDialog({
               : ""}
         </div>
         {state.hostname ? (
-          <div className="font-mono text-[11px] text-mist">machine: {state.hostname}</div>
+          <div className="font-mono text-[12px] text-parchment/80">machine: {state.hostname}</div>
         ) : null}
         {state.sync?.lastAction ? (
-          <div className="font-mono text-[11px] text-mist">last action: {state.sync.lastAction}</div>
+          <div className="text-[12px] text-mist">last action: {state.sync.lastAction}</div>
         ) : null}
         {state.sync?.lastError ? (
-          <div className="font-mono text-[11px] text-ember">last error: {state.sync.lastError}</div>
+          <div className="text-[12px] text-ember">last error: {state.sync.lastError}</div>
         ) : null}
 
         <div className="mt-3 rounded border border-edge bg-ink px-2.5 py-2">
@@ -106,13 +106,13 @@ export function DiagnosticsDialog({
           {links.length ? (
             <ul className="mt-1 flex flex-col gap-1">
               {links.map((l) => (
-                <li key={l.worldId} className="break-all font-mono text-[11px] text-mist">
+                <li key={l.worldId} className="break-all font-mono text-[12px] text-mist">
                   #{l.worldId} → {l.dir}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-1 font-mono text-[11px] text-mist">nothing linked on this machine</p>
+            <p className="mt-1 text-[12px] text-mist">nothing linked on this machine</p>
           )}
         </div>
 

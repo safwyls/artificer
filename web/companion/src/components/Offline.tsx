@@ -47,7 +47,7 @@ export function QueuedToSend({ queue }: { queue: QueuedWork[] }) {
   if (!queue.length) return null;
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="font-mono text-[10px] uppercase tracking-[0.12em] text-mist">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-mist">
         Queued to send · {queue.length}
       </h2>
       <div className="overflow-hidden rounded-panel border border-edge bg-panel text-[13px] [&>*+*]:border-t [&>*+*]:border-edge">
