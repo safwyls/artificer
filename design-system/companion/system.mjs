@@ -44,7 +44,7 @@ ${vaultKit}
 .vk-header .vk-i--xl { width: 24px; height: 24px; color: rgb(var(--gold)); stroke-width: 1.3; }
 /* The one large gold heading. It was the header bar's name; the header
    bar is gone, and the empty state (NoWorlds.tsx) is what wears it now. */
-.vk-header-name { font-size: 21px; letter-spacing: 0.05em; color: rgb(var(--gold)); }
+.vk-header-name { font-family: var(--voice); font-size: 21px; letter-spacing: 0.05em; color: rgb(var(--gold)); }
 .vk-header-tag { font-size: 11px; color: rgb(var(--mist)); }
 .vk-header-right { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .vk-conn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
@@ -83,7 +83,7 @@ ${vaultKit}
 .vk-tile-cap { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px; }
 .vk-tile-capmain { min-width: 0; flex: 1; }
 /* Two lines, no ellipsis: a truncated title is not a title. */
-.vk-tile-name { font-size: 13px; line-height: 1.25; color: rgb(var(--parchment)); }
+.vk-tile-name { font-family: var(--voice); font-size: 13px; line-height: 1.25; color: rgb(var(--parchment)); }
 .vk-tile-note { margin-top: 3px; font-size: 11.5px; line-height: 1.2; color: rgb(var(--mist)); }
 .vk-tile-note--linked { color: rgb(var(--goldhi)); }
 .vk-tile-link { white-space: nowrap; font-size: 11.5px; color: rgb(var(--goldhi)); }
@@ -92,7 +92,7 @@ ${vaultKit}
 /* One row serves both views, so a conflict is recognisable wherever it
    turns up rather than only in the tab named after it. */
 .vk-hrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 18px; }
-.vk-hrow-world { font-size: 14px; color: rgb(var(--parchment)); }
+.vk-hrow-world { font-family: var(--voice); font-size: 14px; color: rgb(var(--parchment)); }
 .vk-hrow-who { font-size: 13px; color: rgb(var(--mist)); }
 .vk-hrow-who b { font-weight: 400; color: rgb(var(--parchment)); }
 .vk-hrow-meta { margin-left: auto; white-space: nowrap; font-family: var(--mono); font-size: 11px; color: rgb(var(--mist)); }
@@ -270,7 +270,7 @@ ${vaultKit}
 .vk-worldrow-art--dim { opacity: 0.75; }
 .vk-worldrow-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 5px; }
 .vk-worldrow-titlerow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
-.vk-worldrow-name { font-size: 17px; font-weight: 700; color: rgb(var(--parchment)); }
+.vk-worldrow-name { font-family: var(--voice); font-size: 17px; font-weight: 700; color: rgb(var(--parchment)); }
 .vk-worldrow-game { font-size: 12px; color: rgb(var(--rune)); }
 .vk-worldrow-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12.5px; color: rgb(var(--mist)); }
 .vk-worldrow-meta { text-align: right; font-family: var(--mono); font-size: 11px; line-height: 1.5; color: rgb(var(--mist)); }

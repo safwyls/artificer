@@ -21,7 +21,7 @@ export function OfflineBanner({
     <div className="flex items-start gap-3.5 rounded-panel border border-ember/50 bg-panel px-[18px] py-[15px]">
       <WifiOff className="mt-0.5 h-[17px] w-[17px] flex-none text-ember" strokeWidth={1.8} aria-hidden />
       <div className="flex-1">
-        <div className="text-[14.5px] text-parchment">Working offline — the vault is unreachable</div>
+        <div className="font-serif text-[14.5px] text-parchment">Working offline — the vault is unreachable</div>
         <div className="mt-[3px] text-[12.5px] text-mist">
           Keep playing the world you already hold. The hold stands until the vault answers again.
         </div>

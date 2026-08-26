@@ -152,7 +152,7 @@ export function WorldRow({
 
       <div className="flex min-w-0 flex-1 flex-col gap-[5px]">
         <div className="flex flex-wrap items-baseline gap-2.5">
-          <span className="text-[17px] font-bold text-parchment">
+          <span className="font-serif text-[17px] font-bold text-parchment">
             {world ? world.world.name : `world #${link.worldId}`}
           </span>
           {link.gameTitle ? <span className="text-[12px] text-rune">{link.gameTitle}</span> : null}

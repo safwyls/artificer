@@ -69,7 +69,7 @@ export function Login() {
       >
         <div className="mb-3.5 flex flex-col items-center gap-1.5">
           <RelicMark className="h-8 w-8 text-gold" />
-          <div className="text-[22px] tracking-[0.06em] text-gold">Reliquary</div>
+          <div className="font-serif text-[22px] tracking-[0.06em] text-gold">Reliquary</div>
           <div className="text-[13px] text-mist">Sign in to the vault.</div>
         </div>
 

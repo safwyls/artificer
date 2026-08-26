@@ -10,7 +10,7 @@ export function Toaster() {
       toastOptions={{
         classNames: {
           toast:
-            "!bg-panel !border !border-edge !text-parchment !font-serif !rounded !text-[13px]",
+            "!bg-panel !border !border-edge !text-parchment !rounded !text-[13px]",
           description: "!text-mist",
           success: "!border-ok/50",
           error: "!border-ember/60",

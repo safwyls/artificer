@@ -59,7 +59,7 @@ export const GameTile = memo(function GameTile({
       <div className="flex items-center gap-2 px-2.5 pb-2.5 pt-2">
         <div className="min-w-0 flex-1">
           {/* Two lines, no ellipsis: a truncated title is not a title. */}
-          <div className="line-clamp-2 text-[13px] leading-[1.25] text-parchment">{label}</div>
+          <div className="line-clamp-2 font-serif text-[13px] leading-[1.25] text-parchment">{label}</div>
           <div
             className={cn("mt-[3px] text-[11.5px] leading-tight", linked ? "text-goldhi" : "text-mist")}
           >

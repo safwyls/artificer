@@ -1,7 +1,12 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { api, errorText } from "../lib/api";
-import { getAutostart, setAutostart } from "../lib/runtime";
+import {
+  getAutostart,
+  getStartMinimized,
+  setAutostart,
+  setStartMinimized,
+} from "../lib/runtime";
 import { useRefreshState, useSeededField } from "../lib/state";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -39,6 +44,7 @@ export function SettingsTab({
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [autostart, setAutostartState] = useState<boolean | undefined>(undefined);
+  const [minimized, setMinimizedState] = useState<boolean | undefined>(undefined);
   const launchOnCheckout = state.config?.launchOnCheckout ?? true;
 
   // Only the shell can answer this, and only some shells can. `undefined`
@@ -47,6 +53,7 @@ export function SettingsTab({
   useEffect(() => {
     let live = true;
     getAutostart().then((v) => live && setAutostartState(v));
+    getStartMinimized().then((v) => live && setMinimizedState(v));
     return () => {
       live = false;
     };
@@ -183,6 +190,34 @@ export function SettingsTab({
               <span className="mt-0.5 block text-[12px] italic text-mist">
                 A hold you forgot about expires whether the companion is running or not — but only a
                 running companion can warn you first.
+              </span>
+            </span>
+          </label>
+        ) : null}
+
+        {minimized !== undefined ? (
+          <label className="mt-2 flex items-start gap-2.5 text-[14px]">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={minimized}
+              onChange={async (e) => {
+                const want = e.target.checked;
+                setMinimizedState(want);
+                if (!(await setStartMinimized(want))) {
+                  setMinimizedState(!want);
+                  toast.error("this build could not change that setting");
+                  return;
+                }
+                const actual = await getStartMinimized();
+                if (actual !== undefined) setMinimizedState(actual);
+              }}
+            />
+            <span>
+              Start minimized to the tray
+              <span className="mt-0.5 block text-[12px] italic text-mist">
+                Signing in already opens it quietly. This is for the rest of the time — the
+                companion is a thing that runs, not a thing you look at.
               </span>
             </span>
           </label>

@@ -42,6 +42,8 @@ const IPC = {
   downloadUpdate: "companion:downloadUpdate",
   installUpdate: "companion:installUpdate",
   updateStatus: "companion:updateStatus",
+  getStartMinimized: "companion:getStartMinimized",
+  setStartMinimized: "companion:setStartMinimized",
 } as const;
 
 /** Must match UpdateStatus.channel in ipc-contract.ts, for the same
@@ -63,6 +65,8 @@ const bridge: CompanionBridge = {
   downloadUpdate: () => ipcRenderer.invoke(IPC.downloadUpdate),
   installUpdate: () => ipcRenderer.invoke(IPC.installUpdate),
   updateStatus: () => ipcRenderer.invoke(IPC.updateStatus),
+  getStartMinimized: () => ipcRenderer.invoke(IPC.getStartMinimized),
+  setStartMinimized: (enabled: boolean) => ipcRenderer.invoke(IPC.setStartMinimized, enabled),
   onUpdateStatus: (fn: (s: UpdateStatus) => void) => {
     // The listener is wrapped rather than passed through: what arrives
     // from main carries an IpcRendererEvent the page has no business

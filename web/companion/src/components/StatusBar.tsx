@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import type { CompanionState } from "../lib/types";
 
 /**
@@ -31,12 +32,19 @@ export function StatusBar({
   return (
     <footer className="flex flex-none items-center gap-4 border-t border-edge bg-well px-7 py-2.5 text-[12px] text-mist">
       <span>{left}</span>
+      {/* An icon, not a word. It is the least important control in the
+          window — everything here is for a bug report — and a gold link
+          in the corner competed with the status line beside it for the
+          same glance. The name survives where a control with no text has
+          to keep it: the label and the tooltip. */}
       <button
         type="button"
         onClick={onDiagnostics}
-        className="ml-auto rounded-[3px] text-[12px] text-goldhi hover:text-gold hover:underline"
+        aria-label="Diagnostics"
+        title="Diagnostics"
+        className="ml-auto rounded-[3px] text-mist transition-colors hover:text-goldhi"
       >
-        Diagnostics
+        <Info className="h-4 w-4" aria-hidden />
       </button>
     </footer>
   );

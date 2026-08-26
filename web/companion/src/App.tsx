@@ -160,7 +160,10 @@ export function App() {
           Above `main` rather than inside a tab, because it is the only
           place the update can be acted on: a banner that shows on
           Worlds and nowhere else is unreachable from Settings. */}
-      <div className="flex-none empty:hidden [&>*]:px-7 [&>*]:pt-4">
+      {/* Padding on the container, not on the banner. `[&>*]:px-7` put
+          it on the banner's own box, which is not a margin — it made the
+          banner full-bleed with roomier insides. */}
+      <div className="flex-none px-7 pb-1 pt-4 empty:hidden">
         <PanelBoundary name="update">
           <UpdateBanner update={state.update} />
         </PanelBoundary>

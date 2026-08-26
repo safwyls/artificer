@@ -55,7 +55,7 @@ export function LinkedGameDialog({
       <DialogContent>
         <div className="flex items-center gap-3">
           <CoverArt art={art} game={game} variant="thumb" />
-          <DialogTitle className="text-[17px] font-bold normal-case tracking-normal text-goldhi">
+          <DialogTitle className="font-serif text-[17px] font-bold normal-case tracking-normal text-goldhi">
             {game.name}
           </DialogTitle>
         </div>
