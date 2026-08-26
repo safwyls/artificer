@@ -508,7 +508,15 @@ func (a *App) ResolveSavePath(root, leaf string, create bool) (dir string, exist
 
 // CheckUpdate asks GitHub now rather than waiting for the timer, and
 // answers with what it learned.
+//
+// A build whose updates are handled elsewhere does not ask at all, and
+// says so: the release track this package knows about is the browser
+// build's, and answering from it would be a true statement about the
+// wrong product.
 func (a *App) CheckUpdate(ctx context.Context) UpdateState {
+	if UpdatesExternal {
+		return UpdateState{Supported: false, Why: errUpdatesExternal.Error()}
+	}
 	a.checkUpdate(ctx)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -525,7 +533,12 @@ func (a *App) UpdateStatus() UpdateState {
 // ApplyUpdate replaces this binary in place. It does not restart —
 // RestartAfterUpdate does, and the caller decides when, because a shell
 // with a window and a tray has things to tear down first.
-func (a *App) ApplyUpdate(ctx context.Context) error { return a.applyUpdate(ctx) }
+func (a *App) ApplyUpdate(ctx context.Context) error {
+	if UpdatesExternal {
+		return errUpdatesExternal
+	}
+	return a.applyUpdate(ctx)
+}
 
 // RestartAfterUpdate launches the replacement and ends this process
 // through ExitForRestart, which an entrypoint with a tray replaces so no
