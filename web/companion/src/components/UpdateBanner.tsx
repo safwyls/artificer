@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api, errorText } from "../lib/api";
+import { fmtBytes } from "../lib/format";
 import { shellUpdater, type ShellUpdate } from "../lib/runtime";
 import { useRefreshState } from "../lib/state";
 import { Button } from "./ui/button";
@@ -75,10 +76,12 @@ function ShellBanner({ shell }: { shell: NonNullable<ReturnType<typeof shellUpda
       version={status.version}
       detail={
         status.state === "downloading"
-          ? ` — downloading${status.percent ? `, ${status.percent}%` : ""}…`
-          : status.state === "error"
-            ? ` — ${status.why ?? "the update could not be downloaded"}`
-            : " — it installs over this one and reopens."
+          ? ` — downloading ${downloaded(status)}…`
+          : status.state === "ready" && status.total
+            ? ` — ${fmtBytes(status.total)} downloaded; it installs over this one and reopens.`
+            : status.state === "error"
+              ? ` — ${status.why ?? "the update could not be downloaded"}`
+              : " — it installs over this one and reopens."
       }
       action={
         status.state === "ready" ? "Install and reopen" : busy ? "Downloading…" : "Download update"
@@ -87,6 +90,21 @@ function ShellBanner({ shell }: { shell: NonNullable<ReturnType<typeof shellUpda
       onAct={act}
     />
   );
+}
+
+/**
+ * How much of the update has arrived.
+ *
+ * The size is shown rather than a bare percentage because it is the only
+ * way to see whether the download was differential: an update that pulls
+ * the whole ~82MB installer behaves exactly like one that pulls two
+ * megabytes, and there is no other place that difference surfaces.
+ */
+function downloaded(status: ShellUpdate): string {
+  const pct = status.percent ? `${status.percent}%` : "";
+  if (!status.total) return pct || "…";
+  const of = `${fmtBytes(status.transferred ?? 0)} of ${fmtBytes(status.total)}`;
+  return pct ? `${pct} — ${of}` : of;
 }
 
 /** The browser build: the daemon replaces its own exe and restarts. */
