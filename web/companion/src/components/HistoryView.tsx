@@ -38,16 +38,16 @@ export function HistoryRow({
         {kindOf(entry)}
       </span>
       {entry.conflict ? (
-        <span className="rounded-[3px] border border-ember/50 px-1.5 py-px font-mono text-[10px] uppercase tracking-[0.08em] text-ember">
+        <span className="rounded-[3px] border border-ember/50 px-1.5 py-px text-[11px] font-semibold uppercase tracking-[0.08em] text-ember">
           conflict
         </span>
       ) : null}
       {entry.head ? (
-        <span className="rounded-[3px] border border-gold/50 px-1.5 py-px font-mono text-[10px] uppercase tracking-[0.08em] text-gold">
+        <span className="rounded-[3px] border border-gold/50 px-1.5 py-px text-[11px] font-semibold uppercase tracking-[0.08em] text-gold">
           current
         </span>
       ) : null}
-      <span className="ml-auto whitespace-nowrap font-mono text-[11px] text-mist">
+      <span className="ml-auto whitespace-nowrap text-[11.5px] text-mist">
         v{entry.versionId} · {fmtBytes(entry.bytes)} · {fmtWhen(entry.createdAt)}
       </span>
     </div>

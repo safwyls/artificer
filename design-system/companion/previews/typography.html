@@ -1,4 +1,4 @@
-<!-- @dsCard group="Foundations" name="Type" subtitle="Georgia, and mono for anything about this machine" width="900" height="700" -->
+<!-- @dsCard group="Foundations" name="Type" subtitle="Three faces, and what each one is for" width="900" height="700" -->
 <!doctype html>
 <html lang="en">
   <head>
@@ -242,7 +242,9 @@
       .vk-footer-last { margin-left: auto; }
       
       .vk-section { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
-      .vk-section-h { margin: 0; font-size: 12px; font-weight: normal; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--gold)); }
+      /* A label, not machine data — so the interface face, and heavy enough
+         to carry uppercase at this size. */
+      .vk-section-h { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: rgb(var(--gold)); }
       .vk-section-hint { font-size: 12px; font-style: italic; color: rgb(var(--mist)); }
       .vk-section-acts { margin-left: auto; display: flex; gap: 8px; }
       
@@ -489,24 +491,33 @@
     <header class="ds-head">
       <p class="ds-eyebrow">Artificer Companion · Foundations</p>
       <h1 class="ds-title">Type</h1>
-      <p class="ds-sub">Georgia, and mono for anything about this machine</p>
-      <p class="ds-intent">The vault's type scale, with one role the service does not have: a
-            <b>filesystem path</b>. Paths are mono and shown in full, never truncated to an
-            ellipsis — the folder is the one thing on the page that is about this machine
-            rather than the world, and it is the thing a player checks when a save goes to the
-            wrong place.</p>
+      <p class="ds-sub">Three faces, and what each one is for</p>
+      <p class="ds-intent">Three faces, and the split is what each is <i>for</i> rather than where it
+            happens to be.
+            <br><br>
+            <b>Sans is the interface</b> and the page's default: counts, hints, captions,
+            labels, sizes, dates — the small text there is a lot of. <b>Georgia is the
+            vault's voice</b>: world names, game titles, headings, buttons, the mark. A world
+            called Ashwood Hollow is the app talking; "16 games installed, 1 linked" is the
+            app reporting.
+            <br><br>
+            <b>Mono is for what you compare character by character</b>: filesystem paths,
+            build hashes, hostnames. That rule used to read "anything about this machine",
+            which swept in labels, sizes and dates and left them at 10-11px in a face that
+            smears at that size. A path is still shown in full and never truncated to an
+            ellipsis — it is the thing a player checks when a save goes to the wrong place.</p>
     </header>
     <main class="ds-body">
       <section class="ds-specimen">
 <p class="ds-caption">Scale</p>
         <div class="ds-stage ds-stage--block">
           <div class="vk-type-row"><div class="vk-type-key">heading · 21px / 0.05em / gold</div><div><span class="vk-header-name">No worlds on this machine yet</span></div></div>
-          <div class="vk-type-row"><div class="vk-type-key">section · 12px / 0.12em / caps</div><div><span class="vk-section-h">Linked worlds</span></div></div>
+          <div class="vk-type-row"><div class="vk-type-key">section · 11px / 600 / 0.12em / caps</div><div><span class="vk-section-h">Linked worlds</span></div></div>
           <div class="vk-type-row"><div class="vk-type-key">world name · 16px / bold</div><div><span class="vk-worldrow-name">Ashwood Hollow</span></div></div>
           <div class="vk-type-row"><div class="vk-type-key">body · 15px</div><div>Everything the app says in a sentence.</div></div>
           <div class="vk-type-row"><div class="vk-type-key">secondary · 13px / mist</div><div><span style="font-size:13px;color:rgb(var(--mist))">until 21:14 · save is on this machine</span></div></div>
           <div class="vk-type-row"><div class="vk-type-key">hint · 12px / italic / mist</div><div><span class="vk-section-hint">nothing here yet — link a game from the shelf</span></div></div>
-          <div class="vk-type-row"><div class="vk-type-key">path · 11px / mono, never truncated</div><div><span class="vk-dir">C:\Users\hazel\AppData\Local\Dragonwilds\Saved\SaveGames\AshwoodHollow</span></div></div>
+          <div class="vk-type-row"><div class="vk-type-key">path · 12px / mono, never truncated</div><div><span class="vk-dir">C:\Users\hazel\AppData\Local\Dragonwilds\Saved\SaveGames\AshwoodHollow</span></div></div>
           <div class="vk-type-row"><div class="vk-type-key">builds · 11px / mono</div><div><span class="vk-footer" style="border:0;padding:0">companion v0.9.4 · service v1.9.2</span></div></div>
         </div>
       </section>
