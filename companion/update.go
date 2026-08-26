@@ -83,6 +83,28 @@ func updateRepo() string {
 // own tag so the two builds never replace each other.
 var UpdateTag = "companion-latest"
 
+// UpdatesExternal marks a build whose updates are somebody else's job.
+//
+// companiond is one file inside an installed application, and that
+// application updates itself (electron-updater, in the Electron shell).
+// This package's updater is for `cmd/companion`, which really is a
+// single exe that replaces itself, and it is pointed at *that* build's
+// release track.
+//
+// Set here, the update verbs refuse with a reason instead of quietly
+// asking about a different product. That is not hypothetical: with the
+// daemon's checker still reachable, the shell's Diagnostics button asked
+// GitHub for `companion-latest/companion-version.txt` — the browser
+// build's release — and reported what it found as this app's update. It
+// was true, about the wrong thing, and impossible to tell apart from a
+// real answer.
+var UpdatesExternal = false
+
+// errUpdatesExternal is what the verbs answer with. It names where the
+// ability actually lives, the way a console does for a game that cannot
+// support a feature.
+var errUpdatesExternal = errors.New("this companion does not update itself — the app it runs inside does")
+
 // UpdateAssets names the release asset per GOOS. The default names are
 // frozen: players hold links to them. An entrypoint shipping under its
 // own name replaces this map before starting the update watcher.

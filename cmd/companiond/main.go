@@ -88,6 +88,12 @@ func main() {
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	go app.WatchLoop()
+	// Updates belong to the shell, not to this daemon — and saying so
+	// is what stops the daemon's updater being asked by mistake. It
+	// knows about `cmd/companion`'s release track, so an answer from it
+	// would be about a different product entirely.
+	companion.UpdatesExternal = true
+
 	// No update watcher here, deliberately. This daemon is one file
 	// inside an installed application, and the application updates
 	// itself: the Electron shell runs electron-updater, which is the

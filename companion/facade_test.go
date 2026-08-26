@@ -7,6 +7,7 @@ package companion
 // custody poll into its fast mode the way the page's GET always has.
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -387,4 +388,44 @@ func mustLoad(t *testing.T, path string) Config {
 		t.Fatalf("parsing config: %v", err)
 	}
 	return cfg
+}
+
+// A daemon whose updates are handled elsewhere must refuse to answer,
+// not answer about something else.
+//
+// This is not hypothetical. companiond runs inside the Electron shell,
+// which updates itself; the engine's updater knows about `cmd/companion`'s
+// release track. With the verbs still live, the shell's "Check for
+// update" asked GitHub for `companion-latest/companion-version.txt` and
+// reported what it found — a true statement about the wrong product, and
+// indistinguishable from a real answer.
+func TestUpdatesHandledElsewhereAreRefused(t *testing.T) {
+	prev := UpdatesExternal
+	UpdatesExternal = true
+	t.Cleanup(func() { UpdatesExternal = prev })
+
+	a := NewApp(Config{}, filepath.Join(t.TempDir(), "config.json"))
+
+	st := a.CheckUpdate(context.Background())
+	if st.Available {
+		t.Error("offered an update from a release track this build does not ship on")
+	}
+	if st.Supported {
+		t.Error("reported that it can update itself when the app around it does that")
+	}
+	if st.Why == "" {
+		t.Error("refused without saying why; a reason is what points at where the ability lives")
+	}
+
+	if err := a.ApplyUpdate(context.Background()); err == nil {
+		t.Fatal("applied an update from another product's release track")
+	}
+}
+
+// The browser build is unaffected: it really is a single exe that
+// replaces itself, and this package is its updater.
+func TestTheBrowserBuildStillUpdatesItself(t *testing.T) {
+	if UpdatesExternal {
+		t.Fatal("UpdatesExternal defaults to true; cmd/companion would stop updating")
+	}
 }
