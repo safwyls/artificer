@@ -39,20 +39,25 @@ files:
 # Where the app looks for updates, and what electron-builder writes the
 # update manifest (latest.yml) for.
 #
-# `generic` against the rolling tag's download URL, not the `github`
-# provider — deliberately. The GitHub provider enumerates the
-# repository's releases and picks the newest, and this repository
-# publishes *two* rolling releases: this app's and the browser-and-tray
-# companion's `companion-latest`. It would happily offer one product's
-# release as an update to the other. A fixed tag makes the download URLs
-# stable, so pointing straight at them names exactly one release forever.
+# The GitHub provider resolves the repository's latest release and reads
+# latest.yml from it. Two properties make that safe in a monorepo:
+#
+#   - It runs every tag through semver.valid() and skips what does not
+#     parse (GitHubProvider.js: "skip non-semver tags (e.g. doc/website
+#     releases in monorepos)"). So `v0.2.0` is a companion release and
+#     nothing else in this repository is, as long as nothing else here
+#     ever publishes a bare semver tag. That is this app's tag namespace.
+#   - It resolves through /releases/latest, which excludes prereleases.
+#     The companion's releases are the only normal ones published here.
+#
+# Nothing is signed, so there is no publisher name for Windows to check a
+# downloaded installer against. The release's sha256 manifest is still
+# published for anyone verifying by hand, and electron-updater checks the
+# size and sha512 in latest.yml regardless.
 publish:
-  provider: generic
-  url: https://github.com/safwyls/artificer/releases/download/reliquary-companion-latest
-  # Nothing is signed, so there is no publisher name to check a
-  # downloaded installer against. The release's own sha256 manifest is
-  # still published beside it for anyone verifying by hand.
-  # (electron-updater verifies the blockmap/size regardless.)
+  provider: github
+  owner: safwyls
+  repo: artificer
 
 # The companiond binary for the platform being packaged, staged ahead of
 # time by `npm run build:daemon` (see README.md). electron-builder places

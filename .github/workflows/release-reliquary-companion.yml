@@ -1,13 +1,17 @@
 name: Release (Reliquary Companion)
 
-# Publishes the in-development Electron shell (companion-desktop/) as a
-# rolling prerelease, separate from the shipping browser-and-tray
-# companion's `companion-latest` release (release-companion.yml). Per
-# docs/reliquary-companion.md this app is gated on a real-machine parity
-# smoke before it cuts over — this workflow exists so CI, not a dev
-# machine, produces the per-platform companiond binary electron-builder
-# packages (companion-cutover.md Phase 5 item 3), not to announce the
-# cutover itself.
+# Publishes the Electron shell (companion-desktop/) as a versioned
+# release: a bare `v*` semver tag, which is what electron-updater's
+# GitHub provider resolves through /releases/latest. That tag shape is
+# this app's namespace in the repository — see docs/reliquary-companion.md.
+#
+# Separate from the browser-and-tray companion's `companion-latest`
+# (release-companion.yml), which is a rolling *prerelease* and therefore
+# invisible to /releases/latest. Per docs/reliquary-companion.md this app
+# is still gated on a real-machine parity smoke before it cuts over; this
+# workflow exists so CI, not a dev machine, produces the per-platform
+# companiond binary electron-builder packages (companion-cutover.md
+# Phase 5 item 3), not to announce the cutover itself.
 on:
   push:
     branches: [main]
@@ -18,7 +22,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # What version is this, and is it one that has not been published?
+  #
+  # companion-desktop/package.json is the source of truth: a release
+  # happens because someone bumped it, not because someone pushed. Pushes
+  # without a bump still build and test — they just do not publish, so the
+  # update banner means "there is something new" rather than "someone
+  # merged something".
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      release: ${{ steps.read.outputs.release }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Tags are how "already published" and "going backwards" are
+          # both answered, and a shallow clone has none of them.
+          fetch-depth: 0
+      - id: read
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./companion-desktop/package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "package.json says $version"
+
+          # Already published: nothing to do. This is the ordinary case
+          # for a push that did not touch the version.
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already released; building without publishing"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Versions only ever go up. An installed app updates by
+          # comparing versions, so a release numbered below one already
+          # out there is invisible to everyone who has that one — and
+          # unpublishing is not a thing. Refuse rather than discover it
+          # from a bug report.
+          highest=$(git tag --list 'v*' | sed 's/^v//' | sort -V | tail -n1)
+          if [ -n "$highest" ] && [ "$version" != "$(printf '%s\n%s\n' "$version" "$highest" | sort -V | tail -n1)" ]; then
+            echo "::error::package.json is $version but v$highest is already published — versions only go up"
+            exit 1
+          fi
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -70,14 +121,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p companion-desktop/resources
-          # Stamped with the same SHA the release's version manifest
-          # carries, the way deploy/reliquary/Dockerfile stamps the other
-          # companion. The updater compares its own stamp against that
-          # manifest to answer "am I running this build?" — a plain
-          # `go build` leaves it "dev", which never matches and so reads
-          # as permanently out of date.
+          # The daemon carries the *application's* version, so the two
+          # halves of one app do not report different things. Diagnostics
+          # shows this; a plain `go build` would leave it "dev".
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
-            go build -ldflags="-X main.version=${GITHUB_SHA::12}" \
+            go build -ldflags="-X main.version=${{ needs.version.outputs.version }}" \
               -o companion-desktop/resources/${{ matrix.daemon_name }} ./cmd/companiond
       # `main` is dist/main.js, which tsc produces — electron-builder
       # does not compile anything itself, it only packages what is on
@@ -96,22 +144,10 @@ jobs:
         # job. These are unsigned prereleases and the release notes say so.
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        # The version is synthesized here rather than kept in
-        # package.json, which stays 0.1.0 and never moves.
-        #
-        # electron-updater compares versions, not identities: it reads
-        # latest.yml's version against app.getVersion() and offers an
-        # update when the former is greater. A static 0.1.0 would compare
-        # equal on every release and no update would ever be seen. The
-        # run number is monotonic and needs nobody to remember to bump it.
-        #
-        # The commit SHA is still the honest identity of a build, and is
-        # still published in reliquary-companion-version.txt — that is
-        # what Diagnostics shows and what a bug report needs. This number
-        # exists so an updater can order two builds; it is not a claim
-        # that anything here is semantically versioned.
-        run: |
-          npx electron-builder ${{ matrix.builder_flag }} --publish never -c.extraMetadata.version=0.1.${{ github.run_number }}
+        # No version override: companion-desktop/package.json carries it,
+        # and the version job has already established that it is one that
+        # has not been published and is not going backwards.
+        run: npx electron-builder ${{ matrix.builder_flag }} --publish never
       - name: Collect artifacts
         shell: bash
         working-directory: companion-desktop/release
@@ -133,7 +169,11 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: build
+    needs: [version, build]
+    # Only when the version is one that has not been published. A push
+    # that did not bump it still built and tested above; it just has
+    # nothing to release.
+    if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -147,32 +187,42 @@ jobs:
           mkdir -p out
           find artifacts -type f -exec cp {} out/ \;
           ls -la out
-      # Same rationale as release-companion.yml's manifests: a fact the
-      # updater can read (identity + integrity), not prose to parse. The
-      # shell's updater reads both — the version manifest answers "am I
-      # running this build?" and the checksum manifest is what a
-      # downloaded installer is verified against before it is run.
+      # Build provenance, not update machinery: the updater reads
+      # latest.yml and the sha512 in it, and neither of these. They
+      # answer "which commit is this build" and "did my download arrive
+      # intact", both of which a bug report and a careful player want.
       - name: Version and checksum manifests
         run: |
           printf '%s' "${GITHUB_SHA::12}" > out/reliquary-companion-version.txt
           ( cd out && sha256sum * > reliquary-companion-sha256.txt )
           cat out/reliquary-companion-version.txt out/reliquary-companion-sha256.txt
-      - name: Rolling reliquary-companion-latest release
+      - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: reliquary-companion-latest
-          name: Reliquary Companion (latest, in development)
+          # A bare semver tag, because that is the only shape
+          # electron-updater's GitHub provider will look at: it runs
+          # every tag through semver.valid() and skips what does not
+          # parse. `v*` is therefore this app's tag namespace in this
+          # repository, and nothing else here may publish one.
+          tag_name: v${{ needs.version.outputs.version }}
+          name: Reliquary Companion v${{ needs.version.outputs.version }}
           body: |
-            **This is the in-development Electron shell, not the shipping companion.**
-            The Artificer Companion (`companion-latest`) remains the supported
-            player-side client until this shell passes the real-machine parity
-            checklist in `docs/reliquary-companion.md` and cuts over. Nothing
-            here is gated behind that checklist being complete — treat these
-            builds as pre-release and untested on real hardware beyond the
-            Linux CI runner.
+            The Reliquary Companion — the player-side client for save sync.
 
-            Rebuilt from every push to main; the commit this build came from
-            is ${{ github.sha }}.
-          prerelease: true
+            **Windows and Linux update themselves** from this release track:
+            the app checks it, downloads only what changed, and installs.
+            **macOS does not** — these builds are unsigned, and macOS
+            verifies a signature before replacing an app, so the .dmg is
+            installed by hand.
+
+            Nothing here is signed, so Windows SmartScreen will warn on
+            first run. `reliquary-companion-sha256.txt` is published beside
+            the installers for anyone verifying a download, and
+            `reliquary-companion-version.txt` names the commit this build
+            came from: ${{ github.sha }}.
+          # Not a prerelease: this is what electron-updater resolves
+          # through /releases/latest, which excludes them. Marking it one
+          # would make the app unable to find its own updates.
+          prerelease: false
           files: |
             out/*

@@ -46,12 +46,19 @@ test("the window title is the packaged productName", () => {
 test("package.json was not left rewritten by a packaging run", () => {
   const pkg = JSON.parse(read("package.json"));
 
-  // The synthesized version only ever exists inside a package; the
-  // source tree's is the placeholder that never moves.
-  assert.strictEqual(
+  // Not compared against a fixed number: package.json's version is the
+  // source of truth now and moves on purpose. What a rewritten one loses
+  // is the rest of the file — scripts and devDependencies go entirely,
+  // which is both the louder signal and the one that actually breaks
+  // things.
+  //
+  // The version is still checked for *shape*: the updater compares
+  // versions with semver, so one it cannot parse means an app that can
+  // never find its own updates.
+  assert.match(
     pkg.version,
-    "0.1.0",
-    "package.json carries a packaged version — a packaging run rewrote it and did not put it back",
+    /^\d+\.\d+\.\d+$/,
+    `package.json version "${pkg.version}" is not plain semver, so electron-updater cannot order it`,
   );
   for (const script of ["build", "test", "package", "smoke"]) {
     assert.ok(pkg.scripts?.[script], `package.json lost its "${script}" script`);

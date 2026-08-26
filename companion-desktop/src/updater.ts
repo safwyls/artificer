@@ -65,9 +65,13 @@ export function initUpdater(win: BrowserWindow, log: (...args: unknown[]) => voi
   if (!canUpdate) return;
 
   autoUpdater.autoDownload = false;
-  // The release track is a rolling prerelease, which is the only kind
-  // this app has ever published.
-  autoUpdater.allowPrerelease = true;
+  // Left at the default, false, which is what makes the GitHub provider
+  // resolve through /releases/latest — the endpoint that excludes
+  // prereleases. This app publishes normal, semver-tagged releases and
+  // nothing else in this repository does, so that names exactly one
+  // thing. `allowPrerelease` would instead walk the whole releases list,
+  // which is where another product's rolling prerelease could turn up.
+  autoUpdater.allowPrerelease = false;
   // Unsigned builds: there is no publisher name for Windows to check a
   // downloaded installer against, and refusing to install our own
   // release helps nobody. The blockmap and size checks still apply.
